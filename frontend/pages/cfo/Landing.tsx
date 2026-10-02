@@ -665,13 +665,13 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
           : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(75,191,168,.55)">${L.hero.ctaStart}</a>
         <a href="/login?next=/" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">${L.hero.ctaSignIn}</a>`}
       </div>
-      <div style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
+      <div data-hero-mock="card" style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
         <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
           <span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span><span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span><span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span>
           <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.hero.mockTitle}</span>
         </div>
         <div class="mock-grid" style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
-          <div class="mock-kpis" data-hero-mock style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
+          <div class="mock-kpis" data-hero-mock="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
             ${L.hero.mock.kpis.map((k) => `
             <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">${k.label}</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">${k.value}${k.unit ? `<span style="font-size:18px;color:var(--ink-soft)">${k.unit}</span>` : ""}</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">${k.sub}</div></div>`).join("")}
           </div>

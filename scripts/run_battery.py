@@ -2542,10 +2542,23 @@ def _frontend_gates() -> List[Gate]:
               "frontend/lib/__tests__/landingProof.test.tsx",
               "frontend/lib/__tests__/shippedClaimsMatchCode.test.ts",
               "--reporter=verbose"],
-             work_rx=r"GATE-WORK landing-proof figures=(\d+)", floor=900,
-             units="figures and copy lines held to the proof",
+             # measured 4,365 on 2026-10-02 (L12 reads every text node of five
+             # rendered pages in two languages, and 1,500 raw copy lines)
+             work_rx=r"GATE-WORK landing-proof figures=(\d+)", floor=3500,
+             units="figures, text nodes and copy lines held to the proof",
              no_skips=True,
              canaries=("L1 carries five dated checks, each saying what is checked, in both languages",
+                       # L12 (2026-10-02, the third review): the RENDERED text of
+                       # the landing, /pricing, /signup, /sample and
+                       # /contact-sales, and the raw copy behind them
+                       "L12 no accuracy number is rendered outside the proof block unless a proof token supplied it",
+                       "L12 no accuracy claim is typed into a string table, a dictionary or a plan bullet",
+                       "L12 the detector: the sentences a verifier typed are claims; the copy's own sentences are not",
+                       # L6 and L11 could be un-registered with the gate green
+                       # until 2026-10-02: a law that is not a canary is removable
+                       "L6 no token reaches a reader",
+                       "L6 every token resolves in both languages",
+                       "L11 a sentence about your own file promises only the two checks that run on every file",
                        "L9 a caption uses only its own check's tokens, and leads with that check's held / examined",
                        "L10 quotes no speed and no ratio count on any public surface",
                        "L1 names no company and publishes no company's figure",

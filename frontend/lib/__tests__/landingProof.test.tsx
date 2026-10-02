@@ -55,7 +55,27 @@
 //       books. No gate read the sentence: "Your own file is guaranteed to
 //       reconcile exactly" was planted and passed.
 //
+//   L12 THE RENDERED PAGES (2026-10-02, the third review). L3–L5 read the
+//       proof block and the landing's string table. A verifier typed an
+//       accuracy claim into the landing's MARKUP above the proof block, as
+//       a number WORD ("all nine real books"), in words outside the fixed
+//       vocabulary ("Tested on 40 real company books, all correct"), and on
+//       /pricing, /signup and /sample — every gate printed PASS. L12 mounts
+//       the landing, /pricing, /signup, /sample and /contact-sales in both
+//       languages and reads EVERY TEXT NODE (a TreeWalker): outside the
+//       proof block, the coverage table and the hero's illustrative mock,
+//       no percentage, no "N of M", and no digit or number word beside
+//       books / balanțe / fixtures / tested / verified / correct / accurate
+//       — unless the text IS a string of the copy that carries proof tokens
+//       (its numbers then came from engineProof.json; its typed remainder
+//       is read by the raw scan). The raw scan reads the same rules over
+//       the landing's strings, the /pricing, /signup and /contact-sales
+//       dictionaries, the plan bullets and the sample page's strings.
+//
 // WHAT IT REDS ON, AFTER THE REPAIR (TC-11)
+//   · an accuracy claim typed anywhere a visitor reads — markup, a string
+//     table, a dictionary — on any of the five public pages, as a
+//     percentage, an "N of M" or a count beside a measuring word — L12;
 //   · a digit typed into `defensible.*` or into an accuracy sentence
 //     ("all eight within 1%", "9 / 9", "four of eight") — L5;
 //   · a caption whose number is not in that check's JSON block — L3;
@@ -71,8 +91,20 @@
 // WHAT IT CANNOT SEE (TC-11)
 //   · whether the JSON's counts are TRUE. That is `engine-proof`
 //     (tests/engine/test_engine_proof.py), which re-runs the script;
-//   · accuracy wording with no number in it ("highly accurate");
-//   · the standalone storefront templates and e-mails (not frontend source).
+//   · accuracy wording with no number in it ("highly accurate", "always
+//     right", "every book we tried");
+//   · a count parted from its measuring word by a dash, a colon or a
+//     bracket ("Tested — on 40 files"), or beside a word that is not in the
+//     vocabulary ("40 companies' ledgers, all fine");
+//   · a number above twenty written out in compound words ("ninety-nine
+//     point nine percent" is caught on "percent"; "a hundred and four" is
+//     caught on "hundred"; "twoscore" is not);
+//   · text in an image, a canvas or a CSS `content:` string;
+//   · the hero's illustrative mock and its decorative ticker — exempt by
+//     region, labelled "Illustrative dashboard" on the page (L12 holds that
+//     label to exist);
+//   · pages behind a session, the standalone storefront templates and
+//     e-mails (not rendered here).
 //
 // Plant log: docs/engine_book/gates.md, "landing-proof".
 
@@ -92,14 +124,29 @@ import { META_DESCRIPTION, META_IMAGE_ALT, META_TITLE } from "@/hooks/useHtmlLan
 import enDict from "@/i18n/locales/en.json";
 import roDict from "@/i18n/locales/ro.json";
 import { foreignNumber } from "@/test/numberLanguage";
-import { numbersIn, renderLanding, setLanguage, textOf, type SurfaceLang } from "@/test/publicSurfaces";
+import { accuracyClaims, plainText } from "@/test/accuracyClaims";
+import {
+  PUBLIC_PAGES, numbersIn, renderLanding, renderPublicPage, setLanguage, textNodes, textOf,
+  type PublicPage, type SurfaceLang,
+} from "@/test/publicSurfaces";
+import { __clearPricingConfigForTest } from "@/lib/pricingConfig";
+import { bulletText, planFeatureBulletsFor, planKeysWithFeatures } from "@/lib/planFeatures";
+import { SAMPLE } from "@/lib/publicSample";
+import { SAMPLE_STRINGS } from "@/pages/cfo/sampleStrings";
 
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     isAuthenticated: false, displayName: null, initials: null, user: null,
     status: "signed_out", signOut: vi.fn(),
+    signIn: vi.fn(), signUp: vi.fn(), signInWithOAuth: vi.fn(),
   }),
 }));
+// A signed-out visitor has no plan; the pages must not reach for the network.
+vi.mock("@/lib/planState", async (orig) => ({
+  ...(await orig<typeof import("@/lib/planState")>()),
+  usePlanState: () => ({ state: null, loading: false, error: null, refresh: vi.fn() }),
+}));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const REPO = resolve(__dirname, "../../..");
 const LANGS: SurfaceLang[] = ["en", "ro"];
@@ -142,7 +189,7 @@ const stripAccountIds = (text: string): string =>
 
 let figuresChecked = 0;
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); __clearPricingConfigForTest(); });
 afterAll(async () => {
   await setLanguage("en");
   console.log(`GATE-WORK landing-proof figures=${figuresChecked}`);
@@ -573,5 +620,200 @@ describe("landing-proof · the raw copy", () => {
     }
     // an unknown token is refused, not printed
     expect(() => fillProofDeep({ x: "{rerun.boks} of {rerun.subjects}" }, "en")).toThrow(/unknown proof token/);
+  });
+});
+
+// ── L12 — every text node of every public page ────────────────────────
+
+/** Where a number MAY stand on a rendered page without coming from a proof
+ *  token, and why. Regions, never sentences. */
+const EXEMPT_REGIONS: Record<PublicPage, Array<{ selector: string; why: string }>> = {
+  landing: [
+    { selector: "#proof-strip", why: "the proof block — held figure by figure to engineProof.json by L3 and L9" },
+    { selector: "#coverage", why: "the coverage table — held to coverage.json and the proof by public-claims C4 / C5" },
+    { selector: "[data-hero-mock]", why: "the hero's illustrative dashboard, labelled so by the note under it" },
+    { selector: "#cfo-ticker-board", why: "the hero's decorative ticker (aria-hidden, random moves) — part of the same illustration" },
+  ],
+  pricing: [],
+  signup: [],
+  "contact-sales": [],
+  sample: [
+    { selector: "[data-engine-words]", why: "the engine's own sentences, quoted — held to the served document by public-sample S6" },
+  ],
+};
+
+/** The strings of the copy that carry proof tokens, FILLED, cut at their
+ *  inline tags: a rendered text node that IS one of these got its numbers
+ *  from engineProof.json. (Its typed remainder is read raw, below.) */
+function tokenFilledSegments(lang: SurfaceLang): Set<string> {
+  const raw: Array<[string, string]> = [];
+  flat(LANDING_STRINGS[lang], "", raw);
+  const filled: Array<[string, string]> = [];
+  flat(landingStringsFor(lang), "", filled);
+  const out = new Set<string>();
+  raw.forEach(([, text], i) => {
+    if (!hasProofToken(text)) return;
+    for (const segment of filled[i][1].split(/<[^>]+>/)) {
+      const plain = plainText(segment);
+      if (plain) out.add(plain);
+    }
+  });
+  return out;
+}
+
+/** THE SAMPLE PAGE'S OWN TWO NUMBERS, each checked against its data before
+ *  it is set aside:
+ *    · "the two trial balances" / "cele două balanțe" are the two workbooks
+ *      the page publishes — counted in publicSample.json, and the phrase is
+ *      removed only while that count is two;
+ *    · the composite score is printed "N of 100", and N is the served
+ *      composite. */
+const SAMPLE_BOOKS = (SAMPLE.files as Array<{ kind: string }>).filter((f) => f.kind === "trial_balance").length;
+const TWO_BOOKS = /\b(?:the two trial balances|cele două balanțe(?: de verificare)?)/giu;
+function sampleText(text: string): string {
+  return SAMPLE_BOOKS === 2 ? text.replace(TWO_BOOKS, " ") : text;
+}
+function sampleScoreOf100(hit: string, sentence: string, lang: SurfaceLang): boolean {
+  const composite = (SAMPLE.verdicts.credit as { composite: number }).composite;
+  const printed = new Intl.NumberFormat(lang === "ro" ? "ro-RO" : "en-US", { maximumFractionDigits: 1 }).format(composite);
+  // "…composite 69.6 of 100": the rule read the "6 of 100" after the decimal mark
+  return /\b(?:of|din)\s+100$/.test(hit)
+    && new RegExp(`(?<![\\d.,])${printed.replace(/[.,]/g, "\\$&")}\\s+(?:of|din)\\s+100\\b`).test(sentence);
+}
+
+describe.each(LANGS)("landing-proof · every text node of every public page (%s)", (lang) => {
+  it("L12 no accuracy number is rendered outside the proof block unless a proof token supplied it", async () => {
+    const fromTokens = tokenFilledSegments(lang);
+    expect(fromTokens.size, "no token-bearing copy was found — the allowance is dead").toBeGreaterThan(8);
+    const offenders: string[] = [];
+    const read: Record<string, number> = {};
+    let allowedByToken = 0;
+    for (const page of PUBLIC_PAGES) {
+      const root = await renderPublicPage(page, lang);
+      // the regions exempted exist where they are named, so an exemption is
+      // never a selector that matches nothing
+      for (const region of EXEMPT_REGIONS[page]) {
+        expect(root.querySelector(region.selector), `${page}: exempt region ${region.selector} is not on the page`).not.toBeNull();
+      }
+      if (page === "landing") {
+        // the mock is exempt BECAUSE the page calls it illustrative
+        expect(textOf(root)).toContain(plainText(landingStringsFor(lang).hero.mockNote).slice(0, 22));
+      }
+      const skip = EXEMPT_REGIONS[page].map((r) => r.selector).join(", ") || undefined;
+      const nodes = textNodes(root, skip);
+      read[page] = nodes.length;
+      for (const node of nodes) {
+        const text = page === "sample" ? sampleText(node.text) : node.text;
+        const claims = accuracyClaims(text, { percentAnywhere: page !== "sample" });
+        if (claims.length === 0) continue;
+        if (fromTokens.has(node.text)) { allowedByToken += 1; continue; }
+        for (const claim of claims) {
+          if (page === "sample" && claim.rule === "n-of-m" && sampleScoreOf100(claim.hit, claim.sentence, lang)) continue;
+          offenders.push(`/${page === "landing" ? "" : page} (${lang}) ${node.where}: ${claim.rule} "${claim.hit}" in "${claim.sentence.slice(0, 200)}"`);
+        }
+      }
+      cleanup();
+      __clearPricingConfigForTest();
+    }
+    expect(offenders, "a typed accuracy claim on a public page — every such number comes from engineProof.json").toEqual([]);
+    // floors: a page that stops rendering, or a walker that stops walking, is not a pass
+    for (const [page, floor] of [["landing", 150], ["pricing", 80], ["signup", 30], ["sample", 400], ["contact-sales", 20]] as const) {
+      expect(read[page], `only ${read[page]} text node(s) read on /${page} (floor ${floor})`).toBeGreaterThanOrEqual(floor);
+    }
+    // the allowance is used: the FAQ's proof answer is on the landing
+    expect(allowedByToken, "no rendered text matched a token-filled string").toBeGreaterThan(0);
+    figuresChecked += Object.values(read).reduce((a, b) => a + b, 0);
+  });
+});
+
+describe("landing-proof · the raw copy of every public page", () => {
+  it("L12 no accuracy claim is typed into a string table, a dictionary or a plan bullet", () => {
+    const lines: Array<[string, string, boolean]> = [];
+    const push = (where: string, obj: unknown, percentAnywhere = true) => {
+      const found: Array<[string, string]> = [];
+      flat(obj, where, found);
+      for (const [w, text] of found) lines.push([w, text, percentAnywhere]);
+    };
+    for (const lang of LANGS) {
+      // the accuracy block is held to "no digit at all" by L5; its captions
+      // print the proof's own "N of M" through tokens
+      push(`landingStrings[${lang}]`, LANDING_STRINGS[lang]);
+      push(`sampleStrings[${lang}]`, SAMPLE_STRINGS[lang], false);
+      for (const key of planKeysWithFeatures()) {
+        for (const b of planFeatureBulletsFor(key)) lines.push([`planFeatures.${key}[${lang}]`, bulletText(b, lang), true]);
+      }
+    }
+    for (const [lang, dict] of [["en", enDict], ["ro", roDict]] as const) {
+      const d = dict as unknown as Record<string, unknown>;
+      for (const ns of ["pricing", "pricingX", "pricingFaq", "authX", "contactSales"]) {
+        expect(d[ns], `${lang}.json has no ${ns} namespace`).toBeTruthy();
+        push(`${lang}.json ${ns}`, d[ns]);
+      }
+    }
+    const html = readFileSync(join(REPO, "index.html"), "utf8");
+    lines.push(["index.html <title>", /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? "", true]);
+    for (const m of html.matchAll(/content\s*=\s*"([^"]*)"/g)) lines.push(["index.html meta", m[1], true]);
+    for (const lang of LANGS) {
+      lines.push([`META_DESCRIPTION.${lang}`, META_DESCRIPTION[lang], true]);
+      lines.push([`META_TITLE.${lang}`, META_TITLE[lang], true]);
+      lines.push([`META_IMAGE_ALT.${lang}`, META_IMAGE_ALT[lang], true]);
+    }
+    expect(lines.length, "the harvest is empty").toBeGreaterThan(1200);
+    for (const prefix of ["landingStrings[en]", "landingStrings[ro]", "sampleStrings[en]", "sampleStrings[ro]",
+      "en.json pricing", "ro.json pricing", "en.json pricingX", "ro.json pricingFaq", "en.json authX",
+      "ro.json contactSales", "planFeatures."]) {
+      expect(lines.some(([w]) => w.startsWith(prefix)), `nothing harvested from ${prefix}`).toBe(true);
+    }
+    const offenders: string[] = [];
+    for (const [where, text, percentAnywhere] of lines) {
+      // the hero's illustrative mock is exempt as a region (L12, rendered)
+      if (/^landingStrings\[\w+\]\.hero\.mock\./.test(where)) continue;
+      // tokens and placeholders are filled by code: what is TYPED is the rest
+      const placeholderFree = plainText(text).replace(/\{\{[^}]*\}\}|\{[^}]*\}/g, " ");
+      const typed = where.startsWith("sampleStrings[") ? sampleText(placeholderFree) : placeholderFree;
+      for (const claim of accuracyClaims(typed, { percentAnywhere })) {
+        offenders.push(`${where}: ${claim.rule} "${claim.hit}" in "${claim.sentence.slice(0, 200)}"`);
+      }
+    }
+    expect(offenders, "an accuracy claim typed into the copy — its numbers must be proof tokens").toEqual([]);
+    figuresChecked += lines.length;
+  });
+
+  it("L12 the detector: the sentences a verifier typed are claims; the copy's own sentences are not", () => {
+    const red: Array<[string, boolean]> = [
+      ["Verified on 9 of 9 real books — every balance sheet reconciles within 0.1%.", true],
+      ["Checked on our test set; all nine real books are byte-identical.", true],
+      ["We tested 20 real company books and every one matched.", true],
+      ["Tested on 40 real company books, all correct.", true],
+      ["Correct on 100% of the books we tested.", true],
+      ["Reconciled to your source to ≤1% drift on all 9 of 9 calibration books", true],
+      ["99.9% accurate on 9 of 9 calibration books", true],
+      ["A sample that is accurate on 12 of 12 real books, within 0.1% drift", false],
+      ["Testat pe 40 de balanțe reale, toate corecte.", true],
+      ["Toate cele nouă balanțe sunt identice octet cu octet.", true],
+      ["Verificat pe 9 din 9 balanțe.", true],
+      ["Ninety-nine percent of uploads reconcile.", true],
+      ["9/9 fixtures pass", true],
+    ];
+    const green: Array<[string, boolean]> = [
+      ["We do not publish an accuracy percentage.", true],
+      ["Net income must equal account 121.", true],
+      ["Availability not verified since 29 Sept 2026.", true],
+      ["Disponibilitate neverificată din 29 sept. 2026.", true],
+      ["3 balanțe de verificare / lună", true],
+      ["15 trial balances / month", true],
+      ["Ask CFO AI: 10 chats / day, 50 / month — availability not verified since 29 Sept 2026", true],
+      ["Fișierul tău este verificat de fiecare dată pe propriile lui cifre: debitele din sursă trebuie să fie egale cu creditele, bilanțul trebuie să se închidă, iar rezultatul net trebuie să fie egal cu contul 121.", true],
+      ["The result rebuilt from classes 6 and 7 is printed beside it, with any gap.", true],
+      ["Gross margin 31.4% in FY2025.", false],
+      ["The trade-register number J99/9999/2099 does not exist.", false],
+    ];
+    for (const [text, percentAnywhere] of red) {
+      expect(accuracyClaims(text, { percentAnywhere }).length, `should be RED: ${text}`).toBeGreaterThan(0);
+    }
+    for (const [text, percentAnywhere] of green) {
+      expect(accuracyClaims(text, { percentAnywhere }), `should be green: ${text}`).toEqual([]);
+    }
+    figuresChecked += red.length + green.length;
   });
 });
