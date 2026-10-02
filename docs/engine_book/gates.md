@@ -1703,6 +1703,78 @@ Verdict: **PROVEN RED**
 
 ---
 
+## capsule-brief
+
+**Registered 2026-10-02 — RETIRED WITH ITS SURFACE; not a battery gate, and
+not fixed.** `scripts/check_capsule_brief.mjs` (the static half of the
+Capsule brief's gates N1–N8, written 2026-09-01, edb4201d) is invoked by
+nothing — no battery gate, no npm script, no CI job — and exits 1 with five
+violations (measured on main e043845c plus the three commits of this change,
+none of which touches its inputs). Its subject was
+the Capsule's RESTING surface and its in-place Tier-0 answer. Commit 94277aea
+(2026-09-27, "⌘K rebuilt") removed both from the product: "The Capsule's
+resting tiles …, its hard-coded covenant chip and its in-place answer mode
+are gone from ⌘K." The command bar (CLAUDE.md §25) answers from the served
+documents through `shell/cmdbar/*` and is gated by `cmdbar-fixtures`,
+`cmdbar-surface` and `cmdbar-evidence`.
+
+The five violations, as printed (`GATE-WORK capsule-brief units=106 floor=30`,
+`FAIL check_capsule_brief — 5 violation(s)`), and the verdict on each:
+
+| # | violation | verdict |
+|---|---|---|
+| B1 | No `<CapsuleEmptyState` element in `CommandPalette.tsx` | RETIRED — surface replaced by the command bar. Nothing mounts `CapsuleEmptyState`; the `capsuleEmpty` barrel has no importer. |
+| B2 | NO TILE BUILDER IS REGISTERED (0 tiles measured 2026-09-01) | RETIRED — surface replaced by the command bar. The tiles were never built, and the resting state they belonged to is gone. |
+| B3 | The typing-state row slice (`const visible = out.slice(0, N)`) not found in `CommandPalette.tsx` | RETIRED — surface replaced by the command bar. The old typing list is gone; the bar's rows are `cmdbar/*`'s. |
+| B3 | NO TILE CAP IS DECLARED (`MAX_TILES`) | RETIRED — surface replaced by the command bar. No tiles, so no cap to hold. |
+| B4 | 8/78 account codes the fact index names do not resolve through `matchFactKeys` (205, 397, 4281, 446, 462, 481, 496, 532; the dead set moves with the active period) | RETIRED WITH THE SURFACE — the defect is real in the code and NO MOUNTED SURFACE CAN REACH IT. No ticket filed. See below. |
+
+**B4 — does the command bar still reach `capsuleTier0` /
+`capsuleFactIndex`? No.** Checked before retiring it, by reading the import
+graph in both directions (three independent traces, then three attempts to
+refute the answer; none refuted it), and by grep on this tree:
+
+* `CommandPalette` is mounted once, unconditionally
+  (`components/cfo/AppShell.tsx:539`), and its imports name neither
+  `lib/capsuleTier0` nor `lib/capsuleFactIndex`, nor `useCapsuleAnswer`,
+  `CapsuleAnswerPanel` or the `capsuleEmpty` barrel (94277aea removed them
+  and their call sites). Typing goes `buildCmdbarIndex` → `searchCmdbar`,
+  whose account entries are the served period body's `line_items`; Enter runs
+  a row, ⌘/Ctrl+Enter hands the question to the chat.
+* Every non-test importer of `lib/capsuleTier0` is `import type` — erased at
+  build (`capsuleTier0Turn.ts:62`, `useCapsuleAnswer.ts:30`,
+  `CapsuleAccountCard.tsx:47`, `lib/capsuleAskCorpus.ts:52`). `resolveTier0`,
+  `buildFactIndex` and `matchFactKeys` have no caller outside `__tests__` and
+  this script.
+* `useCapsuleAnswer` occurs once in the repo — its own definition. The other
+  value importers of `capsuleFactIndex` (`CapsuleAccountCard`,
+  `CapsuleFactTiles`) take helpers that never read the term index, and are
+  themselves unmounted.
+* No flag, lazy `import()`, `import.meta.glob` or worker leads there; no
+  other surface (chat, evidence drawer, pages) names either module.
+
+The mechanism B4 describes IS still in the file
+(`lib/capsuleFactIndex.ts:965-973`): `buildTermIndex` adds the label and
+account codes of `refs[0]` only — the active period's version of a statement
+line — so a code named only by another period's version of the same row
+never enters the term index. It is recorded here because **the day anything
+value-imports `capsuleTier0` or `buildFactIndex` again, this is a product
+defect on arrival**: "term index must cover all periods' codes, not the
+active period's". Until then it is a defect in code nothing runs.
+
+**CANNOT SEE / not done:** what the production BUNDLE contains was not
+inspected (nothing was built for this check — the verdict is from source);
+the unmounted modules (`lib/capsuleTier0.ts`, `lib/capsuleFactIndex.ts`,
+`capsuleAnswer/useCapsuleAnswer.ts`, `capsuleTier0Turn.ts`,
+`CapsuleAnswerPanel.tsx`, `capsuleEmpty/CapsuleEmptyState.tsx`,
+`CapsuleFactTiles.tsx`, `CapsuleAccountCard.tsx`) and their tests were left
+in place — deleting them is product code and its own decision; the script
+itself was not changed and still exits 1. Its live half,
+`e2e/design/capsule-brief.spec.ts`, is in the playwright baseline as six
+known failures (N1, N2/N4, N3, N5, N6, N7).
+
+---
+
 ## narrative-units
 
 U1/U3 — a narrative sentence must not carry its own currency label or build its own money numeral. One claim, one currency.
@@ -4809,6 +4881,143 @@ process started six days earlier that predated a feature-registry change —
 tests to passing and 28 to failing: a two-way swing of 59 on a net of 3.
 Identify the build before trusting a baseline; the scope of a measurement
 is part of its verdict (TC-13).
+
+### 2026-10-02 — the scan's false positive, and ZERO TESTS COLLECTED
+
+**The gate was red in 0.1 s on every tree, so the e2e suite was gated by
+nothing.** From cb8d128f (2026-09-27) `e2e/design/cmdbar.spec.ts` carried
+`new URL(url, "http://x.invalid")` in `companyOfUrl` — the PARSE BASE of a
+relative URL, never a request — and the static scan above refused it on
+main, on release/r-rulings2 and on production's tree 7641c755:
+
+```
+REFUSED — these specs name an absolute non-local origin in code, so they
+reach it regardless of E2E_BASE_URL:
+  e2e/design/cmdbar.spec.ts: http://x.invalid
+```
+
+Repaired in the spec, not in the scan (e95f4e68): the base is
+`"http://localhost"`; `companyOfUrl` reads only `searchParams` and
+`pathname`, so its answers are unchanged. The vitest twin
+(`cmdbarSwitchAction.test.tsx` `companyOf`, outside this scan) names the same
+base (4cebbbf6; 30 passed). The scan still refuses a real request:
+
+| plant | output | exit |
+|---|---|---|
+| the old literal back in `companyOfUrl` | `REFUSED … e2e/design/cmdbar.spec.ts: http://x.invalid` | 1, 0.09 s |
+| `request.get("https://cfo-ai.io/")` in `learning-landing-onboarding.spec.ts` (the PLANT above) | `REFUSED … e2e/learning-landing-onboarding.spec.ts: https://cfo-ai.io` | 1, 0.08 s |
+| no plant | 45 specs scanned, 0 offenders; the gate proceeds to the run | — |
+
+**ZERO TESTS COLLECTED is its own red (e8073bba).** Past the scan, the first
+run in a worktree collected nothing: `0 ran, 0 skipped`, in 3 s. Cause: a
+stray link `node_modules/node_modules -> <main checkout>/node_modules`
+(dated 2026-09-15) in the main checkout. A worktree's copy of `node_modules`
+carries it, the runner loads `playwright` through the link and the specs
+load `@playwright/test` from the copy — two instances, and every file dies
+with "Playwright Test did not expect test.describe() to be called here".
+The link was removed from the main checkout on 2026-10-02 (it is gitignored;
+no commit). A second measured cause, on Playwright 1.59.1: ONE spec that
+throws while it is being collected empties the WHOLE run, not its own file.
+
+Before e8073bba a zero-collection run was reported as the wrong defect, and
+could be recorded as a baseline:
+
+```
+GATE-WORK playwright units=0 floor=0 label=e2e-tests-run skipped=0 skip_rate=100.0%
+  0 ran, 0 skipped; 0 failing (baseline 165, new 0, healed 165)
+FAIL — 1 problem(s):
+  · 100.0% of tests skipped, ceiling 75% — the suite is going quiet
+
+$ node scripts/check_playwright.mjs --write-baseline
+wrote design_review/PLAYWRIGHT_BASELINE.txt — 0 known failure(s), 0 ran, 0 skipped
+set PW_FLOOR_RAN=0 in run_battery.py                      (exit 0; 171 lines deleted)
+```
+
+Now `ran + skipped === 0` is refused before the baseline is read or written.
+
+**PLANT C1** — one tracked spec throws at collection
+(`throw new Error("PLANTED — …")` as the first line of
+`e2e/golden-path.spec.ts`). **RED:**
+
+```
+GATE-WORK playwright units=0 floor=0 label=e2e-tests-run skipped=0 collected=0
+
+FAIL — ZERO TESTS COLLECTED. The runner wrote a report and it holds no test:
+nothing ran and nothing was skipped, so nothing was measured. One spec that
+throws while it is being collected empties the whole run, and so does a
+second copy of @playwright/test on the resolution path (a
+`node_modules/node_modules` link).
+  the runner's own words (1 error(s), 1 distinct):
+  · Error: PLANTED — this spec throws while it is being collected (×1)
+```
+
+**PLANT C1 + `--write-baseline`** — exit 1, the same refusal, and
+`design_review/PLAYWRIGHT_BASELINE.txt was NOT rewritten: a baseline
+recorded from this run would be empty, and every later run would pass
+against it.` The file's sha256 is unchanged (`7bd47725139d42f7…`).
+
+**PLANT C2** — the link back, in one worktree. **RED:** ZERO TESTS COLLECTED,
+`the runner's own words (46 error(s), 5 distinct)`: `did not expect
+test.describe() to be called here (×30)`, `test.use() (×7)`, `test.skip() can
+only be called inside test, describe block or fixture (×5)`, `test() (×3)`,
+`No tests found (×1)`.
+
+**REVERT** — spec restored, link removed: `npx playwright test
+--project=chromium --list` collects `429 tests in 45 files`, and a collecting
+run does not enter the new branch (the no-stack run below, measured again on
+e8073bba).
+
+**What a host WITHOUT the stack prints — environmental, not the suite.**
+With nothing on :5173 and no engine, twice (e95f4e68, 202 s; e8073bba,
+175 s):
+
+```
+GATE-WORK playwright units=353 floor=0 label=e2e-tests-run skipped=76 skip_rate=17.7%
+  353 ran, 76 skipped; 349 failing (baseline 165, new 178, healed 0)
+FAIL — 1 problem(s):
+  · 178 NEW failing test(s)
+```
+
+Two things this measurement corrects in the text above:
+
+* **The floor does not catch a dead dev server.** "A ran-count below the
+  floor (the dev server was down and the suite measured nothing)" is not what
+  happens: with nothing on :5173, 353 tests RAN — and failed. A dead stack is
+  caught by the NEW failures, never by the floor (305) or the skip ceiling.
+  The floor and ZERO TESTS COLLECTED catch a suite that stopped being
+  collected, which is a different defect.
+* **The baseline file is 171 lines and 165 distinct entries.** Six titles
+  are written twice (one `design/capsule-craft.spec.ts` row and the five
+  `launch-public-live.prod.spec.ts` "… loads clean" rows): a `file :: title`
+  key cannot tell two tests of one title apart. The gate reads the file as a
+  set, hence "baseline 165".
+
+**NOT MEASURED — the baseline against a stack (Phase 5.4, held for the main
+session).** The recorded baseline is still the 2026-09-09 one (339 ran / 29
+skipped / 171 known failures); the suite now collects 429 tests where that
+run saw 368, so 61 tests have never been measured against a stack by this
+gate. Nothing in this change moved the baseline. To measure it:
+
+* a QUIET machine — no other session, no pytest, iCloud sync paused (the
+  2026-10-02 attempts ran at a load average of 17–80);
+* the stack LOCAL only: the Vite dev server on http://localhost:5173, the
+  engine on :8000 started from the commit under test, both pointed at the
+  local test Supabase (http://127.0.0.1:54321) — never the production
+  project. `E2E_BASE_URL` must stay a localhost origin or the gate refuses;
+* `node scripts/check_playwright.mjs` — read `ran / skipped / failing
+  (baseline, new, healed)`; move the baseline with `--write-baseline` only
+  when the owner agrees it should move, and set the battery floor from the
+  line it prints.
+
+One attempt to start that stack from a side session did not get as far as a
+measurement (the app's preview launcher cannot read under `~/Desktop`; the
+engine, started from a copy outside it, had not answered `/health` when the
+attempt was stopped) — so no stack figure is recorded here, and how long a
+full run takes against a stack is not known from this session.
+
+**CANNOT SEE:** a spec that fails to be collected while others still are —
+if that can happen on a later Playwright, the report's `errors` are not read
+on a non-empty run, and the missing file is caught only by the floor.
 
 ## tenant-boundary
 
