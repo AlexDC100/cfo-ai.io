@@ -2962,9 +2962,9 @@
       "title": "Filtrează universul",
       "searchPillDesc": "Companiile care se potrivesc căutării — apasă pentru a o șterge",
       "gainers": "Creșterile zilei",
-      "gainersWhy": "Cele mai mari creșteri de preț de la o zi la alta, dintre companiile cotate live",
+      "gainersWhy": "Cele mai mari creșteri de preț de la o zi la alta, dintre companiile cu preț de închidere zilnic",
       "losers": "Scăderile zilei",
-      "losersWhy": "Cele mai mari scăderi de preț de la o zi la alta, dintre companiile cotate live",
+      "losersWhy": "Cele mai mari scăderi de preț de la o zi la alta, dintre companiile cu preț de închidere zilnic",
       "value": "Evaluări atractive",
       "valueWhy": "P/E sub 15 și profitabile — ieftine raportat la câștiguri",
       "distressed": "În dificultate",
@@ -3033,7 +3033,7 @@
       "cta": "Compară",
       "clear": "Golește",
       "title": "Comparație față în față",
-      "subtitle": "Cifrele așa cum sunt încărcate pe această pagină — valori statutare anuale plus prețuri live.",
+      "subtitle": "Cifrele așa cum sunt încărcate pe această pagină — ultimele cifre anuale plus prețul ultimei închideri de zi.",
       "includeYou": "Include compania ta",
       "limit": "Poți compara cel mult 3 companii.",
       "row": {
@@ -3052,7 +3052,7 @@
     "footer": {
       "loading": "Se încarcă sursele…",
       "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci cifrele pieței românești de aici sunt ilustrative. Cifrele companiilor deschise din raportări oficiale (SEC EDGAR, ESEF) sunt reale și poartă referința raportării.",
-      "sources": "Surse: date de listare de la Bursa de Valori București, rapoartele anuale ale emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Cifrele fundamentale sunt raportări anuale statutare. Prețurile sunt ultima închidere de zi, reverificată la 5 minute — nu cotații în timp real."
+      "sources": "Surse: date de listare de la Bursa de Valori București pentru {{bvb}} companii listate la BVB. {{withFinancials}} dintre ele au astăzi cifre financiare sumare — rapoartele anuale ale emitenților pentru indicele principal, ultima raportare statutară (bilanț) pentru celelalte. Prețurile sunt ultima închidere de zi, reverificată la 5 minute — nu cotații în timp real."
     }
   },
   "pending": {
@@ -3087,7 +3087,7 @@
     },
     "public_companies": {
       "title": "Companii listate",
-      "description": "Raportări, indicatori și comparații pentru companii listate, citite direct din depunerile oficiale.",
+      "description": "Cifre, indicatori și comparații pentru companii listate, din rapoartele anuale publicate și raportările statutare.",
       "requirement": "Se activează după lansare"
     },
     "comprehensive_report": {

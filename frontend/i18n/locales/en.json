@@ -2936,9 +2936,9 @@
       "title": "Filter the universe",
       "searchPillDesc": "Companies matching your search — click to clear",
       "gainers": "Top gainers",
-      "gainersWhy": "Largest day-over-day price gains among live-quoted companies",
+      "gainersWhy": "Largest day-over-day price gains among companies with a daily closing price",
       "losers": "Top losers",
-      "losersWhy": "Largest day-over-day price drops among live-quoted companies",
+      "losersWhy": "Largest day-over-day price drops among companies with a daily closing price",
       "value": "Value plays",
       "valueWhy": "P/E below 15 and profitable — priced cheaply next to earnings",
       "distressed": "Distressed",
@@ -3007,7 +3007,7 @@
       "cta": "Compare",
       "clear": "Clear",
       "title": "Side-by-side comparison",
-      "subtitle": "Figures as loaded on this page — statutory FY figures plus live prices.",
+      "subtitle": "Figures as loaded on this page — the latest annual figures plus the last daily closing price.",
       "includeYou": "Include your company",
       "limit": "You can compare at most 3 companies.",
       "row": {
@@ -3026,7 +3026,7 @@
     "footer": {
       "loading": "Loading sources…",
       "demo": "Source: bundled sample data — the live market feed isn't configured on this deployment, so every figure on this page is illustrative.",
-      "sources": "Sources: Bursa de Valori București listing data, issuer annual reports and ANAF statutory filings (bilanț) for {{bvb}} BVB listings. Fundamentals are annual statutory filings. Prices are the last daily close, re-checked every 5 minutes — not live quotes."
+      "sources": "Sources: Bursa de Valori București listing data for {{bvb}} BVB listings. {{withFinancials}} of them carry summary financial figures today — issuer annual reports for the main index, the latest statutory filing (bilanț) for the others. Prices are the last daily close, re-checked every 5 minutes — not live quotes."
     }
   },
   "pending": {
@@ -3061,7 +3061,7 @@
     },
     "public_companies": {
       "title": "Public companies",
-      "description": "Listed-company filings, ratios and peer comparison, read straight from the regulator's own filings.",
+      "description": "Listed-company figures, ratios and peer comparison, from published annual reports and statutory filings.",
       "requirement": "Enabled after launch"
     },
     "comprehensive_report": {

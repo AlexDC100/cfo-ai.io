@@ -672,7 +672,10 @@ export default function PublicCompanyIntelligence() {
             ? t("pci.footer.loading")
             : demoMode
               ? t("pci.footer.demo")
-              : t("pci.footer.sources", { bvb: scopedCompanies.length })}
+              : t("pci.footer.sources", {
+                  bvb: scopedCompanies.length,
+                  withFinancials: proof["bvb.withFinancials"],
+                })}
         </div>
         </>
         )}
