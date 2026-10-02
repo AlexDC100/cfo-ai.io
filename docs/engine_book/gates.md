@@ -5030,6 +5030,87 @@ full run takes against a stack is not known from this session.
 if that can happen on a later Playwright, the report's `errors` are not read
 on a non-empty run, and the missing file is caught only by the floor.
 
+## battery-preflight
+
+Owner ruling 2026-10-02, three follow-ups to the playwright repair.
+
+**What it holds.** `tests/engine/test_battery_preflight.py` (8) and
+`tests/engine/test_playwright_gate_refusals.py` (9), run for real — the
+battery's own `main()` and the real `node scripts/check_playwright.mjs`
+against local HTTP recorders on free ports. No browser and no suite: every
+case ends at a refusal or at `--probe`.
+
+1. **The nested `node_modules/node_modules` link stops the battery.**
+   `scripts/run_battery.py` `preflight()` runs at the start of every battery
+   run, before any gate: `<main checkout>/node_modules/node_modules` (or the
+   same entry in the checkout under test) present, as a link, a broken link
+   or a directory, is `RED — nested-node-modules: <path> exists`, exit 1,
+   `0 gates run`. The link is made by a bare `ln -s <main>/node_modules
+   <worktree>/node_modules` run a second time on a worktree that already has
+   the link: the existing link is followed and the new one is created inside
+   the target. **Rule: worktree links are made with `ln -sfn`, never a bare
+   `ln -s` on a path that may exist.** No tracked script makes that link (the
+   sessions do), so the rule is held by the state it would leave behind.
+2. **The playwright gate probes its stack before the runner.** The app
+   (`E2E_BASE_URL`, default `http://localhost:5173`) must answer and the
+   engine's `/health` (`E2E_ENGINE_URL`, default `http://127.0.0.1:8000`)
+   must answer 200; either silent is `REFUSED — STACK NOT RUNNING`, naming
+   which, exit 1, no test run and no failure count. Measured before, with no
+   stack: `353 ran / 76 skipped / 349 failing (new 178)` in three minutes —
+   "nothing on :5173" printed as a verdict on the product. After, same host:
+
+   ```
+   GATE-WORK playwright-stack answering=0
+   REFUSED — STACK NOT RUNNING. Not answering: the app at http://localhost:5173
+   (ECONNREFUSED); the engine at http://127.0.0.1:8000/health (ECONNREFUSED).
+   No test was run and nothing was measured.
+   ```
+
+   `--probe` answers the same question and exits 0 without starting the
+   runner. An argument the script does not know is refused (it had no
+   `--help`; any unknown flag ran the whole suite). A non-local
+   `E2E_ENGINE_URL` is refused, not probed.
+3. **The baseline is a set.** `design_review/PLAYWRIGHT_BASELINE.txt` held
+   171 lines, 165 distinct (two tests with one title in one spec share a
+   key); it is now 165 lines, membership unchanged, and `--write-baseline`
+   writes each key once.
+
+**What it reds on after the fix (TC-11):** the battery starting a gate while
+the nested entry exists; the entry existing in this repository's main
+checkout now; the playwright gate starting the runner, or printing a count
+of tests, with the app or the engine not answering; a refusal that does not
+name the silent origin; an engine whose `/health` answers an error taken for
+a stack; an unknown flag running anything; a baseline key recorded twice.
+
+**Scope and what it cannot see:** it runs no e2e test, so it says nothing
+about the suite. The probe hears an answer, not a version: that the stack is
+the commit under test, and that it points at the local test Supabase, are
+the operator's. Who made a link, or a bare `ln -s` in a prompt or a shell
+history, is invisible; only the nested entry is.
+
+**PLANT → RED → REVERT** (2026-10-02, each applied alone to the committed
+files, each file restored byte-exact by sha256; `scratchpad/hyg_plants.sh`):
+
+| plant | RED |
+|---|---|
+| P1 `if problems and False:` — the battery starts gates past a red preflight | `1 failed` — `test_a_planted_nested_link_stops_the_battery_before_any_gate` |
+| P2 the nested entry keyed per checkout, not at its real location | `1 failed` — `test_the_incident_shape_is_found_ln_s_run_twice` |
+| P3 the stack probe refuses nothing | `1 failed` in 40.7 s — "the gate was still running after 40s … it started the runner" (the process group is killed) |
+| P4 an unknown flag falls through | `1 failed` in 40.7 s — same message |
+| P5 any answer from `/health` counts as a stack | `1 failed` in 40.7 s — same message |
+| P6 a non-local engine origin is probed | `1 failed` — the refusal is no longer `REFUSED — E2E_ENGINE_URL is …` |
+| P7 the writer records duplicates again | `1 failed` — `test_the_baseline_file_holds_each_key_once` |
+
+A first P2 (the worktree's link "not read through") stayed GREEN: the branch
+it disabled was dead — `os.path.lexists` already resolves the outer link —
+and the branch was removed rather than kept unprovable. REVERT of every
+plant: `17 passed`.
+
+**Measured:** `battery-preflight` 17 tests (floor 16). The `playwright` gate
+on a host with no stack is now RED with `STACK NOT RUNNING` in 0.3 s. **The
+suite's baseline against a stack is still NOT MEASURED** — it needs a quiet
+machine and the local test Supabase; see `## playwright`, 2026-10-02.
+
 ## tenant-boundary
 
 The anatomy behind two P0s found an hour apart on 2026-09-09: **a

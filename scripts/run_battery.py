@@ -1816,6 +1816,18 @@ def _engine_gates() -> List[Gate]:
                        "different coverage: 2",
                        "retail             EBIT 786579.83",
                        "SCOPE coverage popover corpus fixture")),
+        # The battery's own preflight (the nested node_modules link) and the
+        # playwright gate's refusals — unknown flag, stack not running — run
+        # for real against local recorders. No suite is started.
+        Gate("battery-preflight",
+             [PY, "-m", "pytest", "tests/engine/test_battery_preflight.py",
+              "tests/engine/test_playwright_gate_refusals.py", "-q"],
+             work_junit=True, floor=16, units="tests",
+             canaries=("test_a_planted_nested_link_stops_the_battery_before_any_gate",
+                       "test_the_main_checkout_has_no_nested_node_modules_today",
+                       "test_nothing_listening_is_stack_not_running_never_a_failure_count",
+                       "test_an_unknown_flag_is_refused_and_runs_nothing",
+                       "test_the_baseline_file_holds_each_key_once")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
@@ -2415,6 +2427,71 @@ def _write_record(gates: Dict[str, Dict[str, object]], notices: List[str]) -> Op
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# PREFLIGHT — the nested node_modules link
+#
+# Every worktree links its node_modules to the main checkout's. `ln -s
+# <main>/node_modules <worktree>/node_modules` run a SECOND time on a
+# worktree that already has the link follows the existing link and creates
+# the new one INSIDE the target: <main>/node_modules/node_modules. A second
+# copy of @playwright/test is then on the resolution path of every checkout
+# and Playwright collects zero tests in zero files — and the link came back
+# within the hour on 2026-10-02, after it had been removed. So the battery
+# looks before it runs anything: the link present is a RED with its own
+# name, never a quiet cause of some other gate's number.
+#
+# The rule for whoever makes the link: `ln -sfn` (replace, never follow),
+# never a bare `ln -s` on a path that may already exist.
+# ──────────────────────────────────────────────────────────────────────
+
+def _main_checkout() -> Path:
+    """The MAIN checkout of this repository — the tree every worktree's
+    node_modules link points into. In the main checkout it is REPO."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=REPO, capture_output=True, text=True, timeout=30)
+        common = Path(proc.stdout.strip())
+        if proc.returncode == 0 and common.name == ".git":
+            return common.parent
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return REPO
+
+
+def nested_node_modules(checkouts) -> List[Path]:
+    """Every `node_modules/node_modules` that exists under the given
+    checkouts — as a link (live or broken) or as a directory — each real
+    location once. A worktree whose node_modules is itself a link reaches
+    the same entry as the main checkout (the path is resolved through the
+    link), so it is named once, at its real location."""
+    found: List[Path] = []
+    seen = set()
+    for root in checkouts:
+        outer = Path(root) / "node_modules"
+        if not os.path.lexists(outer / "node_modules"):
+            continue
+        key = os.path.join(os.path.realpath(outer), "node_modules")
+        if key not in seen:
+            seen.add(key)
+            found.append(Path(key))
+    return found
+
+
+def preflight() -> List[str]:
+    """What must be true before any gate runs; a non-empty list is a RED
+    and no gate is started."""
+    problems = []
+    for nested in nested_node_modules([_main_checkout(), REPO]):
+        problems.append(
+            "nested-node-modules: %s exists. A second copy of every package "
+            "is then on the resolution path of every checkout (Playwright "
+            "collects ZERO tests). It is made by a bare `ln -s` run twice on "
+            "a worktree's node_modules link. Remove that one entry "
+            "(`rm %s`), and link worktrees with `ln -sfn`." % (nested, nested))
+    return problems
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--engine-only", action="store_true",
@@ -2436,6 +2513,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("%-22s %-18s %8d  %-28s %s"
                   % (g.name, g.source, g.floor, g.units, ", ".join(g.canaries) or "—"))
         return 0
+
+    problems = preflight()
+    if problems:
+        print("BATTERY PREFLIGHT")
+        print("=" * 62)
+        for problem in problems:
+            print("RED — %s" % problem)
+        print("")
+        print("FAIL — the battery did not start: %d preflight problem(s), "
+              "0 gates run." % len(problems))
+        return 1
 
     results: Dict[str, Dict[str, object]] = {}
     notices: List[str] = []

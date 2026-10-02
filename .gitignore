@@ -19,6 +19,12 @@ docker-compose.override.yml
 # the unresolvable test host so neither can reach production — but neither
 # belongs in the repo either.
 .env.launchgate*
+# The LOCAL test Supabase's environment (CLAUDE.md §27): the engine's and the
+# test-mode Vite's Supabase URL + the local stack's keys. The keys are the
+# CLI's public demo defaults, and still never tracked — a tracked .env.test
+# is one paste away from carrying a hosted project's key.
+.env.test
+.env.test.local
 
 # Frontend build artifacts
 node_modules/
