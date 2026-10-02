@@ -21,7 +21,6 @@
 import {
   type FormEvent as ReactFormEvent,
   type MouseEvent as ReactMouseEvent,
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -29,7 +28,6 @@ import {
   useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
@@ -61,7 +59,6 @@ const SITE_CSS = `
   --alert:#FF6B6B; /* design-lint-allow-hex scoped marketing palette */
   --on-brand:#05110D;      /* ink on the bright gradient CTAs */ /* design-lint-allow-hex scoped marketing palette */
   --bg-deep:#070C0A;       /* hero / proof-strip deep ground */ /* design-lint-allow-hex scoped marketing palette */
-  --board-hi:#BFD2CB; --board-mid:#6F8A82; --board-dim:#5C7169; /* ticker-board terminal shades */ /* design-lint-allow-hex scoped marketing palette */
   --serif:"Instrument Serif",Georgia,serif;
   --sans:"Inter Variable","Inter",system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
@@ -131,18 +128,94 @@ const SITE_CSS = `
   /* Narrow screens: the readability overlay's ellipse covers less of the
      text column, so the board itself dims further to hold AA behind the
      stacked headline. */
-  .cfo-site #cfo-ticker-board{opacity:.32 !important}
+  .cfo-site #cfo-hero-video{opacity:.28 !important}
 }
 .cfo-site.at-top .site-header-row{height:96px}
-@keyframes cfo-heroBoardDrift{0%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}50%{transform:perspective(1400px) rotateX(6deg) rotateY(-3deg) scale(1.8)}100%{transform:perspective(1400px) rotateX(8deg) rotateY(-6deg) scale(1.75)}}
-/* Reduced motion: freeze the board's drift (the live row updates are
-   paused in <HeroTicker> itself under the same media query). */
+/* Reduced motion: the hero video is never started (see the effect in
+   <Landing>) — the poster frame stands in. */
 @media (prefers-reduced-motion:reduce){
-  .cfo-site #cfo-ticker-board{animation:none}
   .cfo-site .btn-grad:hover{transform:none}
 }
 @keyframes cfo-sectionPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(75,191,168,0)}50%{box-shadow:inset 0 0 0 3px rgba(75,191,168,.35)}}
 .cfo-site .section-pulse{animation:cfo-sectionPulse .8s ease-in-out 2}
+/* ── How it works timeline ─────────────────────────────────────────── */
+.cfo-site{--warn:#F2B84B} /* design-lint-allow-hex scoped marketing palette */
+.cfo-site .hw{list-style:none;margin:44px 0 0;padding:0;display:flex;flex-direction:column}
+.cfo-site .hw-step{display:grid;grid-template-columns:64px minmax(0,1fr);gap:18px}
+.cfo-site .hw-rail{position:relative;display:flex;flex-direction:column;align-items:center}
+.cfo-site .hw-circle{position:relative;z-index:1;width:52px;height:52px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--bg);border:2px solid var(--rule-strong);color:var(--ink-mute);font-size:21px;font-weight:700;transition:border-color .5s ease,color .5s ease,box-shadow .6s ease}
+.cfo-site .hw-line{position:relative;flex:1;width:2px;background:var(--rule);margin:6px 0 -6px;min-height:20px}
+.cfo-site .hw-step.is-last .hw-line{display:none}
+.cfo-site .hw-line-fill{position:absolute;inset:0;background:linear-gradient(var(--brand),var(--brand-d));transform:scaleY(0);transform-origin:top;transition:transform .7s ease .35s;box-shadow:0 0 8px rgba(75,191,168,.6)}
+.cfo-site .hw-dot{position:absolute;left:50%;top:55%;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--rule-strong);transition:background .3s ease .8s,box-shadow .3s ease .8s}
+.cfo-site .hw-panel{margin-bottom:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:22px;align-items:center;border:1px solid var(--rule);background:linear-gradient(135deg,rgba(75,191,168,.05),rgba(16,22,20,.6) 45%);border-radius:18px;padding:22px 22px 22px 26px;opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease,border-color .6s ease}
+.cfo-site .hw-title{font-size:clamp(19px,2vw,23px);font-weight:700;letter-spacing:.01em;text-transform:uppercase;color:var(--ink);line-height:1.15}
+.cfo-site .hw-body{margin:10px 0 16px;font-size:14.5px;color:var(--ink-soft);max-width:420px}
+.cfo-site .hw-tag{display:inline-flex;align-items:center;gap:10px;padding:6px 16px 6px 6px;border:1.5px solid var(--brand);border-radius:999px;font-size:13px;font-weight:500;color:var(--ink);box-shadow:0 0 18px -6px rgba(75,191,168,.6)}
+.cfo-site .hw-tag-icon{width:26px;height:26px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:inline-flex;align-items:center;justify-content:center}
+.cfo-site .hw-drop-icon{color:var(--brand);margin-top:12px}
+.cfo-site .hw-drop-icon svg{width:24px;height:24px}
+.cfo-site .hw-mock{width:100%;max-width:560px;justify-self:end;border:1px solid var(--rule);background:var(--bg-deep);border-radius:14px;padding:14px 16px;min-height:150px}
+.cfo-site .hw-mock-title{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:10px}
+.cfo-site .hw-drop{border:1.5px dashed var(--rule-strong);border-radius:10px;padding:16px;text-align:center;display:flex;flex-direction:column;align-items:center}
+.cfo-site .hw-row{display:grid;grid-template-columns:minmax(0,1fr) auto 52px;gap:16px;align-items:center;font-size:11.5px;color:var(--ink-soft);padding:7px 10px;background:var(--surface);border-radius:7px;margin-top:5px}
+.cfo-site .hw-tick{width:15px;height:15px;border-radius:50%;background:var(--brand);color:var(--on-brand);display:inline-flex;align-items:center;justify-content:center}
+.cfo-site .hw-tick svg{width:10px;height:10px}
+.cfo-site .hw-tab{font-size:11px;padding:6px 12px;border-radius:7px;background:var(--surface);color:var(--ink-soft)}
+.cfo-site .hw-tab.is-on{background:var(--brand-deep);color:var(--ink)}
+.cfo-site .hw-bars{flex:1;height:86px;display:flex;align-items:flex-end;gap:4px;border-bottom:1px solid var(--rule)}
+.cfo-site .hw-bar{flex:1;border-radius:3px 3px 0 0;background:linear-gradient(var(--brand-l),var(--brand-deep));transform:scaleY(0);transform-origin:bottom;transition:transform .5s cubic-bezier(.2,.8,.2,1);transition-delay:calc(.35s + var(--k) * .05s)}
+.cfo-site .hw-badge{border:1px solid var(--rule);background:var(--surface);border-radius:10px;padding:8px 12px;flex-shrink:0}
+.cfo-site .hw-bubble{font-size:12px;line-height:1.45;border-radius:10px;padding:9px 12px}
+.cfo-site .hw-bubble-q{background:var(--brand-deep);color:var(--ink)}
+.cfo-site .hw-bubble-a{flex:1;border:1px solid var(--rule);background:var(--surface);color:var(--ink-2)}
+.cfo-site .hw-avatar{width:28px;height:28px;flex-shrink:0;border-radius:8px;border:1px solid var(--rule-strong);display:inline-flex;align-items:center;justify-content:center;color:var(--brand)}
+.cfo-site .hw-avatar-ai svg{width:16px;height:16px}
+.cfo-site .hw-src{font-size:11px;padding:3px 10px;border-radius:999px;background:var(--surface-hi);color:var(--ink-soft)}
+.cfo-site .hw-export{display:flex;flex-direction:column;align-items:center;text-align:center;border:1px solid var(--rule);background:var(--surface);border-radius:10px;padding:14px 6px}
+.cfo-site .hw-export-kind{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;border:1.5px solid;border-radius:5px;padding:5px 6px}
+.cfo-site .hw-pop{opacity:0;transform:translateY(6px);transition:opacity .4s ease,transform .4s ease;transition-delay:calc(.3s + var(--k) * .12s)}
+.cfo-site .hw-step.is-in .hw-circle{border-color:var(--brand);color:var(--brand);box-shadow:0 0 0 5px rgba(75,191,168,.12),0 0 22px rgba(75,191,168,.55)}
+.cfo-site .hw-step.is-in .hw-panel{opacity:1;transform:none}
+.cfo-site .hw-step.is-in .hw-line-fill{transform:scaleY(1)}
+.cfo-site .hw-step.is-in .hw-dot{background:var(--brand);box-shadow:0 0 10px rgba(75,191,168,.8)}
+.cfo-site .hw-step.is-in .hw-bar{transform:scaleY(1)}
+.cfo-site .hw-step.is-in .hw-pop{opacity:1;transform:none}
+.cfo-site .hw-flow{margin:14px 0 0 82px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--rule);border-radius:16px;padding:18px 22px;background:var(--bg-2)}
+.cfo-site .hw-flow-item{display:flex;align-items:center;gap:12px;font-size:13.5px;font-weight:600;color:var(--ink);opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease;transition-delay:calc(var(--k) * .25s)}
+.cfo-site .hw-flow-text{display:flex;flex-direction:column;line-height:1.2}
+.cfo-site .hw-flow-top{font-size:16px;font-weight:600;color:var(--ink)}
+.cfo-site .hw-flow-sub{margin-top:3px;font-size:12.5px;font-weight:400;color:var(--ink);opacity:.55}
+.cfo-site .hw-flow-icon{width:40px;height:40px;flex-shrink:0;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:var(--brand)}
+.cfo-site .hw-flow-icon.is-brand{border:1.5px solid var(--brand);box-shadow:0 0 16px -4px rgba(75,191,168,.7)}
+.cfo-site .hw-flow-icon svg{width:22px;height:22px}
+.cfo-site .hw-cycle{position:relative;width:30px;height:36px;display:inline-block}
+.cfo-site .hw-flow-icon .hw-cycle svg{width:30px;height:36px}
+.cfo-site .hw-cycle-item{position:absolute;inset:0;opacity:0;animation:cfo-fileCycle 4.5s ease-in-out infinite;animation-delay:calc(var(--j) * 1.5s)}
+.cfo-site .hw-cycle-kind{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:.04em}
+@keyframes cfo-fileCycle{0%{opacity:0;transform:translateY(4px)}8%{opacity:1;transform:none}30%{opacity:1;transform:none}38%{opacity:0;transform:translateY(-4px)}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  .cfo-site .hw-cycle-item{animation:none}
+  .cfo-site .hw-cycle-item:first-child{opacity:1}
+}
+.cfo-site .hw-flow-arrow{color:var(--brand);display:inline-flex;opacity:0;transition:opacity .4s ease;transition-delay:calc(var(--k) * .25s - .1s)}
+.cfo-site .hw-flow.is-in .hw-flow-item{opacity:1;transform:none}
+.cfo-site .hw-flow.is-in .hw-flow-arrow{opacity:1}
+@media (max-width:900px){
+  .cfo-site .hw-panel{grid-template-columns:1fr;padding:18px}
+  .cfo-site .hw-flow{flex-direction:column;align-items:flex-start;margin-left:0}
+  .cfo-site .hw-flow-arrow{transform:rotate(90deg);margin-left:9px}
+}
+@media (max-width:560px){
+  .cfo-site .hw-step{grid-template-columns:40px minmax(0,1fr);gap:12px}
+  .cfo-site .hw-circle{width:38px;height:38px;font-size:16px}
+  .cfo-site .hw-row{grid-template-columns:minmax(0,1fr) auto 36px;gap:8px;font-size:11px}
+  .cfo-site .hw-tab{white-space:nowrap;padding:5px 8px;font-size:10.5px}
+  .cfo-site .hw-mock{padding:12px}
+}
+@media (prefers-reduced-motion:reduce){
+  .cfo-site .hw-panel,.cfo-site .hw-pop,.cfo-site .hw-bar,.cfo-site .hw-line-fill,.cfo-site .hw-flow-item,.cfo-site .hw-flow-arrow{transition:none !important}
+}
 @media (max-width:680px){
   .cfo-site .mock-grid{grid-template-columns:1fr !important}
   .cfo-site .mock-kpis{grid-template-columns:repeat(2,1fr) !important}
@@ -183,7 +256,7 @@ function header(
   page: Page | null,
   L: LandingStrings,
   // true only for the home page: the header floats over the hero (out of
-  // flow) so the ticker board can show through it at the top. Every other
+  // flow) so the hero video can show through it at the top. Every other
   // usage (pricing/contact/legal, and MarketingHeader on /account/settings)
   // keeps the normal sticky, in-flow header — those pages have no hero
   // background to reveal, and their own top spacing already assumes the
@@ -342,204 +415,17 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
   </div>
   <p style="text-align:center;margin-top:28px;font-size:12.5px;color:var(--ink-mute)">${L.pricing.note}</p>`;
 
-// ── Hero ticker board — a performance-tuned port of the reference design's
-// "Animated ticker board background" + "Readability overlays": row
-// mechanics (price drift, flash-on-update, digit-scramble while updating,
-// hi/lo band, 7-bar sparkline) are kept, but tuned for FPS — see the perf
-// notes below — and the up-color now uses the site's own
-// brand accent instead of the reference's generic green. Values are
-// synthetic (non-real) market data — pure decoration, not depicting actual
-// securities. The reference's own nav bar and the scrolling ticker strip
-// are intentionally NOT ported (real header already exists; the strip was
-// cut for FPS). The reference's hero copy/CTAs are intentionally NOT
-// ported either — this app's hero keeps its own localized headline/CTAs.
-//
-// Perf notes (this board was laggy at the reference's literal fidelity):
-//   · 135 rows → 60: cuts baseline DOM node + style-recalc count by >50%.
-//   · Per-row formatting is cached by row-object IDENTITY in a WeakMap, so
-//     a tick only recomputes rows whose underlying state actually changed
-//     (~28% of rows per tick) instead of all of them; combined with
-//     React.memo on the row component, unchanged rows do zero React/DOM
-//     work per tick.
-//   · Dropped the `text-shadow` glow on flash (kept the reference's
-//     `filter: blur()` shuffle effect, per an explicit ask, even though
-//     it's the pricier of the two to animate on many elements at once).
-//   · Shorter shuffle window (3 ticks @ 90ms vs. 5 @ 70ms) shrinks the
-//     average number of rows mid-animation at any moment.
-//
-// The surrounding page is a static HTML string (see homeMain below), so
-// the live grid is portalled in from the Landing() component into the
-// #cfo-ticker-board placeholder that string emits.
-const TICKER_SYMS = [
-  "LRTX", "TSPN", "YFGO", "JTZU", "RHVX", "KLAE", "MIPX", "TDBS", "PGFX", "OXNR",
-  "VRTX", "QMEL", "HXOM", "ZBRN", "FLKT", "DWSA", "NPRL", "CVGT", "SBKO", "ULMD",
-  "ARNQ", "EFJT", "GHWX", "ORBD", "MSTV", "KDPL", "BNRC", "TQIL", "WXZO", "JPHA",
-  "CETR", "LUVN", "FGDM", "RYKO", "SNTE", "HBQI", "PVAX", "XLOR", "DZMK", "TWEB",
-  "ONYX", "GRFC", "MABL", "KVST", "EPRO", "ZUNI", "CLDH", "ITRX", "BLQM", "TARN",
-  "VOXE", "HMKD", "SPRW", "JULE", "CRNT", "FYBR", "NODZ", "GLNT", "PIRA", "MERX",
-  "QUOD", "AXIL", "WREN", "TOVA", "KYRO", "ZELP", "DRUM", "NAVI", "OPLE", "SIFT",
-  "HULM", "EMBR", "ACRU", "BEXT", "CYND", "DOVR", "ELMX", "FINT", "GORM", "HYVE",
-  "IRUX", "JAXN", "KELP", "LUMO", "MIRV", "NEXA", "OBRN", "PLYT", "QIRO", "RUVA",
-  "STRN", "TUNK", "UVIA", "VELT", "WOLM", "XANT", "YODL", "ZEPH", "ARBO", "BRUX",
-];
-
-const UP_COLOR = "var(--brand)"; // the site's accent teal, in place of the reference's generic green
-const DOWN_COLOR = "var(--alert)";
-const UP_FLASH_BG = "rgba(75,191,168,0.14)";
-const DOWN_FLASH_BG = "rgba(255,107,107,0.12)";
-
-interface BoardRowState { sym: string; price: number; pct: number; flash: 0 | 1 | -1; shuffle: number }
-
-function makeInitialBoardRows(): BoardRowState[] {
-  return TICKER_SYMS.map((sym) => ({
-    sym,
-    price: 20 + Math.random() * 900,
-    pct: Math.random() * 12 - 6,
-    flash: 0,
-    shuffle: 0,
-  }));
-}
-
-function scrambleDigits(str: string): string {
-  return str.replace(/\d/g, () => String(Math.floor(Math.random() * 10)));
-}
-
-function volOfRow(price: number): string {
-  return (((price * 137) % 900) + 40).toFixed(1) + "K";
-}
-
-interface BoardBar { height: number; opacity: number }
-
-// A fixed "shape" for the 7-bar sparkline (with index jitter for variety) —
-// the actual reaction to live data is the whole cluster's scale, below.
-function barsOfRow(i: number): BoardBar[] {
-  return [4, 7, 5, 9, 6, 10, 7].map((h, k) => ({
-    height: h + ((i * 3 + k * 5) % 5),
-    opacity: 0.5 + k * 0.07,
-  }));
-}
-
-interface FormattedBoardRow {
-  sym: string; price: string; arrow: string; pct: string; vol: string; hiLo: string;
-  color: string; priceColor: string; rowBg: string;
-  numOpacity: number; numFilter: string; barScale: number;
-  bars: BoardBar[];
-}
-
-function formatBoardRow(r: BoardRowState, i: number): FormattedBoardRow {
-  const up = r.pct >= 0;
-  const flashColor = r.flash === 1 ? UP_COLOR : DOWN_COLOR;
-  const color = up ? UP_COLOR : DOWN_COLOR;
-  const rawPrice = r.price.toFixed(2);
-  const rawPct = `${up ? "+" : ""}${r.pct.toFixed(2)}%`;
-  const rawVol = volOfRow(r.price);
-  return {
-    sym: r.sym,
-    price: r.shuffle > 0 ? scrambleDigits(rawPrice) : rawPrice,
-    pct: r.shuffle > 0 ? scrambleDigits(rawPct) : rawPct,
-    vol: r.shuffle > 0 ? scrambleDigits(rawVol) : rawVol,
-    hiLo: `${(r.price * 0.96).toFixed(2)}–${(r.price * 1.04).toFixed(2)}`,
-    arrow: up ? "▲" : "▼",
-    color,
-    priceColor: r.flash ? flashColor : "var(--board-hi)",
-    rowBg: r.flash ? (r.flash === 1 ? UP_FLASH_BG : DOWN_FLASH_BG) : "transparent",
-    numOpacity: r.shuffle > 0 ? 0.4 : 1,
-    numFilter: r.shuffle > 0 ? "blur(2.5px)" : "blur(0px)",
-    // The sparkline cluster scales with the row's actual move size (0.4–1.3x)
-    // instead of bouncing decoratively — bigger movers get visibly bigger bars.
-    barScale: 0.4 + Math.min(1, Math.abs(r.pct) / 14) * 0.9,
-    bars: barsOfRow(i),
-  };
-}
-
-const BoardRowView = memo(function BoardRowView({ row }: { row: FormattedBoardRow }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, borderBottom: "1px solid rgba(110,150,138,0.12)", padding: "5px 2px", whiteSpace: "nowrap", background: row.rowBg, transition: "background 0.6s ease" }}>
-      <span style={{ color: "var(--board-mid)", fontWeight: 600, width: 52 }}>{row.sym}</span>
-      <span style={{ color: row.priceColor, width: 74, textAlign: "right", opacity: row.numOpacity, filter: row.numFilter, transition: "color 0.6s ease, opacity 0.2s ease, filter 0.2s ease" }}>{row.price}</span>
-      <span style={{ width: 14, textAlign: "center", color: row.color }}>{row.arrow}</span>
-      <span style={{ color: row.color, width: 72, textAlign: "right", opacity: row.numOpacity, filter: row.numFilter, transition: "opacity 0.2s ease, filter 0.2s ease" }}>{row.pct}</span>
-      <span style={{ color: "var(--board-dim)", fontSize: 12, width: 58, textAlign: "right" }}>{row.vol}</span>
-      <span style={{ color: "var(--board-dim)", fontSize: 12, width: 108, textAlign: "right" }}>{row.hiLo}</span>
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "flex-end",
-          gap: 2,
-          height: 13,
-          transformOrigin: "bottom",
-          transform: `scaleY(${row.barScale})`,
-          transition: "transform 0.4s ease",
-        }}
-      >
-        {row.bars.map((b, k) => (
-          <span key={k} style={{ width: 3, height: b.height, background: row.color, opacity: b.opacity, borderRadius: 1 }} />
-        ))}
-      </span>
-    </div>
-  );
-});
-
-const HERO_UPDATE_MS = 200; // explicit ask — the reference's own default is 900ms
-const HERO_SHUFFLE_MS = 90; // digit-scramble tick — slowed slightly from the reference's 70ms for FPS
-const HERO_SHUFFLE_STEPS = 3; // shortened from the reference's 5 steps for FPS
-
-function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
-  const [rows, setRows] = useState<BoardRowState[]>(makeInitialBoardRows);
-  // Keyed by row-object identity so a row that didn't change this tick
-  // (same object reference) returns the SAME formatted object — letting
-  // React.memo skip it entirely. A WeakMap lets stale entries get GC'd once
-  // a row updates to a new object.
-  const formatCache = useRef(new WeakMap<BoardRowState, FormattedBoardRow>());
-
-  useEffect(() => {
-    // prefers-reduced-motion pauses the live updates entirely — the board
-    // renders once, static, and the CSS drift is frozen by the matching
-    // media query in SITE_CSS. Not reactive to mid-session OS changes on
-    // purpose (a reload is fine; wiring a listener isn't worth the churn).
-    if (typeof window !== "undefined" &&
-        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
-    const tick = setInterval(() => {
-      setRows((prev) => prev.map((r) => {
-        // 72% of ticks: just let any active flash fade back to neutral.
-        if (Math.random() > 0.28) return r.flash ? { ...r, flash: 0 } : r;
-        const drift = r.price * (Math.random() * 0.02 - 0.01);
-        return {
-          ...r,
-          price: Math.max(1, r.price + drift),
-          pct: Math.max(-14, Math.min(14, r.pct + (Math.random() * 1.6 - 0.8))),
-          flash: drift >= 0 ? 1 : -1,
-          shuffle: HERO_SHUFFLE_STEPS,
-        };
-      }));
-    }, HERO_UPDATE_MS);
-    const shuffle = setInterval(() => {
-      setRows((prev) => (prev.some((r) => r.shuffle > 0)
-        ? prev.map((r) => (r.shuffle > 0 ? { ...r, shuffle: r.shuffle - 1 } : r))
-        : prev));
-    }, HERO_SHUFFLE_MS);
-    return () => { clearInterval(tick); clearInterval(shuffle); };
-  }, []);
-
-  const formatted = useMemo(() => rows.map((r, i) => {
-    const cache = formatCache.current;
-    let f = cache.get(r);
-    if (!f) {
-      f = formatBoardRow(r, i);
-      cache.set(r, f);
-    }
-    return f;
-  }), [rows]);
-
-  return createPortal(
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, max-content)", justifyContent: "center", columnGap: 12, rowGap: 10, padding: 40, fontFamily: "'IBM Plex Mono', monospace", fontSize: 15 }}>
-      {formatted.map((row) => <BoardRowView key={row.sym} row={row} />)}
-    </div>,
-    boardHost,
-  );
-}
+// ── Hero background video ─────────────────────────────────────────────
+// The hero's ticker board used to be a live React grid (synthetic prices
+// ticking every 200ms, digit-scramble, 22s CSS drift) portalled into the
+// innerHTML hero. It is now a pre-rendered 22s loop —
+// public/landing/hero-board.mp4 + hero-board-poster.jpg — rendered frame by
+// frame from that component on a virtual clock (so no dropped frames), with
+// a 1s crossfade at the seam so the loop is invisible. Same look, none of
+// the per-tick React/DOM work. The live implementation (HeroTicker) is in
+// git history if the video ever needs re-rendering.
+const HERO_VIDEO_SRC = "/landing/hero-board.mp4";
+const HERO_VIDEO_POSTER = "/landing/hero-board-poster.jpg";
 
 // ── Global-positioning strip (directive 2026-08-29) ──────────────────────
 // One quiet line + the marquee market row, rendered under the hero mock.
@@ -563,15 +449,105 @@ const globalStrip = (L: LandingStrings, langCode: string) => `
         <div style="margin-top:16px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:14px;row-gap:8px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-mute)">${marqueeMarketRow(langCode)}</div>
       </div>`;
 
+// ── "How it works" — six-step timeline ──────────────────────────────
+// Left rail of numbered, glowing circles joined by a line; each step is a
+// panel with copy on the left and a small illustrative mock on the right
+// (decorative numbers, like the hero dashboard). Steps start hidden and
+// are revealed ONE AT A TIME by the effect in <Landing> (adds .is-in);
+// each mock's inner pieces then stagger in off that class via CSS.
+const HW_ICON = {
+  upload: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>`,
+  check: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+  gear: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`,
+  chart: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>`,
+  chat: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>`,
+  download: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/></svg>`,
+  up: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19L19 5M9 5h10v10"/></svg>`,
+  warn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5L1.5 21h21L12 2.5zm-1 7h2v6h-2v-6zm0 7.5h2v2h-2v-2z"/></svg>`,
+  file: `<svg width="34" height="40" viewBox="0 0 22 26" fill="none" aria-hidden="true"><path d="M2 3a2 2 0 0 1 2-2h10l6 6v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3z" fill="var(--surface-hi)" stroke="var(--rule-strong)"/><path d="M14 1v6h6" stroke="var(--rule-strong)"/></svg>`,
+  arrow: `<svg width="22" height="12" viewBox="0 0 22 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6h19M15 1l5 5-5 5"/></svg>`,
+};
+
+const howMock = (L: LandingStrings, i: number): string => {
+  const m = L.how.mock;
+  const card = (title: string, inner: string) =>
+    `<div class="hw-mock">${title ? `<div class="hw-mock-title">${title}</div>` : ""}${inner}</div>`;
+  switch (i) {
+    case 0: {
+      const chips = [["XLSX", "#2E9E63"], ["CSV", "var(--ink-soft)"], ["PDF", "var(--alert)"]] // design-lint-allow-hex file-type tint
+        .map(([k, c], j) => `<span class="hw-pop" style="--k:${j};display:inline-flex;flex-direction:column;align-items:center;gap:4px"><span style="position:relative;display:inline-flex">${HW_ICON.file}<span style="position:absolute;left:50%;bottom:7px;transform:translateX(-50%);font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.04em;color:${c}">${k}</span></span></span>`).join("");
+      return card("", `<div class="hw-drop"><div style="display:flex;gap:14px;justify-content:center">${chips}</div><div class="hw-pop hw-drop-icon" style="--k:3">${HW_ICON.upload}</div><div class="hw-pop" style="--k:4;font-size:12px;color:var(--ink-soft);margin-top:4px">${m.drop}</div><div class="hw-pop" style="--k:4;font-size:11.5px;color:var(--brand);text-decoration:underline">${m.browse}</div></div>`);
+    }
+    case 1: {
+      const codes = ["701", "607", "628", "4111"];
+      return card(m.mapping, m.mapRows.map((r, j) =>
+        `<div class="hw-row hw-pop" style="--k:${j}"><span>${r}</span><span style="display:inline-flex;align-items:center;gap:6px;color:var(--brand)"><span class="hw-tick">${HW_ICON.check}</span>${m.mapped}</span><span style="font-family:var(--mono);color:var(--ink-mute);text-align:right">${codes[j]}</span></div>`).join(""));
+    }
+    case 2: {
+      const bars = [18, 26, 22, 34, 30, 42, 38, 50, 46, 58, 66, 80];
+      const tabs = m.tabs.map((t, j) => `<span class="hw-tab${j === 0 ? " is-on" : ""}">${t}</span>`).join("");
+      const chart = `<div class="hw-bars">${bars.map((h, j) => `<span class="hw-bar" style="--k:${j};height:${h}%"></span>`).join("")}</div>`;
+      const badge = `<div class="hw-badge hw-pop" style="--k:12"><div style="font-size:10.5px;color:var(--ink-soft)">${m.revenue}</div><div style="font-size:17px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums">12.4M</div><div style="font-size:12px;color:var(--brand);font-weight:600">+18%</div></div>`;
+      return card(m.statements, `<div style="display:flex;gap:6px;margin-bottom:12px">${tabs}</div><div style="display:flex;gap:12px;align-items:flex-end">${chart}${badge}</div>`);
+    }
+    case 3: {
+      const icons = [[HW_ICON.up, "var(--brand)"], [HW_ICON.up, "var(--brand)"], [HW_ICON.check, "var(--brand)"], [HW_ICON.warn, "var(--warn)"]];
+      return card(m.insights, m.insightRows.map((r, j) =>
+        `<div class="hw-pop" style="--k:${j};display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:12.5px;color:var(--ink-2)"><span style="color:${icons[j][1]};display:inline-flex">${icons[j][0]}</span>${r}</div>`).join(""));
+    }
+    case 4:
+      return card("", `<div class="hw-pop" style="--k:0;display:flex;justify-content:flex-end;gap:8px;align-items:center"><div class="hw-bubble hw-bubble-q">${m.question}</div><span class="hw-avatar">${HW_ICON.chat}</span></div>
+        <div class="hw-pop" style="--k:3;display:flex;gap:8px;align-items:flex-start;margin-top:10px"><span class="hw-avatar hw-avatar-ai">${LOGO}</span><div class="hw-bubble hw-bubble-a">${m.answer}<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span class="hw-src">${m.sources}</span><span style="color:var(--ink-mute);display:inline-flex">${HW_ICON.download}</span></div></div></div>`);
+    default: {
+      const tint = ["var(--warn)", "#2E9E63", "var(--brand)"]; // design-lint-allow-hex file-type tint
+      return card("", `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${m.exports.map((e, j) =>
+        `<div class="hw-export hw-pop" style="--k:${j}"><span class="hw-export-kind" style="color:${tint[j]};border-color:${tint[j]}">${e.kind}</span><span style="font-size:12px;color:var(--ink-2);margin-top:8px">${e.label}</span></div>`).join("")}</div>`);
+    }
+  }
+};
+
+const howSection = (L: LandingStrings) => {
+  const tagIcons = [HW_ICON.upload, HW_ICON.check, HW_ICON.gear, HW_ICON.chart, HW_ICON.chat, HW_ICON.download];
+  // First flow icon cycles XLSX → CSV → PDF forever, each fading in over
+  // the last (pure CSS — see .hw-cycle).
+  const kinds = [["XLSX", "#2E9E63"], ["CSV", "var(--ink-soft)"], ["PDF", "var(--alert)"]]; // design-lint-allow-hex file-type tint
+  const fileCycle = `<span class="hw-cycle">${kinds.map(([k, c], j) =>
+    `<span class="hw-cycle-item" style="--j:${j}">${HW_ICON.file}<span class="hw-cycle-kind" style="color:${c}">${k}</span></span>`).join("")}</span>`;
+  const flowIcons = [fileCycle, LOGO, HW_ICON.chart, HW_ICON.check];
+  return `
+  <section id="how" style="max-width:var(--maxw);margin:0 auto;padding:70px 24px;scroll-margin-top:88px">
+    ${eyebrow(L.how.eyebrow)}
+    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:760px">${L.how.t1}<span class="grad-text">${L.how.thl}</span></h2>
+    <p style="margin-top:14px;font-size:15px;color:var(--ink-soft);max-width:640px">${L.how.sub}</p>
+    <ol id="how-steps" class="hw">
+      ${L.how.steps.map((step, i) => `
+      <li class="hw-step${i === L.how.steps.length - 1 ? " is-last" : ""}">
+        <div class="hw-rail" aria-hidden="true"><span class="hw-circle">${i + 1}</span><span class="hw-line"><span class="hw-line-fill"></span><span class="hw-dot"></span></span></div>
+        <div class="hw-panel">
+          <div class="hw-copy">
+            <h3 class="hw-title">${step.title}</h3>
+            <p class="hw-body">${step.body}</p>
+            <span class="hw-tag"><span class="hw-tag-icon">${tagIcons[i]}</span>${step.tag}</span>
+          </div>
+          ${howMock(L, i)}
+        </div>
+      </li>`).join("")}
+    </ol>
+    <div id="how-flow" class="hw-flow">
+      ${L.how.flow.map((f, i) => `${i ? `<span class="hw-flow-arrow" style="--k:${i}">${HW_ICON.arrow}</span>` : ""}<div class="hw-flow-item" style="--k:${i}"><span class="hw-flow-icon${i === 1 ? " is-brand" : ""}">${flowIcons[i]}</span><span class="hw-flow-text"><span class="hw-flow-top">${f.top}</span>${f.sub ? `<span class="hw-flow-sub">${f.sub}</span>` : ""}</span></div>`).join("")}
+    </div>
+  </section>`;
+};
+
 const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCycle = "monthly", langCode = "en") => `
 <main>
   <section style="position:relative;overflow:hidden;background:var(--bg-deep);min-height:100vh">
-    <!-- Ticker layer capped at .55 — with the readability overlays above
+    <!-- Video layer at .4 — with the readability overlays above
          it, the board behind the headline zone stays well below the AA
          contrast floor for the F5F5F5 display text. -->
-    <div id="cfo-ticker-board" aria-hidden="true" style="position:absolute;top:30%;left:-8%;right:-8%;bottom:-46%;z-index:0;animation:cfo-heroBoardDrift 22s ease-in-out infinite;opacity:.55;pointer-events:none;will-change:transform"></div>
-    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 70% 90% at 38% 50%,rgba(7,12,10,.96) 0%,rgba(7,12,10,.84) 45%,rgba(7,12,10,.38) 100%)"></div>
-    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(7,12,10,.9),transparent 20%,transparent 72%,var(--bg-deep))"></div>
+    <video id="cfo-hero-video" aria-hidden="true" tabindex="-1" muted loop playsinline preload="auto" disablepictureinpicture poster="${HERO_VIDEO_POSTER}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;z-index:0;opacity:.4;filter:brightness(1.15) saturate(1.1);pointer-events:none"><source src="${HERO_VIDEO_SRC}" type="video/mp4"></video>
+    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 55% 50% at 50% 42%,rgba(7,12,10,.82) 0%,rgba(7,12,10,.55) 55%,rgba(7,12,10,.12) 100%)"></div>
+    <div aria-hidden="true" style="position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(7,12,10,.7),transparent 16%,transparent 78%,var(--bg-deep))"></div>
     <div style="position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:220px 24px 56px;display:flex;flex-direction:column;align-items:center;text-align:center">
       ${eyebrow(L.hero.eyebrow)}
       <h1 style="margin-top:26px;font-family:var(--serif);font-weight:400;font-size:clamp(40px,6.4vw,66px);line-height:1.04;letter-spacing:-.025em;max-width:920px;color:var(--ink)">${L.hero.t1}<span class="grad-text">${L.hero.thl}</span>${L.hero.t2}</h1>
@@ -635,24 +611,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
     </div>
   </section>
 
-  <section id="how" style="max-width:var(--maxw);margin:0 auto;padding:70px 24px;scroll-margin-top:88px">
-    ${eyebrow(L.how.eyebrow)}
-    <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em;max-width:680px">${L.how.t1}<span class="grad-text">${L.how.thl}</span></h2>
-    <div id="how-steps" style="margin-top:48px;position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
-      <div aria-hidden="true" style="position:absolute;top:22px;left:0;right:0;height:2px;background:var(--rule);z-index:0"></div>
-      ${L.how.steps.map((step, i) => {
-        const delay = (i * 0.45).toFixed(2);
-        return `
-      <div class="how-step" style="position:relative;z-index:1;text-align:left">
-        <div class="how-step-circle" style="width:46px;height:46px;border-radius:50%;background:var(--surface);border:2px solid var(--rule);color:var(--ink-mute);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:600;font-size:15px;box-shadow:0 0 0 6px var(--bg);transition:border-color .5s ease,color .5s ease;transition-delay:${delay}s">0${i + 1}</div>
-        <div class="how-step-text" style="opacity:0;transition:opacity .6s ease;transition-delay:${delay}s">
-          <h3 style="font-family:var(--serif);font-weight:400;font-size:21px;margin-top:18px">${step.title}</h3>
-          <p style="margin-top:8px;font-size:13.5px;color:var(--ink-soft)">${step.body}</p>
-        </div>
-      </div>`;
-      }).join("")}
-    </div>
-  </section>
+  ${howSection(L)}
 
   <section id="trust" style="border-top:1px solid var(--rule-soft);background:var(--bg-2);scroll-margin-top:88px">
     <div style="max-width:var(--maxw);margin:0 auto;padding:74px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:44px;align-items:center">
@@ -1006,16 +965,11 @@ export default function Landing() {
   // re-injected into the markup only when something ELSE forces a re-render.
   const contactRef = useRef<ContactValues>({ name: "", email: "", company: "", message: "" });
 
-  // The hero ticker board needs live JS state, but it lives inside the
-  // dangerouslySetInnerHTML string below — so <HeroTicker> is portalled
-  // into the #cfo-ticker-board placeholder that string emits, once it
-  // exists in the DOM (home page only).
   const rootRef = useRef<HTMLDivElement>(null);
-  const [tickerBoardHost, setTickerBoardHost] = useState<HTMLElement | null>(null);
 
   // Header fade — transparent at the very top of any landing page, fading
   // to the frosted sticky bar as soon as you scroll (on the home page this
-  // also reveals the hero's ticker board through it). This is deliberately
+  // also reveals the hero's background video through it). This is deliberately
   // NOT part of the `html` memo below: including scroll state
   // there would tear down and rebuild the entire innerHTML (header + main +
   // footer) on every scroll tick, which would both kill the CSS transition
@@ -1176,11 +1130,10 @@ export default function Landing() {
   // Header and body are rendered as TWO separate innerHTML subtrees rather
   // than one. Header dropdowns (account, mobile burger) toggle
   // often — if they lived in the same memo as the hero's markup, every
-  // toggle would replace the whole subtree, destroying and recreating the
-  // #cfo-ticker-board placeholder and forcing <HeroTicker>'s portal to
-  // remount (a visible flicker/reset of the whole board). Splitting them
-  // means a dropdown toggle only touches the header's own small subtree —
-  // the body (and the ticker board inside it) is untouched.
+  // toggle would replace the whole subtree, recreating the hero video and
+  // restarting it from frame 0 (a visible reset). Splitting them means a
+  // dropdown toggle only touches the header's own small subtree — the body
+  // (and the hero video inside it) is untouched.
   const headerHtml = useMemo(
     () => header(account, page, L, page === "home", mobileMenuOpen),
     [account, page, L, mobileMenuOpen],
@@ -1198,45 +1151,76 @@ export default function Landing() {
       + (signOutOpen ? signoutModal(L) : "");
   }, [account, page, L, langCode, contactStatus, signOutOpen, billingCycle]);
 
-  // The body innerHTML swap above replaces that subtree wholesale, so the
-  // placeholder is a fresh node each time `bodyHtml` changes — re-find it
-  // and re-target the portal. (Header-only changes, e.g. opening the
-  // language menu, don't touch bodyHtml, so the board keeps running.)
+  // Hero video: started from here rather than an `autoplay` attribute so
+  // prefers-reduced-motion can keep it on its poster frame. The body
+  // innerHTML swap replaces the <video> each time `bodyHtml` changes, so
+  // re-find it then. play() rejects when the browser refuses autoplay
+  // (e.g. Low Power Mode on iOS) — the poster stays, which is fine.
   useEffect(() => {
-    setTickerBoardHost(rootRef.current?.querySelector<HTMLElement>("#cfo-ticker-board") ?? null);
+    const video = rootRef.current?.querySelector<HTMLVideoElement>("#cfo-hero-video");
+    if (!video) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    video.muted = true; // the attribute alone doesn't set the property on innerHTML-parsed media
+    video.play().catch(() => {});
   }, [bodyHtml]);
 
   // (The old "Defensible by design" bar-chart animation effect is gone
   // with the decorative peer bars — the proof strip that replaced them is
   // deliberately static.)
 
-  // "Three steps from spreadsheet to action plan" timeline — the circles
-  // themselves stay put (no movement); their border/text color lights up
-  // from muted to brand-teal, and the title/body text under them fades in,
-  // left to right with a deliberately generous gap between steps (0.45s,
-  // set on each element's own transition-delay in the markup above). Same
-  // direct-DOM-write pattern as the bar chart above, for the same reason.
+  // "How it works" timeline — steps reveal strictly in order, one every
+  // STEP_GAP_MS, as far down as the reader has scrolled: a step that
+  // enters view first releases any earlier step still hidden, so jumping
+  // straight to step 5 still plays 1→5 rather than popping 5 alone. Each
+  // step's inner mock staggers in off its own .is-in via CSS. The flow
+  // strip under the timeline plays once the last step is in. Same
+  // direct-DOM-write pattern as the rest of this file — the body is an
+  // innerHTML swap, so React state wouldn't survive it anyway.
   useEffect(() => {
-    const container = rootRef.current?.querySelector<HTMLElement>("#how-steps");
-    const steps = container ? Array.from(container.querySelectorAll<HTMLElement>(".how-step")) : [];
+    const root = rootRef.current;
+    const steps = root ? Array.from(root.querySelectorAll<HTMLElement>("#how-steps .hw-step")) : [];
+    const flow = root?.querySelector<HTMLElement>("#how-flow");
     if (!steps.length) return;
+    const reveal = (el: HTMLElement) => el.classList.add("is-in");
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      steps.forEach(reveal);
+      if (flow) reveal(flow);
+      return;
+    }
+    const STEP_GAP_MS = 550;
+    let target = -1; // highest step index that has entered view
+    let shown = -1; // highest step index revealed so far
+    let timer: number | undefined;
+    let lastAt = -Infinity; // when the previous step was revealed
+    const pump = () => {
+      timer = undefined;
+      if (shown >= target) return;
+      const wait = lastAt + STEP_GAP_MS - performance.now();
+      if (wait > 0) {
+        timer = window.setTimeout(pump, wait);
+        return;
+      }
+      shown += 1;
+      lastAt = performance.now();
+      reveal(steps[shown]);
+      if (shown === steps.length - 1 && flow) {
+        window.setTimeout(() => reveal(flow), STEP_GAP_MS);
+      }
+      if (shown < target) timer = window.setTimeout(pump, STEP_GAP_MS);
+    };
     const io = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
-        steps.forEach((step) => {
-          const circle = step.querySelector<HTMLElement>(".how-step-circle");
-          if (circle) {
-            circle.style.borderColor = "var(--brand)";
-            circle.style.color = "var(--brand)";
-          }
-          const text = step.querySelector<HTMLElement>(".how-step-text");
-          if (text) text.style.opacity = "1";
-        });
-        io.disconnect();
+        target = Math.max(target, steps.indexOf(entry.target as HTMLElement));
+        io.unobserve(entry.target);
       });
-    }, { threshold: 0.3 });
-    io.observe(container as HTMLElement);
-    return () => io.disconnect();
+      if (timer === undefined) pump();
+    }, { threshold: 0.35, rootMargin: "0px 0px -8% 0px" });
+    steps.forEach((step) => io.observe(step));
+    return () => {
+      io.disconnect();
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [bodyHtml]);
 
   return (
@@ -1255,7 +1239,6 @@ export default function Landing() {
         <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: headerHtml }} />
         <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
       </div>
-      {tickerBoardHost ? <HeroTicker boardHost={tickerBoardHost} /> : null}
     </>
   );
 }

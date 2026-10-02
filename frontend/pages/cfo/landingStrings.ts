@@ -49,9 +49,22 @@ export interface LandingStrings {
      *  "surfaced as dedicated tabs inside your statements". */
     cards: { kicker: string; title: string; body: string; featureKey: FeatureKey }[];
   };
+  /** "How it works" — six-step timeline. Each step carries a small
+   *  illustrative mock (labels under `mock`); every number in it is
+   *  decorative, like the hero dashboard's. */
   how: {
-    eyebrow: string; t1: string; thl: string;
-    steps: { title: string; body: string }[];
+    eyebrow: string; t1: string; thl: string; sub: string;
+    steps: { title: string; body: string; tag: string }[];
+    mock: {
+      drop: string; browse: string;
+      mapping: string; mapped: string; mapRows: string[];
+      statements: string; tabs: string[]; revenue: string;
+      insights: string; insightRows: string[];
+      question: string; answer: string; sources: string;
+      exports: { kind: string; label: string }[];
+    };
+    /** Bottom strip; `sub` renders as a smaller, dimmer line under `top`. */
+    flow: { top: string; sub?: string }[];
   };
   defensible: {
     eyebrow: string; title: string; body: string;
@@ -135,12 +148,33 @@ const en: LandingStrings = {
     ],
   },
   how: {
-    eyebrow: "How it works", t1: "Three steps from spreadsheet to ", thl: "action plan.",
+    eyebrow: "How it works", t1: "From file to ", thl: "decision in minutes.",
+    sub: "Simple enough to use without a finance team. Powerful enough for CFOs.",
     steps: [
-      { title: "Upload your books", body: "Trial balance, bilanț, P&amp;L or balance sheet — Excel, CSV, or PDF. Columns and RAS accounts are mapped automatically." },
-      { title: "CFO AI computes the economics", body: "P&amp;L, balance sheet, cash flow, 22 ratios, EBITDA variants, Altman Z, valuation and credit score — reconciled to your source to ≤1% drift." },
-      { title: "You act with context", body: "Ranked, quantified recommendations plus named public-company peers — export to HTML or a 9-sheet Excel model." },
+      { title: "Upload", body: "Drop in your trial balance, Excel, CSV or financial export.", tag: "Excel · CSV · PDF" },
+      { title: "Extract + verify", body: "CFO AI structures the data, checks the RAS account mapping and flags issues.", tag: "Automatic mapping" },
+      { title: "Build your financial model", body: "P&amp;L · Balance sheet · Cash flow · Ratios · Key accounts.", tag: "Auto-generated" },
+      { title: "Analyze", body: "Margins · Liquidity · Working capital · Trends · Valuation · Risks.", tag: "22 ratios" },
+      { title: "Ask CFO AI", body: "Get instant, source-linked answers to your specific questions.", tag: "Source-linked answers" },
+      { title: "Export + act", body: "Board-ready briefings and financial models — export to HTML or Excel.", tag: "Board-ready" },
     ],
+    mock: {
+      drop: "Drag &amp; drop your files", browse: "or browse files",
+      mapping: "Data mapping", mapped: "Mapped",
+      mapRows: ["Revenue", "Cost of goods sold", "Operating expenses", "Receivables"],
+      statements: "Financial statements", tabs: ["P&amp;L", "Balance sheet", "Cash flow"], revenue: "Revenue",
+      insights: "Key insights",
+      insightRows: ["Margin improvement", "Receivables decreasing", "Strong cash position", "Potential risk in inventory"],
+      question: "Why did margin fall this month?",
+      answer: "Margin decreased by 2.8 pp, mainly due to higher raw-material costs (+420K RON).",
+      sources: "View sources (3)",
+      exports: [
+        { kind: "HTML", label: "Full report" },
+        { kind: "XLSX", label: "8-sheet model" },
+        { kind: "BRIEF", label: "Board summary" },
+      ],
+    },
+    flow: [{ top: "Excel · CSV · PDF" }, { top: "CFO AI", sub: "analysis" }, { top: "Verified", sub: "financial intelligence" }, { top: "Better decisions" }],
   },
   defensible: {
     eyebrow: "Defensible by design",
@@ -281,12 +315,33 @@ const ro: LandingStrings = {
     ],
   },
   how: {
-    eyebrow: "Cum funcționează", t1: "Trei pași de la foaia de calcul la ", thl: "planul de acțiune.",
+    eyebrow: "Cum funcționează", t1: "De la fișier la ", thl: "decizie în câteva minute.",
+    sub: "Destul de simplu încât să-l folosești fără departament financiar. Destul de puternic pentru un CFO.",
     steps: [
-      { title: "Încarcă-ți contabilitatea", body: "Balanță de verificare, bilanț sau P&amp;L — Excel, CSV sau PDF. Coloanele și conturile RAS sunt mapate automat." },
-      { title: "CFO AI calculează economia afacerii", body: "P&amp;L, bilanț, cash flow, 22 de indicatori, variante de EBITDA, Altman Z, evaluare și scor de credit — reconciliate cu sursa până la o abatere de ≤1%." },
-      { title: "Tu acționezi în cunoștință de cauză", body: "Recomandări ierarhizate și cuantificate plus companii publice comparabile, numite explicit — export în HTML sau model Excel cu 9 foi." },
+      { title: "Încarcă", body: "Adaugă balanța de verificare, un fișier Excel, CSV sau un export financiar.", tag: "Excel · CSV · PDF" },
+      { title: "Extrage + verifică", body: "CFO AI structurează datele, verifică maparea conturilor RAS și semnalează problemele.", tag: "Mapare automată" },
+      { title: "Construiește modelul financiar", body: "P&amp;L · Bilanț · Cash flow · Indicatori · Conturi-cheie.", tag: "Generat automat" },
+      { title: "Analizează", body: "Marje · Lichiditate · Capital de lucru · Tendințe · Evaluare · Riscuri.", tag: "22 de indicatori" },
+      { title: "Întreabă CFO AI", body: "Primești instant răspunsuri legate de sursă la întrebările tale concrete.", tag: "Răspunsuri cu surse" },
+      { title: "Exportă + acționează", body: "Rezumate pentru board și modele financiare — export în HTML sau Excel.", tag: "Gata pentru board" },
     ],
+    mock: {
+      drop: "Trage și plasează fișierele", browse: "sau alege fișiere",
+      mapping: "Mapare date", mapped: "Mapat",
+      mapRows: ["Venituri", "Costul mărfurilor", "Cheltuieli operaționale", "Creanțe"],
+      statements: "Situații financiare", tabs: ["P&amp;L", "Bilanț", "Cash flow"], revenue: "Venituri",
+      insights: "Concluzii-cheie",
+      insightRows: ["Marjă în creștere", "Creanțe în scădere", "Poziție de numerar solidă", "Risc potențial în stocuri"],
+      question: "De ce a scăzut marja luna asta?",
+      answer: "Marja a scăzut cu 2,8 pp, în principal din cauza costurilor mai mari cu materiile prime (+420K RON).",
+      sources: "Vezi sursele (3)",
+      exports: [
+        { kind: "HTML", label: "Raport complet" },
+        { kind: "XLSX", label: "Model cu 8 foi" },
+        { kind: "BRIEF", label: "Rezumat board" },
+      ],
+    },
+    flow: [{ top: "Excel · CSV · PDF" }, { top: "CFO AI", sub: "analiză" }, { top: "Verificate", sub: "informații financiare" }, { top: "Decizii mai bune" }],
   },
   defensible: {
     eyebrow: "Defensibil prin design",
