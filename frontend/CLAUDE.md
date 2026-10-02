@@ -72,6 +72,15 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
 - On `/chat` the conversation is full-width and full-height, scrolling **under** the
   translucent header and the bottom composer overlay.
 
+## Custom solutions (Admin + AutoMasters)
+- `lib/customSolutions.ts` — which solutions the account may open (own grants,
+  Supabase) and whether it is an operator (`/api/admin/me`); `adminApi` for the
+  Admin page (`pages/cfo/Admin.tsx`, `/admin`).
+- `pages/cfo/automasters/*` — the AutoMasters screens (`/solutions/automasters/:section`);
+  rules in `lib/automasters/model.ts`, Supabase I/O in `lib/automasters/data.ts`,
+  strings in `amStrings.json`. The chosen month rides in `?month=` (not `?period=`).
+  See root `CLAUDE.md §27` and `docs/automasters/`.
+
 ## Design system (use tokens, not hex)
 - Colors are CSS vars in `index.css`, theme-aware (light/dark via `next-themes`) and
   exposed as Tailwind classes (`tailwind.config.ts`):

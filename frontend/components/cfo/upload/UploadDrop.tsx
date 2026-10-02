@@ -52,7 +52,8 @@ import { startUploadFlow, useUploadFlow } from "@/lib/uploadFlow";
 //                 redesign is promoted.
 //   other_kind    the file is not a company's financial document: a sales
 //                 file for Products, a budget for Budget vs Actual, a chat
-//                 attachment. The app-wide drop stands down over them.
+//                 attachment, an AutoMasters data export (JSON). The
+//                 app-wide drop stands down over them.
 export const UPLOAD_PRIMITIVE_CONSUMERS: Record<string, "redesign_off" | "other_kind"> = {
   "pages/cfo/FinancialStatements.tsx": "redesign_off",
   "pages/cfo/Workspace.tsx": "redesign_off",
@@ -61,6 +62,7 @@ export const UPLOAD_PRIMITIVE_CONSUMERS: Record<string, "redesign_off" | "other_
   "components/cfo/SourceFilesRow.tsx": "other_kind",
   "components/comparison/BudgetUploadCard.tsx": "other_kind",
   "components/cfo/chat/CFOComposer.tsx": "other_kind",
+  "pages/cfo/automasters/AutoMasters.tsx": "other_kind",
 };
 
 // ── Primitives ─────────────────────────────────────────────────────────

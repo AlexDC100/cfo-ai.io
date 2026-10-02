@@ -1,0 +1,770 @@
+{
+  "format": "automasters.cfo.v1",
+  "currency": "EUR",
+  "_note": "Sample data taken from the AutoMasters interactive prototype (fictional names and figures). For testing the CFO AI side only.",
+  "bank_lines": [
+    {
+      "ref": "b1",
+      "booked_on": "2026-09-24",
+      "payer": "Andrei Popescu",
+      "reference": "rest plata SF90 CV-2026-0188",
+      "amount": 406019.2,
+      "suggested_document": "FF-2026-0433"
+    },
+    {
+      "ref": "b2",
+      "booked_on": "2026-09-24",
+      "payer": "Laura Petrescu",
+      "reference": "avans Roma",
+      "amount": 74580,
+      "suggested_document": "FA-2026-1041"
+    },
+    {
+      "ref": "b3",
+      "booked_on": "2026-09-23",
+      "payer": "George Munteanu",
+      "reference": "DV-2026-0877 service",
+      "amount": 1802.9,
+      "suggested_document": "FS-2026-2210"
+    },
+    {
+      "ref": "b4",
+      "booked_on": "2026-09-23",
+      "payer": "Victor Anghel",
+      "reference": "depozit EOI SF90 Spider",
+      "amount": 50000,
+      "suggested_document": "EOI-2026-0061"
+    },
+    {
+      "ref": "b5",
+      "booked_on": "2026-09-22",
+      "payer": "Dan Constantinescu",
+      "reference": "factura FF-2026-0412",
+      "amount": 571604
+    }
+  ],
+  "documents": [
+    {
+      "number": "FF-2026-0433",
+      "customer": "Andrei Popescu",
+      "kind": "final",
+      "amount": 406019.2,
+      "issued_on": "2026-09-20"
+    },
+    {
+      "number": "FA-2026-1041",
+      "customer": "Laura Petrescu",
+      "kind": "advance",
+      "amount": 74580,
+      "issued_on": "2026-09-18"
+    },
+    {
+      "number": "FS-2026-2210",
+      "customer": "George Munteanu",
+      "kind": "service",
+      "amount": 1802.9,
+      "issued_on": "2026-09-19"
+    },
+    {
+      "number": "EOI-2026-0061",
+      "customer": "Victor Anghel",
+      "kind": "deposit",
+      "amount": 50000,
+      "issued_on": "2026-09-15"
+    },
+    {
+      "number": "FF-2026-0412",
+      "customer": "Dan Constantinescu",
+      "kind": "final",
+      "amount": 571616.5,
+      "issued_on": "2026-09-10"
+    },
+    {
+      "number": "FA-2026-1044",
+      "customer": "Ioana Vlad",
+      "kind": "advance",
+      "amount": 129510,
+      "issued_on": "2026-09-21"
+    }
+  ],
+  "exports": [
+    {
+      "channel": "saga",
+      "ref": "EXP-2026-09-24-03",
+      "description": "Storno",
+      "counterparty": "warranty · L. Pop",
+      "doc_count": 1,
+      "amount": -12450,
+      "status": "error",
+      "error": "Account 4111 is not mapped for the Warranty profit centre (transaction type: warranty reversal). Complete the mapping in Administration → Accounting mapping.",
+      "events": [
+        {
+          "at": "2026-09-24T14:20:00Z",
+          "text": "Batch generated for SAGA"
+        },
+        {
+          "at": "2026-09-24T14:21:00Z",
+          "text": "Response: error"
+        }
+      ]
+    },
+    {
+      "channel": "saga",
+      "ref": "EXP-2026-09-24-02",
+      "description": "Service invoices",
+      "counterparty": "L. Pop",
+      "doc_count": 14,
+      "amount": 38912.4,
+      "status": "sent"
+    },
+    {
+      "channel": "saga",
+      "ref": "EXP-2026-09-24-01",
+      "description": "Car invoices, final and advance",
+      "counterparty": "L. Pop",
+      "doc_count": 6,
+      "amount": 1402118.6,
+      "status": "accepted"
+    },
+    {
+      "channel": "saga",
+      "ref": "EXP-2026-09-23-04",
+      "description": "Parts and accessories",
+      "counterparty": "L. Pop",
+      "doc_count": 22,
+      "amount": 9846.1,
+      "status": "accepted"
+    },
+    {
+      "channel": "saga",
+      "ref": "EXP-2026-09-23-03",
+      "description": "Bank receipts",
+      "counterparty": "L. Pop",
+      "doc_count": 31,
+      "amount": 1812400,
+      "status": "reconciled"
+    },
+    {
+      "channel": "efactura",
+      "ref": "FF-2026-0433",
+      "counterparty": "Andrei Popescu",
+      "description": "ANAF index 4987221003",
+      "amount": 406019.2,
+      "status": "accepted"
+    },
+    {
+      "channel": "efactura",
+      "ref": "FS-2026-2210",
+      "counterparty": "George Munteanu",
+      "description": "sent 13:06",
+      "amount": 1802.9,
+      "status": "sent"
+    },
+    {
+      "channel": "efactura",
+      "ref": "FA-2026-1044",
+      "counterparty": "Vlad Consulting SRL",
+      "description": "ANAF response 11:52",
+      "amount": 129510,
+      "status": "rejected",
+      "error": "Rejected by ANAF: the buyer's CUI is not valid. Correct the customer's details and resend."
+    },
+    {
+      "channel": "efactura",
+      "ref": "FF-2026-0412",
+      "counterparty": "Dan Constantinescu",
+      "description": "ANAF index 4986110972",
+      "amount": 571616.5,
+      "status": "accepted"
+    },
+    {
+      "channel": "efactura",
+      "ref": "FS-2026-2206",
+      "counterparty": "Laura Petrescu",
+      "description": "queued",
+      "amount": 684.3,
+      "status": "pending"
+    }
+  ],
+  "centres": [
+    {
+      "period": "2026-01",
+      "centre": "New Cars",
+      "revenue": 1850000.0,
+      "margin": 176305.0,
+      "budget_margin": 169198.66
+    },
+    {
+      "period": "2026-02",
+      "centre": "New Cars",
+      "revenue": 1480000.0,
+      "margin": 141044.0,
+      "budget_margin": 135358.93
+    },
+    {
+      "period": "2026-03",
+      "centre": "New Cars",
+      "revenue": 2590000.0,
+      "margin": 246827.0,
+      "budget_margin": 236878.12
+    },
+    {
+      "period": "2026-04",
+      "centre": "New Cars",
+      "revenue": 2220000.0,
+      "margin": 211566.0,
+      "budget_margin": 203038.39
+    },
+    {
+      "period": "2026-05",
+      "centre": "New Cars",
+      "revenue": 2960000.0,
+      "margin": 282088.0,
+      "budget_margin": 270717.85
+    },
+    {
+      "period": "2026-06",
+      "centre": "New Cars",
+      "revenue": 2220000.0,
+      "margin": 211566.0,
+      "budget_margin": 203038.39
+    },
+    {
+      "period": "2026-07",
+      "centre": "New Cars",
+      "revenue": 2590000.0,
+      "margin": 246827.0,
+      "budget_margin": 236878.12
+    },
+    {
+      "period": "2026-08",
+      "centre": "New Cars",
+      "revenue": 2960000.0,
+      "margin": 282088.0,
+      "budget_margin": 270717.85
+    },
+    {
+      "period": "2026-09",
+      "centre": "New Cars",
+      "revenue": 2610000.0,
+      "margin": 248733.0,
+      "budget_margin": 238707.29,
+      "dms_amount": 2610000,
+      "ledger_amount": 2610000,
+      "note": "Average margin per VIN fell in Q3 on discounts for 296 GTB and Roma.",
+      "contributors": [
+        {
+          "name": "SF90 Stradale (9 VIN)",
+          "value": 412600
+        },
+        {
+          "name": "12Cilindri (8 VIN)",
+          "value": 351900
+        },
+        {
+          "name": "Purosangue (7 VIN)",
+          "value": 318400
+        }
+      ]
+    },
+    {
+      "period": "2026-01",
+      "centre": "Service",
+      "revenue": 180000.0,
+      "margin": 72000.0,
+      "budget_margin": 70038.91
+    },
+    {
+      "period": "2026-02",
+      "centre": "Service",
+      "revenue": 190000.0,
+      "margin": 76000.0,
+      "budget_margin": 73929.96
+    },
+    {
+      "period": "2026-03",
+      "centre": "Service",
+      "revenue": 205000.0,
+      "margin": 82000.0,
+      "budget_margin": 79766.54
+    },
+    {
+      "period": "2026-04",
+      "centre": "Service",
+      "revenue": 200000.0,
+      "margin": 80000.0,
+      "budget_margin": 77821.01
+    },
+    {
+      "period": "2026-05",
+      "centre": "Service",
+      "revenue": 215000.0,
+      "margin": 86000.0,
+      "budget_margin": 83657.59
+    },
+    {
+      "period": "2026-06",
+      "centre": "Service",
+      "revenue": 210000.0,
+      "margin": 84000.0,
+      "budget_margin": 81712.06
+    },
+    {
+      "period": "2026-07",
+      "centre": "Service",
+      "revenue": 215000.0,
+      "margin": 86000.0,
+      "budget_margin": 83657.59
+    },
+    {
+      "period": "2026-08",
+      "centre": "Service",
+      "revenue": 210000.0,
+      "margin": 84000.0,
+      "budget_margin": 81712.06
+    },
+    {
+      "period": "2026-09",
+      "centre": "Service",
+      "revenue": 215000.0,
+      "margin": 86000.0,
+      "budget_margin": 83657.59,
+      "dms_amount": 215000,
+      "ledger_amount": 214548.5,
+      "note": "Workshop load 84% in September; average efficiency 97%.",
+      "contributors": [
+        {
+          "name": "Annual services",
+          "value": 402000
+        },
+        {
+          "name": "Mechanical repairs",
+          "value": 211000
+        },
+        {
+          "name": "Detailing",
+          "value": 64000
+        }
+      ]
+    },
+    {
+      "period": "2026-01",
+      "centre": "Parts",
+      "revenue": 125000.0,
+      "margin": 40000.0,
+      "budget_margin": 39564.79
+    },
+    {
+      "period": "2026-02",
+      "centre": "Parts",
+      "revenue": 130000.0,
+      "margin": 41600.0,
+      "budget_margin": 41147.38
+    },
+    {
+      "period": "2026-03",
+      "centre": "Parts",
+      "revenue": 140000.0,
+      "margin": 44800.0,
+      "budget_margin": 44312.56
+    },
+    {
+      "period": "2026-04",
+      "centre": "Parts",
+      "revenue": 135000.0,
+      "margin": 43200.0,
+      "budget_margin": 42729.97
+    },
+    {
+      "period": "2026-05",
+      "centre": "Parts",
+      "revenue": 145000.0,
+      "margin": 46400.0,
+      "budget_margin": 45895.15
+    },
+    {
+      "period": "2026-06",
+      "centre": "Parts",
+      "revenue": 140000.0,
+      "margin": 44800.0,
+      "budget_margin": 44312.56
+    },
+    {
+      "period": "2026-07",
+      "centre": "Parts",
+      "revenue": 150000.0,
+      "margin": 48000.0,
+      "budget_margin": 47477.74
+    },
+    {
+      "period": "2026-08",
+      "centre": "Parts",
+      "revenue": 145000.0,
+      "margin": 46400.0,
+      "budget_margin": 45895.15
+    },
+    {
+      "period": "2026-09",
+      "centre": "Parts",
+      "revenue": 150000.0,
+      "margin": 48000.0,
+      "budget_margin": 47477.74,
+      "dms_amount": 150000,
+      "ledger_amount": 150000,
+      "note": "SKU verdict: 3 items marked ELIMINATE tie up 2,890.00 EUR.",
+      "contributors": [
+        {
+          "name": "Service consumables",
+          "value": 188000
+        },
+        {
+          "name": "CCM brakes",
+          "value": 121400
+        },
+        {
+          "name": "Counter sales",
+          "value": 58300
+        }
+      ]
+    },
+    {
+      "period": "2026-01",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-02",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-03",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-04",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-05",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-06",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-07",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-08",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32
+    },
+    {
+      "period": "2026-09",
+      "centre": "Used Cars",
+      "revenue": 347219.73,
+      "margin": 24305.38,
+      "budget_margin": 25884.32,
+      "dms_amount": 348000,
+      "ledger_amount": 348000,
+      "note": "Below budget: two trade-ins over 120 days sold at a reduced margin.",
+      "contributors": [
+        {
+          "name": "F8 Tributo 2021",
+          "value": 31200
+        },
+        {
+          "name": "812 Superfast 2019",
+          "value": 28800
+        },
+        {
+          "name": "Portofino 2020",
+          "value": 22500
+        }
+      ]
+    },
+    {
+      "period": "2026-01",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-02",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-03",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-04",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-05",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-06",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-07",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-08",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84
+    },
+    {
+      "period": "2026-09",
+      "centre": "Warranty",
+      "revenue": 45896.86,
+      "margin": 6884.53,
+      "budget_margin": 7126.84,
+      "dms_amount": 46200,
+      "ledger_amount": 42780,
+      "note": "3,420.00 EUR between claims and the ledger (DD7) in the September close.",
+      "contributors": [
+        {
+          "name": "Ferrari warranty",
+          "value": 41200
+        },
+        {
+          "name": "Goodwill",
+          "value": 12300
+        },
+        {
+          "name": "Technical campaigns",
+          "value": 8000
+        }
+      ]
+    },
+    {
+      "period": "2026-01",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-02",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-03",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-04",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-05",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-06",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-07",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-08",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81
+    },
+    {
+      "period": "2026-09",
+      "centre": "Accessories",
+      "revenue": 30930.49,
+      "margin": 10825.67,
+      "budget_margin": 9931.81,
+      "dms_amount": 31400,
+      "ledger_amount": 31400,
+      "note": "Above budget thanks to personalised delivery packages.",
+      "contributors": [
+        {
+          "name": "Mats and covers",
+          "value": 38100
+        },
+        {
+          "name": "Lifestyle collection",
+          "value": 31700
+        },
+        {
+          "name": "PHEV chargers",
+          "value": 18900
+        }
+      ]
+    },
+    {
+      "period": "2026-01",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-02",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-03",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-04",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-05",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-06",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-07",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-08",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0
+    },
+    {
+      "period": "2026-09",
+      "centre": "Internal",
+      "revenue": 20952.91,
+      "margin": 0.0,
+      "budget_margin": 0.0,
+      "dms_amount": 21000,
+      "ledger_amount": 21000,
+      "note": "Internal cost allocations per VIN (demo, stock); zero margin by construction.",
+      "contributors": []
+    }
+  ],
+  "funnel": [
+    {
+      "period": "2026-09",
+      "stage": "Lead",
+      "position": 0,
+      "count": 72
+    },
+    {
+      "period": "2026-09",
+      "stage": "Opportunity",
+      "position": 1,
+      "count": 41
+    },
+    {
+      "period": "2026-09",
+      "stage": "Expression of Interest",
+      "position": 2,
+      "count": 29
+    },
+    {
+      "period": "2026-09",
+      "stage": "Order",
+      "position": 3,
+      "count": 25
+    },
+    {
+      "period": "2026-09",
+      "stage": "Delivery",
+      "position": 4,
+      "count": 22
+    }
+  ]
+}

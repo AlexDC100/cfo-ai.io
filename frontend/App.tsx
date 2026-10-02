@@ -105,6 +105,8 @@ const AccountSettings = lazy(() => import("./pages/cfo/AccountSettings"));
 // instantly redirected by the page's own already-asked branch.
 const Onboarding = lazy(() => import("./pages/cfo/Onboarding"));
 const Chat = lazy(() => import("./pages/cfo/Chat"));
+const Admin = lazy(() => import("./pages/cfo/Admin"));
+const AutoMasters = lazy(() => import("./pages/cfo/automasters/AutoMasters"));
 // NASDAQ-8's standalone US search page was removed 2026-07-23 (Romania-only
 // coverage) — /dashboard/public/search now redirects to /public-companies.
 // NASDAQ-9 — per-company dashboard at /dashboard/public/:ticker.
@@ -528,6 +530,9 @@ function AppRoutes() {
             />
             <Route path="/settings" element={<Settings />} />
             <Route path="/ops" element={<Ops />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/solutions/automasters" element={<AutoMasters />} />
+            <Route path="/solutions/automasters/:section" element={<AutoMasters />} />
             {/* Flag-gated: render the page when enabled, else redirect. */}
             <Route
               path="/decisions"

@@ -48,6 +48,7 @@ import {
   Building2,
   Loader2,
   Moon,
+  ShieldCheck,
   SunMedium,
   User as UserIcon,
   type LucideIcon,
@@ -64,6 +65,8 @@ import {
   type FeatureStatus,
   useFeatures,
 } from "@/lib/features";
+import { useMySolutions, usePlatformAdmin } from "@/lib/customSolutions";
+import "@/pages/cfo/automasters/amI18n";
 
 interface Props {
   onSettings: () => void;
@@ -386,6 +389,7 @@ export function Sidebar({
             ))}
           </Section>
         ))}
+        <SolutionsNav collapsed={effectivelyCollapsed} onItemClick={onItemClick} />
       </nav>
 
       {/* Account row — DRAWER ONLY (2026-08-18, native-shell pass): inside
@@ -666,6 +670,27 @@ function SidebarAction({
         {label}
       </span>
     </button>
+  );
+}
+
+/** Custom solutions the account is linked to (AutoMasters, …) and, for an
+ *  operator, the Admin page. Renders nothing for everyone else. */
+function SolutionsNav({ collapsed, onItemClick }: { collapsed: boolean; onItemClick?: () => void }) {
+  const { t } = useTranslation();
+  const { solutions } = useMySolutions();
+  const { isAdmin } = usePlatformAdmin();
+  if (!solutions.length && !isAdmin) return null;
+  return (
+    <Section label={t("shell.nav.solutions")} collapsed={collapsed}>
+      {solutions.map((s) => (
+        <SidebarLink key={s.key} to={s.path} testId={`sidebar-solution-${s.key}`} onClick={onItemClick}
+          icon={s.icon} label={s.name} collapsed={collapsed} />
+      ))}
+      {isAdmin && (
+        <SidebarLink to="/admin" testId="sidebar-admin" onClick={onItemClick}
+          icon={ShieldCheck} label={t("sidebar.admin")} collapsed={collapsed} />
+      )}
+    </Section>
   );
 }
 

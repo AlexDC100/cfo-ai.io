@@ -295,6 +295,12 @@ function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return callUrl<T>(`${API_URL}${path}`, init);
 }
 
+/** The same authenticated engine call, for feature modules that keep their
+ *  own endpoints out of this file (lib/customSolutions). */
+export function engineCall<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return call<T>(path, init);
+}
+
 /** RECONCILIATION FLOW (docs/CANONICAL_BS_V2_CONTRACT.md §"RECONCILIATION
  *  FLOW") — response of POST /api/period/{id}/reconcile/undo (and the
  *  ops-only /reconcile). The engine serves the freshly rebuilt

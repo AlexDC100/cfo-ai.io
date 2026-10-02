@@ -1558,6 +1558,41 @@ report and alert bodies) are NOT converted — a separate ruling.
 
 ---
 
+## 27. Custom solutions + AutoMasters (2026-10-02)
+
+**Custom solutions** are bespoke workspaces built on top of CFO AI for one
+client. Access is per ACCOUNT: `custom_solutions` (catalogue) +
+`custom_solution_grants` (account ↔ solution), in
+`supabase/schema_phase_custom_solutions.sql`. Grants are written ONLY by
+`src/engine/api/_custom_solutions.py` (`/api/admin/custom-solutions/*`,
+service role); the tables have no client write policy. Operators are the
+verified user ids in `PLATFORM_ADMIN_USER_IDS` (or `PRICING_ADMIN_USER_IDS`);
+an empty allowlist fails closed. The **Admin** page (`/admin`,
+`pages/cfo/Admin.tsx`) links an account by e-mail and unlinks it; the sidebar
+shows it to operators only (`GET /api/admin/me`) and lists the solutions the
+account is linked to under "Solutions" (`lib/customSolutions.ts`). A new
+solution = a catalogue row + an entry in `SOLUTIONS` + its route.
+
+**AutoMasters** (`/solutions/automasters/:section`, `pages/cfo/automasters/`)
+is the CFO side of the AutoMasters dealership desktop app (Electron, separate
+repo): Performance, Profit centres, Ask CFO AI, Payments reconciliation,
+SAGA & e-Factura, Month close. Data lives in the workspace-scoped `am_*`
+tables (RLS `am_can(org_id)` = member AND grant), read and written straight
+from Supabase (works with the engine down); the rules are pure functions in
+`lib/automasters/model.ts`. Month close and export retry are RPCs that
+enforce their rules in the database (`am_close_period`: every check done and
+no profit centre's DMS ↔ ledger difference over 0.5%;
+`am_request_export_retry`: failed items only — the DMS owns the status).
+Ask CFO AI reuses the `chat-llm` Edge Function in workspace mode with
+`aiSnapshot()` as the dataset summary. Until the desktop app writes the
+tables, "Import data" takes an `automasters.cfo.v1` JSON export — contract
+and example in `docs/automasters/`.
+
+Deploy: apply the migration (§14 two-step), set `PLATFORM_ADMIN_USER_IDS`,
+rebuild the backend, then the frontend.
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*

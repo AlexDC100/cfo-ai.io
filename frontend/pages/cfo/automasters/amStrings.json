@@ -1,0 +1,544 @@
+{
+  "en": {
+    "am": {
+      "eyebrow": "AutoMasters · custom solution",
+      "subtitle": "{{company}} · finance and management for the dealership. Amounts in EUR, VAT excluded.",
+      "section": {
+        "performance": "Dealer performance",
+        "profit-centres": "Profit centres",
+        "ask": "Ask CFO AI",
+        "payments": "Payments reconciliation",
+        "exports": "SAGA & e-Factura",
+        "close": "Month close"
+      },
+      "group": {
+        "management": "Management",
+        "finance": "Finance"
+      },
+      "period": "Month",
+      "cancel": "Cancel",
+      "retry": "Retry",
+      "noAccess": {
+        "title": "AutoMasters isn't enabled for this account",
+        "body": "Ask a CFO AI administrator to link your account to the AutoMasters solution."
+      },
+      "noWorkspace": "Open a workspace first — AutoMasters data belongs to a company workspace.",
+      "loadError": "Couldn't load the AutoMasters data.",
+      "import": {
+        "open": "Import data",
+        "title": "Import AutoMasters data",
+        "body": "Choose a JSON export from the AutoMasters app (format \"{{format}}\"). Rows are matched by their own ids, so importing the same file again changes nothing.",
+        "notJson": "The file isn't valid JSON.",
+        "done": "Data imported",
+        "refused": "The file was not imported:",
+        "save": "Import",
+        "upsertNote": "Existing rows with the same id are updated; nothing is deleted.",
+        "count": {
+          "bank_lines": "Bank lines",
+          "documents": "Documents",
+          "exports": "Export items",
+          "centres": "Profit-centre months",
+          "funnel": "Funnel rows"
+        },
+        "choose": "Choose file",
+        "noFile": "No file chosen"
+      },
+      "empty": {
+        "importHint": "Data arrives from the AutoMasters app. Until it is connected, import a JSON export.",
+        "performance": "No monthly figures yet",
+        "funnel": "No funnel figures for this month.",
+        "centres": "No profit-centre figures yet",
+        "payments": "No bank lines or open documents yet",
+        "exports": "No SAGA or e-Factura items yet"
+      },
+      "perf": {
+        "revenueYtd": "Revenue {{year}} to date",
+        "marginYtd": "Margin {{year}} to date",
+        "marginPct": "Margin %",
+        "revenueByMonth": "Revenue by month · {{year}}",
+        "segment": "Segment",
+        "funnel": "Sales funnel · {{month}}",
+        "conversion": "{{pct}}% from previous"
+      },
+      "seg": {
+        "all": "All",
+        "new_cars": "New cars",
+        "service": "Service",
+        "parts": "Parts",
+        "other": "Other"
+      },
+      "centres": {
+        "title": "Year to date, through {{through}}",
+        "revenue": "Revenue",
+        "margin": "Margin",
+        "marginPct": "Margin %",
+        "vsBudget": "Vs. budget",
+        "centre": "Centre",
+        "share": "Share of margin",
+        "total": "Total",
+        "detail": "Detail · {{centre}}",
+        "marginYtd": "Margin year to date",
+        "budget": "Budget",
+        "contributors": "Main contributors"
+      },
+      "ask": {
+        "aboutCentre": "How is the {{centre}} profit centre doing against budget, and why?",
+        "cta": "Ask CFO AI",
+        "title": "Ask CFO AI",
+        "grounding": "Answers cite the figures in this workspace. The AI explains; it does not calculate.",
+        "hello": "Ask about sales, profit centres, payments, exports or the month close. Pick a question or write your own.",
+        "placeholder": "Ask about sales, payments, exports or the close",
+        "send": "Send",
+        "openAlerts": "Open alerts",
+        "q1": "Which profit centres are below budget, and why?",
+        "q2": "What is blocking the month close?",
+        "q3": "Which payments and advances are still not matched?",
+        "q4": "Which SAGA or e-Factura items failed, and what do I need to fix?"
+      },
+      "alert": {
+        "recon_material": "{{centre}}: material DMS ↔ ledger difference",
+        "recon_minor": "{{centre}}: minor drift",
+        "exports_failed_one": "{{count}} export failed",
+        "exports_failed_other": "{{count}} exports failed",
+        "advances_open_one": "{{count}} advance not yet settled",
+        "advances_open_other": "{{count}} advances not yet settled",
+        "payments_open_one": "{{count}} payment not matched",
+        "payments_open_other": "{{count}} payments not matched",
+        "none": "Nothing open"
+      },
+      "pay": {
+        "openCount_one": "{{count}} payment to match",
+        "openCount_other": "{{count}} payments to match",
+        "matchedCount_one": "{{count}} matched",
+        "matchedCount_other": "{{count}} matched",
+        "auto_one": "Auto-match ({{count}})",
+        "auto_other": "Auto-match ({{count}})",
+        "autoDone_one": "{{count}} payment matched",
+        "autoDone_other": "{{count}} payments matched",
+        "bank": "Bank statement",
+        "documents": "Open documents",
+        "suggested": "Suggested",
+        "matched": "Matched",
+        "pair": "Match",
+        "difference": "difference",
+        "pickBoth": "Pick a payment from the statement and an open document.",
+        "match": "Match",
+        "matchedToast": "Payment matched",
+        "currencyClash": "The payment and the document are in different currencies — match them in the DMS.",
+        "differenceNote": "The difference is booked as an accounting note by Finance.",
+        "matchedList": "Matched",
+        "byAuto": "auto-matched",
+        "undo": "Undo"
+      },
+      "kind": {
+        "final": "final invoice",
+        "advance": "advance",
+        "service": "service",
+        "deposit": "deposit",
+        "other": "other"
+      },
+      "exp": {
+        "saga": "SAGA",
+        "efactura": "RO e-Factura",
+        "noneInChannel": "Nothing in this channel yet",
+        "docs_one": "{{count}} document",
+        "docs_other": "{{count}} documents",
+        "retryQueued": "Retry requested — the AutoMasters app will resend it.",
+        "retryRefused": "Only a failed item can be retried.",
+        "retryEvent": "Retry requested",
+        "retryWaiting": "Retry requested {{when}} — waiting for the AutoMasters app.",
+        "retrySaga": "Reprocess the batch",
+        "retryEf": "Correct and resend",
+        "dmsOwns": "Statuses come from the AutoMasters app; a retry asks it to send again.",
+        "status": {
+          "pending": "Pending",
+          "sent": "Sent",
+          "accepted": "Accepted",
+          "error": "Error",
+          "rejected": "Rejected",
+          "reconciled": "Reconciled"
+        }
+      },
+      "close": {
+        "heading": "Close · {{month}}",
+        "status": {
+          "not_started": "Not started",
+          "open": "Open",
+          "review": "Review",
+          "closed": "Closed"
+        },
+        "notStarted": "This month's close hasn't started",
+        "notStartedBody": "Starting it creates the standard eight-item checklist. The month can be closed once every item is done and no profit centre has a material difference.",
+        "start": "Start the close",
+        "checklist": "Checklist · {{done}}/{{total}}",
+        "check": {
+          "invoices_vs_deliveries": "Invoices issued match deliveries",
+          "advances_allocated": "Unallocated advances settled",
+          "service_wip": "Service work in progress valued",
+          "parts_inventory": "Parts inventory reconciled",
+          "saga_export_clean": "SAGA export complete, no errors",
+          "warranty_claims": "Warranty claims reconciled",
+          "fx_rate": "Closing BNR exchange rate applied",
+          "close_reports": "Closing reports generated"
+        },
+        "doneAt": "done {{when}}",
+        "hint": {
+          "saga_export_clean": {
+            "ok": "No failed SAGA batches",
+            "warn_one": "{{count}} SAGA batch in error",
+            "warn_other": "{{count}} SAGA batches in error"
+          },
+          "advances_allocated": {
+            "ok": "Every advance is settled",
+            "warn_one": "{{count}} advance not allocated",
+            "warn_other": "{{count}} advances not allocated"
+          },
+          "warranty_claims": {
+            "ok": "Warranty reconciles",
+            "warn": "Warranty has a material difference"
+          }
+        },
+        "recon": "DMS ↔ ledger (SAGA) by profit centre",
+        "noRecon": "No reconciliation figures for this month",
+        "dms": "DMS",
+        "ledger": "Ledger",
+        "diff": "Difference",
+        "state": "State",
+        "reconRule": "Up to 0.5% of the DMS amount is a minor drift (shown, not hidden); above it the difference is material and blocks the close.",
+        "closedAt": "Closed {{when}}. The checklist is frozen.",
+        "blockedChecks_one": "Close blocked: {{count}} checklist item is not done.",
+        "blockedChecks_other": "Close blocked: {{count}} checklist items are not done.",
+        "blockedMaterial": "Close blocked: material difference in {{centres}}. Book the correcting entry, then re-import.",
+        "close": "Close the month",
+        "closedToast": "{{month}} closed",
+        "refused": {
+          "not_found": "The close hasn't been started.",
+          "already_closed": "This month is already closed.",
+          "open_checks": "Some checklist items are not done.",
+          "material_difference": "A profit centre still has a material difference."
+        }
+      },
+      "recon": {
+        "balanced": "Balanced",
+        "minor": "Minor drift",
+        "material": "Material",
+        "missing": "No figures"
+      }
+    },
+    "admin": {
+      "eyebrow": "Operator",
+      "title": "Admin",
+      "subtitle": "Give accounts access to the custom solutions built on top of CFO AI.",
+      "denied": {
+        "title": "Admins only",
+        "body": "This page is for CFO AI operators."
+      },
+      "loadError": "Couldn't load the custom solutions.",
+      "solutions": {
+        "heading": "Custom solutions",
+        "none": "No custom solutions yet.",
+        "open": "Open",
+        "email": "Account e-mail",
+        "note": "Note (optional)",
+        "notePlaceholder": "e.g. CFO, Finance",
+        "link": "Link account",
+        "linkHelp": "The person must already have a CFO AI account. They see the solution the next time the app loads.",
+        "accounts_one": "{{count}} linked account",
+        "accounts_other": "{{count}} linked accounts",
+        "noAccounts": "No accounts linked yet.",
+        "you": "(you)",
+        "grantedAt": "linked {{when}}",
+        "grantedBy": "by {{email}}",
+        "confirmUnlink": "Remove access?",
+        "unlink": "Unlink",
+        "linked": "{{email}} linked to {{name}}",
+        "unlinked": "{{email}} unlinked from {{name}}"
+      }
+    },
+    "sidebar": {
+      "admin": "Admin"
+    },
+    "shell": {
+      "nav": {
+        "solutions": "Solutions"
+      }
+    }
+  },
+  "ro": {
+    "am": {
+      "eyebrow": "AutoMasters · soluție dedicată",
+      "subtitle": "{{company}} · finanțe și management pentru dealer. Sume în EUR, fără TVA.",
+      "section": {
+        "performance": "Performanță dealer",
+        "profit-centres": "Centre de profit",
+        "ask": "Întreabă CFO AI",
+        "payments": "Reconciliere încasări",
+        "exports": "SAGA și e-Factura",
+        "close": "Închidere lunară"
+      },
+      "group": {
+        "management": "Management",
+        "finance": "Finance"
+      },
+      "period": "Luna",
+      "cancel": "Anulează",
+      "retry": "Reîncearcă",
+      "noAccess": {
+        "title": "AutoMasters nu este activat pentru contul tău",
+        "body": "Cere unui administrator CFO AI să îți lege contul de soluția AutoMasters."
+      },
+      "noWorkspace": "Deschide întâi un workspace — datele AutoMasters aparțin unei companii.",
+      "loadError": "Nu am putut încărca datele AutoMasters.",
+      "import": {
+        "open": "Importă date",
+        "title": "Importă date AutoMasters",
+        "body": "Alege un export JSON din aplicația AutoMasters (formatul „{{format}}”). Rândurile se potrivesc după propriul id, așa că același fișier importat din nou nu schimbă nimic.",
+        "notJson": "Fișierul nu este JSON valid.",
+        "done": "Date importate",
+        "refused": "Fișierul nu a fost importat:",
+        "save": "Importă",
+        "upsertNote": "Rândurile existente cu același id sunt actualizate; nu se șterge nimic.",
+        "count": {
+          "bank_lines": "Linii extras",
+          "documents": "Documente",
+          "exports": "Elemente export",
+          "centres": "Luni centre de profit",
+          "funnel": "Rânduri pâlnie"
+        },
+        "choose": "Alege fișierul",
+        "noFile": "Niciun fișier ales"
+      },
+      "empty": {
+        "importHint": "Datele vin din aplicația AutoMasters. Până la conectare, importă un export JSON.",
+        "performance": "Încă nu există cifre lunare",
+        "funnel": "Nu există cifre de pâlnie pentru luna aceasta.",
+        "centres": "Încă nu există cifre pe centre de profit",
+        "payments": "Încă nu există linii de extras sau documente deschise",
+        "exports": "Încă nu există elemente SAGA sau e-Factura"
+      },
+      "perf": {
+        "revenueYtd": "Venit {{year}} până acum",
+        "marginYtd": "Marjă {{year}} până acum",
+        "marginPct": "Marjă %",
+        "revenueByMonth": "Venit pe luni · {{year}}",
+        "segment": "Segment",
+        "funnel": "Pâlnie vânzări · {{month}}",
+        "conversion": "{{pct}}% din etapa anterioară"
+      },
+      "seg": {
+        "all": "Toate",
+        "new_cars": "Auto noi",
+        "service": "Service",
+        "parts": "Piese",
+        "other": "Altele"
+      },
+      "centres": {
+        "title": "De la începutul anului până în {{through}}",
+        "revenue": "Venit",
+        "margin": "Marjă",
+        "marginPct": "Marjă %",
+        "vsBudget": "Vs. buget",
+        "centre": "Centru",
+        "share": "Pondere marjă",
+        "total": "Total",
+        "detail": "Detaliu · {{centre}}",
+        "marginYtd": "Marjă de la începutul anului",
+        "budget": "Buget",
+        "contributors": "Contribuții principale"
+      },
+      "ask": {
+        "aboutCentre": "Cum stă centrul de profit {{centre}} față de buget și de ce?",
+        "cta": "Întreabă CFO AI",
+        "title": "Întreabă CFO AI",
+        "grounding": "Răspunsurile citează cifrele din acest workspace. AI-ul explică, nu calculează.",
+        "hello": "Întreabă despre vânzări, centre de profit, încasări, exporturi sau închiderea lunii. Alege o întrebare sau scrie-o pe a ta.",
+        "placeholder": "Întreabă despre vânzări, încasări, exporturi sau închidere",
+        "send": "Trimite",
+        "openAlerts": "Alerte deschise",
+        "q1": "Ce centre de profit sunt sub buget și de ce?",
+        "q2": "Ce blochează închiderea lunii?",
+        "q3": "Ce încasări și avansuri nu sunt încă alocate?",
+        "q4": "Ce elemente SAGA sau e-Factura au eșuat și ce trebuie corectat?"
+      },
+      "alert": {
+        "recon_material": "{{centre}}: dezechilibru material DMS ↔ contabilitate",
+        "recon_minor": "{{centre}}: diferență minoră",
+        "exports_failed_one": "{{count}} export eșuat",
+        "exports_failed_other": "{{count}} de exporturi eșuate",
+        "exports_failed_few": "{{count}} exporturi eșuate",
+        "advances_open_one": "{{count}} avans nealocat",
+        "advances_open_other": "{{count}} de avansuri nealocate",
+        "advances_open_few": "{{count}} avansuri nealocate",
+        "payments_open_one": "{{count}} încasare nealocată",
+        "payments_open_other": "{{count}} de încasări nealocate",
+        "payments_open_few": "{{count}} încasări nealocate",
+        "none": "Nimic deschis"
+      },
+      "pay": {
+        "openCount_one": "{{count}} încasare de alocat",
+        "openCount_other": "{{count}} de încasări de alocat",
+        "openCount_few": "{{count}} încasări de alocat",
+        "matchedCount_one": "{{count}} alocată",
+        "matchedCount_other": "{{count}} de alocate",
+        "matchedCount_few": "{{count}} alocate",
+        "auto_one": "Alocare automată ({{count}})",
+        "auto_other": "Alocare automată ({{count}})",
+        "auto_few": "Alocare automată ({{count}})",
+        "autoDone_one": "{{count}} încasare alocată",
+        "autoDone_other": "{{count}} de încasări alocate",
+        "autoDone_few": "{{count}} încasări alocate",
+        "bank": "Extras bancar",
+        "documents": "Documente deschise",
+        "suggested": "Sugerat",
+        "matched": "Alocat",
+        "pair": "Alocare",
+        "difference": "diferență",
+        "pickBoth": "Alege o plată din extras și un document deschis.",
+        "match": "Alocă",
+        "matchedToast": "Încasare alocată",
+        "currencyClash": "Plata și documentul sunt în monede diferite — alocă-le în DMS.",
+        "differenceNote": "Diferența se înregistrează ca notă contabilă de către Finance.",
+        "matchedList": "Alocate",
+        "byAuto": "alocată automat",
+        "undo": "Anulează"
+      },
+      "kind": {
+        "final": "factură finală",
+        "advance": "avans",
+        "service": "service",
+        "deposit": "depozit",
+        "other": "altele"
+      },
+      "exp": {
+        "saga": "SAGA",
+        "efactura": "RO e-Factura",
+        "noneInChannel": "Încă nimic pe acest canal",
+        "docs_one": "{{count}} document",
+        "docs_other": "{{count}} de documente",
+        "docs_few": "{{count}} documente",
+        "retryQueued": "Retrimitere cerută — aplicația AutoMasters o va trimite din nou.",
+        "retryRefused": "Doar un element eșuat poate fi retrimis.",
+        "retryEvent": "Retrimitere cerută",
+        "retryWaiting": "Retrimitere cerută {{when}} — se așteaptă aplicația AutoMasters.",
+        "retrySaga": "Reprocesează lotul",
+        "retryEf": "Corectează și retrimite",
+        "dmsOwns": "Stările vin din aplicația AutoMasters; o retrimitere îi cere să trimită din nou.",
+        "status": {
+          "pending": "În așteptare",
+          "sent": "Trimis",
+          "accepted": "Acceptat",
+          "error": "Eroare",
+          "rejected": "Respins",
+          "reconciled": "Reconciliat"
+        }
+      },
+      "close": {
+        "heading": "Închidere · {{month}}",
+        "status": {
+          "not_started": "Neînceput",
+          "open": "Deschisă",
+          "review": "Review",
+          "closed": "Închisă"
+        },
+        "notStarted": "Închiderea lunii nu a început",
+        "notStartedBody": "Pornirea creează lista standard de opt verificări. Luna poate fi închisă când toate sunt finalizate și niciun centru de profit nu are o diferență materială.",
+        "start": "Începe închiderea",
+        "checklist": "Verificări · {{done}}/{{total}}",
+        "check": {
+          "invoices_vs_deliveries": "Facturi emise vs. livrări",
+          "advances_allocated": "Avansuri nealocate regularizate",
+          "service_wip": "WIP service evaluat",
+          "parts_inventory": "Inventar piese reconciliat",
+          "saga_export_clean": "Export SAGA complet, fără erori",
+          "warranty_claims": "Claims garanție reconciliate",
+          "fx_rate": "Curs BNR de închidere aplicat",
+          "close_reports": "Rapoarte de închidere generate"
+        },
+        "doneAt": "finalizat {{when}}",
+        "hint": {
+          "saga_export_clean": {
+            "ok": "Niciun lot SAGA eșuat",
+            "warn_one": "{{count}} lot SAGA în eroare",
+            "warn_other": "{{count}} de loturi SAGA în eroare",
+            "warn_few": "{{count}} loturi SAGA în eroare"
+          },
+          "advances_allocated": {
+            "ok": "Toate avansurile sunt alocate",
+            "warn_one": "{{count}} avans nealocat",
+            "warn_other": "{{count}} de avansuri nealocate",
+            "warn_few": "{{count}} avansuri nealocate"
+          },
+          "warranty_claims": {
+            "ok": "Garanția se reconciliază",
+            "warn": "Garanția are o diferență materială"
+          }
+        },
+        "recon": "DMS ↔ contabilitate (SAGA) pe centre de profit",
+        "noRecon": "Nu există cifre de reconciliere pentru luna aceasta",
+        "dms": "DMS",
+        "ledger": "Contabilitate",
+        "diff": "Diferență",
+        "state": "Stare",
+        "reconRule": "Până la 0,5% din suma DMS este o diferență minoră (afișată, nu ascunsă); peste, diferența este materială și blochează închiderea.",
+        "closedAt": "Închisă {{when}}. Lista de verificări este înghețată.",
+        "blockedChecks_one": "Închidere blocată: {{count}} verificare nefinalizată.",
+        "blockedChecks_other": "Închidere blocată: {{count}} de verificări nefinalizate.",
+        "blockedChecks_few": "Închidere blocată: {{count}} verificări nefinalizate.",
+        "blockedMaterial": "Închidere blocată: diferență materială la {{centres}}. Înregistrează nota de corecție, apoi reimportă.",
+        "close": "Închide luna",
+        "closedToast": "{{month}} închisă",
+        "refused": {
+          "not_found": "Închiderea nu a fost începută.",
+          "already_closed": "Luna este deja închisă.",
+          "open_checks": "Unele verificări nu sunt finalizate.",
+          "material_difference": "Un centru de profit are încă o diferență materială."
+        }
+      },
+      "recon": {
+        "balanced": "Echilibrat",
+        "minor": "Diferență minoră",
+        "material": "Material",
+        "missing": "Fără cifre"
+      }
+    },
+    "admin": {
+      "eyebrow": "Operator",
+      "title": "Administrare",
+      "subtitle": "Dă conturilor acces la soluțiile dedicate construite peste CFO AI.",
+      "denied": {
+        "title": "Doar pentru administratori",
+        "body": "Pagina aceasta este pentru operatorii CFO AI."
+      },
+      "loadError": "Nu am putut încărca soluțiile dedicate.",
+      "solutions": {
+        "heading": "Soluții dedicate",
+        "none": "Încă nu există soluții dedicate.",
+        "open": "Deschide",
+        "email": "E-mailul contului",
+        "note": "Notă (opțional)",
+        "notePlaceholder": "ex. CFO, Finance",
+        "link": "Leagă contul",
+        "linkHelp": "Persoana trebuie să aibă deja cont CFO AI. Vede soluția la următoarea încărcare a aplicației.",
+        "accounts_one": "{{count}} cont legat",
+        "accounts_other": "{{count}} de conturi legate",
+        "accounts_few": "{{count}} conturi legate",
+        "noAccounts": "Încă niciun cont legat.",
+        "you": "(tu)",
+        "grantedAt": "legat {{when}}",
+        "grantedBy": "de {{email}}",
+        "confirmUnlink": "Elimini accesul?",
+        "unlink": "Dezleagă",
+        "linked": "{{email}} legat de {{name}}",
+        "unlinked": "{{email}} dezlegat de {{name}}"
+      }
+    },
+    "sidebar": {
+      "admin": "Administrare"
+    },
+    "shell": {
+      "nav": {
+        "solutions": "Soluții"
+      }
+    }
+  }
+}
