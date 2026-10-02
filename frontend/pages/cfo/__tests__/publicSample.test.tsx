@@ -37,6 +37,13 @@
 //      engine's "cannot be computed without a prior-period trial balance"
 //      beside a published prior year without the page's own note and the
 //      movement the two balance sheets actually show
+//   P10 the known-issues box is missing from the page or the report, is
+//      not at the top, or prints an amount that is not a figure of its issue
+//   P11 a number in the page's own words that is no value of
+//      publicSample.json, no account or class of the chart, no year and no
+//      date — a figure TYPED into the copy ("Net turnover 9,876,543.21 RON"
+//      in a file card passed every gate until 2026-10-02: the own-voice law
+//      checked a number's format, not where it came from)
 //
 // Plant log: docs/engine_book/gates.md, "public-sample-page".
 import { readFileSync, statSync } from "node:fs";
@@ -52,6 +59,7 @@ import { sampleReportHtml, type ServedPeriodBody } from "@/lib/publicSampleRepor
 import type { ComparativesResponse } from "@/lib/comparatives";
 import { knownIssuesText, type KnownIssue } from "@/lib/publicSampleKnownIssues";
 import { foreignNumber, plainSpaces } from "@/test/numberLanguage";
+import proofJson from "@/data/engineProof.json";
 
 import {
   SAMPLE,
@@ -516,6 +524,127 @@ describe("P10 the known issues open the page and the report", () => {
     expect(cover?.textContent ?? "").toContain(`${KNOWN_ISSUES.length} known issue`);
     // page 1 says the company does not exist
     expect(doc.querySelector('#cover [data-report-notice="cover"]')?.textContent ?? "").toContain("Fictional company");
+  });
+});
+
+// ── P11 — every number the page says in its own voice ─────────────────
+//
+// P1 / P2 hold the figures the page is BUILT to print (each carries a
+// pointer). A figure typed into the page's copy carries none: a verifier
+// added "Net turnover 9,876,543.21 RON, net profit 1,234,567.89 RON." to a
+// file card and every gate passed — the own-voice law checked the number's
+// FORMAT only.
+//
+// THE LAW: every number in the page's own-voice text (everything except the
+// engine's sentences quoted in the other language and the identifiers shown
+// in monospace) is one of
+//   · a value of frontend/data/publicSample.json — any number in it, or
+//     inside one of its strings, at the precision the page prints, as it
+//     stands or as a percentage of a stored fraction;
+//   · a size in KB of a file that JSON lists (its `bytes` ÷ 1024);
+//   · a count of one of that JSON's own lists (accounts, labels, files …);
+//   · a calendar year, or the parts of a date;
+//   · an account or class number of the Romanian chart, named as one;
+//   · the number of a step in a numbered list of the page's own;
+//   · a number of the proof's sentences the page quotes (engineProof.json).
+// WHAT IT CANNOT SEE: a typed number that happens to EQUAL one of those (a
+// "20" typed where the label count is 20; a typed "2025"); a number written
+// in words; whether a JSON value is printed beside the right noun (P1 / P2
+// hold the built figures to their pointers; a typed sentence has none).
+
+function numericLeaves(node: unknown, out: number[], strings: string[]): void {
+  if (typeof node === "number" && Number.isFinite(node)) out.push(node);
+  else if (typeof node === "string") strings.push(node);
+  else if (Array.isArray(node)) node.forEach((v) => numericLeaves(v, out, strings));
+  else if (node && typeof node === "object") Object.values(node).forEach((v) => numericLeaves(v, out, strings));
+}
+function listLengths(node: unknown, out: Set<number>): void {
+  if (Array.isArray(node)) { out.add(node.length); node.forEach((v) => listLengths(v, out)); }
+  else if (node && typeof node === "object") Object.values(node).forEach((v) => listLengths(v, out));
+}
+
+/** Every number printed in `text`, with the decimals it was printed at. */
+function printedNumbers(text: string, lang: SampleLang): Array<{ raw: string; value: number; decimals: number }> {
+  const rx = lang === "ro"
+    ? /\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?/g
+    : /\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/g;
+  const out: Array<{ raw: string; value: number; decimals: number }> = [];
+  for (const m of text.matchAll(rx)) {
+    const raw = m[0];
+    const normal = lang === "ro" ? raw.replace(/\./g, "").replace(",", ".") : raw.replace(/,/g, "");
+    out.push({ raw, value: Number(normal), decimals: normal.includes(".") ? normal.split(".")[1].length : 0 });
+  }
+  return out;
+}
+
+describe.each(LANGS)("P11 every number the page says in its own voice is the sample's — %s", (lang) => {
+  it("an account, a year, or a value of publicSample.json", async () => {
+    const { container } = await renderPage(lang);
+    fireEvent.click(screen.getByTestId("sample-mapping-toggle"));
+    // every text node on its own: two cells side by side are two numbers,
+    // not one ("FY2025" beside "2" is not "20252")
+    const copy = container.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll(`[data-engine-words]:not([data-engine-words="${lang}"]), .font-mono`).forEach((el) => el.remove());
+    const pieces: string[] = [];
+    const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) pieces.push(node.textContent ?? "");
+    const text = plainSpaces(pieces.join(" \u2009 "));
+    expect(text.length).toBeGreaterThan(4000);
+
+    // ── what a number may be ──
+    const values: number[] = [];
+    const strings: string[] = [];
+    numericLeaves(SAMPLE, values, strings);
+    numericLeaves(proofJson, values, strings);
+    // a number inside one of the JSON's strings (an engine sentence the page
+    // quotes, a value_q, a date), read in either language's format
+    for (const s of strings) {
+      for (const l of LANGS) for (const n of printedNumbers(s, l)) values.push(n.value);
+    }
+    expect(values.length, "publicSample.json was not read").toBeGreaterThan(600);
+    const lengths = new Set<number>();
+    listLengths(SAMPLE, lengths);
+    const kb = new Set<number>();
+    for (const f of SAMPLE.files as Array<{ bytes: number | null }>) {
+      if (typeof f.bytes === "number") { kb.add(Math.round(f.bytes / 1024)); kb.add(Math.floor(f.bytes / 1024)); kb.add(Math.ceil(f.bytes / 1024)); }
+    }
+    const accounts = new Set((SAMPLE.mapping as SampleMappingRow[]).map((r) => String(r.account)));
+    const isJsonValue = (value: number, decimals: number): boolean => {
+      const scale = 10 ** decimals;
+      const near = (v: number) => Math.abs(Math.round(Math.abs(v) * scale) / scale - value) < 1e-9;
+      return values.some((v) => near(v) || near(v * 100));
+    };
+
+    // ── dates, accounts and list numbering are named, then set aside ──
+    const MONTH = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|ian|mai|iun|iul|noi)[\\p{L}]*\\.?";
+    const stripped = text
+      .replace(new RegExp(`\\b\\d{1,2}\\s+${MONTH}\\s+\\d{4}\\b`, "giu"), " ")
+      .replace(/\b\d{4}-\d{2}-\d{2}\b/g, " ")
+      .replace(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/g, " ")
+      .replace(/\bFY\s?(\d{4})\b/g, " $1 ");
+    const offenders: string[] = [];
+    let examined = 0;
+    for (const n of printedNumbers(stripped, lang)) {
+      examined += 1;
+      if (n.decimals === 0 && n.value >= 1990 && n.value <= 2100) continue; // a year
+      if (n.decimals === 0 && accounts.has(n.raw)) continue; // an account of the mapping
+      if (isJsonValue(n.value, n.decimals)) continue;
+      if (n.decimals === 0 && (kb.has(n.value) || lengths.has(n.value))) continue;
+      offenders.push(n.raw);
+    }
+    // the classes and account groups the copy names ("classes 6 and 7",
+    // "class 6/7", "accounts 331 + 345", "212 + 213x + 214") — named as such
+    const named = new Set<string>();
+    for (const m of stripped.matchAll(/(?:class(?:es)?|clas[ae]|clasele|claselor|accounts?|contul|contului|conturile|conturilor|cont)[\s-]+((?:\d[\dx]*)(?:\s*(?:[/+,]|and|și|or|sau)\s*\d[\dx]*)*)/giu)) {
+      for (const d of m[1].matchAll(/\d+/g)) named.add(d[0]);
+    }
+    const unexplained = offenders.filter((raw) => !named.has(raw));
+    expect(
+      unexplained,
+      `${lang}: number(s) in the page's own words that are no value of publicSample.json, no account and no year — a figure typed into the copy`,
+    ).toEqual([]);
+    expect(examined, "the page printed almost no number — the scan read nothing").toBeGreaterThan(250);
+    figuresChecked += examined;
   });
 });
 

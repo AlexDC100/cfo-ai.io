@@ -2731,11 +2731,14 @@ def _frontend_gates() -> List[Gate]:
         Gate("public-sample-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/pages/cfo/__tests__/publicSample.test.tsx", "--reporter=verbose"],
-             # measured 194 on 2026-10-02 (the known-issues box added 60)
-             work_rx=r"GATE-WORK public-sample-page figures=(\d+)", floor=150,
+             # measured 802 on 2026-10-02 (P11 reads every number of the page's
+             # own words in both languages: 327 + 281; the built figures 194)
+             work_rx=r"GATE-WORK public-sample-page figures=(\d+)", floor=650,
              units="printed figures held to the served document",
              no_skips=True,
              canaries=("GATE-WORK public-sample-page figures=",
+                       "P11 every number the page says in its own voice is the sample's",
+                       "the page prints every issue above the files, each amount a figure of that issue",
                        "every money figure of both years, printed in the reader's language",
                        "nothing the page says in its own voice is a number in the other language's format",
                        "each ratio and composite, both years",
