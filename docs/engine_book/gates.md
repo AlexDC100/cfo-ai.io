@@ -4916,7 +4916,18 @@ carries it, the runner loads `playwright` through the link and the specs
 load `@playwright/test` from the copy — two instances, and every file dies
 with "Playwright Test did not expect test.describe() to be called here".
 The link was removed from the main checkout on 2026-10-02 (it is gitignored;
-no commit). A second measured cause, on Playwright 1.59.1: ONE spec that
+no commit) — **and it was back fifty minutes later** (removed 19:31, found
+again dated 20:22, removed again). How it is made, reproduced in a scratch
+directory: `ln -s <main>/node_modules <worktree>/node_modules` run a SECOND
+time, on a worktree that already has the link, follows the existing link and
+creates the new one INSIDE the directory it points to —
+`<main>/node_modules/node_modules`. Every session that prepares a scratch
+worktree this way and repeats the command re-makes it; `ln -sfn` (or a
+`[ -e ]` guard) does not. Which session re-made it at 20:22 was not
+established. It is harmless to the main checkout itself (resolution finds
+the real packages first) and empties the run only in a COPY of
+`node_modules`, which is why this gate — not a habit — is what holds it.
+A second measured cause, on Playwright 1.59.1: ONE spec that
 throws while it is being collected empties the WHOLE run, not its own file.
 
 Before e8073bba a zero-collection run was reported as the wrong defect, and
