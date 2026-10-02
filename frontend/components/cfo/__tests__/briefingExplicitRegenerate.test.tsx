@@ -125,6 +125,9 @@ async function settle() {
   await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
 }
 
+/** Real timers: long enough for a request fired on mount to have left. */
+const quiet = () => act(async () => { await new Promise((r) => setTimeout(r, 40)); });
+
 const header = () => screen.getByTestId("briefing-header").textContent ?? "";
 const button = () => screen.getByTestId("briefing-regenerate");
 
@@ -272,6 +275,8 @@ describe("exactly one request per click, with the D9 body", () => {
       body: { ok: true, regenerated: true, persisted: true, briefing: ROMANIAN, briefing_length: ROMANIAN.length, language: "ro", currency: "RON", stale: false },
     };
     render(card());
+    // nothing left on mount — the one request below is the click's
+    await quiet();
     expect(fetchMock).not.toHaveBeenCalled();
 
     fireEvent.click(button());
@@ -319,6 +324,8 @@ describe("exactly one request per click, with the D9 body", () => {
     answer = { status: 200, body: { ok: true, regenerated: true, persisted: false, briefing: inEur, language: "en", currency: "EUR", stale: false } };
     const view = render(card());
     expect(button().textContent).toBe("Regenerate in EUR");
+    await quiet();
+    expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(button());
     await waitFor(() => expect(screen.getByTestId("cfo-briefing-body").textContent).toBe(inEur));
     expect(fetchMock).toHaveBeenCalledTimes(1);
