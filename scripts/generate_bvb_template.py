@@ -14,7 +14,10 @@ Workflow
 1. Generate the template:
    ``python scripts/generate_bvb_template.py``
 2. The output lands at:
-   ``scandi-desk-main/public/templates/bvb_financials_template.xlsx``
+   ``public/templates/bvb_financials_template.xlsx``
+   (``--check`` compares the committed file with a rebuild and writes
+   nothing; the bytes are stable — fixed document dates and archive
+   timestamps, document properties carrying the product name only).
 3. Operator fills in the missing 13 rows (or refreshes the 7 already
    seeded with newer numbers).
 4. Upload via the admin endpoint OR run the loader directly:
@@ -37,7 +40,9 @@ sentinel string "NULL" (case-insensitive).
 """
 from __future__ import annotations
 
+import io
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Reuse the seed module so the template is always in lock-step with the
@@ -45,6 +50,14 @@ from pathlib import Path
 # the template picks it up automatically.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "src"))
+sys.path.insert(0, str(_REPO_ROOT / "scripts"))
+
+#: The only name the workbook's document properties and comment authors
+#: carry. The file is served publicly from /templates/.
+PRODUCT_NAME = "CFO AI"
+DOC_STAMP = datetime(2026, 1, 31)
+DOC_DATE = "2026-01-31T00:00:00Z"
+OUT_PATH = _REPO_ROOT / "public" / "templates" / "bvb_financials_template.xlsx"
 
 try:
     from openpyxl import Workbook
@@ -159,7 +172,7 @@ def build_workbook() -> Workbook:
         cell.fill = _HEADER_FILL
         cell.font = _HEADER_FONT
         cell.alignment = _HEADER_ALIGN
-        cell.comment = Comment(comment, "BVB seed")
+        cell.comment = Comment(comment, PRODUCT_NAME)
 
     # ── Data rows ──
     bvb = bvb_universe()
@@ -217,12 +230,11 @@ def build_workbook() -> Workbook:
         "loader writes it to the public_companies row so any auditor can",
         "trace the number back to the issuer's disclosure.",
         "",
-        "Why CFH is highlighted",
+        "Which rows matter most",
         "----------------------",
-        "Cris-Tim Family Holding is Scandia Food's closest BVB-listed",
-        "peer (Romanian meat processor, comparable scale). The Markets",
-        "page leads with the CFH ↔ Scandia callout. Keeping CFH's row",
-        "accurate is higher leverage than any other BVB ticker.",
+        "A row that the Markets page shows in a peer comparison is read",
+        "more often than any other. Check those rows first, and paste the",
+        "source filing's URL for every figure you change.",
     ]
     for i, line in enumerate(notes, start=2):
         readme.cell(row=i, column=1, value=line)
@@ -231,21 +243,34 @@ def build_workbook() -> Workbook:
     return wb
 
 
+def template_bytes() -> bytes:
+    """The workbook, byte-stable: document properties carry the product
+    name and fixed dates, the archive is rebuilt with fixed timestamps."""
+    from build_public_sample_tb import _stable_zip
+
+    wb = build_workbook()
+    wb.properties.creator = PRODUCT_NAME
+    wb.properties.lastModifiedBy = PRODUCT_NAME
+    wb.properties.title = PRODUCT_NAME
+    wb.properties.created = DOC_STAMP
+    wb.properties.modified = DOC_STAMP
+    raw = io.BytesIO()
+    wb.save(raw)
+    return _stable_zip(raw.getvalue(), DOC_DATE)
+
+
 def main(argv: list[str]) -> int:
     if "--help" in argv or "-h" in argv:
         print(__doc__)
         return 0
-    out_path = (
-        _REPO_ROOT
-        / "scandi-desk-main"
-        / "public"
-        / "templates"
-        / "bvb_financials_template.xlsx"
-    )
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    wb = build_workbook()
-    wb.save(out_path)
-    print(f"BVB template written: {out_path}")
+    if "--check" in argv:
+        stale = not OUT_PATH.is_file() or OUT_PATH.read_bytes() != template_bytes()
+        print("BVB template: %s" % (
+            "STALE — run scripts/generate_bvb_template.py" if stale else "PASS"))
+        return 1 if stale else 0
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    OUT_PATH.write_bytes(template_bytes())
+    print(f"BVB template written: {OUT_PATH.relative_to(_REPO_ROOT)}")
     print(f"  Rows: {len(bvb_universe())} BET-20 tickers")
     rich = sum(1 for r in bvb_universe().values() if r.get("revenue") is not None)
     print(f"  Pre-seeded (FY2024 numbers): {rich}/{len(bvb_universe())}")

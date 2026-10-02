@@ -14,9 +14,9 @@
 // guaranteed-shape input.
 //
 // The .xlsx itself lives at /templates/cfo_ai_upload_template.xlsx
-// (committed under scandi-desk-main/public/) and is regenerated on
-// every build by scripts/generate_upload_template.py — so the artifact
-// never drifts from the parser.
+// (committed under public/templates/), written by
+// scripts/generate_upload_template.py from FICTIONAL example values —
+// `--check` compares the committed file with a rebuild.
 //
 // Surfaces that use this card
 // ---------------------------

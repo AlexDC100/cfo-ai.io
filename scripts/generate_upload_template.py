@@ -11,15 +11,28 @@ The fix is a canonical template — one file with known sheet names, known
 column names, known row offsets — that the parser knows it can lean on.
 This script generates that template. The output (.xlsx) is committed at:
 
-    scandi-desk-main/public/templates/cfo_ai_upload_template.xlsx
+    public/templates/cfo_ai_upload_template.xlsx
 
 and served by the FE at:
 
     https://cfo-ai.io/templates/cfo_ai_upload_template.xlsx
 
-It's regenerated on every `npm run build` (see package.json
-`generate-template` script) so the artifact never drifts from the
-parser's expectations.
+    .venv/bin/python scripts/generate_upload_template.py
+    .venv/bin/python scripts/generate_upload_template.py --check
+
+EVERY EXAMPLE VALUE IS FICTIONAL (2026-10-02). The file is public — anyone
+can download it — so its example rows are invented here: the customers,
+the brands, the products, the categories, the volumes, the stock values
+and the DIO days belong to no company, and the workbook says so on its
+first sheet. Until this date the example rows had been copied from a real
+workbook (a brand, retailers, an ERP report's selection header and DIO
+figures to the cent). Nothing in this script may be copied from a book
+again: an example is typed as a round, obviously illustrative number.
+
+The bytes are stable: the DIO sheet's as-of date is a constant, the
+document properties carry the product name and nothing else, and the
+archive is rebuilt with fixed member timestamps — so `--check` can compare
+the committed file with a rebuild byte for byte.
 
 What the parser actually reads (src/engine/api/_sales_extract.py)
 -----------------------------------------------------------------
@@ -37,24 +50,19 @@ What the parser actually reads (src/engine/api/_sales_extract.py)
         col D = DIO days
 - "Trial Balance" sheet (optional) — Cont/Denumire/Sold debitor/Sold creditor.
 
-The Region 2 row offset is what makes the layout look weird but it is
-THE canonical source for DIO days the Products view reads. The empty
-rows 22-27 between Region 1 and Region 2 are structural — the parser
-locates Region 2 by row offset, so deleting them silently breaks DIO.
-
-Verification
-------------
-After running this script, upload the generated file at /upload on prod
-and confirm:
-  - sku_aggregates ingests 3 example SKUs
-  - Products view shows LEGUME CONSERVATE @ 73.5d, JELEURI @ 1001.7d
-    (these example values match the Region 2 entries below — change here
-    means change the example doc + screenshot if you're matching them).
+Region 2 is the source for the DIO days the Products view reads
+(`extract_category_dio`: a row with column A empty, a category name in
+column B and a positive number in column D). Region 1 rows carry the
+category in column A, which is what keeps the two regions apart.
 """
 from __future__ import annotations
 
-from datetime import date
+import argparse
+import io
+import sys
+from datetime import date, datetime
 from pathlib import Path
+from typing import List, Optional
 
 from openpyxl import Workbook
 from openpyxl.comments import Comment
@@ -62,10 +70,29 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 
-# Output goes inside the FE workspace's `public/` so Vite serves it at
+REPO = Path(__file__).resolve().parents[1]
+if str(REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO / "scripts"))
+
+# Output goes inside `public/` so Vite serves it at
 # /templates/cfo_ai_upload_template.xlsx without any extra config.
-OUTPUT = Path(__file__).resolve().parents[1] / (
-    "scandi-desk-main/public/templates/cfo_ai_upload_template.xlsx"
+OUTPUT = REPO / "public" / "templates" / "cfo_ai_upload_template.xlsx"
+
+#: The only name the workbook's document properties and comment authors
+#: carry.
+PRODUCT_NAME = "CFO AI"
+
+#: The DIO sheet's as-of date and the document properties' date. A
+#: constant: the template says nothing about when this script ran.
+AS_OF = date(2026, 1, 31)
+DOC_DATE = "2026-01-31T00:00:00Z"
+
+#: Printed on the first sheet, in both languages.
+FICTIONAL_NOTICE = (
+    "All example rows in this workbook are fictional — invented customers, "
+    "brands, products and figures. Replace them with your own data. "
+    "Toate rândurile-exemplu din acest fișier sunt fictive — clienți, mărci, "
+    "produse și cifre inventate. Înlocuiește-le cu datele tale."
 )
 
 
@@ -94,7 +121,7 @@ def _style_header_row(ws, row: int, headers: list[str], comments: dict[str, str]
         cell.fill = HEADER_FILL
         cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
         if comments and header in comments:
-            cell.comment = Comment(comments[header], "CFO AI")
+            cell.comment = Comment(comments[header], PRODUCT_NAME)
     ws.row_dimensions[row].height = 32
 
 
@@ -130,7 +157,7 @@ def add_instructions_sheet(wb: Workbook) -> None:
     ws.merge_cells("A3:D3")
 
     rows: list[tuple[str, str]] = [
-        ("", ""),
+        ("EXAMPLE DATA", FICTIONAL_NOTICE),
         ("HOW TO USE", ""),
         ("1.", 'Fill in the "Trading" sheet with your SKU-level sales data.'),
         ("2.", 'Fill in the "DIO" sheet with your per-category inventory days.'),
@@ -162,13 +189,14 @@ def add_instructions_sheet(wb: Workbook) -> None:
         ),
         (
             "✗",
-            'Capital mismatch between Trading and DIO (e.g., "Macrou" vs "MACROU"). '
+            'Capital mismatch between Trading and DIO (e.g., "Cafea" vs "CAFEA"). '
             "Parser handles common variants but exact match is safest.",
         ),
         (
             "✗",
-            "Removing the empty rows 22-27 in the DIO sheet — they are STRUCTURAL. "
-            "The parser locates Region 2 by row offset; deleting them silently breaks DIO.",
+            "Putting anything in column A of the DIO days block (rows 28-52) — "
+            "a DIO-days row is read only when column A is empty, column B holds "
+            "the category and column D holds the days.",
         ),
         (
             "✗",
@@ -176,7 +204,7 @@ def add_instructions_sheet(wb: Workbook) -> None:
             "matters for the column-position fallback parser.",
         ),
         ("", ""),
-        ("QUESTIONS?", "contact@cfo-ai.io · https://cfo-ai.io/docs/upload-format"),
+        ("QUESTIONS?", "contact@cfo-ai.io"),
     ]
     for i, (label, body) in enumerate(rows, start=4):
         ws[f"A{i}"] = label
@@ -190,11 +218,68 @@ def add_instructions_sheet(wb: Workbook) -> None:
             ws[f"B{i}"].alignment = Alignment(vertical="top", wrap_text=True)
             ws.merge_cells(start_row=i, start_column=2, end_row=i, end_column=4)
         ws.row_dimensions[i].height = 22
+        if label == "EXAMPLE DATA":
+            ws[f"A{i}"].font = BOLD
+            ws.row_dimensions[i].height = 62
 
     _set_widths(ws, [18, 32, 32, 24])
 
     # Hide gridlines on the cover — looks more like a printed page.
     ws.sheet_view.showGridLines = False
+
+
+# ──────────────────────────────────────────────────────────────────────
+# THE EXAMPLE DATA — fictional, typed here, copied from nowhere.
+# Customers are "RETAILER A" / "DISTRIBUITOR A", brands "MARCA A",
+# products "… (exemplu)"; every figure is a round illustrative number.
+# ──────────────────────────────────────────────────────────────────────
+
+TRADING_EXAMPLES = [
+    ["KA",   "RETAILER A",     "KA",   "RETAILER A",     "Alimentare", "CAFEA",     "MARCA A", "Cafea macinata 250g (exemplu)", "250g", 6000,  150000, 141000, 112800,  28200],
+    ["KA",   "RETAILER B",     "KA",   "RETAILER B",     "Alimentare", "CAFEA",     "MARCA B", "Cafea boabe 1kg (exemplu)",     "1kg",  4500,  135000, 126000, 100800,  25200],
+    ["DIST", "DISTRIBUITOR A", "DIST", "DISTRIBUITOR A", "Alimentare", "PASTE",     "MARCA C", "Paste scurte 500g (exemplu)",   "500g", 12000, 96000,  90000,  72000,   18000],
+    ["KA",   "RETAILER C",     "KA",   "RETAILER C",     "Alimentare", "CIOCOLATA", "MARCA A", "Ciocolata neagra 100g (exemplu)", "100g", 400, 30000,  28000,  29500,   -1500],
+    ["KA",   "RETAILER D",     "KA",   "RETAILER D",     "Alimentare", "OREZ",      "MARCA B", "Orez bob lung 1kg (exemplu)",   "1kg",  5000,  45000,  42000,  35700,   6300],
+]
+
+#: Region 1 — (category, stock units, 0, stock value RON, 0, RON per unit, 0, stock kg).
+#: RON per unit = value ÷ units, to the cent.
+DIO_REGION1 = [
+    ("CAFEA",     40000, 0, 800000.00, 0, 20.00, 0, 10000.00),
+    ("CIOCOLATA", 9000,  0, 63000.00,  0, 7.00,  0, 900.00),
+    ("PASTE",     25000, 0, 100000.00, 0, 4.00,  0, 12500.00),
+    ("OREZ",      6000,  0, 42000.00,  0, 7.00,  0, 6000.00),
+    ("CEAI",      2000,  0, 30000.00,  0, 15.00, 0, 200.00),
+]
+
+#: Region 2 — (category, DIO days). 25 rows: rows 28..52.
+DIO_REGION2 = [
+    ("CAFEA",          60.0),
+    ("CEAI",           45.0),
+    ("PASTE",          40.0),
+    ("OREZ",           35.0),
+    ("FAINA",          25.0),
+    ("ZAHAR",          30.0),
+    ("CIOCOLATA",      410.0),  # the slow mover of the example
+    ("BISCUITI",       55.0),
+    ("NAPOLITANE",     50.0),
+    ("CEREALE",        70.0),
+    ("MIERE",          120.0),
+    ("CONDIMENTE",     150.0),
+    ("SARE",           20.0),
+    ("APA MINERALA",   15.0),
+    ("BAUTURI RACORITOARE", 28.0),
+    ("SNACKS",         65.0),
+    ("ALUNE SI SEMINTE", 90.0),
+    ("FRUCTE USCATE",  110.0),
+    ("CONSERVE CARNE", 180.0),
+    ("LACTATE UHT",    38.0),
+    ("MALAI",          32.0),
+    ("LEGUMINOASE",    85.0),
+    ("DROJDIE",        12.0),
+    ("ARTICOLE SEZONIERE", 240.0),
+    ("ALTE PRODUSE",   100.0),
+]
 
 
 def add_trading_sheet(wb: Workbook) -> None:
@@ -232,20 +317,17 @@ def add_trading_sheet(wb: Workbook) -> None:
             "If a SKU's category doesn't appear in DIO, it inherits null DIO."
         ),
         "Sold in KG": "Total volume sold in this row, in kilograms.",
-        "Net Invoice Value": "NIV in RON. Revenue gross of discounts, minus VAT.",
+        "Net Invoice Value": "NIV in RON. Revenue net of discounts, excluding VAT.",
         "Cost of Sales": "COGS in RON for this row.",
         "Gross Margin": "GM in RON. Computed as NIV − Cost of Sales.",
     }
 
     _style_header_row(ws, 1, headers, comments)
 
-    examples = [
-        ["KA",   "AUCHAN",    "KA",   "AUCHAN",    "Diverse", "LEGUME CONSERVATE", "ROUA",    "Fasole alba in sapte ape 400g", "400g", 8420,  195000, 184000, 145600, 38400],
-        ["KA",   "CARREFOUR", "KA",   "CARREFOUR", "Diverse", "LEGUME CONSERVATE", "BUCEGI",  "Porumb dulce 285g",             "285g", 6890,  172000, 162000, 130700, 31300],
-        ["DIST", "METRO",     "DIST", "METRO",     "Diverse", "TON",               "NAVODUL", "Ton in ulei 80g",               "80g",  14200, 405000, 382000, 297600, 84400],
-        ["KA",   "KAUFLAND",  "KA",   "KAUFLAND",  "Diverse", "JELEURI",           "SCANDIA", "Jeleu fructe 200g",             "200g", 320,    28000,  26400,  27800, -1400],
-        ["KA",   "PROFI",     "KA",   "PROFI",     "Diverse", "MACROU",            "ROUA",    "Macrou in sos tomat 240g",      "240g", 4220,   89000,  83500,  68200, 15300],
-    ]
+    # FICTIONAL rows. Net Invoice Value − Cost of Sales = Gross Margin on
+    # every row; one row carries a negative margin so the example shows
+    # what a loss-making SKU looks like.
+    examples = TRADING_EXAMPLES
     for row_data in examples:
         ws.append(row_data)
 
@@ -274,13 +356,11 @@ def add_dio_sheet(wb: Workbook) -> None:
 
     Region 1 (rows 1..end-of-data) — inventory snapshot.
     Region 2 (rows 28..52) — DIO days. Read by `extract_category_dio`
-    from _sales_extract.py: col B = category name, col D = days.
-
-    The empty rows 22-27 are STRUCTURAL. Without them, the parser's row
-    offset search for Region 2 misses. Don't delete them.
+    from _sales_extract.py: col A empty, col B = category name,
+    col D = days.
     """
     ws = wb.create_sheet("DIO")
-    today = date.today()
+    today = datetime(AS_OF.year, AS_OF.month, AS_OF.day)
 
     # ──────────────────────────────────────────────────────────────
     # Row 1 — as-of dates across the value columns. Helps the
@@ -318,20 +398,14 @@ def add_dio_sheet(wb: Workbook) -> None:
     ws["A2"].comment = Comment(
         "Region 1: per-category inventory snapshot. "
         "Used for inventory value × financing cost in the Decision Rules engine.",
-        "CFO AI",
+        PRODUCT_NAME,
     )
 
     # ──────────────────────────────────────────────────────────────
     # Region 1 data (rows 3..7) — same example categories as Trading
     # sheet so end-to-end smoke test shows matching values.
     # ──────────────────────────────────────────────────────────────
-    region1_data = [
-        ("LEGUME CONSERVATE", 71655, 0, 2986170.15, 0, 41.67,  0, 394797.70),
-        ("JELEURI",            8693, 0,  457738.17, 0, 52.66,  0,  13908.80),
-        ("TON",               12450, 0,  823412.55, 0, 66.14,  0,  19887.20),
-        ("MACROU",             5210, 0,  274982.10, 0, 52.78,  0,   9402.50),
-        ("ULEI",               1067, 0,  177280.82, 0, 166.15, 0,   6887.50),
-    ]
+    region1_data = DIO_REGION1
     money_fmt = '#,##0.00;-#,##0.00;"—"'
     int_fmt = '#,##0;-#,##0;"—"'
     for i, row in enumerate(region1_data, start=3):
@@ -344,22 +418,9 @@ def add_dio_sheet(wb: Workbook) -> None:
             elif col in (4, 6):
                 cell.number_format = money_fmt
 
-    # ──────────────────────────────────────────────────────────────
-    # Rows 8-27 — structural padding. The parser locates Region 2
-    # by scanning for the literal phrase pattern starting at row 28.
-    # We add a few visible operator-context notes (Selection Status,
-    # CompName, etc.) the way the source file does — these don't
-    # affect parsing but make the file look familiar to operators
-    # used to the legacy Trading_analysis_*.xlsx layout.
-    # ──────────────────────────────────────────────────────────────
-    operator_notes = [
-        (23, "Selection Status:"),
-        (24, "CompName: 40-SF"),
-        (25, "Cod_Articol: 7*"),
-        (26, "Subcategorie: 3.3. DIVERS"),
-    ]
-    for row_idx, label in operator_notes:
-        ws.cell(row=row_idx, column=1, value=label).font = NOTE_FONT
+    # Rows 8-26 stay empty: a visible gap between the two regions. No
+    # operator-context lines — the template carries no report header of
+    # anyone's ERP.
 
     # ──────────────────────────────────────────────────────────────
     # Row 27 — annotation above Region 2. Plain English so the
@@ -375,41 +436,11 @@ def add_dio_sheet(wb: Workbook) -> None:
         "Region 2: per-category DIO days. THIS is the canonical source "
         "the Products view reads from. Column B = category name, "
         "Column D = DIO days. Rows 28-52.",
-        "CFO AI",
+        PRODUCT_NAME,
     )
 
-    # ──────────────────────────────────────────────────────────────
-    # Region 2 data (rows 28..52) — the famous JELEURI = 1001.7d
-    # entry is preserved as a calibration anchor so the verification
-    # screenshot in the docs page matches what the parser returns.
-    # ──────────────────────────────────────────────────────────────
-    region2_data = [
-        ("LEGUME CONSERVATE",     73.5),
-        ("MURATURI",              58.5),
-        ("COMPOT",               167.9),
-        ("DULCEATA",              29.2),
-        ("JELEURI",            1001.7),  # the famous one
-        ("PASTA TOMATE",          98.3),
-        ("SUC",                  146.2),
-        ("SUC DE ROSII",          34.7),
-        ("SIROP",                 19.9),
-        ("ZACUSCA",               27.8),
-        ("OTET",                  17.6),
-        ("MUSTAR",                24.1),
-        ("SOSURI",                39.2),
-        ("SUPE INSTANT NOODLES", 150.6),
-        ("PET FOOD",              30.5),
-        ("ULEI",                 286.6),
-        ("TON",                  194.7),
-        ("MACROU",                64.7),
-        ("SARDINE",               84.9),
-        ("HERING",               118.1),
-        ("SOMON",                234.0),
-        ("PASTRAV",              125.7),
-        ("SPROT",                105.4),
-        ("FRUCTE NOBILE",        222.1),
-        ("ALTE MARFURI",         102.5),
-    ]
+    # Region 2 data (rows 28..52) — fictional categories and days.
+    region2_data = DIO_REGION2
     assert len(region2_data) == 25, "Region 2 must fill rows 28..52 exactly"
 
     for i, (cat, days) in enumerate(region2_data, start=28):
@@ -485,28 +516,28 @@ def add_field_reference_sheet(wb: Workbook) -> None:
     refs = [
         # Trading sheet
         ("Trading",        "Canal",                         "text",   "yes", "—",     "KA",                       "Sales channel: KA / DIST / EXPORT / HORECA"),
-        ("Trading",        "Client",                        "text",   "yes", "—",     "AUCHAN",                   "Customer name"),
+        ("Trading",        "Client",                        "text",   "yes", "—",     "RETAILER A",               "Customer name"),
         ("Trading",        "Tip client",                    "text",   "no",  "—",     "KA",                       "Customer type — often duplicates Canal"),
-        ("Trading",        "CLIENT_PARINTE",                "text",   "no",  "—",     "AUCHAN",                   "Parent customer (for chains)"),
-        ("Trading",        "BU",                            "text",   "no",  "—",     "Diverse",                  "Business unit"),
-        ("Trading",        "Categ_Pr",                      "text",   "yes", "—",     "LEGUME CONSERVATE",        "MUST match a category in DIO sheet"),
-        ("Trading",        "Brand",                         "text",   "yes", "—",     "ROUA",                     "Product brand"),
-        ("Trading",        "Denumire_Produs",               "text",   "yes", "—",     "Fasole alba 400g",         "Product name (SKU display label)"),
-        ("Trading",        "PackSize",                      "text",   "no",  "—",     "400g",                     "Package size"),
-        ("Trading",        "Sold in KG",                    "number", "yes", "kg",    "8420",                     "Total volume sold (kilograms)"),
-        ("Trading",        "GR Gross Revenue finished goods", "number", "yes", "RON", "195000",                   "Gross revenue before discounts"),
-        ("Trading",        "Net Invoice Value",             "number", "yes", "RON",   "184000",                   "NIV — revenue net of discounts, gross of VAT"),
-        ("Trading",        "Cost of Sales",                 "number", "yes", "RON",   "145600",                   "COGS for this row"),
-        ("Trading",        "Gross Margin",                  "number", "yes", "RON",   "38400",                    "GM = NIV − COGS"),
+        ("Trading",        "CLIENT_PARINTE",                "text",   "no",  "—",     "RETAILER A",               "Parent customer (for chains)"),
+        ("Trading",        "BU",                            "text",   "no",  "—",     "Alimentare",               "Business unit"),
+        ("Trading",        "Categ_Pr",                      "text",   "yes", "—",     "CAFEA",                    "MUST match a category in DIO sheet"),
+        ("Trading",        "Brand",                         "text",   "yes", "—",     "MARCA A",                  "Product brand"),
+        ("Trading",        "Denumire_Produs",               "text",   "yes", "—",     "Cafea macinata 250g",      "Product name (SKU display label)"),
+        ("Trading",        "PackSize",                      "text",   "no",  "—",     "250g",                     "Package size"),
+        ("Trading",        "Sold in KG",                    "number", "yes", "kg",    "6000",                     "Total volume sold (kilograms)"),
+        ("Trading",        "GR Gross Revenue finished goods", "number", "yes", "RON", "150000",                   "Gross revenue before discounts"),
+        ("Trading",        "Net Invoice Value",             "number", "yes", "RON",   "141000",                   "NIV — revenue net of discounts, excluding VAT"),
+        ("Trading",        "Cost of Sales",                 "number", "yes", "RON",   "112800",                   "COGS for this row"),
+        ("Trading",        "Gross Margin",                  "number", "yes", "RON",   "28200",                    "GM = NIV − COGS"),
         # DIO Region 1
-        ("DIO Region 1",   "Grupa_Pr",                      "text",   "yes", "—",     "LEGUME CONSERVATE",        "Same as Categ_Pr in Trading sheet"),
-        ("DIO Region 1",   "Stoc Cantitativ (UM)",          "number", "yes", "units", "71655",                    "Stock quantity in units"),
-        ("DIO Region 1",   "Stoc Valoric Standard (RON)",   "number", "yes", "RON",   "2986170",                  "Inventory value (used for financing-cost calc)"),
-        ("DIO Region 1",   "Stoc RON / UM",                 "number", "no",  "RON",   "41.67",                    "Average per-unit inventory value"),
-        ("DIO Region 1",   "Stoc KG",                       "number", "yes", "kg",    "394798",                   "Stock in kilograms"),
+        ("DIO Region 1",   "Grupa_Pr",                      "text",   "yes", "—",     "CAFEA",                    "Same as Categ_Pr in Trading sheet"),
+        ("DIO Region 1",   "Stoc Cantitativ (UM)",          "number", "yes", "units", "40000",                    "Stock quantity in units"),
+        ("DIO Region 1",   "Stoc Valoric Standard (RON)",   "number", "yes", "RON",   "800000",                   "Inventory value (used for financing-cost calc)"),
+        ("DIO Region 1",   "Stoc RON / UM",                 "number", "no",  "RON",   "20.00",                    "Average per-unit inventory value"),
+        ("DIO Region 1",   "Stoc KG",                       "number", "yes", "kg",    "10000",                    "Stock in kilograms"),
         # DIO Region 2 — the canonical source
-        ("DIO Region 2",   "[col B] category name",         "text",   "yes", "—",     "JELEURI",                  "Category name. Rows 28-52."),
-        ("DIO Region 2",   "[col D] DIO days",              "number", "yes", "days",  "1001.7",                   "DIO days. Rows 28-52. THE canonical source."),
+        ("DIO Region 2",   "[col B] category name",         "text",   "yes", "—",     "CIOCOLATA",                "Category name. Rows 28-52."),
+        ("DIO Region 2",   "[col D] DIO days",              "number", "yes", "days",  "410.0",                    "DIO days. Rows 28-52. THE canonical source."),
         # Trial Balance
         ("Trial Balance",  "Cont",                          "text",   "no",  "—",     "1012",                     "Romanian CoA code"),
         ("Trial Balance",  "Denumire",                      "text",   "no",  "—",     "Capital subscris vărsat",  "Account name"),
@@ -534,8 +565,10 @@ def add_field_reference_sheet(wb: Workbook) -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def make_template() -> Path:
-    """Build the workbook + write to disk. Returns the output path."""
+def template_bytes() -> bytes:
+    """The workbook, byte-stable (see the module docstring)."""
+    from build_public_sample_tb import _stable_zip
+
     wb = Workbook()
     # `Workbook()` ships a default "Sheet" — drop it before we add ours.
     wb.remove(wb.active)
@@ -549,13 +582,42 @@ def make_template() -> Path:
     # Make sure the Instructions tab is the one that opens by default.
     wb.active = 0
 
+    # Document properties: the product name and nothing else.
+    stamp = datetime(AS_OF.year, AS_OF.month, AS_OF.day)
+    wb.properties.creator = PRODUCT_NAME
+    wb.properties.lastModifiedBy = PRODUCT_NAME
+    wb.properties.title = PRODUCT_NAME
+    wb.properties.created = stamp
+    wb.properties.modified = stamp
+
+    raw = io.BytesIO()
+    wb.save(raw)
+    return _stable_zip(raw.getvalue(), DOC_DATE)
+
+
+def make_template() -> Path:
+    """Build the workbook + write to disk. Returns the output path."""
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(OUTPUT)
+    OUTPUT.write_bytes(template_bytes())
     return OUTPUT
 
 
-if __name__ == "__main__":
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--check", action="store_true",
+                        help="compare the committed file with a rebuild; write nothing")
+    args = parser.parse_args(argv)
+    if args.check:
+        stale = not OUTPUT.is_file() or OUTPUT.read_bytes() != template_bytes()
+        print("upload template: %s" % (
+            "STALE — run scripts/generate_upload_template.py" if stale else "PASS"))
+        return 1 if stale else 0
     path = make_template()
     size_kb = path.stat().st_size / 1024
-    print(f"Wrote {path}")
-    print(f"  → {size_kb:.1f} KB · 5 sheets · ready to ship")
+    print(f"Wrote {path.relative_to(REPO)}")
+    print(f"  → {size_kb:.1f} KB · 5 sheets")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
