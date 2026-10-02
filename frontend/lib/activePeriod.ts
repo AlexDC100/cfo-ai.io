@@ -25,7 +25,7 @@ import type { DocumentType } from "@/lib/financialStatementTabs";
 import type { Statements } from "@/lib/financialReport";
 import type { Invoice } from "@/lib/invoiceAnalytics";
 import { getSupabase } from "@/lib/supabase";
-import { briefingVisibility } from "@/lib/briefingDefinition";
+import { briefingVisibility, type BriefingStale } from "@/lib/briefingDefinition";
 
 // canonical_bs v2 — the engine-owned Balance Sheet authority
 // (docs/CANONICAL_BS_V2_CONTRACT.md). It rides the /api/period payload at
@@ -238,13 +238,23 @@ export interface ActivePeriod {
   recommendations: PeriodRecommendation[];
   /** Server-generated alerts. Empty for samples. */
   alerts: PeriodAlertItem[];
-  /** Server-generated CFO briefing string — null when there is none, AND
-   *  when it was written under an earlier EBITDA definition (then
-   *  `briefingHiddenNote` carries the engine's one-line note). */
+  /** Server-generated CFO briefing string — null when there is none, when it
+   *  was written under an earlier EBITDA definition (then
+   *  `briefingHiddenNote` carries the engine's one-line note), AND when the
+   *  stored row holds a failure text instead of prose (then
+   *  `briefingUnavailable` is true). Never a failure text. */
   briefing: string | null;
   /** The engine's note standing in for a briefing hidden because it was
    *  written under an earlier EBITDA definition (lib/briefingDefinition). */
   briefingHiddenNote?: { ro: string; en: string } | null;
+  /** True when the stored briefing row holds no usable narration (ruling
+   *  2026-10-02): the card offers the explicit "Generate the briefing". */
+  briefingUnavailable?: boolean;
+  /** Set when the briefing shown is the last good one, kept after a later
+   *  narration failed. */
+  briefingStale?: BriefingStale | null;
+  /** The language stamp the route served for the briefing ('en' | 'ro'). */
+  briefingLanguage?: string | null;
   /** Document types this period exposes — drives downstream tab visibility. */
   availableTypes: DocumentType[];
   /** True if a period is loaded. Pages use this as the empty-state flag. */
@@ -348,9 +358,16 @@ export interface PeriodApiResponse {
   statements: Statements;
   metrics: PeriodMetric[];
   briefing: {
-    body: string;
+    /** Null when the stored row holds a failure text (`unavailable`). */
+    body: string | null;
     language: string;
     model: string | null;
+    /** The stored row holds no usable narration (ruling 2026-10-02). */
+    unavailable?: boolean;
+    /** A neutral code — never provider text. */
+    unavailable_reason?: string | null;
+    /** The body is the last good one, kept after a later narration failed. */
+    stale?: { since: string | null; reason: string | null } | null;
     /** The EBITDA definition the prose was written under (design A9). */
     definition?: {
       written_under: string | null;
@@ -511,6 +528,8 @@ export function useActivePeriod(): ActivePeriod {
         };
       }
 
+      // The ONE reading of the served briefing (lib/briefingDefinition).
+      const shownBriefing = briefingVisibility(payload.briefing);
       return {
         id: payload.period.id,
         label: payload.statements.companyName ?? payload.organization?.name ?? null,
@@ -523,9 +542,13 @@ export function useActivePeriod(): ActivePeriod {
         recommendations: payload.recommendations,
         alerts: payload.alerts,
         // Hidden (with the engine's note) when written under an earlier
-        // EBITDA definition — never shown with stale numbers.
-        briefing: briefingVisibility(payload.briefing).body,
-        briefingHiddenNote: briefingVisibility(payload.briefing).hiddenNote,
+        // EBITDA definition — never shown with stale numbers; null with
+        // `briefingUnavailable` when the stored row is a failure text.
+        briefing: shownBriefing.body,
+        briefingHiddenNote: shownBriefing.hiddenNote,
+        briefingUnavailable: shownBriefing.unavailable === true,
+        briefingStale: shownBriefing.stale ?? null,
+        briefingLanguage: shownBriefing.language ?? null,
         availableTypes: ["bilant", "pl"] as DocumentType[],
         isLoaded: true,
         isLoading: false,
