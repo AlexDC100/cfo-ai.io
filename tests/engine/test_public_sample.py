@@ -31,8 +31,14 @@ WHAT THIS GATE REDS ON, once the product is correct (TC-11):
       it was written from), an EBITDA variant differs from the methodology
       layer by more than 1 RON — or the engine raises a critical finding;
   S5  a client label, a fiscal code other than the fictional one, or a
-      trade-register number other than the fictional one appears in any
-      published file;
+      trade-register number other than the fictional one appears ANYWHERE in
+      a file a visitor can download as it is — every file under
+      public/sample, public/examples and public/templates, recursively: its
+      raw bytes, each member of a workbook (cells, shared strings, document
+      properties), the PDF's text layer, info dictionary and XMP packet
+      (scripts/public_bytes.py) — or a workbook's author / subject /
+      keywords, or the PDF's /Author, holds anything but the product's name;
+      fewer than 16 files, 60 workbook members or 18 PDF parts were read;
   S6  the mapping stops covering every account exactly once, leaves a mapped
       balance-sheet account without its served row, or names a P&L line
       whose accounts do not sum to the served line; the labels stop being
@@ -61,6 +67,12 @@ WHAT THIS GATE REDS ON, once the product is correct (TC-11):
       no issue listed; the stock movement the page prints beside the
       account-121 reading is not the workbook's, or the derived 711 line
       no longer equals it.
+
+WHAT S5 CANNOT SEE: a client's name that is in no real book's file name
+(the labels are derived from those names); a word split across two XML runs
+of a workbook; pixels; the compressed bodies of the PDF other than its text
+layer (fonts, images, a form field's stream); a published file OUTSIDE the
+three directories (public/og, public/logos, public/geo — images and a map).
 
 WHAT IT CANNOT SEE: the report's HTML and PDF. Those are built by the
 product's TypeScript — `frontend/pages/cfo/__tests__/publicSample.test.tsx`
@@ -326,13 +338,47 @@ def _client_labels() -> List[str]:
     return CL.client_labels()
 
 
+#: Every directory whose files a visitor can download as they are.
+PUBLISHED_ROOTS = (REPO / "public" / "sample", REPO / "public" / "examples", REPO / "public" / "templates")
+
+
+def _published_parts() -> List[Tuple[str, str]]:
+    """EVERY PLACE A WORD CAN SIT in a published file (scripts/public_bytes.py):
+    the raw bytes of every file under public/sample, public/examples and
+    public/templates, recursively; each member of a workbook, decompressed —
+    the sheets, the shared strings, docProps/core.xml and app.xml (title,
+    subject, keywords, creator, company …); the PDF's text layer, info
+    dictionary, XMP packet and uncompressed objects; and the page's data.
+
+    The first version read cell values and three properties of the files
+    directly under public/sample. A label in a workbook's `subject` /
+    `keywords`, in the PDF's /Author, or in public/sample/extra/notes.txt
+    passed it; so did a label and a fiscal code typed into the sales example
+    (2026-10-02)."""
+    import public_bytes as PB
+
+    out: List[Tuple[str, str]] = []
+    for path in PB.files_under(*PUBLISHED_ROOTS):
+        out += PB.parts(path, path.relative_to(REPO).as_posix())
+    out += PB.parts(B.PAGE_DATA, B.PAGE_DATA.relative_to(REPO).as_posix())
+    return out
+
+
+def _scan_floor(parts: List[Tuple[str, str]]) -> Tuple[int, int, int]:
+    """(files, workbook members, PDF parts) — a scan that stops reading a
+    container must not pass."""
+    files = {name.split("!")[0] for name, _ in parts}
+    members = sum(1 for name, _ in parts if ".xlsx!" in name and not name.endswith("!<names>"))
+    pdf = sum(1 for name, _ in parts if ".pdf!" in name)
+    return len(files), members, pdf
+
+
 def test_s5_no_client_label_appears_in_a_published_file():
     labels = _client_labels()
     assert len(labels) >= 4, "only %d client labels were derived — the scan is vacuous" % len(labels)
     pattern = re.compile(r"(?<![A-Za-z])(%s)(?![A-Za-z])" % "|".join(map(re.escape, labels)), re.I)
-    scanned = 0
-    for name, text in _published_texts():
-        scanned += 1
+    parts = _published_parts()
+    for name, text in parts:
         hit = pattern.search(text)
         # The label itself is not printed: a failure log is not the place
         # for a client's name either. Its position is enough to find it.
@@ -340,7 +386,54 @@ def test_s5_no_client_label_appears_in_a_published_file():
             "%s carries the label of a real book this repository holds, at character %d "
             "(%d characters long). Find where it comes from and remove it at the source."
             % (name, hit.start(), len(hit.group(0))))
-    assert scanned >= 12, "only %d published files were scanned" % scanned
+    files, members, pdf = _scan_floor(parts)
+    print("GATE-WORK public-sample-scan files=%d workbook_members=%d pdf_parts=%d labels=%d"
+          % (files, members, pdf, len(labels)))
+    # measured 2026-10-02: 16 files (10 + 3 + 2 and the page data), 66
+    # workbook members over 7 workbooks, 32 PDF parts
+    assert files >= 16, "only %d published files were scanned" % files
+    assert members >= 60, "only %d workbook members were read" % members
+    assert pdf >= 18, "only %d parts of the PDF were read" % pdf
+    # the document properties and the PDF's metadata ARE among the parts
+    names = [name for name, _ in parts]
+    for must in ("!docProps/core.xml", "!docProps/app.xml", ".pdf!info", ".pdf!xmp", ".pdf!objects"):
+        assert any(name.endswith(must) for name in names), "no part %s was read" % must
+    for root in PUBLISHED_ROOTS:
+        assert any(name.startswith(root.relative_to(REPO).as_posix() + "/") for name in names), root
+
+
+def test_s5_document_properties_carry_the_product_name_only():
+    """A workbook's properties and the PDF's info dictionary are read by
+    every file manager and search index. They hold the product's name, the
+    document's own title, the writing library's name — nobody's name, and
+    nothing a generator copied from a source workbook."""
+    from openpyxl import load_workbook
+    from pypdf import PdfReader
+    import public_bytes as PB
+
+    seen = 0
+    for path in PB.files_under(*PUBLISHED_ROOTS):
+        rel = path.relative_to(REPO).as_posix()
+        if path.suffix == ".xlsx":
+            props = load_workbook(io.BytesIO(path.read_bytes()), read_only=True).properties
+            for field in ("creator", "lastModifiedBy"):
+                # the product's name (alone or with the sample's own
+                # "fictional example" mark) or the writing library's default
+                # — never a person, never a client
+                assert (getattr(props, field) or "") in ("", "CFO AI", "CFO AI - exemplu fictiv", "openpyxl"), (
+                    "%s: %s is %r — a workbook's author is the product, the writing library, or nobody"
+                    % (rel, field, getattr(props, field)))
+            for field in ("subject", "keywords", "category", "description", "contentStatus", "identifier"):
+                assert not (getattr(props, field) or ""), (
+                    "%s: the %s property is set (%d characters) — nothing of ours writes one"
+                    % (rel, field, len(str(getattr(props, field)))))
+            seen += 1
+        elif path.suffix == ".pdf":
+            info = dict(PdfReader(io.BytesIO(path.read_bytes())).metadata or {})
+            for key in ("/Author", "/Subject", "/Keywords"):
+                assert not info.get(key), "%s: the PDF's %s is set — the report writes none" % (rel, key)
+            seen += 1
+    assert seen >= 8, "only %d documents with properties were examined" % seen
 
 
 _FISCAL_CODE = re.compile(r"(?:\bRO\s?|\bCUI\W{0,3}(?:RO\s?)?|\bCIF\W{0,3}(?:RO\s?)?|\bc\.\s?f\.\W{0,3}(?:RO\s?)?)(\d{2,10})\b",
@@ -351,7 +444,7 @@ _TRADE_REGISTER = re.compile(r"\bJ\s?\d{1,2}\s?/\s?\d{1,7}\s?/\s?\d{4}\b")
 def test_s5_the_only_fiscal_code_and_register_number_are_the_fictional_ones():
     fictional = re.sub(r"\D", "", TB.FISCAL_CODE)
     seen_code = seen_register = 0
-    for name, text in _published_texts():
+    for name, text in _published_parts():
         for match in _FISCAL_CODE.finditer(text):
             seen_code += 1
             assert match.group(1) == fictional, (

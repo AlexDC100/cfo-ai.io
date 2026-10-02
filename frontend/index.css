@@ -19,9 +19,9 @@
 /* Marketing surface tokens — `--m-*` namespace; scoped via `.marketing-surface`. */
 @import "./styles/marketing-tokens.css";
 
-/* EEI Board-grade dashboard tokens — `--eei-*` namespace; opt in via
- * the `.eei-scope` wrapper on the analyzed-company dashboard surface. */
-@import "./styles/eeiBoard.css";
+/* Board-grade dashboard tokens — `--ctrl-*` namespace; opt in via
+ * the `.ctrl-scope` wrapper on the analyzed-company dashboard surface. */
+@import "./styles/controllerBoard.css";
 
 /* Phase A foundation — one-shot pulse animation applied by
  * useHighlightFromUrl() when a TraceableNumber click lands on its

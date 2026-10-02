@@ -25,7 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { Download, FileText, Printer, Loader2 } from "lucide-react";
-// Instrument pass (2026-08): the EEI board CSS (eei-*) is fully evicted
+// Instrument pass (2026-08): the board-grade CSS (ctrl-*) is fully evicted
 // from this page — panels/chips/header from the kit, every figure mono
 // via the Amount family, semantic color only on severity/sentiment.
 import { Chip, PageHeader as InstrumentPageHeader, Panel, PanelHeader, type ChipTone } from "@/components/instrument/Panel";

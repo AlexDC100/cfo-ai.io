@@ -333,8 +333,14 @@ def _engine_gates() -> List[Gate]:
              # law is a red, because junit work is tests minus skips. S9 skips
              # where node is absent — the report cannot be rebuilt there, and
              # that is not a pass.
-             work_junit=True, floor=32, units="tests",
+             # 33 since the third review's S5 (document properties).
+             work_junit=True, floor=33, units="tests",
              canaries=("test_s1_the_current_year_opens_with_the_prior_years_closing",
+                       # S5 reads every byte a published file can carry a word
+                       # in (2026-10-02): workbook members and properties, the
+                       # PDF's metadata, public/examples and public/templates
+                       "test_s5_document_properties_carry_the_product_name_only",
+                       "test_s5_the_only_fiscal_code_and_register_number_are_the_fictional_ones",
                        "test_s11_every_ledger_figure_of_a_known_issue_is_repeated_from_the_published_workbook",
                        "test_s11_the_known_issues_are_listed_and_the_page_carries_the_published_list",
                        "test_s6_no_caveat_the_engine_stated_is_left_off_the_label_list",
@@ -2756,9 +2762,13 @@ def _frontend_gates() -> List[Gate]:
         # a scan of nothing is not a pass. Plant log: gates.md
         # "bundle-labels".
         Gate("bundle-labels", [PY, "scripts/check_bundle_labels.py"],
-             work_rx=r"GATE-WORK bundle-labels files=(\d+)", floor=50,
-             units="built text files scanned",
-             canaries=("BUNDLE LABELS: PASS", "identifier match(es)")),
+             # measured 138 on 2026-10-02: 130 text files and the 8 workbooks
+             # / PDFs under dist/templates, dist/examples and dist/sample,
+             # opened member by member. No identifier is exempt any more.
+             work_rx=r"GATE-WORK bundle-labels files=(\d+)", floor=100,
+             units="built files read (text, workbooks, PDFs)",
+             canaries=("BUNDLE LABELS: PASS", "no identifier is exempt",
+                       "workbook(s) and PDF(s) opened")),
         # PLAYWRIGHT — the last suite outside the net until 2026-09-09, and
         # it had already taken the battery down once by starving vitest of
         # CPU. Baseline measured serially on a quiet machine with the dev
