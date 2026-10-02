@@ -20482,6 +20482,12 @@ files, `floor-census` 77, `plan-gate-census` 29, `provenance-census` 827,
 `global-positioning` 1,001, `corpus-policy` 4,969 tracked files; and
 `tests/engine/test_gate_canaries.py` on its own: 13 passed.
 
+And once more with this page committed, through the narrowed battery, **6/6
+PASS**: `vitest` 4,504 tests, `tsc` 1,044 files, `public-sample` 33,
+`engine-proof` 10 (scope full), `public-sample-page` 802,
+`public-sample-pdf` 29 pages; and the 30 engine test files that read
+`scripts/run_battery.py` or this page: 1,411 passed, 1 xfailed.
+
 **Not run:** the Playwright suite itself (see above).
 
 **WHAT THE WHOLE SET CANNOT SEE** — one line each; the detail is under each
