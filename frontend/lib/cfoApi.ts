@@ -324,7 +324,69 @@ export function extractCanonicalBsFromReconcile(
 export const FORECAST_HORIZONS = [3, 5] as const;
 export type ForecastHorizon = (typeof FORECAST_HORIZONS)[number];
 
+/** The body of an EXPLICIT briefing regeneration (owner ruling 2026-10-02).
+ *  `intent: "user"` is what makes the call a model call at all: the engine
+ *  answers the bodiless shape older bundles auto-fired with the stored
+ *  briefing and narrates nothing. Extra fields are refused (422). */
+export interface RegenerateBriefingBody {
+  intent: "user";
+  /** The language to narrate in — the reader's UI language. */
+  language?: string;
+  /** The display currency to narrate in; only RON is persisted. */
+  currency?: string;
+}
+
+/** POST /api/period/{id}/briefing/regenerate, as answered with a body. */
+export interface RegenerateBriefingResponse {
+  /** False when the narration failed: nothing was written, the meter was
+   *  released, and `briefing` is the stored (kept) body or null. */
+  ok: boolean;
+  regenerated?: boolean;
+  /** True when the new narration replaced the stored row (RON only). */
+  persisted?: boolean;
+  legacy?: boolean;
+  /** A neutral code on failure (provider_error, no_api_key, …). */
+  reason?: string | null;
+  stale?: boolean;
+  briefing?: string | null;
+  briefing_length?: number;
+  language?: string;
+  currency?: string;
+}
+
+/** The 429 the regenerate route refuses with when the caller's Ask CFO AI
+ *  allowance is spent (`CfoApiError.detail`). The caller's own plan, in the
+ *  caller's own response — never stored, never shown to anyone else. */
+export interface BriefingRegenCapDetail {
+  code: "briefing_regen_cap_reached";
+  kind?: "daily_cap_reached" | "monthly_cap_reached" | string;
+  plan_key?: string;
+  daily_used?: number;
+  daily_cap?: number;
+  monthly_used?: number;
+  monthly_cap?: number;
+  upgrade_url?: string;
+}
+
 export const cfoApi = {
+  /** The explicit, metered briefing regeneration. One Ask CFO AI message of
+   *  the caller's allowance per call; never fired without a click
+   *  (components/cfo/CFOBriefingCard). `orgId` is the PERIOD's company, sent
+   *  as X-Org-Id — never the ambient workspace, which can be another company
+   *  in a second tab. */
+  regenerateBriefing: (
+    periodId: string,
+    body: RegenerateBriefingBody,
+    orgId?: string | null,
+  ) =>
+    call<RegenerateBriefingResponse>(
+      `/api/period/${encodeURIComponent(periodId)}/briefing/regenerate`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+        ...(orgId ? { headers: { "X-Org-Id": orgId } } : {}),
+      },
+    ),
   /** One fp1 projection over one persisted period.
    *
    *  Returns the raw payload. It is NOT typed as anything the rest of this
