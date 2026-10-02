@@ -41,6 +41,7 @@ import {
   MarketRegistryGrid,
 } from "@/components/public-companies/MarketSurface";
 import "@/components/public-companies/marketI18n";
+import { proofTokens } from "@/lib/engineProof";
 import {
   ALL_MARKETS_TAB_ID,
   BUNDLED_REGISTRY,
@@ -94,7 +95,11 @@ function TabFallback() {
 }
 
 export default function PublicCompanyIntelligence() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // The Romania note's two counts are the engine proof's (engineProof.json
+  // `counts`), in the reader's language — the same tokens the landing card
+  // prints.
+  const proof = proofTokens(i18n.language);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   // PUB-200 — chart range is per-session preference, persisted in URL
   // so a drawer reopen lands on the same range and so deep links carry
@@ -520,13 +525,16 @@ export default function PublicCompanyIntelligence() {
                   holdingsKnown={registry.holdingsKnown}
                   bundled={registry.origin === "bundled"}
                 />
-                {/* Romania keeps its deterministic-grade note — the claim
-                    that belongs to the home market and to no other. */}
+                {/* Romania's note: what the listings carry today, in the
+                    landing card's words, counts from the engine proof. */}
                 <p
                   data-testid="market-home-grade-note"
                   className="max-w-[760px] text-[12px] leading-relaxed text-ink-soft"
                 >
-                  {t("pcm.ro.grade")}
+                  {t("pcm.ro.grade", {
+                    listings: proof["bvb.listings"],
+                    withFinancials: proof["bvb.withFinancials"],
+                  })}
                 </p>
               </>
             )

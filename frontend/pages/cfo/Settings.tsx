@@ -1535,7 +1535,7 @@ function DangerZoneSection({ email }: { email: string | null }) {
           {hasCancellableSub && (
             <DangerRow
               title="Cancel plan"
-              description="Stops your subscription from renewing. You keep full access until the end of the current billing period, then drop to the free tier. Your data is untouched."
+              description="Stops your subscription from renewing. You keep full access until the end of the current billing period; after that the plan ends and there is no free plan to fall back to — analysing a new document needs a plan again. Your data is untouched."
               buttonLabel="Cancel plan"
               onClick={() => setDangerDialog("cancel")}
             />
@@ -1569,7 +1569,7 @@ function DangerZoneSection({ email }: { email: string | null }) {
         onConfirm={cancelPlan}
         phrase={email ?? ""}
         title="Cancel your plan?"
-        description="Your subscription stops renewing. You keep full access until the end of the current billing period, then move to the free tier. Nothing is deleted, and you can resubscribe at any time."
+        description="Your subscription stops renewing. You keep full access until the end of the current billing period; after that the plan ends and there is no free plan to fall back to. Nothing is deleted, and you can resubscribe at any time."
         confirmLabel="Cancel plan"
         busyLabel="Cancelling…"
       />

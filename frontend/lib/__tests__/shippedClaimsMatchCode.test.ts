@@ -532,10 +532,13 @@ function reachableModules(): Set<string> {
  *      days. It had zero importers and was DELETED rather than
  *      quarantined; it is named here so its return is visible.
  *
- *  They are quarantined and not deleted because the locale files are
- *  shared by three lanes mid-wave and the six components belong to
- *  another lane; losing a 97-key block from a file being concurrently
- *  edited is a worse regression than dead copy nobody can read. */
+ *  The six components stay quarantined (they belong to another lane).
+ *  THE `landing.*` NAMESPACE ITSELF WAS DELETED from both locale files on
+ *  2026-10-02: nothing reachable read it, but the locale JSON is bundled,
+ *  so "Parsed in 90 seconds", "Analyze Hain Celestial in 10 seconds" and
+ *  "5,000+ NASDAQ + NYSE companies" were shipping in the public bundle as
+ *  strings anyone could read. The components keep their inline English
+ *  fallbacks, which no bundle carries while nothing imports them. */
 const DEAD_COPY_QUARANTINE: string[] = [
   "components/landing/BridgeSection.tsx",
   "components/landing/EntryCard.tsx",
@@ -1292,11 +1295,11 @@ describe("shipped claims match the code", () => {
 
   it("keeps claim-carrying dead copy out of the bundle, and the list from growing", () => {
     // C5. Each quarantined module is measured false against live code
-    // (see DEAD_COPY_QUARANTINE). They stay because the locale files are
-    // shared mid-wave and the components belong to another lane —
-    // deleting a 97-key block from a concurrently-edited file is the
-    // worse regression. What the gate CAN guarantee is that none of them
-    // reaches a customer, and that the list does not grow quietly.
+    // (see DEAD_COPY_QUARANTINE). The components stay because they belong
+    // to another lane; their `landing.*` dictionary keys are gone from both
+    // locale files (2026-10-02 — the JSON is bundled, so the dead copy was
+    // public). The gate guarantees none of them reaches a customer, that
+    // the list does not grow quietly, and that the namespace stays deleted.
     const wokenUp: string[] = [];
     for (const rel of DEAD_COPY_QUARANTINE) {
       const abs = join(FRONTEND, rel);
@@ -1330,6 +1333,19 @@ describe("shipped claims match the code", () => {
       }
     }
     expect(readers.join("\n")).toBe("");
+
+    // The namespace is deleted, in both languages. Its return — by a merge
+    // or a restored block — puts the retired claims back in the bundle.
+    for (const loc of ["en", "ro"]) {
+      const dict = JSON.parse(
+        readFileSync(join(FRONTEND, "i18n", "locales", `${loc}.json`), "utf8"),
+      ) as Record<string, unknown>;
+      expect(
+        Object.prototype.hasOwnProperty.call(dict, "landing"),
+        `i18n/locales/${loc}.json carries a "landing" namespace again — it was deleted ` +
+          `on 2026-10-02 because its copy ("90 seconds", "5,000+ NASDAQ + NYSE") shipped in the bundle`,
+      ).toBe(false);
+    }
   });
 
   it("prints no calibration count that is not a pair the engine proof measured", () => {
