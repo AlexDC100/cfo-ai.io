@@ -22,9 +22,21 @@
 // outside the RPC), a fourth RPC, or a model call outside the guard coming
 // back into the function.
 //
+// 3. THE PREFLIGHT REPORT the coordinator runs on production BEFORE the
+//    deploy (supabase/preflight/chat_cap_always_preflight_report.sql). The
+//    function fails closed, so a database without the three metering
+//    functions turns the chat off for everyone: the report says whether they
+//    are there. It is held here to the two things it describes — the SQL
+//    that defines the functions and the names index.ts calls them with — and
+//    to being ONE statement that only reads (the Management API returns the
+//    last statement's result, as the postgres role).
+//
 // WHAT IT CANNOT SEE: what the DEPLOYED function's source is — the
 // coordinator diffs the downloaded source against this tree before deploy.
+// What the report ANSWERS on a database: scripts/check_chat_cap_real.py runs
+// it on the local stack and on an empty database.
 
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -192,6 +204,80 @@ describe("no switch, no second door — the function's source", () => {
     expect(index).toContain('"authorization, x-client-info, apikey, content-type, x-org-id"');
     for (const origin of ["https://cfo-ai.io", "https://www.cfo-ai.io", "https://cfo-ai.finance", "https://www.cfo-ai.finance", "http://localhost:5173", "http://127.0.0.1:5173"]) {
       expect(index).toContain(`"${origin}"`);
+    }
+  });
+});
+
+describe("the preflight report the coordinator runs before the deploy", () => {
+  const REPO = resolve(__dirname, "../../..");
+  const REPORT = readFileSync(resolve(REPO, "supabase/preflight/chat_cap_always_preflight_report.sql"), "utf-8");
+  const ATOMIC = readFileSync(resolve(REPO, "supabase/schema_phase_pricing_v3_atomic.sql"), "utf-8");
+  /** The file without its `--` comments. */
+  const statement = REPORT.split("\n").map((l) => l.split("--")[0]).join("\n").trim();
+  /** The rows of the report's `want` list: name → signature types, argument names, md5. */
+  const wanted = Object.fromEntries(
+    [...statement.matchAll(/\('(\w+)',\s*'public\.(\w+)\(([^)]*)\)',\s*array\[([^\]]*)\],\s*'([0-9a-f]{32})'\)/g)].map((m) => [
+      m[1],
+      { fn: m[2], types: m[3].split(",").map((t) => t.trim()), args: [...m[4].matchAll(/'(\w+)'/g)].map((a) => a[1]), md5: m[5] },
+    ]),
+  );
+  const NAMES = ["commit_user_chat", "release_user_chat", "reserve_user_chat"];
+  /** A function as supabase/schema_phase_pricing_v3_atomic.sql defines it. */
+  function defined(name: string): { args: string[]; types: string[]; md5: string } {
+    const m = new RegExp(`create or replace function ${name}\\(([\\s\\S]*?)\\) returns jsonb[\\s\\S]*?\\nas \\$\\$([\\s\\S]*?)\\$\\$;`).exec(ATOMIC);
+    if (!m) throw new Error(`${name} is not defined in the SQL`);
+    const params = m[1].split("\n").map((l) => l.split("--")[0].trim().replace(/,$/, "")).filter(Boolean).map((l) => l.split(/\s+/));
+    return {
+      args: params.map((p) => p[0]),
+      types: params.map((p) => (p[1] === "int" ? "integer" : p[1])),
+      md5: createHash("md5").update(m[2], "utf8").digest("hex"),
+    };
+  }
+
+  it("it is ONE statement and it only reads: nothing in it writes, locks, sets or notifies", () => {
+    expect(statement.slice(0, 4).toLowerCase()).toBe("with");
+    expect(statement.endsWith(";")).toBe(true);
+    expect(count(statement, ";")).toBe(1);
+    const writes =
+      /\b(insert|update|delete|truncate|merge|alter|create|drop|grant|revoke|notify|listen|lock|copy|call|do|vacuum|analyze|refresh|reindex|cluster|comment|set|reset|begin|commit|rollback|prepare|set_config|nextval|setval|pg_notify|pg_sleep|pg_advisory\w*|pg_terminate_backend|pg_cancel_backend|pg_reload_conf|dblink\w*|lo_\w+)\b|\bfor\s+(update|share|no\s+key)\b|\binto\b/gi;
+    expect(statement.match(writes) ?? []).toEqual([]);
+    // POSITIVE CONTROL: the scanner sees a write when one is there.
+    expect("select set_config('x','y',true)".match(writes)).toEqual(["set_config"]);
+    expect("select 1 from t for update".match(writes)).toEqual(["for update"]);
+    // …and the file does read rows where it says it does (counts only).
+    expect(count(statement, "query_to_xml(")).toBe(4);
+  });
+
+  it("its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's", () => {
+    expect(Object.keys(wanted).sort()).toEqual(NAMES);
+    for (const n of NAMES) {
+      const d = defined(n);
+      expect(wanted[n].fn, n).toBe(n);
+      expect(wanted[n].md5, n).toBe(d.md5);
+      expect(wanted[n].types, n).toEqual(d.types);
+      expect(wanted[n].args, n).toEqual(d.args);
+    }
+  });
+
+  it("the argument names it requires are the ones index.ts calls the functions with — and the tables it checks are the ones those functions use", () => {
+    const index = code("index.ts");
+    const meter = [...(/const meterPayload = \(a: MeterArgs\) => \(\{([^}]*)\}\)/.exec(index)?.[1] ?? "").matchAll(/\b(p_[a-z_]+):/g)].map((m) => m[1]);
+    expect(meter).toEqual(["p_user_id", "p_month", "p_day"]);
+    const reserveBlock = /rpc\(admin, "reserve_user_chat", \{([\s\S]*?)\}\)/.exec(index)?.[1] ?? "";
+    expect(reserveBlock).toContain("...meterPayload(a)");
+    const reserve = [...meter, ...[...reserveBlock.matchAll(/\b(p_[a-z_]+):/g)].map((m) => m[1])];
+    expect(wanted.commit_user_chat.args).toEqual(meter);
+    expect(wanted.release_user_chat.args).toEqual(meter);
+    expect(wanted.reserve_user_chat.args).toEqual(reserve);
+    // The plan row's columns are the ones index.ts selects; the two counter
+    // tables and their columns are the ones the three bodies name.
+    expect(statement).toContain("('public.subscriptions',          array['user_id', 'tier', 'plan'])");
+    for (const [table, cols] of [["user_usage", ["user_id", "month", "llm_calls", "llm_calls_reserved"]], ["plan_chat_daily_usage", ["user_id", "day", "count", "reserved", "updated_at"]]] as const) {
+      expect(statement).toMatch(new RegExp(`\\('public\\.${table}',\\s*array\\[${cols.map((c) => `'${c}'`).join(", ")}\\]\\)`));
+      const bodies = NAMES.map((n) => new RegExp(`create or replace function ${n}\\([\\s\\S]*?\\nas \\$\\$([\\s\\S]*?)\\$\\$;`).exec(ATOMIC)?.[1] ?? "").join("\n");
+      const tableStatements = bodies.split(";").filter((st) => new RegExp(`\\b${table}\\b`).test(st)).join(";");
+      expect(tableStatements.length, table).toBeGreaterThan(0);
+      for (const c of cols) expect(tableStatements, `${table}.${c}`).toMatch(new RegExp(`\\b${c}\\b`));
     }
   });
 });

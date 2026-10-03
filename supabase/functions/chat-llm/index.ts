@@ -52,7 +52,7 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
 // The model upstream. Production leaves CHAT_LLM_UPSTREAM_BASE_URL unset and
 // this is https://api.anthropic.com; the only other value honoured is a
-// loopback address (the local recorder scripts/check_chat_cap_real.sh serves).
+// loopback address (the local recorder scripts/check_chat_cap_real.py serves).
 const UPSTREAM_BASE = resolveUpstreamBase(Deno.env.get("CHAT_LLM_UPSTREAM_BASE_URL"));
 
 const PLANS = buildPlans((name) => Deno.env.get(name));

@@ -373,7 +373,7 @@ export function readModelResponse(data: unknown): { text: string; model: unknown
 
 /** The ONLY upstream this function may be pointed at besides the real one is
  *  a loopback address — the local recorder the gate drives it with
- *  (scripts/check_chat_cap_real.sh). Anything else in
+ *  (scripts/check_chat_cap_real.py). Anything else in
  *  CHAT_LLM_UPSTREAM_BASE_URL is ignored, so no secret set on the deployed
  *  function can send the API key to another host; production leaves the
  *  variable unset. */

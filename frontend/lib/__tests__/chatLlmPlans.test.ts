@@ -17,7 +17,7 @@
 //
 // WHAT IT CANNOT SEE: the engine EXECUTING — it reads source text. The
 // executed cross-check (the real `_pricing_config.plan_for` against the real
-// plans.ts, over a matrix of rows) is scripts/check_chat_cap_real.sh. And it
+// plans.ts, over a matrix of rows) is scripts/check_chat_cap_real.py. And it
 // cannot see the environment of either deployed runtime: a PRICING_CHAT_*
 // override set on the engine container and not among the function's secrets
 // (or the reverse) makes them disagree in production with every law green.

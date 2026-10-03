@@ -1,4 +1,4 @@
-// CHAT-CAP-REAL — the driver. Run by scripts/check_chat_cap_real.sh, never
+// CHAT-CAP-REAL — the driver. Run by scripts/check_chat_cap_real.py, never
 // by hand (the wrapper refuses a non-loopback stack, mints the keys from the
 // stack's own secret, and removes what a run creates).
 //
@@ -14,7 +14,8 @@
 //
 // `deno run --allow-net=127.0.0.1` — the process cannot reach any other host.
 //
-// Output: one PASS / FAIL line per case, then `GATE-WORK chat-cap-real units=N`.
+// Output: one PASS / FAIL line per case, then `GATE-WORK chat-cap-real units=N`
+// (and `GATE-CLEANUP organization=<id>` for a row only the wrapper can remove).
 
 type Json = Record<string, unknown>;
 
@@ -29,7 +30,7 @@ const GATE = "chat-cap-real";
 function need(name: string): string {
   const v = Deno.env.get(name);
   if (!v) {
-    console.log(`FAIL setup: ${name} is not set — run scripts/check_chat_cap_real.sh, not this file`);
+    console.log(`FAIL setup: ${name} is not set — run scripts/check_chat_cap_real.py, not this file`);
     console.log(`GATE-WORK ${GATE} units=0`);
     Deno.exit(1);
   }
@@ -279,12 +280,30 @@ try {
     const unsigned = `${b64url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${b64url(JSON.stringify({ sub: trial.id, role: "authenticated", exp: nowS + 3600 }))}.`;
     const u = await ask(fn, unsigned);
     check("2.7 an unsigned token naming a real user: 401", [u.status, u.json.error], [401, "sign_in_required"]);
+    // A token the auth server itself ISSUED — to a user who has since been
+    // deleted. The signature is good and it has not expired; only asking the
+    // auth server says it is nobody. (The signup trigger gave the user a
+    // workspace, and deleting the user leaves it without a member — where
+    // the wrapper's cleanup, which finds workspaces through their members,
+    // cannot see it. Its id is handed to the wrapper BEFORE the delete; the
+    // wrapper removes exactly that row.)
+    const gone = await newUser("deleted");
+    const goneOrgs = (((await stack("GET", `/rest/v1/memberships?user_id=eq.${gone.id}&select=org_id`)).json as Json[] | null) ?? []).map((m) => String(m.org_id));
+    for (const org of goneOrgs) console.log(`GATE-CLEANUP organization=${org}`);
+    const removed = await stack("DELETE", `/auth/v1/admin/users/${gone.id}`);
+    if (removed.status >= 300) throw new Error(`could not delete ${gone.email}: HTTP ${removed.status}`);
+    const g = await ask(fn, gone.token);
+    check("2.8 a real, unexpired token whose user has since been DELETED: 401", [g.status, g.json.error], [401, "sign_in_required"]);
+    // Correctly signed with the stack's own secret, for the real trial user — and EXPIRED.
+    const expired = await hs256({ sub: trial.id, role: "authenticated", aud: "authenticated", iss: `${API}/auth/v1`, iat: nowS - 7200, exp: nowS - 3600, email: trial.email }, JWT_SECRET);
+    const x = await ask(fn, expired);
+    check("2.9 an EXPIRED token for a real user, correctly signed: 401", [x.status, x.json.error], [401, "sign_in_required"]);
     const ro = await ask(fn, null, { ...MESSAGE, language: "ro" });
-    check("2.8 the refusal's sentence follows the request's language field", detail(ro.json).message, "Autentifică-te ca să folosești Ask CFO AI.");
+    check("2.10 the refusal's sentence follows the request's language field", detail(ro.json).message, "Autentifică-te ca să folosești Ask CFO AI.");
     const bad = await ask(fn, null, "{not json");
-    check("2.9 unauthenticated with an unreadable body: still 401, not 400", bad.status, 401);
-    check("2.10 across those nine calls the recorder saw NO upstream request", seen.length - before, 0);
-    check("2.11 …and nothing was metered for the user the forged tokens named", await meter(trial), [null, null, null, null]);
+    check("2.11 unauthenticated with an unreadable body: still 401, not 400", bad.status, 401);
+    check("2.12 across those eleven calls the recorder saw NO upstream request", seen.length - before, 0);
+    check("2.13 …and nothing was metered for the user the forged and expired tokens named", await meter(trial), [null, null, null, null]);
   }
 
   // ── 3. A trial user: served and counted up to the cap, then refused ────
@@ -360,6 +379,18 @@ try {
     check("7.1 two concurrent calls with one slot left: exactly one served, one refused", both.map((r) => r.status).sort(), [200, 429]);
     check("7.2 …ONE upstream request", seen.length - before, 1);
     check("7.3 …the counter at the cap exactly, nothing left reserved", await meter(u), [3, 0, 3, 0]);
+
+    // The same on a user with NO counter rows yet (the meter's own insert is
+    // part of the race): six calls at once, three slots a day.
+    const fresh = await newUser("race-fresh");
+    await setTier(fresh, "trial");
+    const at = seen.length;
+    upstreamDelayMs = 400;
+    const six = await Promise.all([1, 2, 3, 4, 5, 6].map(() => ask(fn, fresh.token)));
+    upstreamDelayMs = 0;
+    check("7.4 six concurrent FIRST calls of a trial user (3 a day, no counter rows yet): exactly three served, three refused — three upstream requests, the counter at the cap, nothing left reserved",
+      [six.map((r) => r.status).sort(), seen.length - at, await meter(fresh)],
+      [[200, 200, 200, 429, 429, 429], 3, [3, 0, 3, 0]]);
   }
 
   // ── 8. Which caps a row gets (the plan card's answer) ──────────────────
@@ -471,6 +502,40 @@ try {
       [h.status, String(h.json.answer).startsWith("Couldn't reach Claude:"), /api\.anthropic\.com/.test(String(h.json.answer)), seen.length - before, await meter(u)],
       [200, true, true, 0, [0, 0, 0, 0]]);
     await hostile.stop();
+  }
+
+  // ── 11. The meter cannot be moved by the user it meters ────────────────
+  // A user at the cap, with their own session and the public key, tries
+  // every door PostgREST has: the two counter tables carry a SELECT policy
+  // only, and the three functions are service_role's.
+  {
+    const u = await newUser("tamper");
+    await setTier(u, "trial");
+    await seed(u, 3, 3);
+    const before = seen.length;
+    const asUser = (method: string, path: string, body?: unknown, prefer = "return=representation") => stack(method, path, body, u.token, prefer);
+    const writes = [
+      await asUser("PATCH", `/rest/v1/plan_chat_daily_usage?user_id=eq.${u.id}`, { count: 0, reserved: 0 }),
+      await asUser("DELETE", `/rest/v1/plan_chat_daily_usage?user_id=eq.${u.id}`),
+      await asUser("POST", "/rest/v1/plan_chat_daily_usage?on_conflict=user_id,day", { user_id: u.id, day: DAY, count: 0, reserved: 0 }, "resolution=merge-duplicates,return=representation"),
+      await asUser("PATCH", `/rest/v1/user_usage?user_id=eq.${u.id}`, { llm_calls: 0, llm_calls_reserved: 0 }),
+      await asUser("DELETE", `/rest/v1/user_usage?user_id=eq.${u.id}`),
+      await asUser("POST", "/rest/v1/user_usage?on_conflict=user_id,month", { user_id: u.id, month: MONTH, llm_calls: 0, llm_calls_reserved: 0 }, "resolution=merge-duplicates,return=representation"),
+    ];
+    const own = await asUser("GET", `/rest/v1/plan_chat_daily_usage?user_id=eq.${u.id}&select=count`);
+    check("11.1 CONTROL (the stack's row security): a user at the cap can READ their own counter and cannot update, delete or upsert it — six writes, no row written, the meter where it was",
+      [(own.json as Json[] | null)?.[0]?.count ?? null, writes.map((w) => (Array.isArray(w.json) ? w.json.length : 0)), await meter(u)],
+      [3, [0, 0, 0, 0, 0, 0], [3, 0, 3, 0]]);
+    const calls = [
+      await asUser("POST", "/rest/v1/rpc/release_user_chat", { p_user_id: u.id, p_month: MONTH, p_day: DAY }),
+      await asUser("POST", "/rest/v1/rpc/commit_user_chat", { p_user_id: u.id, p_month: MONTH, p_day: DAY }),
+      await asUser("POST", "/rest/v1/rpc/reserve_user_chat", { p_user_id: u.id, p_month: MONTH, p_day: DAY, p_daily_cap: null, p_monthly_cap: null }),
+    ];
+    check("11.2 CONTROL (the stack's grants): …and cannot call reserve / commit / release with their session — refused, the meter where it was",
+      [calls.map((c) => c.status >= 400), await meter(u)], [[true, true, true], [3, 0, 3, 0]]);
+    const still = await ask(fn, u.token);
+    check("11.3 …so their next call is still refused, with no upstream request",
+      [still.status, detail(still.json).kind, seen.length - before], [429, "daily_cap_reached", 0]);
   }
 
   await fn.stop();

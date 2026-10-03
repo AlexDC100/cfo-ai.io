@@ -23,7 +23,7 @@
 // model; the function deciding a cap itself instead of asking the RPC.
 //
 // WHAT THEY CANNOT SEE: the Deno wiring (index.ts: the supabase-js calls, the
-// fetch) and the SQL functions — scripts/check_chat_cap_real.sh runs the real
+// fetch) and the SQL functions — scripts/check_chat_cap_real.py runs the real
 // index.ts against the real RPCs on the local stack; and the DEPLOYED
 // function, which only the coordinator's live checks see.
 

@@ -24,6 +24,12 @@ WHAT IT RUNS
      (nothing is applied to the stack — it is shared; a stack whose functions
      differ FAILS here instead of being quietly "fixed"). Their EXECUTE grant
      is service_role's only.
+  P. THE PREFLIGHT REPORT the coordinator runs on production before the
+     deploy (supabase/preflight/chat_cap_always_preflight_report.sql): it is
+     ONE read-only statement; its three md5 literals are this repository's
+     function bodies; on the stack it says ready; on a database with none of
+     the objects (the cluster's template1 — read, never written) it answers
+     "ready": false and names what is missing instead of erroring.
   B. THE ENGINE, EXECUTED. The real `_plan_state.get_plan_state` (this
      checkout's src/, a stub standing only where the HTTP read would be)
      resolves a matrix of subscription rows; the driver holds the function's
@@ -31,12 +37,15 @@ WHAT IT RUNS
   C. THE DRIVER (scripts/chat_cap_real/driver.ts, under Deno, network
      restricted to 127.0.0.1): index.ts itself, served on a loopback port,
      with a RECORDER where the model would be — unauthenticated → 401 and no
-     upstream request; a trial user's calls up to the cap served and counted;
-     the next refused with the typed body and no upstream request; the
-     monthly cap; a model failure released; two concurrent calls at cap − 1;
-     the caps a default signup row / no row / tier 'pro' get; invalid
-     requests; and FAIL CLOSED with a meter, a plan row or an auth server the
-     function cannot reach.
+     upstream request (no header, the anon key, a forged, an unsigned, an
+     expired token, the real token of a user since deleted); a trial user's
+     calls up to the cap served and counted; the next refused with the typed
+     body and no upstream request; the monthly cap; a model failure released;
+     two concurrent calls at cap − 1 and six concurrent first calls; the caps
+     a default signup row / no row / tier 'pro' get; invalid requests; FAIL
+     CLOSED with a meter, a plan row or an auth server the function cannot
+     reach; and the user at the cap trying to move their own counter through
+     PostgREST.
 
 LOCAL ONLY. The API is CHAT_CAP_API_URL (default http://127.0.0.1:54321) and
 the database is the container CHAT_CAP_DB_CONTAINER (default
@@ -49,7 +58,8 @@ that as PASS(VACUOUS).
 
 It creates its own users (…@chat-gate.invalid) and removes them, their
 workspaces and their counters on exit and at start. It never resets, drops or
-alters a table or a function, and applies no migration.
+alters a table or a function, and applies no migration. The preflight report
+is also run on the cluster's `template1` — a read; nothing is created there.
 
 NOTHING HERE CAN SPEND: the model upstream is a recorder in the driver's own
 process; Deno is run with --allow-net=127.0.0.1, so no other host is
@@ -78,6 +88,7 @@ REPO = Path(__file__).resolve().parents[1]
 FUNCTION = REPO / "supabase" / "functions" / "chat-llm" / "index.ts"
 DRIVER = REPO / "scripts" / "chat_cap_real" / "driver.ts"
 ATOMIC_SQL = REPO / "supabase" / "schema_phase_pricing_v3_atomic.sql"
+PREFLIGHT = REPO / "supabase" / "preflight" / "chat_cap_always_preflight_report.sql"
 API_URL = os.environ.get("CHAT_CAP_API_URL", "http://127.0.0.1:54321").rstrip("/")
 CONTAINER = os.environ.get("CHAT_CAP_DB_CONTAINER", "supabase_db_cfo-ai-test")
 DOMAIN = "chat-gate.invalid"
@@ -131,6 +142,35 @@ def psql(sql: str) -> str:
     return out.stdout.strip()
 
 
+def psql_file(database: str, path: Path) -> str:
+    """One FILE, as it is, on a database of the local cluster — the way the
+    coordinator's `supabase db query -f` hands it to production: one batch."""
+    out = subprocess.run(
+        ["docker", "exec", "-i", CONTAINER, "psql", "-U", "postgres", "-d", database,
+         "-X", "-At", "-q", "-v", "ON_ERROR_STOP=1"],
+        input=path.read_text(encoding="utf-8"), capture_output=True, text=True, timeout=60,
+    )
+    if out.returncode != 0:
+        raise RuntimeError("psql failed: %s" % (out.stderr.strip() or out.stdout.strip())[:400])
+    return out.stdout.strip()
+
+
+# What a read-only report may not contain, anywhere outside its comments
+# (the queries it hands to query_to_xml included).
+_WRITES = re.compile(
+    r"\b(insert|update|delete|truncate|merge|alter|create|drop|grant|revoke|notify|listen|lock|copy|call|do|"
+    r"vacuum|analyze|refresh|reindex|cluster|comment|set|reset|begin|commit|rollback|prepare|"
+    r"set_config|nextval|setval|pg_notify|pg_sleep|pg_advisory\w*|pg_terminate_backend|pg_cancel_backend|"
+    r"pg_reload_conf|dblink\w*|lo_\w+)\b|\bfor\s+(update|share|no\s+key)\b|\binto\b",
+    re.I,
+)
+
+
+def preflight_statement() -> str:
+    """The report file without its `--` comments."""
+    return "\n".join(line.split("--", 1)[0] for line in PREFLIGHT.read_text(encoding="utf-8").splitlines()).strip()
+
+
 CLEANUP_SQL = """
 do $$
 declare
@@ -160,8 +200,29 @@ def cleanup() -> None:
         print("WARNING — cleanup of the gate's own users failed: %s" % e)
 
 
+def remove_memberless(org_ids: list) -> None:
+    """The workspaces the driver named (`GATE-CLEANUP organization=<id>`):
+    each belonged to a gate user the driver deleted through the auth server.
+    Removed by id, and only while it has no member."""
+    if not org_ids:
+        return
+    try:
+        psql("delete from public.organizations o where o.id = any ('{%s}'::uuid[]) "
+             "and not exists (select 1 from public.memberships m where m.org_id = o.id);" % ",".join(org_ids))
+    except Exception as e:  # noqa: BLE001
+        print("WARNING — cleanup of a deleted gate user's workspace failed: %s" % e)
+
+
 def remaining_users() -> str:
     return psql("select count(*) from auth.users where email like '%%@%s';" % DOMAIN)
+
+
+def memberless_workspaces() -> str:
+    """How many workspaces on the stack have no member. The signup trigger
+    gives every user one; a gate user deleted without it would leave one more
+    than there was."""
+    return psql("select count(*) from public.organizations o where not exists "
+                "(select 1 from public.memberships m where m.org_id = o.id);")
 
 
 # ── B. the engine, executed ──────────────────────────────────────────────
@@ -277,7 +338,7 @@ def main() -> int:
     jwt_secret = secret[0] if secret else ""
     if not jwt_secret:
         vacuous("the stack does not expose app.settings.jwt_secret (the gate mints its keys from it)")
-    for f in (FUNCTION, DRIVER, ATOMIC_SQL):
+    for f in (FUNCTION, DRIVER, ATOMIC_SQL, PREFLIGHT):
         if not f.is_file():
             failed("the file exists — %s" % f.relative_to(REPO))
             print("GATE-WORK %s units=%d" % (GATE, units))
@@ -320,6 +381,52 @@ def main() -> int:
         failed("A. CONTROL (the stack's catalog): the three functions are executable by service_role and by no API role a browser holds",
                "got:  %s" % grants, "want: %s" % want_grants)
 
+    # ── P. the preflight report the coordinator runs on production ──
+    stmt = preflight_statement()
+    found = sorted({m.group(0).lower() for m in _WRITES.finditer(stmt)})
+    one = stmt.count(";") == 1 and stmt.endswith(";") and stmt[:4].lower() == "with"
+    name = "P. %s is ONE statement and reads only: nothing in it writes, locks, sets or notifies" % PREFLIGHT.name
+    if one and not found:
+        passed(name)
+    else:
+        failed(name, "statements (';'): %d, ends with ';': %s, starts with WITH: %s" % (stmt.count(";"), stmt.endswith(";"), stmt[:4].lower() == "with"),
+               "write / lock / set tokens found: %s" % (found or "none"))
+    literals = {n: (re.search(r"\('%s',\s*'public\.%s\([^']*\)',\s*array\[[^\]]*\],\s*'([0-9a-f]{32})'\)" % (n, n), stmt) or [None, None])[1]
+                for n in CHAT_FUNCTIONS}
+    wanted = {}
+    for n in CHAT_FUNCTIONS:
+        m = re.search(r"create or replace function %s\(.*?\nas \$\$(.*?)\$\$;" % n, sql_text, re.S)
+        wanted[n] = hashlib.md5(m.group(1).encode("utf-8")).hexdigest() if m else "(not defined)"
+    name = "P. the report's three md5 literals are the function bodies in %s" % ATOMIC_SQL.name
+    if literals == wanted:
+        passed(name)
+    else:
+        failed(name, "in the report: %s" % literals, "in the SQL:    %s" % wanted)
+    name = "P. on the stack the report answers ready: true — nothing blocking, the bodies this repository's, the meter closed to the browser's roles"
+    try:
+        rep = json.loads(psql_file("postgres", PREFLIGHT))
+        got = [rep.get("ready"), rep.get("blocking"), rep.get("functions_are_this_repository"), rep.get("meter_closed_to_browser_roles")]
+        if got == [True, [], True, True]:
+            passed(name)
+        else:
+            failed(name, "got:  %s" % json.dumps(got), "want: [true, [], true, true]")
+    except Exception as e:  # noqa: BLE001
+        failed(name, "%s: %s" % (type(e).__name__, e))
+    name = ("P. on a database with NONE of it (template1 — read, never written) the report answers ready: false "
+            "and names the three functions and the three tables; it does not error")
+    try:
+        rep = json.loads(psql_file("template1", PREFLIGHT))
+        blocking = rep.get("blocking") or []
+        named = [any(n in b and "does not exist" in b for b in blocking)
+                 for n in CHAT_FUNCTIONS + ("public.subscriptions", "public.user_usage", "public.plan_chat_daily_usage")]
+        if rep.get("ready") is False and all(named) and rep.get("functions_are_this_repository") is False:
+            passed(name)
+        else:
+            failed(name, "ready: %s, functions_are_this_repository: %s" % (rep.get("ready"), rep.get("functions_are_this_repository")),
+                   "blocking: %s" % json.dumps(blocking))
+    except Exception as e:  # noqa: BLE001
+        failed(name, "%s: %s" % (type(e).__name__, e))
+
     # ── B. the engine's resolution, executed ──
     matrix_file = None
     try:
@@ -340,6 +447,7 @@ def main() -> int:
 
     # ── C. the driver ──
     cleanup()  # a previous run that died mid-way
+    memberless_before = memberless_workspaces()
     env = {k: v for k, v in os.environ.items() if not k.startswith("PRICING_") and k != "USAGE_LIMITS_ENABLED"}
     env.update({
         "CHAT_CAP_API_URL": API_URL,
@@ -355,6 +463,7 @@ def main() -> int:
     })
     driver_units = None
     rc = 1
+    orphaned = []
     try:
         proc = subprocess.run(
             [deno, "run", "--no-prompt", "--no-config", "--allow-net=127.0.0.1", "--allow-env",
@@ -367,6 +476,10 @@ def main() -> int:
             if m:
                 driver_units = int(m.group(1))
                 continue  # the wrapper prints the one total
+            m = re.match(r"GATE-CLEANUP organization=([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$", line)
+            if m:
+                orphaned.append(m.group(1))
+                continue
             print(line)
         err = proc.stderr.strip()
         if os.environ.get("CHAT_CAP_SHOW_LOGS") and err:
@@ -381,6 +494,7 @@ def main() -> int:
         failed("C. the driver finished within 240 s")
     finally:
         cleanup()
+        remove_memberless(orphaned)
         if matrix_file:
             try:
                 os.unlink(matrix_file)
@@ -395,10 +509,13 @@ def main() -> int:
             fails += 1
 
     left = remaining_users()
-    if left == "0":
-        passed("Z. the gate left none of its users behind")
+    memberless_after = memberless_workspaces()
+    if left == "0" and memberless_after == memberless_before:
+        passed("Z. the gate left none of its users behind, and no workspace without a member that was not there before")
     else:
-        failed("Z. the gate left none of its users behind", "%s user(s) @%s remain" % (left, DOMAIN))
+        failed("Z. the gate left none of its users behind, and no workspace without a member that was not there before",
+               "%s user(s) @%s remain" % (left, DOMAIN),
+               "workspaces without a member: %s before the run, %s after" % (memberless_before, memberless_after))
 
     print("")
     if fails == 0:
