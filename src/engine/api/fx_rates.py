@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
+import re
 import threading
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -41,7 +42,32 @@ _FALLBACK_RATES: Dict[str, float] = {
 }
 _FALLBACK_AS_OF = "2026-05-01"
 
-_BNR_URL = "https://www.bnr.ro/nbrfxrates.xml"
+# WHERE THE FEED LIVES. Until 2026 it was https://www.bnr.ro/nbrfxrates.xml
+# with the default namespace http://www.bnr.ro/xsd. BNR moved it: measured
+# 2026-10-03, the old address answers a redirect to an HTML page (200,
+# text/html once followed) and the feed is at https://curs.bnr.ro/ with the
+# namespace https://www.bnr.ro/xsd. Nothing failed loudly — the HTML did not
+# parse, the fallback below was served with `stale: true`, and every amount
+# shown in EUR was converted at 4.97 while BNR published 5.3447 (7.5% high).
+# The addresses are tried in order and the first one that PARSES wins: a 200
+# that is not the feed is a failure, not an answer.
+# Gate: fx-feed (tests/engine/test_fx_bnr_feed.py, on the feed's real bytes).
+_BNR_URLS = (
+    "https://curs.bnr.ro/nbrfxrates.xml",
+    "https://www.bnr.ro/nbrfxrates.xml",
+)
+_BNR_URL = _BNR_URLS[0]
+
+# A parsed rate outside these bounds is refused (the fallback, marked stale,
+# is served instead): a feed that changes its quoting convention — a
+# multiplier, an inverted pair — must not become a silently wrong amount.
+# RON per 1 EUR has been between 4.4 and 5.4 since 2015; USD per 1 EUR
+# between 0.95 and 1.25.
+_PLAUSIBLE_RON_PER_EUR = (3.0, 10.0)
+_PLAUSIBLE_USD_PER_EUR = (0.5, 2.0)
+
+#: The root element's default namespace, whichever scheme BNR writes it with.
+_DEFAULT_XMLNS = re.compile(rb'\sxmlns="https?://www\.bnr\.ro/xsd"')
 _TTL_SECONDS = 24 * 3600   # daily refresh
 _TIMEOUT_SECONDS = 8       # don't block the request handler on BNR
 
@@ -81,7 +107,7 @@ def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
     """Parse BNR's nbrfxrates.xml format.
 
     Document shape:
-      <DataSet>
+      <DataSet xmlns="https://www.bnr.ro/xsd" ...>
         <Header><PublishingDate>2026-05-22</PublishingDate></Header>
         <Body>
           <Subject>Reference rates for major currencies</Subject>
@@ -97,9 +123,9 @@ def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
     BNR publishes "1 EUR = X RON" style (RON is the origin/quote currency).
     We invert to our normalised "X units per 1 EUR" base.
     """
-    # BNR XML uses a default namespace; strip it for simpler XPath.
-    ns_re = b'xmlns="http://www.bnr.ro/xsd"'
-    cleaned = xml_bytes.replace(ns_re, b"")
+    # BNR XML uses a default namespace; strip it for simpler XPath. It was
+    # http://www.bnr.ro/xsd until 2026 and is https:// since the feed moved.
+    cleaned = _DEFAULT_XMLNS.sub(b"", xml_bytes, count=1)
     root = ET.fromstring(cleaned)
 
     body = root.find("Body")
@@ -139,11 +165,18 @@ def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
     # consistent base. RON = bnr_rates["EUR"]; USD = bnr_rates["EUR"] / bnr_rates["USD"].
     one_eur_in_ron = bnr_rates["EUR"]
     one_usd_in_ron = bnr_rates["USD"]
+    if one_usd_in_ron <= 0:
+        raise ValueError("BNR XML carries a non-positive USD rate")
     rates_eur_base: Dict[str, float] = {
         "EUR": 1.0,
         "RON": one_eur_in_ron,
         "USD": one_eur_in_ron / one_usd_in_ron,
     }
+    for _cur, (_lo, _hi) in (("RON", _PLAUSIBLE_RON_PER_EUR), ("USD", _PLAUSIBLE_USD_PER_EUR)):
+        if not (_lo < rates_eur_base[_cur] < _hi):
+            raise ValueError(
+                "BNR rate outside the plausible range: %s per 1 EUR = %r (expected %s..%s)"
+                % (_cur, rates_eur_base[_cur], _lo, _hi))
     return {
         "base": "EUR",
         "rates": rates_eur_base,
@@ -155,15 +188,21 @@ def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
 def _fetch_bnr_rates() -> Dict[str, Any]:
     """Network-fetch + parse BNR. Raises on any failure (caller handles
     fallback to cached or bundled)."""
-    req = urllib.request.Request(
-        _BNR_URL,
-        headers={"User-Agent": "cfo-ai/1.0 (+https://cfo-ai.io)"},
-    )
-    with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
-        if resp.status != 200:
-            raise RuntimeError(f"BNR HTTP {resp.status}")
-        body = resp.read()
-    return _parse_bnr_xml(body)
+    problems = []
+    for url in _BNR_URLS:
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "cfo-ai/1.0 (+https://cfo-ai.io)"},
+            )
+            with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
+                if resp.status != 200:
+                    raise RuntimeError(f"BNR HTTP {resp.status}")
+                body = resp.read()
+            return _parse_bnr_xml(body)
+        except Exception as exc:  # noqa: BLE001 — the next address is the handler
+            problems.append("%s: %s" % (url, exc))
+    raise RuntimeError("; ".join(problems))
 
 
 def get_fx_rates(force_refresh: bool = False) -> Dict[str, Any]:

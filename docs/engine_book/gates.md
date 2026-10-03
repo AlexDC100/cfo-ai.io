@@ -20219,3 +20219,95 @@ FastAPI route table (a script, a cron, `docker exec`); the other files on
 the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
 the journal) — each has its own gates; whether the operator bearer is held
 only by the operator.
+
+---
+
+## fx-feed
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_fx_bnr_feed.py -q` |
+| canary | `test_the_real_feed_parses_to_the_figures_bnr_published`, `test_the_pre_2026_namespace_still_parses`, `test_the_feed_is_asked_at_the_address_it_lives_at_first`, `test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried`, `test_no_address_answering_the_feed_serves_the_fallback_marked_stale`, `test_an_implausible_feed_is_never_served` |
+| work count | junit tests, floor **14** (measured 14) |
+
+**INCIDENT** — measured on production on 2026-10-03, during the log watch of an
+unrelated deploy: `GET /api/fx-rates` answered `{"source": "fallback", "as_of":
+"2026-05-01", "stale": true}` with 4.97 RON per EUR and 1.08 USD per EUR, and
+the backend logged one `[fx_rates] BNR fetch failed (syntax error: line 1,
+column 0)` per five minutes. BNR had moved the reference-rate feed:
+`https://www.bnr.ro/nbrfxrates.xml` answers a redirect to an HTML page, the feed
+is at `https://curs.bnr.ro/nbrfxrates.xml`, and its default namespace is
+`https://www.bnr.ro/xsd` (it was `http://`). BNR's file of 2026-10-02 says
+5.3447 RON per EUR and 4.7519 RON per USD: every amount a reader switched to
+EUR was shown 7.5% too high, every amount in USD 3.3% too high. How long is not
+known — the previous container's log went with the container. No test read the
+feed's real bytes; the two existing tests of the module replace the fetch.
+
+**LAW** — on BNR's own bytes (`tests/engine/fixtures/fx/nbrfxrates_REAL_curs_bnr_ro.xml`,
+the file of 2026-10-02, public data, committed as fetched): the parser returns
+the figures a regex reads out of the file (never the parser's own output as its
+expectation); the pre-2026 `http://` namespace still parses; a `multiplier`
+attribute is divided out; a web page is not the feed; a rate outside the
+plausible range (RON per EUR 3–10, USD per EUR 0.5–2) is refused. Through
+`get_fx_rates` with the module's `urlopen` replaced: the first address is the
+one the feed lives at and nothing else is asked when it answers; a page or an
+unreachable host at the first address is a failure and the next address is
+tried; when no address answers the feed, the bundled fallback is served
+**marked stale**, and inside the failure cooldown the second call costs no
+fetch; an implausible feed at every address serves the fallback, never the
+feed. The incident itself is one of the tests
+(`test_production_as_it_was_the_old_address_alone_serves_the_fallback`).
+
+**WHAT IT FAILS ON AFTER THE REPAIR (TC-11)** — an address list whose first
+entry is not the feed's; a namespace strip that knows one scheme; a fetch that
+stops at the first address; a fallback not marked stale; a guard removed.
+
+Plants, each alone in the worktree, then reverted (14 passed):
+```
+PLANT P1 the old address only (production as it was)
+    RED -> ['========================= 6 failed, 8 passed in 0.38s ==========================']
+    FAILED test_the_feed_is_asked_at_the_address_it_lives_at_first
+    FAILED test_the_live_rate_is_served_and_not_marked_stale
+    FAILED test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried
+    FAILED test_an_unreachable_first_address_falls_through_to_the_next
+    FAILED test_no_address_answering_the_feed_serves_the_fallback_marked_stale
+    FAILED test_an_implausible_feed_is_never_served
+PLANT P2 the namespace strip reads http:// only
+    RED -> ['========================= 7 failed, 7 passed in 0.39s ==========================']
+    FAILED test_the_real_feed_parses_to_the_figures_bnr_published
+    FAILED test_a_multiplier_is_divided_out
+    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
+    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
+    FAILED test_the_live_rate_is_served_and_not_marked_stale
+    FAILED test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried
+    FAILED test_an_unreachable_first_address_falls_through_to_the_next
+PLANT P3 the first address's failure is final (no second address)
+    RED -> ['========================= 4 failed, 10 passed in 0.37s =========================']
+    FAILED test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried
+    FAILED test_an_unreachable_first_address_falls_through_to_the_next
+    FAILED test_no_address_answering_the_feed_serves_the_fallback_marked_stale
+    FAILED test_an_implausible_feed_is_never_served
+PLANT P4 the plausibility guard removed
+    RED -> ['========================= 3 failed, 11 passed in 0.37s =========================']
+    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
+    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
+    FAILED test_an_implausible_feed_is_never_served
+PLANT P5 the bundled fallback served as fresh
+    RED -> ['========================= 3 failed, 11 passed in 0.37s =========================']
+    FAILED test_production_as_it_was_the_old_address_alone_serves_the_fallback
+    FAILED test_no_address_answering_the_feed_serves_the_fallback_marked_stale
+    FAILED test_an_implausible_feed_is_never_served
+PLANT P6 a 200 web page accepted: parse failure answers the fallback rates as BNR's
+    RED -> ['========================= 1 failed, 13 passed in 0.37s =========================']
+    FAILED test_an_implausible_feed_is_never_served
+REVERTED: ['============================== 14 passed in 0.40s ==============================']
+```
+
+**Cannot see** — BNR moving the feed again (the fixture is a recording; the
+live reading is production's `/api/fx-rates` `source` field, which must say
+`BNR`); what the browser does with `stale: true` (the bundled first-paint rate
+in `frontend/lib/rates.ts` and `lib/currency.ts` is still 4.97 as of
+2026-05-01 — it is served only until the endpoint answers, and during a real
+BNR outage); whether a stored briefing was written with amounts converted at
+the fallback rate.
+
