@@ -61,19 +61,42 @@ export const BRIEFING_UNAVAILABLE_NOTE: Bilingual = {
   en: "The AI briefing is unavailable for this period — the analysis figures are unaffected.",
 };
 
-// Every text a failed narration has ever been stored as: the sentinel, the
-// "Narrative unavailable…" forms, a provider's error sentence, the two
-// configuration sentences and the numeral-guard sentence. "credit balance is
-// too low" is the provider's own wording — a bare "credit balance" is a
-// phrase an accounting briefing can legitimately use.
-const FAILURE_TEXT =
-  /\[NARRATIVE_UNAVAILABLE\]|Narrative unavailable|invalid_request_error|credit balance is too low|Error code: \d|^\s*Set ANTHROPIC_API_KEY\b|^\s*anthropic SDK not installed|^\s*The briefing was withheld:/i;
+// Every text a failed narration has ever been stored as, recognised by the
+// SHAPE of the body — never by a phrase somewhere inside it. THE SAME
+// PREDICATE AS THE ENGINE'S `stored_briefing_failure_code`
+// (src/engine/api/pipeline.py); change both together:
+//   · the sentinel;
+//   · a body that BEGINS "Narrative unavailable…" (the empty-reply fallback,
+//     and the old provider branch, which appended the provider's error);
+//   · a body that BEGINS with the SDK's own error text ("Error code: 400 …");
+//   · the two configuration sentences and the numeral-guard sentence, at the
+//     start of the body;
+//   · the head of a raw model reply stored as the body: it begins with `{`
+//     or a backtick. No briefing does.
+//
+// Until 2026-10-03 the provider's phrases ("credit balance is too low",
+// "invalid_request_error", "Error code: N") and "Narrative unavailable" were
+// searched ANYWHERE in the body. "Credit balance" (sold creditor) is this
+// product's own vocabulary: a good briefing saying a supplier's "credit
+// balance is too low" — one the engine serves as usable — was hidden here.
+// A false positive is not a harmless refusal: it hides a good briefing.
+const SENTINEL = "[NARRATIVE_UNAVAILABLE]";
+// Case as the engine reads it: the three sentences and the reply head exactly,
+// "Narrative unavailable" and "Error code:" in any case.
+const FAILURE_SENTENCE_AT_THE_START =
+  /^(?:Set ANTHROPIC_API_KEY|anthropic SDK not installed|The briefing was withheld:|[{`])/;
+const FAILURE_PREFIX_AT_THE_START = /^(?:narrative unavailable|Error code: \d)/i;
 
 /** True when a body is not prose a reader may be shown: absent, empty, or a
  *  failure text. */
 export function isUnusableNarrative(s: string | null | undefined): boolean {
   if (!s || !s.trim()) return true;
-  return FAILURE_TEXT.test(s);
+  const text = s.trim();
+  return (
+    text.includes(SENTINEL) ||
+    FAILURE_SENTENCE_AT_THE_START.test(text) ||
+    FAILURE_PREFIX_AT_THE_START.test(text)
+  );
 }
 
 type Rec = Record<string, unknown>;

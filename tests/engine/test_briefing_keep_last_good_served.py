@@ -30,9 +30,13 @@ THE LAW (SPEC.md D5, D7, D8 — this file is one of three; the route seam and
 the persist / takeover seam are gated by its two siblings):
   S1  the REAL `stage_narrate` returns, in EVERY failure branch,
       `unavailable: <code>` beside its unchanged text and a recommendations
-      list, and never raises — not for a reply of any shape, not for a
-      provider client that cannot be constructed, not for a response that
-      carries no readable text; a usable reply carries NO code.
+      list, and never raises — not for a reply of any shape, not for an SDK
+      that cannot be imported, not for a provider client that cannot be
+      constructed, not for a response that carries no readable text; a
+      usable reply carries NO code. The same on the SKU call shape (the
+      pipeline's `scope == "sku"` branch: `stage_map` then the narrator's
+      non-statement prompt), where what it returns is unusable to the
+      predicate of S2 — the handle the SKU writer's guard needs.
   S2  `narration_unavailable_code` decides on that code; an unknown code is a
       provider error; a code-less result is usable only if its body is prose.
   S3  `stored_briefing_failure_code` recognises every failure text a writer
@@ -44,44 +48,124 @@ the persist / takeover seam are gated by its two siblings):
       true, unavailable_reason: <code>`; a usable row unchanged, with the
       earlier keys still present; `stale` is `{since, reason}` when the row
       carries the marker and null otherwise; only a row of the PERIOD's own
-      workspace is served as its briefing.
+      workspace is served as its briefing — read with the TENANT in the
+      filter (owner ruling 2026-10-03: "the period read without workspace is
+      a tenant boundary bug and can't ship").
   S5  round trip through the real routes: a failed regenerate is served
       stale, with the SAME body and a neutral code; a later good one clears it
       — and all of it works BEFORE the migration is applied. The same round
       trip on the pipeline's own writer (`stage_persist_narrative`), and from
       a row that ALREADY holds a failure text (the state of every period
       overwritten before the fix).
+      THE ANSWERED `stale` IS TRUTHFUL (owner ruling 2026-10-03: "Never
+      report a state that isn't stored"): in every answer of the explicit
+      regenerate, `stale` is a boolean equal to what GET /api/period serves
+      immediately after the call — true IFF the stored row carries the
+      marker then. A failure with nothing usable stored answers false; a
+      marker the database refused (the migration not applied) answers false;
+      a good write answers false. (SPEC D6a's literal `stale: true` in every
+      ok:false answer is superseded by the ruling.)
+      WHAT THE NARRATOR USED TO RAISE ON IS A FAILED NARRATION LIKE ANY
+      OTHER at the route: 200 `ok: false` with the neutral code, the kept
+      body handed back, the reserved message given back to the caller's own
+      meter and never committed, nothing written but the marker — never the
+      500 those provider states answered before R2 was repaired.
   S6  census: no `upsert("briefings", …)` payload names a stale column, and
       the two column names appear nowhere in src/engine outside the two
-      marker writers and the reader; every update / delete on the literal
-      table carries the tenant; the only failure text any writer stores is
-      the neutral sentinel.
+      marker writers and the reader; every update / delete AND every select
+      on the literal table carries the period and the tenant; the only
+      failure text any writer stores is the neutral sentinel; the browser's
+      twin of the text predicate (frontend/lib/briefingDefinition.ts) holds
+      no phrase searched inside the body.
   S7  the migration adds both columns idempotently and its last executable
       statement reloads the schema cache (CLAUDE.md §14).
   S8  the post-deploy probe — the script's own `probe()`, as it puts the
       request on the wire — posts the EXPLICIT body, so it still reaches
       the verifier.
 
-RED AGAINST THE CODE at d3c955a7 (each is a defect in src/, REPORTED; the
-tests state the law and are not weakened, skipped or xfailed):
-  R1  the text predicate's provider regex is searched ANYWHERE in the body
+MEASURED RED AGAINST THE CODE at d3c955a7 — four defects in src/ this file
+found in the hotfix's own code, REPAIRED on 2026-10-03 in commit 4828ab7c
+(the tests were never weakened, skipped or xfailed; each still reds on its
+defect):
+  R1  the text predicate's provider regex was searched ANYWHERE in the body
       (pipeline.py `_PROVIDER_ERROR_TEXT_RX` … `.search`): finance prose
-      that says "credit balance is too low" is a "provider_error" — a
-      stored briefing is served `body: null`, and a fresh good narration is
+      that says "credit balance is too low" was a "provider_error" — a
+      stored briefing served `body: null`, and a fresh good narration
       refused by the route (ok: false, the kept row marked stale).
-  R2  `stage_narrate` raises when the provider client cannot be constructed
-      (`Anthropic(…)` is outside any try) and when the response carries no
-      iterable content / a text block whose text is null (the join after the
-      call is outside it too) — against its own "a FAILED narration never
-      raises".
+      REPAIR: the pattern is the SDK's own error head ("Error code: N"),
+      matched at the START of the body; the bare phrases are gone. The
+      browser's twin (frontend/lib/briefingDefinition.ts) carries the same
+      predicate.
+  R2  `stage_narrate` raised when the provider client could not be
+      constructed (`Anthropic(…)` stood outside any try) and when the
+      response carried no iterable content / a text block whose text is null
+      (the join after the call stood outside it too) — against its own "a
+      FAILED narration never raises". REPAIR: the client is constructed
+      inside the call's own try (→ `provider_error` beside the sentinel);
+      the response is read block by block, text only (→ `empty_reply`).
   R3  a stored body that is a fragment of a JSON reply (begins with `{` or a
-      backtick) is prose to both predicates: served as the briefing, and
-      handed back as "the briefing that was kept".
-  R4  GET /api/period reads `briefings` by `period_id` alone and serves
-      row [0] — a row another workspace wrote on this period is served to a
+      backtick) was prose to both predicates: served as the briefing, and
+      handed back as "the briefing that was kept". REPAIR: the text
+      predicate names it `unparseable_reply`.
+  R4  GET /api/period read `briefings` by `period_id` alone and served
+      row [0] — a row another workspace wrote on this period was served to a
       reader whose RLS admits both (older than this hotfix; the regenerate
-      route reads the same row with the tenant in the filter and answers
-      null — the two readers disagree).
+      route read the same row with the tenant in the filter and answered
+      null — the two readers disagreed). REPAIR: the tenant is in the
+      filter and re-checked on the row.
+
+THE TRUTHFUL-`stale` LAW IS THE ROUTE's TO KEEP (`regenerate_briefing` and
+the two marker writers are the route seam's code, not this seam's). On the
+commit that carries this revision ALONE — before the route seam's repair is
+merged — the tests below state the ruled law of 2026-10-03 and are red, each
+on its `stale` assertion only, against a route that still answers `stale:
+true` in every ok:false answer. Measured with a candidate of that repair
+applied in the working copy and removed again: all of them green. (The
+candidate must not name a stale column inside the route — the census of S6
+allows only the two marker writers and the reader; the reader's own
+`served_briefing(row)["stale"]` IS "what GET /api/period would serve".)
+  · test_a_stored_failure_row_is_never_handed_back_or_marked_and_a_good_regenerate_replaces_it
+  · test_a_stored_reply_fragment_is_never_handed_back_as_the_briefing_that_was_kept
+  · test_another_workspaces_row_on_this_period_is_never_answered_as_the_kept_briefing
+  · test_before_the_migration_is_applied_a_failure_keeps_the_row_and_a_good_narration_still_writes
+  · test_a_failed_regenerate_with_nothing_stored_writes_no_row[6 branches]
+  · test_the_answered_stale_is_what_get_period_serves_immediately_after
+    [before_the_migration | a_stored_failure_text | a_stored_reply_fragment |
+     nothing_stored]
+
+WHAT R2 CHANGES OUTSIDE THIS SEAM (independent review of 4828ab7c,
+2026-10-03 — three findings, none a change to this seam's source; recorded
+here so the merge cannot lose them):
+  · THE ROUTE. A response with nothing readable in it, and a client that
+    cannot be constructed, no longer leave the narrator as an exception: the
+    route answers 200 `ok: false` and gives the unit back (pinned in S5
+    through the real route, with the meter on). The route seam's
+    `test_a_narrator_that_raises_is_500_and_gives_the_unit_back` drove its
+    500 with `content=None` — that input IS R2 — and is red on this seam's
+    repair until it makes the narrator raise through something R2 does not
+    absorb. The 500 + release + no-write law for such an exception stays
+    with the route seam's gate.
+  · THE SKU WRITER. Before R2 those two failures failed a SKU run BEFORE
+    `_persist_sku_analysis`, so a usable `sku_analyses.briefing` survived
+    them by accident; they now reach that writer as a failure dict, and it
+    stores `narrative.get("briefing")` with no predicate. Owner ruling (f)
+    ("a failed narration never replaces a usable sku_analyses.briefing") is
+    the WRITERS seam's repair and gate: THIS SEAM'S REPAIR MUST NOT SHIP
+    WITHOUT IT. What this file pins for it: on the SKU call shape the
+    narrator returns, for every failure, a dict `narration_unavailable_code`
+    names unusable (S1).
+  · THE REST OF THE PERIOD READ. GET /api/period still reads
+    `calculated_metrics`, `recommendations`, `alerts` and `valuations` by
+    `period_id` alone under the caller's RLS — the shape R4 had. MEASURED
+    2026-10-03 in this file's world (the reader a member of both
+    workspaces, a throwaway probe outside the repository): a
+    `recommendations`, an `alerts` and a `calculated_metrics` row carrying
+    ANOTHER workspace's org on this period are each served in the payload
+    (`valuations` not probed). The coordinator's reading (g) of the owner's
+    sentence ("the period read without workspace is a tenant boundary bug
+    and can't ship") covers the briefing row, which is what this gate
+    tests; the four other reads are the open remainder of that sentence,
+    reported for a ticket / the owner's call, not gated here.
 
 WHAT RUNS HERE. The real `create_app()` (the object `python -m engine serve`
 runs) with every wall on the request path, real ES256 bearers, the real
@@ -98,22 +182,32 @@ under test. No test inherits the ambient environment (`_AMBIENT`).
 
 REDS ON, with the defect repaired (TC-11):
   · a failure branch of `stage_narrate` returning without its code, with a
-    different text, or raising — for a reply of any shape, a client that
-    cannot be built, or a response with nothing readable in it;
+    different text, or raising — for a reply of any shape (JSON nested
+    deeper than the parser follows included), an SDK that cannot be
+    imported, a client that cannot be built, or a response with nothing
+    readable in it; a reader of the response that drops text it CAN read;
+    any of it on the SKU call shape, or a failure there that the predicate
+    of S2 would pass as usable;
   · the predicate deciding on body text when a code is present, or passing
     an unknown code through as a reason;
   · a stored failure text the text predicate no longer recognises (it would
-    be served as prose again) — or prose it starts to recognise, a provider
-    phrase in the middle of a sentence included;
+    be served as prose again) — or prose it starts to recognise: a provider
+    phrase, an "Error code: N", a brace or a backtick in the MIDDLE of a
+    sentence included (every failure shape is anchored at the start of the
+    body);
   · GET /api/period serving a failure text as `body` (with or without a
     stale marker on the row), dropping one of the earlier keys, serving
     `stale` for a current row, failing on a row that has no stale columns,
-    or serving another workspace's row as this period's briefing;
+    serving another workspace's row as this period's briefing, or reading
+    `briefings` without the tenant in the filter;
   · a failed regenerate that changes any stored row beyond the two marker
     columns, or one that is not served stale; a second failure that resets
     `stale_since`; a good one that leaves the marker; a stored failure text
     handed back as "the briefing that was kept" or marked stale; any of it
-    depending on the migration having been applied;
+    depending on the migration having been applied; an answered `stale`
+    that is not what GET /api/period serves immediately after the call;
+    a provider state R2 absorbs answered 500 by the route again, its
+    reserved message committed or left held, or SDK text in the answer;
   · a stale column inside a briefing upsert payload, or named anywhere
     outside the two marker writers and the reader; an update / delete on
     `briefings` without `org_id`; a writer storing provider text, an operator
@@ -127,30 +221,52 @@ CANNOT SEE: the real PostgREST schema cache (a column that exists in
 pg_catalog and is still refused — CLAUDE.md §14); the real provider and the
 real SDK's response types; RLS (the double has none: a reader here is a
 reader whose policies admit every row — which is why the foreign-row law
-makes the reader a member of BOTH workspaces); the `language in ('en','ro')`
+makes the reader a member of BOTH workspaces); GET /api/period's re-check
+of the row's own org AFTER the filtered read (the double honours filters,
+so dropping the re-check alone changes nothing here — measured; dropping
+the filter, or both, is red); the route's OTHER period-keyed reads
+(`calculated_metrics`, `recommendations`, `alerts`, `valuations` by
+`period_id` alone — the same shape as R4, outside this gate: see WHAT R2
+CHANGES OUTSIDE THIS SEAM); what the SKU WRITER stores
+(`_persist_sku_analysis`, `sku_analyses.briefing` — ruling (f), the writers
+seam's gate; this file drives the narrator on the SKU call shape and never
+that writer);
+an exception out of the narrator that R2 does NOT absorb (its prompt is
+built before the provider is reached, outside any try — the route's 500
+for it is the route seam's law); the meter's own RPCs in Postgres (the S5
+meter test records `_usage_gate._rpc`); the `language in ('en','ro')`
 check constraint and `unique (period_id)` (the double enforces neither);
 rows ALREADY overwritten in production before the fix (one row per period,
 no history — there is no last good text to keep); a reply fragment stored
 before the fix that does NOT begin with `{` or a backtick ("Here is the
-briefing: {…" — arbitrary text no predicate can name); BEFORE THE MIGRATION
-IS APPLIED, a briefing kept by a failed RE-RUN or takeover: it is served
-with `stale: null` and nothing durable says it is stale (the regenerate
-route at least answers `stale: true`; a pipeline run has no response) —
-SPEC D7 accepts this ("optional until applied"), so apply the migration
-BEFORE the backend if that matters; a write that names the table through a
+briefing: {…", or the head of a JSON ARRAY — arbitrary text no predicate
+can name; a briefing may begin with "["); a body that carries the sentinel
+INSIDE longer text (unruled: it is read as a failure text, on both sides);
+BEFORE THE MIGRATION IS APPLIED, a briefing kept by ANY failed narration —
+a regenerate, a re-run, a takeover: it is served with `stale: null`, the
+regenerate route answers `stale: false` (the truth: nothing was stored) and
+nothing durable says the prose is older than the figures — SPEC D7 accepts
+this ("optional until applied"), so apply the migration BEFORE the backend;
+a row that holds a failure text AND carries a marker (no writer of this
+hotfix produces it): it is served unavailable, its `stale` is not ruled and
+not asserted; the regenerate route's LEGACY answer (it carries no `stale`
+here) and a failed NON-RON regenerate (ruled: it marks nothing and answers
+the row's existing state — gated with the route seam, where the currency
+law lives); a write that names the table through a
 VARIABLE (the takeover's `TAKEOVER_TABLES` loop, `delete_period`,
 `_period_move` — all older than this change; the call-site censuses read
 literal `"briefings"` first arguments only — the stale-column census does
 not depend on the call shape); what the frontend does with `unavailable` /
 `stale` (gate `briefing-explicit-regenerate`).
 
-DELIBERATELY NOT PINNED as failure texts: the bare phrases
-`invalid_request_error`, `authentication_error` and `credit balance is too
-low`. Every provider text a writer stored begins with "Narrative
-unavailable: " (the pre-2026-08-04 branch) or with "Error code: NNN" (the
-SDK's own `str(e)`), and those forms ARE pinned. Anchoring the provider
-pattern to the start of the body — the repair of R1 — is therefore not a
-regression of S3.
+NOT FAILURE TEXTS — and, since the repair of R1, PINNED AS PROSE when they
+stand inside a sentence: the bare phrases `invalid_request_error`,
+`authentication_error`, `credit balance is too low` and an "Error code: N"
+that does not begin the body. Every provider text a writer stored begins
+with "Narrative unavailable: " (the pre-2026-08-04 branch) or with "Error
+code: NNN" (the SDK's own `str(e)`), and those forms ARE pinned as failure
+texts. Anchoring the provider pattern to the start of the body is therefore
+not a regression of S3.
 
 PLANT LOG: docs/engine_book/gates.md "briefing-keep-last-good".
 """
@@ -234,6 +350,11 @@ CREDIT_BALANCE_PROSE_AT_THE_START = ("Credit balance is too low on two supplier 
 #: the head of a JSON reply that was cut off, or that carried trailing text.
 #: The scout's own count names the shape: left(ltrim(body), 1) in ('{', '`').
 TRUNCATED_JSON_FRAGMENT = '{"briefing": "The company posted reven'
+#: A usable briefing ANOTHER workspace wrote on this workspace's period (the
+#: row carries the writer's own org — the insert policy checks nothing else).
+FOREIGN_BRIEFING = {"period_id": PID, "org_id": OTHER_ORG, "body": "Foreign prose of another company.",
+                    "language": "en", "model": "claude-test-model",
+                    "ebitda_definition": EBITDA_DEFINITION_REVISION}
 
 #: The environment no test of this file may inherit (each sets what it needs
 #: on top): the documented local-verification setup exports PUBLIC_TEST_MODE
@@ -531,20 +652,74 @@ def test_a_client_that_cannot_be_constructed_is_a_provider_error_and_never_an_ex
     assert out["recommendations"] == []
 
 
+def test_an_sdk_that_cannot_be_imported_for_any_reason_is_sdk_missing_and_never_an_exception(monkeypatch):
+    """`sys.modules["anthropic"] = None` (the `sdk_missing` row of BRANCHES)
+    is the SDK not being installed: ImportError. A half-installed or
+    version-broken SDK raises something ELSE while it is imported (a
+    dependency mismatch surfacing as TypeError / RuntimeError at import).
+    Either way there is no SDK to narrate with: the same code beside the
+    same sentence, never an exception out of the narrator."""
+    _install_provider(monkeypatch, "{}")
+    asked: List[str] = []
+
+    class _BrokenSdk(types.ModuleType):
+        def __getattr__(self, name: str) -> Any:
+            if name != "Anthropic":  # leave dunder probes of the import system alone
+                raise AttributeError(name)
+            asked.append(name)
+            raise RuntimeError("the SDK's dependencies do not match: cannot import %s" % name)
+
+    monkeypatch.setitem(sys.modules, "anthropic", _BrokenSdk("anthropic"))
+    try:
+        out = _narrate()
+    except Exception as exc:  # noqa: BLE001 — the law is "never raises"
+        pytest.fail("stage_narrate RAISED %s(%s) for an SDK that cannot be imported"
+                    % (type(exc).__name__, exc))
+    assert asked == ["Anthropic"], "the import was never attempted: the branch under test did not run"
+    assert out.get("unavailable") == "sdk_missing", out
+    assert out["briefing"] == NO_SDK_SENTENCE
+    assert out["recommendations"] == []
+
+
+def test_a_reply_nested_deeper_than_the_parser_follows_is_unparseable_and_never_an_exception(monkeypatch):
+    """`json.loads` does not answer JSONDecodeError for every text it cannot
+    read: brackets nested past the interpreter's recursion limit raise
+    RecursionError. It is a reply that is not the object asked for — the
+    not-JSON branch's code beside the head of the reply, never an exception
+    out of the narrator."""
+    reply = "[" * 100000 + "]" * 100000
+    with pytest.raises(RecursionError):  # the precondition, stated: this interpreter cannot parse it
+        json.loads(reply)
+    provider = _install_provider(monkeypatch, reply)
+    try:
+        out = _narrate()
+    except RecursionError as exc:
+        pytest.fail("stage_narrate RAISED RecursionError(%s) for a deeply nested reply" % exc)
+    assert len(provider.calls) == 1
+    assert out.get("unavailable") == "unparseable_reply", out.get("unavailable")
+    assert out["briefing"] == "[" * 500
+    assert out["recommendations"] == []
+
+
 def _response(content: Any) -> Any:
     return types.SimpleNamespace(content=content)
 
 
 #: A provider call that SUCCEEDED and whose response carries no readable
-#: text. The first two are what the code handles today (positive controls:
-#: the table is not four shapes the narrator rejects wholesale); the last
-#: two are outside any try in `stage_narrate`.
+#: text. The first two never raised (positive controls: the table is not a
+#: list of shapes the narrator rejects wholesale); `content_is_null` and
+#: `a_text_block_whose_text_is_null` raised TypeError from the join that
+#: stood outside any try (R2); the last three are the same law for the
+#: neighbouring shapes.
 TEXTLESS_RESPONSES = [
     ("no_content_blocks", lambda: _response([])),
     ("only_a_non_text_block", lambda: _response(
         [types.SimpleNamespace(type="tool_use", id="toolu_b21f", name="noop", input={})])),
     ("content_is_null", lambda: _response(None)),
     ("a_text_block_whose_text_is_null", lambda: _response([types.SimpleNamespace(type="text", text=None)])),
+    ("content_is_not_iterable", lambda: _response(42)),
+    ("a_text_block_whose_text_is_a_number", lambda: _response([types.SimpleNamespace(type="text", text=42)])),
+    ("a_null_block", lambda: _response([None])),
 ]
 
 
@@ -564,6 +739,26 @@ def test_a_response_that_carries_no_readable_text_is_an_empty_reply_and_never_an
     assert len(provider.calls) == 1
     assert out.get("unavailable") == "empty_reply", out
     assert out["briefing"] == EMPTY_REPLY_SENTENCE
+    assert out["recommendations"] == []
+
+
+def test_the_text_of_a_response_is_read_across_its_text_blocks_and_from_nothing_else(monkeypatch):
+    """The positive control of the table above (a reader that answered ""
+    for every response would pass it): the reply is the TEXT blocks, joined
+    in order — a block that is not text is not read even when it carries a
+    `text` attribute, and a text block with nothing readable in it does not
+    cost the response its other blocks."""
+    provider = _install_provider(monkeypatch, _response([
+        types.SimpleNamespace(type="thinking", thinking="…", text="NOT THE REPLY "),
+        types.SimpleNamespace(type="text", text='{"briefing": "Margins '),
+        types.SimpleNamespace(type="text", text=None),
+        types.SimpleNamespace(type="tool_use", id="toolu_b21f", name="noop", input={}),
+        types.SimpleNamespace(type="text", text='held.", "recommendations": []}'),
+    ]))
+    out = _narrate()
+    assert len(provider.calls) == 1
+    assert "unavailable" not in out, out
+    assert out["briefing"] == "Margins held."
     assert out["recommendations"] == []
 
 
@@ -620,6 +815,148 @@ def test_the_recommendations_of_a_usable_reply_pass_through(monkeypatch):
     out = _narrate()
     assert "unavailable" not in out
     assert out["recommendations"] == [rec]
+
+
+# ── R2, as an arrangement the SKU call shape and the route can both meet ───
+
+def _install_unbuildable_client(monkeypatch) -> List[List[str]]:
+    """The SDK imports and its client cannot be CONSTRUCTED (what the httpx
+    `proxies` removal did to every deployed SDK of its day). Returns the
+    record of construction attempts — the proof the branch ran."""
+    built: List[List[str]] = []
+
+    class _Unbuildable:
+        def __init__(self, **kwargs: Any) -> None:
+            built.append(sorted(kwargs))
+            raise TypeError("Client.__init__() got an unexpected keyword argument 'proxies'")
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=_Unbuildable))
+    return built
+
+
+#: The provider states `stage_narrate` RAISED on before R2 was repaired:
+#: (id, the response the provider returns — or None for a client that cannot
+#: be constructed —, the code, the text beside it). Until the repair each of
+#: them left the narrator as an exception: the pipeline failed the run (on
+#: the SKU branch BEFORE its writer was reached) and the regenerate route
+#: answered 500.
+R2_STATES = [
+    ("a_client_that_cannot_be_constructed", None, "provider_error", SENTINEL),
+    ("a_response_whose_content_is_null", lambda: _response(None), "empty_reply", EMPTY_REPLY_SENTENCE),
+    ("a_text_block_whose_text_is_null",
+     lambda: _response([types.SimpleNamespace(type="text", text=None)]), "empty_reply", EMPTY_REPLY_SENTENCE),
+]
+
+
+def _arrange_r2(monkeypatch, response: Any) -> Any:
+    """Install one state of R2_STATES; returns a callable answering how many
+    times the provider was REACHED (constructed, for the client that cannot
+    be built; called, for a response) — 0 means the path under test did not
+    run."""
+    if response is None:
+        _install_provider(monkeypatch, "{}")
+        built = _install_unbuildable_client(monkeypatch)
+        return lambda: len(built)
+    provider = _install_provider(monkeypatch, response())
+    return lambda: len(provider.calls)
+
+
+# ── the SKU call shape (the pipeline's `scope == "sku"` branch) ───────────
+#
+# Review of 2026-10-03: R2 changed what reaches the SKU writer. A client
+# that could not be constructed, or a response with nothing readable in it,
+# used to RAISE out of the narrator — the SKU run failed before
+# `_persist_sku_analysis` and the stored `sku_analyses.briefing` survived by
+# accident. Both now come back as a failure dict, and that writer stores
+# `narrative.get("briefing")` with no predicate (owner ruling (f): "a failed
+# narration never replaces a usable sku_analyses.briefing" — the WRITERS
+# seam's repair and gate). What THIS seam owes that repair is pinned here:
+# on the SKU call shape too the narrator never raises, and what it returns
+# is unusable to the predicate every writer decides on — so one guard on
+# `narration_unavailable_code` at the SKU writer covers every failure.
+
+SKU_DOC = {"org_id": ORG, "id": "doc-sku-b21f", "original_filename": "vanzari_2025.xlsx",
+           "detected_language": "en"}
+#: A parsed SALES document: no accounts, so the narrator takes its
+#: non-statement prompt — the mode no other test of this file runs.
+SKU_PARSED = {
+    "detected_type": "sales_analysis",
+    "period_label": "FY2025",
+    "summary": {"row_count": 2, "headline_total": 1200.0,
+                "top_records": [{"sku": "A-100", "revenue": 700.0}]},
+    "skus": [{"sku": "A-100", "revenue": 700.0}, {"sku": "B-200", "revenue": 500.0}],
+}
+#: How each narrator prompt begins — written out here, so a test can tell
+#: WHICH mode ran from what the provider was sent.
+NON_STATEMENT_PROMPT_HEAD = "You are a senior CFO advisor reviewing a business document."
+STATEMENT_PROMPT_HEAD = "You are a senior CFO advising the management team of a European SME."
+
+
+def _narrate_sku() -> Dict[str, Any]:
+    """The SKU branch's own two calls, both REAL and in its own shape
+    (pipeline.py, `if scope == "sku":`): `stage_map` over the parsed sales
+    document, then `stage_narrate` with no metrics and `period_id="-"`."""
+    parsed = copy.deepcopy(SKU_PARSED)
+    assembled = P.stage_map(dict(SKU_DOC), parsed, "generic")
+    return P.stage_narrate(dict(SKU_DOC), assembled, [], {"industry_key": "generic"},
+                           period_id="-", parsed=parsed)
+
+
+def test_the_sku_call_shape_runs_the_non_statement_prompt_and_a_usable_reply_is_usable(monkeypatch):
+    """The positive control of the two SKU tables below: `_narrate_sku` runs
+    the narrator in the mode the SKU branch runs it in (not the statement
+    mode every other test here uses), and in that mode a good reply is a
+    briefing — no code, usable to the predicate."""
+    provider = _install_provider(monkeypatch, json.dumps({"briefing": GOOD, "recommendations": []}))
+    out = _narrate_sku()
+    assert len(provider.calls) == 1
+    assert provider.calls[0]["system"].startswith(NON_STATEMENT_PROMPT_HEAD), provider.calls[0]["system"][:80]
+    assert "unavailable" not in out, out
+    assert out["briefing"] == GOOD
+    assert P.narration_unavailable_code(out) is None
+    # …and the head tells the two modes apart: the statement book of this
+    # file is narrated under the OTHER prompt.
+    _narrate()
+    assert len(provider.calls) == 2
+    assert provider.calls[1]["system"].startswith(STATEMENT_PROMPT_HEAD), provider.calls[1]["system"][:80]
+
+
+@pytest.mark.parametrize("branch", sorted(BRANCHES))
+def test_on_the_sku_call_shape_every_failure_branch_returns_its_code_beside_its_text(branch, monkeypatch):
+    """S1 on the mode the SKU writer is fed from. Measured before the hotfix
+    through that writer: the operator sentence, or the first 500 characters
+    of a raw reply, stored as `sku_analyses.briefing` — the narrator handed
+    them over with nothing a program could read."""
+    kwargs, code, text = BRANCHES[branch]
+    _install_provider(monkeypatch, **kwargs)
+    out = _narrate_sku()
+    assert out.get("unavailable") == code, out
+    assert out["briefing"] == text, out["briefing"]
+    assert out["recommendations"] == [] and isinstance(out["recommendations"], list), out
+    assert P.narration_unavailable_code(out) == code
+
+
+@pytest.mark.parametrize("response,code,text", [c[1:] for c in R2_STATES], ids=[c[0] for c in R2_STATES])
+def test_on_the_sku_call_shape_what_the_narrator_used_to_raise_on_is_a_coded_failure(
+        response, code, text, monkeypatch):
+    """R2 on the SKU call shape — the two failures that now REACH the SKU
+    writer (they used to fail the run before it). Never an exception; the
+    code beside the neutral text; and BOTH predicates name the result
+    unusable — the structured code, and the text itself (so even a writer
+    that only looked at the body could not take it for a briefing)."""
+    reached = _arrange_r2(monkeypatch, response)
+    try:
+        out = _narrate_sku()
+    except Exception as exc:  # noqa: BLE001 — the law is "never raises"
+        pytest.fail("stage_narrate RAISED %s(%s) on the SKU call shape" % (type(exc).__name__, exc))
+    assert reached() == 1, "the provider was never reached: the branch under test did not run"
+    assert out.get("unavailable") == code, out
+    assert out["briefing"] == text
+    assert out["recommendations"] == []
+    assert P.narration_unavailable_code(out) == code
+    assert P.stored_briefing_failure_code(out["briefing"]) == code
+    # No provider or SDK text in anything a writer stores.
+    assert "proxies" not in out["briefing"] and "TypeError" not in out["briefing"]
 
 
 def _function(tree: ast.AST, name: str) -> ast.FunctionDef:
@@ -686,7 +1023,11 @@ def test_a_result_that_is_not_a_dict_is_unusable(result):
     ({"briefing": None}, "empty_reply"),
     ({"recommendations": []}, "empty_reply"),
     ({}, "empty_reply"),
-], ids=["sentinel", "no_key", "no_sdk", "empty_sentence", "withheld", "empty", "null", "no_body", "nothing"])
+    # A reply the model wrapped twice: the `briefing` it handed back is the
+    # head of a JSON reply, not prose (R3 on a FRESH narration).
+    ({"briefing": TRUNCATED_JSON_FRAGMENT, "recommendations": []}, "unparseable_reply"),
+], ids=["sentinel", "no_key", "no_sdk", "empty_sentence", "withheld", "empty", "null", "no_body", "nothing",
+        "a_reply_fragment"])
 def test_a_codeless_result_whose_body_is_a_failure_text_is_unusable(result, code):
     """A caller that builds a narration without the code (a stub, an older
     branch) cannot get a failure text written as a briefing."""
@@ -764,6 +1105,17 @@ STORED_PROSE = [
     # these two do not.
     ("credit_balance_too_low_in_prose", CREDIT_BALANCE_PROSE),
     ("credit_balance_too_low_starts_the_briefing", CREDIT_BALANCE_PROSE_AT_THE_START),
+    # EVERY failure shape is anchored at the START of the body. What the
+    # repaired pattern still names ("Error code: N"), the phrases it dropped,
+    # and the two reply heads (R3) — each in the MIDDLE of a sentence: prose.
+    ("an_error_code_mid_sentence",
+     "The bank export returned Error code: 5 twice before the statement was reloaded; the figures are final."),
+    ("a_provider_error_type_mid_sentence",
+     "The ERP log shows an invalid_request_error on the March import; the ledger itself is complete."),
+    ("an_authentication_error_mid_sentence",
+     "The bank feed stopped after an authentication_error in June, so cash is read from the trial balance."),
+    ("a_brace_mid_sentence", "Margins held {see note 4} and liquidity is comfortable."),
+    ("a_backtick_mid_sentence", "The `EBITDA` margin held and liquidity is comfortable."),
 ]
 
 
@@ -783,6 +1135,9 @@ STORED_REPLY_FRAGMENTS = [
     ("json_reply_with_trailing_text",
      '{"briefing": "Margins held.", "recommendations": []}\n\nLet me know if you need anything else.'),
     ("json_reply_in_single_backticks", '`{"briefing": "Margins held."}`'),
+    # The scout's own shape is left(LTRIM(body), 1): leading whitespace does
+    # not make a reply fragment a briefing.
+    ("json_reply_after_whitespace", '\n  {"briefing": "Margins held'),
 ]
 
 
@@ -792,10 +1147,11 @@ def test_a_stored_fragment_of_a_json_reply_is_a_failure_text_and_never_a_briefin
     """SPEC D5's list of stored failure texts does not name it; the scout's
     does (§1: the not-JSON branch returned `text[:500]`, and every writer
     stored it; §3: `raw_reply_fragment`, "left(ltrim(body),1) in ('{','`')").
-    It IS a failure text a writer has stored. Today it is prose to the
-    predicate (R3): served as the briefing, and kept as "the last good
-    one". The code is the one the narrator now returns beside the very same
-    text."""
+    It IS a failure text a writer has stored. Before the repair it was prose
+    to the predicate (R3): served as the briefing, and kept as "the last
+    good one". The code is the one the narrator returns beside the very same
+    text. (Owner ruling 2026-10-03: "everything the gate tests belongs in
+    this hotfix".)"""
     assert P.stored_briefing_failure_code(body) == "unparseable_reply"
 
 
@@ -910,21 +1266,58 @@ def test_get_period_serves_only_a_briefing_row_of_the_periods_own_workspace():
     workspace who can see this period can therefore put a row on it while it
     has none. The regenerate route reads the stored row with the tenant in
     the filter and answers null (the test of that is below); GET /api/period
-    reads by `period_id` alone and serves row [0] (R4)."""
-    foreign = {"period_id": PID, "org_id": OTHER_ORG, "body": "Foreign prose of another company.",
-               "language": "en", "model": "claude-test-model",
-               "ebitda_definition": EBITDA_DEFINITION_REVISION}
+    read by `period_id` alone and served row [0] (R4).
+
+    OWNER RULING 2026-10-03: "The period read without workspace is a tenant
+    boundary bug and can't ship." The period's briefing is the row of the
+    period's OWN org, or nothing."""
     double = _world()
     _reader_of_both_workspaces(double)
-    double.add("briefings", dict(foreign))
+    double.add("briefings", dict(FOREIGN_BRIEFING))
     payload = _get_period(double)
     assert payload["briefing"] is None, payload["briefing"]
+    assert "Foreign prose" not in json.dumps(payload, ensure_ascii=False)
 
     # Positive control: the SAME reader is served the period's own row — the
     # second membership is not what empties the answer.
     own = _world(briefing=_usable_row())
     _reader_of_both_workspaces(own)
     assert _served(own)["body"] == GOOD
+
+
+@pytest.mark.parametrize("foreign_first", [True, False], ids=["foreign_row_first", "own_row_first"])
+def test_get_period_serves_the_periods_own_row_whichever_row_the_database_lists_first(foreign_first):
+    """"Row [0]" is whichever row the database happens to list first. With a
+    foreign row AND the period's own row on the same period (the double
+    enforces no `unique (period_id)`; the ruling does not lean on it), the
+    reader is served the period's own briefing in either order — never the
+    other workspace's, and never a null because a foreign row stood first."""
+    double = _world()
+    _reader_of_both_workspaces(double)
+    own = dict({"period_id": PID, "org_id": ORG}, **_usable_row())
+    for row in ([FOREIGN_BRIEFING, own] if foreign_first else [own, FOREIGN_BRIEFING]):
+        double.add("briefings", dict(row))
+    assert [r["org_id"] for r in _briefing_rows(double)] == (
+        [OTHER_ORG, ORG] if foreign_first else [ORG, OTHER_ORG]), "the world is not the one described"
+    payload = _get_period(double)
+    assert payload["briefing"]["body"] == GOOD, payload["briefing"]
+    assert "Foreign prose" not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_get_period_reads_briefings_with_the_period_and_its_tenant_in_the_filter():
+    """The dynamic half of the select census below — what GET /api/period
+    actually SENT. `period_id` alone is not a tenant filter; the tenant named
+    is the PERIOD's own org (never a header, never the caller's first
+    membership): the reader here sends `X-Org-Id` of the period's org and is
+    also a member of another one."""
+    double = _world(briefing=_usable_row())
+    _reader_of_both_workspaces(double)
+    assert _served(double)["body"] == GOOD
+    reads = double.selects("briefings")
+    # FLOOR: the route read the table at all (none recorded = nothing examined).
+    assert len(reads) >= 1, double.calls
+    for _op, _table, filters, _columns in reads:
+        assert filters == {"period_id": "eq.%s" % PID, "org_id": "eq.%s" % ORG}, filters
 
 
 # ══ S5 — round trip through the real routes ═══════════════════════════════
@@ -993,6 +1386,7 @@ def test_a_second_failure_keeps_the_first_stale_since_and_takes_the_newest_reaso
     resp = _regenerate(double, {"intent": "user"})
     assert len(provider.calls) == 1
     assert resp.status_code == 200 and resp.json()["reason"] == reason, resp.text[:400]
+    assert resp.json()["stale"] is True  # the row carries the marker: the answer says so
     assert _served(double)["stale"] == {"since": "2026-09-30T08:00:00+00:00", "reason": reason}
     assert _briefing_rows(double)[0]["body"] == GOOD
 
@@ -1022,7 +1416,11 @@ def test_a_stored_failure_row_is_never_handed_back_or_marked_and_a_good_regenera
     answer = failed.json()
     assert len(provider.calls) == 1, "the model was never asked: the failure path did not run"
     assert answer["ok"] is False and answer["regenerated"] is False
-    assert answer["reason"] == "provider_error" and answer["stale"] is True
+    assert answer["reason"] == "provider_error"
+    # TRUTHFUL (owner ruling 2026-10-03, "Never report a state that isn't
+    # stored"): nothing usable is stored, nothing was marked — `stale` is
+    # false. (SPEC D6a's literal `stale: true` was pinned here before.)
+    assert answer["stale"] is False, answer
     assert answer["briefing"] is None and answer["briefing_length"] == 0
     assert "NARRATIVE_UNAVAILABLE" not in legacy.text + failed.text
     assert _store(double) == before, "a failure row was written or marked"
@@ -1082,6 +1480,9 @@ def test_a_stored_reply_fragment_is_never_handed_back_as_the_briefing_that_was_k
     assert failed.json()["briefing"] is None, failed.json()
     assert "posted reven" not in legacy.text + failed.text
     assert _store(double) == before, "a reply fragment was marked stale as if it were a briefing"
+    # Truthful (ruling 2026-10-03): no briefing is kept, none is stale.
+    assert failed.json()["stale"] is False, failed.json()
+    assert _served(double)["stale"] is None
 
 
 def test_before_the_migration_is_applied_a_failure_keeps_the_row_and_a_good_narration_still_writes(
@@ -1090,7 +1491,13 @@ def test_before_the_migration_is_applied_a_failure_keeps_the_row_and_a_good_narr
     The double refuses the two columns as PostgREST would; the marker update
     is then refused, logged ONCE and swallowed — and a briefing WRITE must
     not name them at all, or every briefing write would depend on the
-    migration."""
+    migration.
+
+    OWNER RULING 2026-10-03 ("Never report a state that isn't stored"): a
+    marker the database REFUSED is not a stale briefing — the answer says
+    `stale: false`, exactly what GET /api/period then serves (`stale:
+    null`). SPEC D7's "stale is then carried by the regenerate response" is
+    superseded: this test pinned `stale: true` beside an unmarked row."""
     double = _world(migration_applied=False, briefing=_usable_row())
     provider = _install_provider(monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
     before = _store(double)
@@ -1105,7 +1512,8 @@ def test_before_the_migration_is_applied_a_failure_keeps_the_row_and_a_good_narr
     assert refused[0].exc_info is None
     assert failed.status_code == 200, failed.text[:400]
     answer = failed.json()
-    assert answer["ok"] is False and answer["reason"] == "provider_error" and answer["stale"] is True
+    assert answer["ok"] is False and answer["reason"] == "provider_error"
+    assert answer["stale"] is False, answer  # nothing was stored: nothing is reported
     assert answer["briefing"] == GOOD
     assert _store(double) == before, "a failed regenerate changed the store"
     # The marker WAS attempted (and refused): the path under test ran.
@@ -1117,7 +1525,8 @@ def test_before_the_migration_is_applied_a_failure_keeps_the_row_and_a_good_narr
     good = _regenerate(double, {"intent": "user"})
     assert good.status_code == 200, good.text[:400]
     assert good.json()["ok"] is True and good.json()["persisted"] is True
-    assert _served(double)["body"] == FRESH_RO
+    assert good.json()["stale"] is False
+    assert _served(double)["body"] == FRESH_RO and _served(double)["stale"] is None
     assert not set(STALE_COLUMNS) & set(_briefing_rows(double)[0])
 
 
@@ -1217,11 +1626,8 @@ def test_another_workspaces_row_on_this_period_is_never_answered_as_the_kept_bri
     write on their own rows. The route reads "the stored briefing" under the
     service role: by period alone it would hand a foreign body back as "the
     briefing that was kept" and mark a foreign row stale."""
-    foreign = {"period_id": PID, "org_id": OTHER_ORG, "body": "Foreign prose of another company.",
-               "language": "en", "model": "claude-test-model",
-               "ebitda_definition": EBITDA_DEFINITION_REVISION}
     double = _world()
-    double.add("briefings", dict(foreign))
+    double.add("briefings", dict(FOREIGN_BRIEFING))
     before = copy.deepcopy(_briefing_rows(double))
     _install_provider(monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
 
@@ -1232,6 +1638,160 @@ def test_another_workspaces_row_on_this_period_is_never_answered_as_the_kept_bri
     assert failed.json()["ok"] is False and failed.json()["briefing"] is None
     assert "Foreign prose" not in legacy.text + failed.text
     assert _briefing_rows(double) == before, "the foreign row was written"
+    # Truthful (ruling 2026-10-03): THIS workspace holds no briefing on the
+    # period, so none is stale — and the two readers now agree: GET
+    # /api/period serves no briefing either (R4, repaired).
+    assert failed.json()["stale"] is False, failed.json()
+    assert _get_period(double)["briefing"] is None
+
+
+_MARKED = {"stale_since": "2026-09-30T08:00:00+00:00", "stale_reason": "no_api_key"}
+_GOOD_REPLY = json.dumps({"briefing": FRESH_RO, "recommendations": []}, ensure_ascii=False)
+
+#: (id, the period's stored row or None, is the stale migration applied, what
+#: the provider answers, the `stale` the route must answer). The expected
+#: value of every row is WRITTEN OUT here; the test then also holds it
+#: against what GET /api/period serves right after the call.
+TRUTHFUL_STALE = [
+    ("a_usable_row_is_marked", lambda: _usable_row(), True,
+     lambda: RuntimeError(PROVIDER_ERROR_TEXT), True),
+    ("a_row_already_marked_stays_marked", lambda: _usable_row(**_MARKED), True,
+     lambda: NOT_JSON_REPLY, True),
+    ("before_the_migration", lambda: _usable_row(), False,
+     lambda: RuntimeError(PROVIDER_ERROR_TEXT), False),
+    ("a_stored_failure_text", lambda: {"body": SENTINEL, "language": "en", "model": "claude-test-model",
+                                       "ebitda_definition": EBITDA_DEFINITION_REVISION}, True,
+     lambda: RuntimeError(PROVIDER_ERROR_TEXT), False),
+    ("a_stored_reply_fragment", lambda: _usable_row(TRUNCATED_JSON_FRAGMENT), True,
+     lambda: RuntimeError(PROVIDER_ERROR_TEXT), False),
+    ("nothing_stored", lambda: None, True,
+     lambda: RuntimeError(PROVIDER_ERROR_TEXT), False),
+    ("a_good_narration_over_a_marked_row", lambda: _usable_row(**_MARKED), True,
+     lambda: _GOOD_REPLY, False),
+    ("a_good_narration_before_the_migration", lambda: _usable_row(), False,
+     lambda: _GOOD_REPLY, False),
+]
+
+
+@pytest.mark.parametrize("row,migration_applied,reply,stale", [c[1:] for c in TRUTHFUL_STALE],
+                         ids=[c[0] for c in TRUTHFUL_STALE])
+def test_the_answered_stale_is_what_get_period_serves_immediately_after(
+        row, migration_applied, reply, stale, monkeypatch):
+    """OWNER RULING 2026-10-03: "make the answer truthful … Never report a
+    state that isn't stored." In every answer of the explicit regenerate,
+    `stale` is a boolean, and it is true IF AND ONLY IF the period's stored
+    briefing carries the marker when the call returns — which is exactly
+    what the next GET /api/period serves (`briefing.stale` not null).
+
+    Measured before the ruling: every ok:false answer said `stale: true` —
+    with no briefing stored, with a failure text stored, and with a marker
+    the database had refused (the migration not applied) — while the page's
+    next read served `stale: null`.
+
+    The first two rows and the last two are the positive controls (a route
+    that always answered false, or always true, fails one of them)."""
+    double = _world(migration_applied=migration_applied, briefing=row())
+    provider = _install_provider(monkeypatch, reply())
+    resp = _regenerate(double, {"intent": "user"})
+    assert resp.status_code == 200, resp.text[:400]
+    assert len(provider.calls) == 1, "the model was never asked: the path under test did not run"
+    answer = resp.json()
+    assert answer["stale"] is stale, answer
+    served = _get_period(double)["briefing"]
+    served_stale = served is not None and served["stale"] is not None
+    assert answer["stale"] is served_stale, (answer, served)
+    # …and the same thing read from the store itself, where the double has
+    # the columns at all.
+    rows = _briefing_rows(double)
+    assert bool(rows and rows[0].get("stale_since")) is stale, rows
+
+
+def _meter_on(monkeypatch) -> List[Tuple[str, Dict[str, Any]]]:
+    """Enforcement ON, with the ONE function of the real usage gate that
+    talks to the meter recorded. Like the real `_rpc` it answers a dict and
+    never raises. Call it AFTER `_install_provider` (which switches
+    enforcement off and makes any RPC a test failure). Returns the RPCs in
+    the order the route made them.
+
+    The plan is the real `_plan_state.get_plan_state`'s answer for a caller
+    with no readable subscription (this double declares no `subscriptions`
+    table): the trial plan, its documented fallback. The caps sent to the
+    meter are the route seam's law and are not asserted here — only WHICH
+    RPCs were made, in which order, and for whom."""
+    seen: List[Tuple[str, Dict[str, Any]]] = []
+    answers = {"reserve_user_chat": {"kind": "allowed", "daily_used": 1, "monthly_used": 1},
+               "commit_user_chat": {"ok": True}, "release_user_chat": {"ok": True}}
+
+    def _recorded_rpc(name: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        seen.append((name, dict(payload)))
+        return answers.get(name)
+
+    monkeypatch.setenv("USAGE_LIMITS_ENABLED", "true")
+    monkeypatch.setattr(_usage_gate, "_rpc", _recorded_rpc)
+    return seen
+
+
+@pytest.mark.parametrize("response,code", [(c[1], c[2]) for c in R2_STATES], ids=[c[0] for c in R2_STATES])
+def test_what_the_narrator_used_to_raise_on_is_an_ok_false_answer_of_the_real_route_never_a_500(
+        response, code, monkeypatch):
+    """R2 AS THE ROUTE MEETS IT (review 2026-10-03). Measured before the
+    repair, for each of these provider states: the exception left
+    `stage_narrate`, the route answered 500 "Briefing regeneration failed:
+    TypeError" where SPEC D6a says 200 `ok: false`, and the page was told
+    nothing about the briefing that had been kept.
+
+    With the narrator returning its code: the SAME answer as any other
+    failed narration — 200 `ok: false` with the neutral code, the kept body
+    handed back, the kept row marked (so `stale: true` here is the stored
+    state, and what GET /api/period serves next), nothing else written — and
+    the reserved message GIVEN BACK, never committed, on the caller's own
+    meter. (The route's 500 for an exception the narrator does NOT absorb is
+    the route seam's law and stays with its gate; it can no longer be driven
+    with these responses.)"""
+    double = _world(briefing=_usable_row())
+    reached = _arrange_r2(monkeypatch, response)
+    meter = _meter_on(monkeypatch)
+    before = _store(double)
+    assert before["briefings"][0]["body"] == GOOD
+
+    resp = _regenerate(double, {"intent": "user"})
+    assert reached() == 1, "the provider was never reached: the path under test did not run"
+    assert resp.status_code == 200, resp.text[:400]
+    answer = resp.json()
+    assert answer["ok"] is False and answer["regenerated"] is False, answer
+    assert answer["reason"] == code
+    assert answer["briefing"] == GOOD and answer["briefing_length"] == 93
+    assert answer["stale"] is True
+    # No SDK text reaches the caller.
+    assert "proxies" not in resp.text and "TypeError" not in resp.text
+
+    # The unit: reserved, then released — the verified caller's, both times.
+    assert [name for name, _payload in meter] == ["reserve_user_chat", "release_user_chat"], meter
+    assert [payload["p_user_id"] for _name, payload in meter] == [USER, USER]
+
+    # THE WHOLE STORE: nothing but the two marker columns of the one row.
+    assert _without_marker(_store(double)) == _without_marker(before)
+    row = _briefing_rows(double)[0]
+    assert row["body"] == GOOD and row["stale_reason"] == code
+    assert isinstance(row["stale_since"], str) and row["stale_since"], row
+    served = _served(double)
+    assert served["body"] == GOOD and served["unavailable"] is False
+    assert served["stale"] == {"since": row["stale_since"], "reason": code}
+
+
+def test_the_same_metered_route_commits_the_unit_when_the_narration_is_usable(monkeypatch):
+    """The positive control of the test above: a recorder that named every
+    settlement a release — or a world in which no narration can succeed —
+    would pass it."""
+    double = _world(briefing=_usable_row())
+    provider = _install_provider(monkeypatch, _GOOD_REPLY)
+    meter = _meter_on(monkeypatch)
+    resp = _regenerate(double, {"intent": "user"})
+    assert resp.status_code == 200 and resp.json()["ok"] is True, resp.text[:400]
+    assert len(provider.calls) == 1
+    assert [name for name, _payload in meter] == ["reserve_user_chat", "commit_user_chat"], meter
+    assert [payload["p_user_id"] for _name, payload in meter] == [USER, USER]
+    assert _briefing_rows(double)[0]["body"] == FRESH_RO
 
 
 # ══ S6 — census: what the writers may send ════════════════════════════════
@@ -1286,6 +1846,61 @@ def test_census_every_update_or_delete_on_briefings_names_the_tenant():
         assert len(filters) == 1 and isinstance(filters[0], ast.Dict), "%s: no literal filters" % where
         keys = _dict_keys(filters[0])
         assert "org_id" in keys and "period_id" in keys, "%s filters on %s" % (where, keys)
+
+
+def test_census_every_select_on_briefings_names_the_period_and_the_tenant():
+    """Owner ruling 2026-10-03: "The period read without workspace is a
+    tenant boundary bug and can't ship." `period_id` alone is not a tenant
+    filter on `briefings` — under the service role it reads whichever row
+    carries the id, and under a reader's own RLS it reads every row that
+    reader's memberships admit. Every read of the literal table names both."""
+    reads = _briefings_calls(("select",))
+    # FLOOR (measured 2: `_stored_briefing_row`, GET /api/period). Fewer
+    # means the census lost its subject (a rename, a table in a variable).
+    assert len(reads) >= 2, "census found %d select call sites" % len(reads)
+    for path, call in reads:
+        where = "%s:%d" % (path.relative_to(REPO), call.lineno)
+        filters = [k.value for k in call.keywords if k.arg == "filters"]
+        assert len(filters) == 1 and isinstance(filters[0], ast.Dict), "%s: no literal filters" % where
+        keys = _dict_keys(filters[0])
+        assert "org_id" in keys and "period_id" in keys, "%s filters on %s" % (where, keys)
+
+
+def _typescript_code(source: str) -> str:
+    """`source` without its comments — `/* … */` blocks and `//` lines (the
+    predicate's file explains the retired phrases in comments; the census
+    reads CODE)."""
+    without_blocks = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    return "\n".join(line.split("//", 1)[0] for line in without_blocks.splitlines())
+
+
+def test_census_the_browsers_failure_text_predicate_holds_no_phrase_searched_inside_the_body():
+    """The browser carries the TWIN of the text predicate
+    (frontend/lib/briefingDefinition.ts `isUnusableNarrative`): it runs on
+    the body the engine served as usable. Until 2026-10-03 it searched the
+    provider's phrases anywhere in the body, so a briefing this engine now
+    serves as prose ("… the supplier's credit balance is too low …") would
+    still be hidden by the page. Its behaviour is gated in vitest
+    (components/cfo/__tests__/briefingHeaderPolicy.test.tsx); this census
+    keeps the retired phrases from coming back into its CODE, and holds its
+    anchored heads to the ones the engine's predicate reads."""
+    path = REPO / "frontend" / "lib" / "briefingDefinition.ts"
+    code = _typescript_code(path.read_text("utf-8"))
+    # FLOOR: this IS the predicate's file, and comments were stripped, not code.
+    assert "export function isUnusableNarrative" in code, "the browser predicate moved"
+    assert "[NARRATIVE_UNAVAILABLE]" in code
+    for phrase in ("credit balance", "invalid_request_error", "authentication_error"):
+        assert phrase not in code, "the browser predicate names %r again" % phrase
+    # Every regex literal of the file that names a failure head is anchored.
+    heads = ("narrative unavailable", "Error code", "Set ANTHROPIC_API_KEY",
+             "anthropic SDK not installed", "The briefing was withheld")
+    literals = re.findall(r"/((?:\\.|[^/\\\n])+)/[a-z]*", code)
+    naming = [rx for rx in literals if any(h.lower() in rx.lower() for h in heads)]
+    assert naming, "no regex literal names a failure head: the census lost its subject"
+    named = " ".join(naming).lower()
+    assert all(h.lower() in named for h in heads), naming
+    for rx in naming:
+        assert rx.startswith("^"), "a failure head is searched anywhere in the body: /%s/" % rx
 
 
 #: The only functions that may name a stale column: the two marker writers
@@ -1435,7 +2050,10 @@ def test_a_failed_regenerate_with_nothing_stored_writes_no_row(branch, monkeypat
     assert resp.status_code == 200, resp.text[:400]
     answer = resp.json()
     assert answer["ok"] is False and answer["regenerated"] is False
-    assert answer["reason"] == code and answer["stale"] is True
+    assert answer["reason"] == code
+    # Truthful (owner ruling 2026-10-03): there is no briefing, so there is
+    # no stale briefing. (SPEC D6a's literal `stale: true` was pinned here.)
+    assert answer["stale"] is False, answer
     assert answer["briefing"] is None and answer["briefing_length"] == 0
     assert _briefing_rows(double) == []
     assert _store(double) == before, "a failed regenerate changed the store"

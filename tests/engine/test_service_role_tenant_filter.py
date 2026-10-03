@@ -86,7 +86,16 @@ DECLARED_UNFILTERED = {
     ("pipeline.py", "calculated_metrics", "select"): "period-keyed; authorized upstream.",
     ("pipeline.py", "calculated_metrics", "insert"): "server-built rows for an authorized period.",
     ("pipeline.py", "calculated_metrics", "delete"): "period-keyed rebuild.",
-    ("pipeline.py", "briefings", "select"): "period-keyed; authorized upstream.",
+    # NO unfiltered SELECT of `briefings` is declared, and none may be added
+    # (owner ruling 2026-10-03: "The period read without workspace is a
+    # tenant boundary bug and can't ship"). The entry that stood here
+    # ("period-keyed; authorized upstream.") covered GET /api/period's read
+    # by `period_id` alone: `briefings.period_id` is browser-writable on a
+    # row of the writer's OWN workspace, so the period's wall did not
+    # authorize the ROW — another workspace's row on the period was served
+    # as its briefing. Every read of `briefings` now names the period AND its
+    # org (gate briefing-keep-last-good,
+    # test_census_every_select_on_briefings_names_the_period_and_the_tenant).
     ("pipeline.py", "briefings", "upsert"): "period-keyed; authorized upstream.",
     ("pipeline.py", "recommendations", "select"): "period-keyed; authorized upstream.",
     ("pipeline.py", "recommendations", "insert"): "server-built rows.",
