@@ -39,7 +39,7 @@
 // Plant log: docs/engine_book/gates.md, "fx-browser" (round 3).
 
 import { act, render } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CurrencyProvider, RETRY_MS, TICK_MS, useCurrency, type CurrencyContextValue } from "@/stores/currency";
 import {
@@ -167,6 +167,28 @@ async function fire(...events: Array<"focus" | "online" | "visibilitychange">) {
     await vi.advanceTimersByTimeAsync(10);
   });
 }
+
+/** A storm: the same events every `everyMs` for `forMs`, inside ONE act —
+ *  an hour of them costs one flush, not thousands. */
+async function storm(events: Array<"focus" | "online" | "visibilitychange">, everyMs: number, forMs: number) {
+  await act(async () => {
+    for (let t = 0; t < forMs; t += everyMs) {
+      for (const e of events) (e === "visibilitychange" ? document : window).dispatchEvent(new Event(e));
+      await vi.advanceTimersByTimeAsync(everyMs);
+    }
+  });
+}
+
+/** The machine slept (a closed laptop, a suspended WebView): the clock moved
+ *  and NO timer fired. The tab learns of it from the next event. */
+function sleepUntil(ms: number) {
+  vi.setSystemTime(ms);
+}
+
+// These laws drive days of a fake clock; under a loaded machine the default
+// five seconds is not a law about the provider.
+vi.setConfig({ testTimeout: 30_000 });
+afterAll(() => vi.resetConfig());
 
 let visibility: "visible" | "hidden" = "visible";
 function setVisibility(v: "visible" | "hidden") {
@@ -370,10 +392,7 @@ describe("fx open tab · a failed attempt is tried again without a reload", () =
   it("no request storm: an hour of `online`, focus and visibility events every two seconds while both sources fail — never more than two attempts in any five minutes; without `online`, never more than one", async () => {
     const { attemptsAt } = wire({ fn: "network-error", engine: "network-error" });
     open();
-    for (let i = 0; i < 1800; i += 1) {
-      await fire("online", "focus", "visibilitychange", "online");
-      await pass(2 * SECOND - 10);
-    }
+    await storm(["online", "focus", "visibilitychange", "online"], 2 * SECOND, HOUR);
     expect(Date.now()).toBe(T0 + HOUR);
     // it keeps trying — and no window of five minutes holds a third attempt
     expect(attemptsAt.length).toBeGreaterThanOrEqual(12);
@@ -384,10 +403,7 @@ describe("fx open tab · a failed attempt is tried again without a reload", () =
 
     // the second hour: the same storm without `online`
     const before = attemptsAt.length;
-    for (let i = 0; i < 1800; i += 1) {
-      await fire("focus", "visibilitychange", "focus");
-      await pass(2 * SECOND - 10);
-    }
+    await storm(["focus", "visibilitychange", "focus"], 2 * SECOND, HOUR);
     const quiet = attemptsAt.slice(before - 1); // from the last attempt of the first hour on
     expect(quiet.length - 1).toBeGreaterThanOrEqual(11);
     expect(quiet.length - 1).toBeLessThanOrEqual(12);
@@ -478,22 +494,29 @@ describe("fx open tab · what the tab holds", () => {
     expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: true });
   });
 
-  it("a rate whose PUBLICATION is more than ten days old is not current, however recently a source answered it", async () => {
+  it("a rate whose PUBLICATION is more than ten days old is not current, however recently a source answered it — and a tab that slept learns of it from its first event", async () => {
     // a source that keeps answering Friday's file as current (its own check
     // failing): the tab takes it on Monday — and not eleven days after Friday
     const { asked } = wire({ fn: FUNCTION_CURRENT, engine: "network-error" });
     open();
     await pass(SECOND);
     expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: false });
+    expect(asked).toEqual([FUNCTION_URL]);
 
-    await pass(7 * DAY); // Monday 12 October: ten days after the file
+    // the laptop is closed for a week: no timer fires. Monday 12 October —
+    // ten days after the file. The first event asks; the label is believed.
+    sleepUntil(T0 + 7 * DAY + SECOND);
+    await fire("visibilitychange", "focus");
+    expect(asked).toEqual([FUNCTION_URL, FUNCTION_URL]);
     expect(shown().stale).toBe(false);
-    expect(asked).toHaveLength(1 + 7); // once at the end of each held day, the function alone
 
-    await pass(DAY); // Tuesday 13 October: eleven
+    // closed again until Tuesday 13 October — eleven days. The function's
+    // label is no longer believed, so the engine is asked too, and the rate
+    // is shown as what it is.
+    sleepUntil(T0 + 8 * DAY + 2 * SECOND);
+    await fire("focus");
+    expect(asked).toEqual([FUNCTION_URL, FUNCTION_URL, FUNCTION_URL, ENGINE_URL]);
     expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: true });
-    // the function's label is no longer believed, so the engine is asked too
-    expect(asked.slice(-2)).toEqual([FUNCTION_URL, ENGINE_URL]);
   });
 
   it("a clock set back does not strand the tab: a held record stamped in the future is shown stale and replaced by the next answer", async () => {
