@@ -20227,9 +20227,10 @@ only by the operator.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_fx_bnr_feed.py -q` |
-| canary | `test_the_real_feed_parses_to_the_figures_bnr_published`, `test_the_pre_2026_namespace_still_parses`, `test_the_feed_is_asked_at_the_address_it_lives_at_first`, `test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried`, `test_no_address_answering_the_feed_serves_the_fallback_marked_stale`, `test_an_implausible_feed_is_never_served`; round 2: `test_every_fetch_carries_the_timeout`, `test_after_the_window_a_failed_refetch_serves_the_last_rate_marked_stale`, `test_inside_the_window_a_second_call_makes_no_fetch`, `test_the_bundled_fallback_is_within_five_percent_of_bnrs_file`, `test_an_answer_that_is_not_200_is_a_failure_whatever_its_body`, `test_a_cube_without_a_usable_date_is_not_the_feed`, `test_a_cube_is_fresh_for_ten_days_and_never_from_the_future`, `test_a_frozen_first_address_loses_to_a_newer_second`, `test_elements_are_matched_by_local_name_in_any_namespace`, `test_a_body_declaring_a_doctype_or_an_entity_is_refused_before_it_is_parsed`, `test_an_anonymous_refresh_is_ignored_and_costs_no_fetch`, `test_the_operator_bearer_forces_a_refetch`, `test_health_says_not_ok_while_the_fallback_is_served`, `test_a_bnr_outage_does_not_turn_the_whole_health_answer_red`, `test_the_live_check_does_not_pass_on_a_memo` |
-| work count | junit tests, floor **60** (measured 64; 14 before round 2) |
-| operator tool | `scripts/check_fx_live.py` — read-only, run inside the backend after a switch; exit 0 only on a current BNR rate |
+| canary | `test_the_real_feed_parses_to_the_figures_bnr_published`, `test_the_pre_2026_namespace_still_parses`, `test_the_feed_is_asked_at_the_address_it_lives_at_first`, `test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried`, `test_no_address_answering_the_feed_serves_the_fallback_marked_stale`, `test_an_implausible_feed_is_never_served`; round 2: `test_every_fetch_carries_the_timeout`, `test_after_the_window_a_failed_refetch_serves_the_last_rate_marked_stale`, `test_inside_the_window_a_second_call_makes_no_fetch`, `test_the_bundled_fallback_is_within_five_percent_of_bnrs_file`, `test_an_answer_that_is_not_200_is_a_failure_whatever_its_body`, `test_a_cube_without_a_usable_date_is_not_the_feed`, `test_a_cube_is_fresh_for_ten_days_and_never_from_the_future`, `test_a_frozen_first_address_loses_to_a_newer_second`, `test_elements_are_matched_by_local_name_in_any_namespace`, `test_a_body_declaring_a_doctype_or_an_entity_is_refused_before_it_is_parsed`, `test_an_anonymous_refresh_is_ignored_and_costs_no_fetch`, `test_the_operator_bearer_forces_a_refetch`, `test_health_says_not_ok_while_the_fallback_is_served`, `test_a_bnr_outage_does_not_turn_the_whole_health_answer_red`, `test_the_live_check_does_not_pass_on_a_memo`; round 3: `test_a_file_accepted_on_its_tenth_day_is_not_served_as_current_on_its_eleventh`, `test_the_served_check_passes_on_a_current_bnr_rate_and_asks_two_plain_gets`, `test_the_served_check_reds_while_the_serving_process_answers_the_fallback`, `test_the_served_check_reads_the_serving_process_memo_not_bnr`, `test_the_served_check_reds_when_the_route_does_not_answer_a_payload`, `test_the_served_check_defaults_to_the_local_engine_and_refuses_a_non_url`, `test_the_served_check_imports_nothing_of_the_engine_and_only_reads` |
+| work count | junit tests, floor **80** (measured 83; 14 before round 2, 64 before round 3) |
+| operator tools | `scripts/check_fx_live.py` — imports the engine and forces a fetch in its own process: the code and the container's egress. `scripts/check_fx_served.py` (round 3) — asks the RUNNING engine over HTTP: what the serving process answers. Both read-only, both required after a switch; each exits 0 only on a current BNR rate |
+| round 3 | the memo's date on the way out, `check_fx_served.py`, and what round 3 changed in this section's statements: **"fx-feed / fx-browser — round 3", at the end of this file** |
 
 **INCIDENT** — measured on production on 2026-10-03. TWO FACTS, and they are not
 the same fact.
@@ -20440,9 +20441,10 @@ engine merges and echoes on `GET /config` and never reads.
 
 | | |
 |---|---|
-| command | `npx vitest run --root . frontend/lib/__tests__/fxRatesChoice.test.ts frontend/lib/__tests__/fxFunctionBnr.test.ts --reporter=verbose` |
-| work count | `Tests N passed`, floor **100** (measured 105: 29 browser + 76 function) |
-| canary | `production on 2026-10-03, with this release: the function's August row is stale, the engine has BNR's file of 2 October — the engine's rate is shown, as current`; `a current function payload is used and costs no second request — the engine may be stopped`; `the engine is unreachable: the function's payload is kept, MARKED STALE, and the next call asks both again`; `a held payload that is not a current BNR rate never spares the next attempt`; `whatever the two sources answer, nothing but a current BNR rate is ever returned with stale false`; `the real feed parses to the figures BNR published`; `the deployed row + BNR at its new address: the feed is fetched, the fresh row stored, the answer BNR and not stale`; `a stale row does not refetch BNR on every request: once per five minutes, whichever instance asks`; `the engine's, the function's and the browser's fallback are equal, and say the same date`; `index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic` |
+| command | `npx vitest run --root . frontend/lib/__tests__/fxRatesChoice.test.ts frontend/lib/__tests__/fxFunctionBnr.test.ts frontend/lib/__tests__/fxOpenTab.test.tsx --reporter=verbose` |
+| work count | `Tests N passed`, floor **150** (measured 154: 37 browser choice + 97 function + 20 open tab; 105 before round 3) |
+| canary | `production on 2026-10-03, with this release: the function's August row is stale, the engine has BNR's file of 2 October — the engine's rate is shown, as current`; `a current function payload is used and costs no second request — the engine may be stopped`; `the engine is unreachable and the function's row is newer than anything held: it is kept, MARKED STALE, and the next call asks both again`; `a held payload that is not a current BNR rate never spares the next attempt`; `whatever the two sources answer, nothing but a current BNR rate is ever returned with stale false`; `the real feed parses to the figures BNR published`; `the deployed row + BNR at its new address: the feed is fetched, the fresh row stored, the answer BNR and not stale`; `a stale row does not refetch BNR on every request: once per five minutes, whichever instance asks`; `the engine's, the function's and the browser's fallback are equal, and say the same date`; `index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic`; round 3: `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October`, `past its day the rate on screen is marked stale BEFORE anyone answers, and stays stale until a source does`, `no request storm: an hour of \`online\`, focus and visibility events every two seconds`, `a hidden tab asks nothing`, `a function payload LABELLED current but published two months ago`, `a function payload newer than the engine's current rate that does NOT say it is stale is still returned marked stale`, `an ENGINE that never answers is abandoned after eight seconds of its own`, `what the browser holds changes only for something better`, `a row touched by hand — the August rate under a fetched_at one hour old — is not served as current`, `a body carrying a comment or a CDATA section is refused whole`, `a self-closed Cube is a Cube with no rates`, `the accepted file is stored with EVERY column the reader needs` |
+| round 3 | the open tab; "current" re-checked against the date; what round 3 CHANGED in the statements below (three of the browser's, marked ‡): **"fx-feed / fx-browser — round 3", at the end of this file** |
 
 **INCIDENT** — fact 2 of `fx-feed`, above: the rate a reader saw came from the
 Edge Function's last cached row (5.2489 RON per EUR as of 2026-08-05, marked
@@ -20463,15 +20465,18 @@ function answered it (verbatim), the engine's as production answered it (the
   rate published strictly after it, which is kept, marked stale;
 - a current function payload is used and costs NO second request (the engine
   may be stopped — that independence is why the function exists);
-- the engine unreachable (network error, 502, 404, a body that is not rates) or
+- ‡ the engine unreachable (network error, 502, 404, a body that is not rates) or
   itself stale (the fallback, or a last-known rate): the function's payload is
-  kept and stays MARKED STALE — never 4.97, never presented as current;
-- the function not answering (network error, 500, a wrong body, a zero rate, a
+  kept and stays MARKED STALE — never 4.97, never presented as current
+  (round 3: of two stale answers the NEWER publication is kept, and neither
+  displaces a newer figure the browser already holds);
+- ‡ the function not answering (network error, 500, a wrong body, a zero rate, a
   hang abandoned after 8 s, Supabase not configured): the engine's payload is
-  used as served;
+  used as served (round 3: unless it is stale and older than what is held);
 - neither answering: the last payload this browser held — marked stale once it
   is past its day — else the bundled fallback, marked stale and never written
-  to the browser's copy;
+  to the browser's copy (‡ round 3: "marked stale once past its day" is now
+  derived at READ time, for as long as the tab stays open);
 - `?refresh=true` goes to the function, never to the engine;
 - across all 100 pairs of ten payload shapes, nothing but a current BNR rate is
   ever returned with `stale: false`, and what is returned is never older than
@@ -20695,3 +20700,366 @@ lands); the UI's stale marker and its wording (an 8 px dot whose tooltip names
 a button that no longer exists — not changed here); amounts already stored at
 an old rate (chat answers given in EUR / USD, downloaded exports); the
 non-RON `briefing/regenerate` path (seen in review, ticketed, not built).
+
+### fx-feed / fx-browser — round 3 (review of ce129b97, 2026-10-03)
+
+Round 2 was reviewed independently (`specs-durable/review_fx_r2_2026-10-03.json`):
+SHIP WITH NOTES — no finding blocking, one high, one medium, five low. Round 3
+closes the high, the medium and the low ones that are cheap; one low is a
+ticket (see CANNOT SEE). Commits `abfa88e8` … on `fix/fx-bnr-feed`.
+
+**INCIDENT / what the review measured**
+
+1. **(high) A tab left open never asks again and keeps its rate marked
+   current.** `stores/currency.tsx` fetched once, in a mount-only effect.
+   Through the real provider on a fake clock: mounted Monday 07:00 → 5.3447,
+   `as_of 2026-10-02`, `stale: false`, two requests; 96 hours later, after
+   focus + visibilitychange + online → the same rate, still `stale: false`,
+   still two requests. The rule "a rate held for 25 hours is no longer today's"
+   was applied to the localStorage copy at load and never to the copy in React
+   state. The same cause left a reader whose mount fetch failed (the engine
+   slower than 8 s) on the stale rate until a reload. Identical on main; the
+   mobile shell's WebView lives for days.
+2. **(medium) Nothing read what the SERVING process answers.** Every live
+   reading had been taken from a laptop; `check_fx_live.py` runs in its own
+   process; and during a BNR outage `/api/health` is 200 `ok: true`, so the
+   deploy lane prints `health ok True LIVE` — the same words as a healthy
+   deploy.
+3. **(low) Three evasions left both gates green:** a newer function payload
+   with `stale` missing returned unmarked; the engine request given no
+   timeout; the function's upsert without `fetched_at`.
+4. **(low) No serve-from-cache path re-checked the publication date.** The
+   function answered a row with `as_of 2026-08-05` and a `fetched_at` one hour
+   old as `source: BNR, stale: false, cache-control: public, max-age=3600`;
+   the engine served a file accepted at ten days as current at eleven; the
+   browser held either as current.
+5. **(low) The function's regex reader saw what an XML parser does not:** a
+   commented-out Cube dated today at 9.9000 was ACCEPTED (inside the plausible
+   range); a self-closed newer Cube took the next Cube's rates under its own
+   date; `pub-date=` was read as `date=`.
+6. **(low) With both sources stale the reader kept the OLDER figure** (the
+   function's August row over the engine's fallback of 2 October).
+
+**LAW — round 3**
+
+*The open tab* (`frontend/lib/__tests__/fxOpenTab.test.tsx`, through the REAL
+`CurrencyProvider` and the real `lib/rates.ts`, the two addresses answered by
+the test, the clock moved by hand):
+
+- what a browser holds is a RECORD — the payload and the moment a source
+  answered it — and what is shown is derived from it at read time
+  (`ratesAsShown`): a rate past its day is marked stale BEFORE anyone
+  answers and stays stale until a source does;
+- the sources are asked again whenever no current rate is held — on a timer
+  (a look every minute), on `focus`, `visibilitychange` and `online` — one
+  attempt at a time, never from a hidden tab; inside the held day nothing is
+  asked and nothing re-renders (the context object is the same object);
+- a tab that slept (the clock jumps, no timer fires) learns of it from its
+  first event; a failed mount fetch is tried again five minutes later; a
+  clock set back does not strand the tab; another tab's answer is taken
+  without a request; unmounting stops the timer and the listeners;
+- **no request storm.** The timer, focus and visibility ask at most once per
+  `RETRY_MS`; `online` is let through once without waiting — a network that
+  came back makes the last failure say nothing about now — and that pass is
+  itself spent for `RETRY_MS`. Under an hour of `online` + focus +
+  visibility events every two seconds with both sources failing: never more
+  than TWO attempts (four GETs) in any five minutes; without `online`, never
+  more than one.
+
+**N = 5 minutes, and why.** It is the failure cooldown of BOTH sources (the
+engine's `_FAILURE_COOLDOWN_SECONDS`, the function's `FAILURE_COOLDOWN_MS`): a
+source that could not read BNR does not try again sooner, so a browser asking
+sooner can only be answered the same thing — and a source that has just come
+back is seen within one window. The cost while both sources stay stale (two
+months, in 2026) is bounded at 12 attempts — 24 GETs — per hour per VISIBLE
+tab, none from a hidden one; before this it was one attempt per page load and
+the tab never healed. A broken browser clock (more than a day wrong) costs the
+same bound and shows the stale mark.
+
+*"Current" is one definition in the three readers, re-checked wherever a
+payload is CALLED current* — `source: BNR`, `stale: false`, accepted inside
+24 hours AND published at most ten days ago, never after today (Romania's
+date):
+
+- the engine's memo hit (`fx_rates._memo_is_current`): a file accepted on its
+  tenth day is a miss on its eleventh — BNR is asked, and while the address
+  still answers the frozen file the memo is served MARKED STALE, with the
+  time of its last good fetch; `/api/health` reads the same judgement;
+- the function's serve-from-row and the label of everything it serves without
+  asking BNR (`bnr.cachedIsCurrent`): the August rate under a `fetched_at`
+  one hour old is not current — BNR is asked; until it answers the row is
+  served `stale: true`, `no-store`;
+- the browser's `isCurrentBnrRate`: a function payload LABELLED current but
+  published two months ago makes the browser ask the engine, and is shown
+  only as stale. The browser laws run on a pinned clock (the label is read
+  against the date, so the date is no longer the machine's).
+
+*The browser's choice:*
+
+- `chooseRates` marks in ONE place: whatever is picked, a payload that is not
+  current leaves with `stale: true` — across all 169 pairs of thirteen shapes
+  (labelled-current-but-old, future-dated and dateless ones included);
+- nothing current: of the two answers the NEWER publication is kept (the
+  function's on a tie); a date that is missing, malformed or in the future
+  ranks below every real one;
+- what the browser holds changes only for something better (`preferHeld`, on
+  the localStorage copy and on the copy a mounted tab keeps): a current rate
+  is always taken; a stale answer never replaces a current rate; of two
+  stale figures the later-published one, the held one on a tie. With nothing
+  held, "what is held" is the bundled fallback (BNR's file of 2026-10-02) —
+  which a source's two-month-old row does not displace, and which is never
+  written to the browser's copy;
+- each request is abandoned after eight seconds of its own; with both
+  hanging the attempt ends at sixteen.
+
+*The function's reader:* a body carrying an XML comment or a CDATA section is
+refused whole; an open tag never runs through `/>` — a self-closed Cube is a
+Cube with no rates, refused when it is the newest (as the engine refuses it),
+ignored when it is older; an attribute is matched by its whole name. The same
+documents are run through the engine's XML parser in `fx-feed`
+(`test_what_an_xml_parser_does_not_see_is_not_read`) as the reference. The
+source law pins the upsert's seven columns against the reader's select and
+the number of statements.
+
+*`scripts/check_fx_served.py`* (driven against the REAL app behind a loopback
+socket — every GET arrives over HTTP and is answered by the app's own routes):
+exactly two GETs, `/api/fx-rates` and `/api/health`, no query string, no body;
+exit 0 only on `source: BNR`, `stale: false`, `as_of` within ten days and a
+usable RON / USD rate; 1 on the fallback, a last-known rate, a serving
+process still inside its failure cooldown while BNR answers again, a frozen
+or future-dated payload, a 200 that is not a payload (the SPA's page at
+`/api`), a 502, nothing listening; the verdict is the PAYLOAD's, never the
+health rollup's; the health line carries `fx_rates ok / source / stale /
+as_of` and differs between an outage and a healthy deploy while the lane's
+own words (`health ok True …`) are the same in both; the base URL defaults to
+`http://localhost:8000` and an argument that is not a base URL is refused
+(exit 2) without a request; it imports nothing of the engine.
+
+**How `check_fx_served.py` differs from `check_fx_live.py`.**
+`check_fx_live` IMPORTS the engine and calls `get_fx_rates(force_refresh=True)`
+in its OWN process: it proves the code that was shipped and the container's
+egress to BNR on that call. It neither reads nor warms the memo of the
+process that answers requests — it is green while that process, which failed
+its own fetch a minute earlier, is still answering the bundled fallback.
+`check_fx_served` imports nothing of the engine and asks the serving process
+itself, over HTTP — exactly what a browser is handed. It cannot say WHY a
+rate is not current; that is the other check's job. A deploy runs both.
+
+**PLANT** — each applied ALONE in the worktree by
+`specs-durable/fx_feed_round3/plants.py`, the touched file restored byte-exact
+after each (sha256 asserted). Round 2's seventy were replayed on the round-3
+code first (the snippets round 3 rewrote are restated on the new text; B9 is
+gone with the rule it planted against — R5 and R6 hold the new rule from both
+sides), then round 3's own fifty-one.
+
+Round 3's plants, engine (`fx-feed`):
+
+| plant | RED |
+|---|---|
+| G1 the memo is called current on its acceptance time alone (round 2: a file accepted at ten days is current at eleven) | `2 failed, 81 passed` — `test_a_file_accepted_on_its_tenth_day_is_not_served_as_current_on_its_eleventh` and 1 more |
+| G2 the memo's date check passes whatever the freshness rule refuses (a date after today, one eleven days old) | `2 failed, 81 passed` — `test_a_file_accepted_on_its_tenth_day_is_not_served_as_current_on_its_eleventh` and 1 more |
+| S1 check_fx_served does not judge the payload it is handed (any 200 payload passes) | `6 failed, 77 passed` — `test_the_served_check_reds_while_the_serving_process_answers_the_fallback` and 5 more |
+| S2 check_fx_served defaults to a public origin instead of the local engine | `1 failed, 82 passed` — `test_the_served_check_defaults_to_the_local_engine_and_refuses_a_non_url` |
+| S3 check_fx_served asks with ?refresh=true (the operator's parameter) | `11 failed, 72 passed` — `test_the_served_check_passes_on_a_current_bnr_rate_and_asks_two_plain_gets` and 10 more |
+| S4 check_fx_served's verdict follows /api/health's rollup (the lane's own blindness) | `11 failed, 72 passed` — `test_the_served_check_reds_while_the_serving_process_answers_the_fallback` and 10 more |
+| S5 check_fx_served's health line is the lane's line (no fx_rates fields) | `4 failed, 79 passed` — `test_the_served_check_passes_on_a_current_bnr_rate_and_asks_two_plain_gets` and 3 more |
+| S6 check_fx_served takes any 200 for a payload (the SPA's page at /api) | `1 failed, 82 passed` — `test_the_served_check_reds_when_the_route_does_not_answer_a_payload[the-spa-page]` |
+| S7 check_fx_served crashes when nothing listens (a traceback, not a reading) | `1 failed, 82 passed` — `test_the_served_check_reds_when_nothing_listens` |
+| S8 check_fx_served passes a payload with no usable rate | `2 failed, 81 passed` — `test_the_served_check_judges_the_payload_it_is_handed[no-rates]` and 1 more |
+| S9 check_fx_served imports the engine (it must run where the engine is not installed) | `1 failed, 82 passed` — `test_the_served_check_imports_nothing_of_the_engine_and_only_reads` |
+| S10 check_fx_served does not read /api/health | `5 failed, 78 passed` — `test_the_served_check_passes_on_a_current_bnr_rate_and_asks_two_plain_gets` and 4 more |
+| S11 check_fx_served does not read a 503 health body (the checks are IN that body) | `3 failed, 80 passed` — `test_the_served_check_reds_when_the_route_does_not_answer_a_payload[bad-gateway]` and 2 more |
+| S12 check_fx_served accepts an argument that is not a base URL | `1 failed, 82 passed` — `test_the_served_check_defaults_to_the_local_engine_and_refuses_a_non_url` |
+
+Round 3's plants, browser, open tab and function (`fx-browser`):
+
+| plant | RED |
+|---|---|
+| R1 a payload is called current on its label alone — the date is not re-checked (round 2) | `5 failed, 149 passed` — `a function payload LABELLED current but published two months ago — a row touched by hand — is not current: …` and 4 more |
+| R2 a publication date after today is taken as a date | `3 failed, 151 passed` — `is a current BNR rate: source BNR, stale exactly false, and published within ten days — never after today` and 2 more |
+| R3 the browser's age limit raised from 10 days to 400 | `4 failed, 150 passed` — `a function payload LABELLED current but published two months ago — a row touched by hand — is not current: …` and 3 more |
+| R4 the choice returns what was picked UNMARKED (the review's evasion, generalised) | `3 failed, 151 passed` — `a function payload newer than the engine's current rate that does NOT say it is stale is still returned mar…` and 2 more |
+| R5 nothing current: the function's answer is always kept (round 2's rule — the older figure) | `3 failed, 151 passed` — `nothing is current: of two stale answers the NEWER publication is kept, marked stale — the engine's last-kn…` and 2 more |
+| R6 nothing current: the engine's answer is always kept | `3 failed, 151 passed` — `the engine is itself stale — production's engine as it was, serving 4.97 as of May: never 4.97, never shown…` and 2 more |
+| R7 the ENGINE request is never abandoned (the review's evasion: only the function's hang was tested) | `3 failed, 151 passed` — `the mount fetch failed — the function stale, the engine slower than eight seconds: five minutes later the t…` and 2 more |
+| R8 the FUNCTION request is never abandoned | `3 failed, 151 passed` — `one attempt at a time: events while a request is in flight start no second one` and 2 more |
+| R9 a stale answer replaces a CURRENT rate the browser holds | `2 failed, 152 passed` — `a forced refresh answered only by STALE sources inside the held rate's day keeps the current rate — a stale…` and 1 more |
+| R10 an older stale answer replaces a newer figure the browser holds (round 2: the August row over yesterday's rate) | `8 failed, 146 passed` — `production on 2026-10-03 with the engine unreachable: the function's August row is OLDER than the bundled f…` and 7 more |
+| R11 on the same publication date the answer replaces what is held | `1 failed, 153 passed` — `what the browser holds changes only for something better` |
+| R12 a current answer does not replace what is held | `24 failed, 130 passed` — `production on 2026-10-03, with this release: the function's August row is stale, the engine has BNR's file …` and 23 more |
+| R13 a held record's timestamp is taken as it is stored (not a number: never 'answered never') | `1 failed, 153 passed` — `nothing held is the bundled fallback, answered never: stale, and it spares no request; a record without a u…` |
+| T0 the provider as it was before round 3: one fetch at mount, nothing after (ce129b97) | `14 failed, 140 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 13 more |
+| T1 no timer: an open tab never looks at the clock by itself | `10 failed, 144 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 9 more |
+| T2 focus and visibilitychange are not listened to | `3 failed, 151 passed` — `a window that regains focus after the rate's day ended is marked and asks at once — not at the next look` and 2 more |
+| T3 `online` is not listened to | `2 failed, 152 passed` — `focus and visibility events inside the five minutes do not multiply the attempts; `online` is let through o…` and 1 more |
+| T4 a look does not derive what is shown: a rate past its day stays 'current' until a source answers | `2 failed, 152 passed` — `past its day the rate on screen is marked stale BEFORE anyone answers, and stays stale until a source does` and 1 more |
+| T5 no spacing: the sources are asked at every look (a request storm) | `4 failed, 150 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 3 more |
+| T6 `online` asks every time it fires (the pass is never spent) | `2 failed, 152 passed` — `focus and visibility events inside the five minutes do not multiply the attempts; `online` is let through o…` and 1 more |
+| T7 a hidden tab asks | `1 failed, 153 passed` — `a hidden tab asks nothing — its rate is still marked stale when the day ends — and it asks the moment it be…` |
+| T8 a second attempt starts while one is in flight | `1 failed, 153 passed` — `one attempt at a time: events while a request is in flight start no second one` |
+| T9 unmounting leaves the timer running | `1 failed, 153 passed` — `unmounting stops everything: no look, no listener, no request — and an answer that arrives afterwards chang…` |
+| T10 unmounting leaves the focus listener | `7 failed, 147 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 6 more |
+| T11 a tab swaps the rate it holds for whatever comes back (a failed attempt: the bundled fallback) | `1 failed, 153 passed` — `localStorage unavailable (private mode): nothing is asked inside the day, the tab's own copy is marked stal…` |
+| T12 the retry spacing shortened to one second | `4 failed, 150 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 3 more |
+| T13 a look marks the rate stale and never asks | `14 failed, 140 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 13 more |
+| T14 the spacing counts only the mount attempt (lastAttemptAt never moves) | `2 failed, 152 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 1 more |
+| M1 a cached file is called current on fetched_at alone (round 2: the August rate under a fresh fetched_at was served stale:false) | `10 failed, 144 passed` — `the August rate under a fetched_at one hour old (a row touched by hand)` and 9 more |
+| M2 a body carrying a comment or a CDATA section is parsed (round 2: a commented-out Cube was accepted) | `3 failed, 151 passed` — `a body carrying a comment or a CDATA section is refused whole: a newer Cube inside an XML comment` and 2 more |
+| M3 a CDATA section is not refused (comments only) | `1 failed, 153 passed` — `a body carrying a comment or a CDATA section is refused whole: a newer Cube inside a CDATA section` |
+| M4 the open tag runs through '/>' (round 2: a self-closed Cube took the next Cube's rates) | `1 failed, 153 passed` — `a self-closed Cube is a Cube with no rates: the newest one is refused, an older one is not the rate — it ne…` |
+| M5 an attribute is matched by the end of its name (round 2: pub-date read as date) | `1 failed, 153 passed` — `an attribute is matched by its whole name: pub-date is not date, x-currency is not currency` |
+| M6 a self-closed Cube is not a Cube (the newest one is skipped, not refused) | `1 failed, 153 passed` — `a self-closed Cube is a Cube with no rates: the newest one is refused, an older one is not the rate — it ne…` |
+| M7 index.ts stores the accepted file without fetched_at (the review's evasion: both gates stayed green) | `1 failed, 153 passed` — `the accepted file is stored with EVERY column the reader needs — fetched_at and updated_at both the moment …` |
+| M8 index.ts stores the accepted file without stamping updated_at | `1 failed, 153 passed` — `the accepted file is stored with EVERY column the reader needs — fetched_at and updated_at both the moment …` |
+| M9 index.ts stamps a failed attempt on fetched_at as well (the stale rate becomes 'accepted now') | `1 failed, 153 passed` — `index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic` |
+
+Round 2's plants replayed — failing tests per plant, all RED: engine
+P1 36, P2 3, P3 18, P4 5, P5 16, P6 19, E1 1, E2 6, E3 2, E4 7, E5 12, E6 4, E7 5, F1 4, F2 2, F3 2, F4 13, F5 2, F6 1, F7 2, F8 1, F9 1, F10 4, F11 4, F12 1, F13 1, F14 4, F15 5, F16 2, F17 1, F18 2, F19 5; browser and function B0 52, B1 9, B2 17, B3 31, B4 8, B5 3, B6 14, B7 19, B8 13, B10 2, B11 26, B12 4, B13 12, B14 2, B15 8, N1 30, N2 9, N3 14, N4 5, N5 5, N6 7, N7 6, N8 4, N9 1, N10 1, N11 5, N12 1, N13 2, N14 4, N15 1, N16 1, N17 2, N18 2, N19 1, N20 1, N21 1, N22 1.
+
+**RED** — every plant exits `1`: 46 of 46 on `fx-feed`, 74 of
+74 on `fx-browser` (full output with every failing test name:
+`specs-durable/fx_feed_round3/plants_engine.out`, `plants_browser.out`).
+
+**REVERT** — every file restored byte-exact; exit `0`: `84 passed in 1.42s` (the 83 of
+`fx-feed` and the census test) and `Test Files  3 passed (3)', 'Tests  154 passed (154)`. Through the battery's own
+functions (`specs-durable/fx_feed_round3/run_two_gates.py`):
+```
+the battery lists 145 gates
+PASS fx-feed     exit 0 | examined 83 tests | floor 80 | canaries 28, missing 0
+PASS fx-browser  exit 0 | examined 154 browser-choice, open-tab and function-reader tests | floor 150 | canaries 22, missing 0
+```
+Verdict: proven RED, one hundred and twenty of one hundred and twenty.
+
+**The BUILT bundle in a real browser on a held clock** (`npm run build` with
+`VITE_SUPABASE_URL=https://test.supabase.co`, `VITE_API_URL=""`; headless
+Chromium; Playwright's `page.clock` installed at Monday 2026-10-05 07:00 UTC;
+every request answered by the script, none leaving the machine —
+`specs-durable/fx_feed_round3/browser_check.mjs`). `sleep` moves the clock
+and fires what is due once (a closed laptop); scenario 3 moves it and fires
+nothing (a suspended tab):
+```
+OK  1. a tab left open (the review's finding): mounted Monday 07:00 on BNR's file of 2 October; a day later it asks again by itself
+      ok  at mount: asked ["function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  23 hours later, after focus + visibilitychange + online: asked ["function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  25 hours after mount — no reload, no event: the timer asked: asked ["function","engine","function"] | holds {"RON":5.3512,"as_of":"2026-10-05","source":"BNR","stale":false}
+OK  2. the day ends while both sources are down: asked once, then once per five minutes — not at every focus; `online` is let through once
+      ok  at mount: asked ["function"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  the day ended: asked ["function","function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  two minutes on, four focus / visibility events: asked ["function","function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  six minutes after the failed attempt: asked ["function","function","engine","function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  the network comes back (`online`): asked at once: asked ["function","function","engine","function","engine","function"] | holds {"RON":5.3512,"as_of":"2026-10-05","source":"BNR","stale":false}
+OK  3. a suspended tab (the mobile shell's WebView): the clock jumps 25 hours and no timer fires — the first visibilitychange asks
+      ok  at mount: asked ["function"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  25 hours later, before any event: asked ["function"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+      ok  the tab becomes visible: asked ["function","function"] | holds {"RON":5.3512,"as_of":"2026-10-05","source":"BNR","stale":false}
+OK  4. function stale (the August row), engine unreachable, nothing held -> nothing is stored: the bundled fallback (BNR's file of 2 October) stays, stale
+      ok  at mount: asked ["function","engine"] | holds null
+OK  5. this release with the engine unable to read BNR: it answers its bundled fallback; a browser holding the August row takes the newer figure, marked stale
+      ok  at mount: asked ["function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"fallback","stale":true}
+OK  6. a browser holding the August row; the engine as production's was (4.97 as of May): the older figure never replaces it
+      ok  at mount: asked ["function","engine"] | holds {"RON":5.2489,"as_of":"2026-08-05","source":"BNR","stale":true}
+OK  7. a function row LABELLED current but published two months ago (touched by hand): not believed — the engine is asked
+      ok  at mount: asked ["function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+OK  8. a current rate held for two hours -> no request at all
+      ok  at mount: asked [] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+BROWSER CHECK GREEN — 8 of 8 scenarios, the built bundle in headless Chromium on a held clock
+```
+Scenarios 4 and 5 of round 2's run ended on the August row; they end on BNR's
+file of 2 October now (finding 6).
+
+**The function's REAL `index.ts` under Deno, round 3's four cases** (2.7.14;
+supabase-js mapped to an in-memory row, `Deno.serve` captured, `fetch`
+replaced — `specs-durable/fx_feed_round3/deno/`; cases A–E of round 2 answer
+as they did):
+```
+F. a row touched by hand: the August rate under a fetched_at one hour old; BNR dead (round 2 answered this stale:false, max-age=3600, no BNR request)
+ 1         {"status":200,"source":"BNR","stale":true,"as_of":"2026-08-05","RON":5.2489,"USD":1.1541116974494283,"cache_control":"no-store","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+G. the same row; BNR answers
+ 1         {"status":200,"source":"BNR","stale":false,"as_of":"2026-10-02","RON":5.3447,"USD":1.124750099960016,"cache_control":"public, max-age=3600","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+   writes  upsert:id+base+rates+source+as_of+fetched_at+updated_at
+H. the deployed row; BNR's body carries a commented-out Cube dated today at 9.9000 (round 2 ACCEPTED it)
+ 1         {"status":200,"source":"BNR","stale":true,"as_of":"2026-08-05","RON":5.2489,"USD":1.1541116974494283,"cache_control":"no-store","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+I. the deployed row; a self-closed Cube dated today ahead of yesterday's (round 2 served yesterday's rates dated today)
+ 1         {"status":200,"source":"BNR","stale":true,"as_of":"2026-08-05","RON":5.2489,"USD":1.1541116974494283,"cache_control":"no-store","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+```
+
+**`check_fx_served.py` against the real app on a loopback socket**, both
+states (`specs-durable/fx_feed_round3/served_demo.py`; BNR answered locally;
+`fetched_at` is the harness's pinned memo clock, `UNSET` its Stripe mode):
+```
+=== A. healthy: the serving process reads BNR at the new address
+check_fx_served: http://127.0.0.1:<port>   (today in Romania: 2026-10-03)
+  GET /api/fx-rates  source BNR  stale False  as_of 2026-10-02  RON per EUR 5.3447  RON per USD 4.7519  fetched_at 2026-09-21T14:13:20+00:00
+  GET /api/health    health ok True UNSET | HTTP 200 | fx_rates ok True source BNR stale False as_of 2026-10-02
+FX-SERVED GREEN — the serving process answers BNR's file of 2026-10-02
+exit 0
+
+=== B. the container cannot reach curs.bnr.ro; the old address answers a web page
+check_fx_served: http://127.0.0.1:<port>   (today in Romania: 2026-10-03)
+  GET /api/fx-rates  source fallback  stale True  as_of 2026-10-02  RON per EUR 5.3447  RON per USD 4.7519  fetched_at 2026-09-21T14:13:20+00:00
+  GET /api/health    health ok True UNSET | HTTP 200 | fx_rates ok False source fallback stale True as_of 2026-10-02
+FX-SERVED RED — the serving process is NOT answering a current BNR rate:
+  - source is 'fallback', not 'BNR' — the feed did not answer and the bundled fallback is being served
+  - stale is True — the answer is not a current BNR rate (the feed did not answer, or the rate is past its day or its date)
+  THIS IS NOT A ROLLBACK. The engine is not handing readers a current rate: a browser on
+  this release shows the newest-dated stale figure it can get, MARKED STALE, and asks again
+  once per five minutes while its tab is visible. The previous build read a dead address —
+  rolling back restores nothing.
+  NEXT: docker exec cfo-ai-backend python3 /app/scripts/check_fx_live.py
+    GREEN there: the container reaches BNR; the serving process is inside its five-minute
+    failure cooldown — run this check again after it.
+    RED there: it names what the container cannot read (egress to curs.bnr.ro).
+exit 1
+```
+
+**POST-DEPLOY (read-only, both required)** — after the backend switch
+(CLAUDE.md §14):
+```
+docker exec cfo-ai-backend python3 /app/scripts/check_fx_live.py
+docker exec cfo-ai-backend python3 /app/scripts/check_fx_served.py
+python3 scripts/check_fx_served.py https://<the public origin>     # the same reading through Caddy
+```
+`FX-LIVE GREEN` + `FX-SERVED GREEN`: the engine reads BNR and serves it.
+`FX-LIVE GREEN` + `FX-SERVED RED`: the container reaches BNR and the serving
+process is inside its five-minute failure cooldown — run the served check
+again after it. `FX-LIVE RED`: the container cannot read `curs.bnr.ro`
+(egress); the engine serves its fallback marked stale, and browsers show
+BNR's file of 2 October marked stale until the function is redeployed.
+**Neither RED is a rollback** — the previous build read a dead address. The
+function's redeploy and its probe are in "fx-browser", above; after the
+redeploy the probe's `stale: false` now also means the row's DATE is inside
+the ten days.
+
+**After the repair it reds on (TC-11):** a provider that asks once at mount;
+a look that does not re-derive what is shown, or does not ask; a timer, a
+focus / visibility listener or an `online` listener removed; an attempt per
+look, or per `online`; a hidden tab asking; two attempts at once; a timer or
+a listener left behind by an unmount; a tab swapping its rate for whatever
+comes back; a payload called current on its label alone, in the browser, the
+function or the engine's memo; a future date taken as a date; the age limit
+raised; a chosen payload leaving unmarked; the older of two stale answers
+kept; a stale answer replacing a current rate, or an older figure a newer
+one; either request without its own abandon; the function parsing a body
+with a comment or a CDATA section, running an open tag through `/>`, or
+matching an attribute by the end of its name; `index.ts` storing the accepted
+file without `fetched_at` or `updated_at`, or stamping a failure on
+`fetched_at`; `check_fx_served.py` not judging the payload, following the
+health rollup, taking any 200 for a payload, crashing when nothing listens,
+asking with `?refresh=true`, defaulting to a public origin, importing the
+engine, or printing the lane's line without the `fx_rates` fields.
+
+**CANNOT SEE:** the DEPLOYED engine, function and bundle (nothing here leaves
+the machine — the two post-deploy checks and the function's probe are the
+live readings); whether the VPS reaches `curs.bnr.ro` before a deploy; a real
+browser throttling the timer of a background tab or a suspended WebView (the
+first event after it resumes reads the clock — scenario 3 — and a hidden tab
+asks nothing by design); the UI's stale marker and its wording (out of
+scope: an 8 px dot; Settings prints `fetched_at`, which reads as "just now"
+for the fallback); the GitHub Pages build (cross-origin engine) and the
+mobile shell on a device; a row or a memo stamped in the FUTURE with a fresh
+date (served as current until the clock passes it — bounded by the ten days,
+not fixed here); the layered 24-hour windows — a rate one or two BNR
+publications behind is still "current" in all three layers (the review's
+last low finding: expiring on BNR's schedule instead of 24 h from fetch is a
+ticket, not this release); amounts already stored at an old rate; the
+non-RON `briefing/regenerate` path.

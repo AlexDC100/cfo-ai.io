@@ -1123,19 +1123,33 @@ def _engine_gates() -> List[Gate]:
         #                — else the fallback — MARKED STALE; the two memos;
         #                ?refresh=true for the operator bearer only;
         #                /api/health says what is served without turning the
-        #                answer red; scripts/check_fx_live.py. Measured 64
-        #                (14 before round 2), floor 60.
+        #                answer red; scripts/check_fx_live.py.
+        #                Round 3: the memo is current only while its DATE
+        #                still is (accepted at ten days, not current at
+        #                eleven); scripts/check_fx_served.py reads what the
+        #                SERVING process answers — the real app behind a
+        #                loopback socket — two plain GETs, exit 0 only on a
+        #                current BNR rate, and a health line that tells an
+        #                outage from a healthy deploy. Measured 83 (14 before
+        #                round 2, 64 before round 3), floor 80.
         #   fx-browser   the BROWSER's choice (lib/rates.ts: a stale function
         #                payload makes it ask the engine; the current rate
-        #                wins; nothing stale is ever shown as current) and the
-        #                FUNCTION's reader (supabase/functions/fx-rates/bnr.ts,
-        #                run in Node on the same real bytes and on the row
-        #                production held), with the three copies of the
-        #                bundled fallback held equal. Measured 105, floor 100.
-        # Plant logs: gates.md "fx-feed", "fx-browser".
+        #                wins; nothing stale is ever shown as current), the
+        #                OPEN TAB (stores/currency.tsx: a rate stops being
+        #                current when its day ends, the sources are asked
+        #                again without a reload, never more than two attempts
+        #                in five minutes) and the FUNCTION's reader
+        #                (supabase/functions/fx-rates/bnr.ts, run in Node on
+        #                the same real bytes and on the row production held),
+        #                with the three copies of the bundled fallback held
+        #                equal. Round 3: "current" re-checks the publication
+        #                date in all three; what a browser holds changes only
+        #                for something better. Measured 154 (37 choice + 97
+        #                function + 20 open tab; 105 before round 3), floor 150.
+        # Plant logs: gates.md "fx-feed", "fx-browser", "fx — round 3".
         Gate("fx-feed",
              [PY, "-m", "pytest", "tests/engine/test_fx_bnr_feed.py", "-q"],
-             work_junit=True, floor=60, units="tests",
+             work_junit=True, floor=80, units="tests",
              canaries=("test_the_real_feed_parses_to_the_figures_bnr_published",
                        "test_the_pre_2026_namespace_still_parses",
                        "test_the_feed_is_asked_at_the_address_it_lives_at_first",
@@ -1158,19 +1172,29 @@ def _engine_gates() -> List[Gate]:
                        "test_the_operator_bearer_forces_a_refetch",
                        "test_health_says_not_ok_while_the_fallback_is_served",
                        "test_a_bnr_outage_does_not_turn_the_whole_health_answer_red",
-                       "test_the_live_check_does_not_pass_on_a_memo")),
+                       "test_the_live_check_does_not_pass_on_a_memo",
+                       # round 3 (review of ce129b97): the memo's date on the
+                       # way out, and the reading of the serving process
+                       "test_a_file_accepted_on_its_tenth_day_is_not_served_as_current_on_its_eleventh",
+                       "test_the_served_check_passes_on_a_current_bnr_rate_and_asks_two_plain_gets",
+                       "test_the_served_check_reds_while_the_serving_process_answers_the_fallback",
+                       "test_the_served_check_reads_the_serving_process_memo_not_bnr",
+                       "test_the_served_check_reds_when_the_route_does_not_answer_a_payload",
+                       "test_the_served_check_defaults_to_the_local_engine_and_refuses_a_non_url",
+                       "test_the_served_check_imports_nothing_of_the_engine_and_only_reads")),
         Gate("fx-browser",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/fxRatesChoice.test.ts",
               "frontend/lib/__tests__/fxFunctionBnr.test.ts",
+              "frontend/lib/__tests__/fxOpenTab.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=100,
-             units="browser-choice and function-reader tests",
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=150,
+             units="browser-choice, open-tab and function-reader tests",
              canaries=("production on 2026-10-03, with this release: the function's August row is stale, "
                        "the engine has BNR's file of 2 October — the engine's rate is shown, as current",
                        "a current function payload is used and costs no second request — the engine may be stopped",
-                       "the engine is unreachable: the function's payload is kept, MARKED STALE, "
-                       "and the next call asks both again",
+                       "the engine is unreachable and the function's row is newer than anything held: "
+                       "it is kept, MARKED STALE, and the next call asks both again",
                        "a held payload that is not a current BNR rate never spares the next attempt",
                        "whatever the two sources answer, nothing but a current BNR rate is ever returned "
                        "with stale false",
@@ -1180,7 +1204,24 @@ def _engine_gates() -> List[Gate]:
                        "a stale row does not refetch BNR on every request: once per five minutes, "
                        "whichever instance asks",
                        "the engine's, the function's and the browser's fallback are equal, and say the same date",
-                       "index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic")),
+                       "index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic",
+                       # round 3 (review of ce129b97): the open tab, and
+                       # "current" re-checked against the date
+                       "a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October",
+                       "past its day the rate on screen is marked stale BEFORE anyone answers, "
+                       "and stays stale until a source does",
+                       "no request storm: an hour of `online`, focus and visibility events every two seconds",
+                       "a hidden tab asks nothing",
+                       "a function payload LABELLED current but published two months ago",
+                       "a function payload newer than the engine's current rate that does NOT say it is stale "
+                       "is still returned marked stale",
+                       "an ENGINE that never answers is abandoned after eight seconds of its own",
+                       "what the browser holds changes only for something better",
+                       "a row touched by hand — the August rate under a fetched_at one hour old — "
+                       "is not served as current",
+                       "a body carrying a comment or a CDATA section is refused whole",
+                       "a self-closed Cube is a Cube with no rates",
+                       "the accepted file is stored with EVERY column the reader needs")),
 
         # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
         # Supabase client logs a WARNING and retries ONCE on a read timeout

@@ -3803,3 +3803,89 @@ xlsx/xls trial balances do not. With credits at zero every PDF 502s.
 
 Fast unblock for the pre-fix bundle: remove `cfo-upload-current` from
 localStorage and reload.
+
+---
+
+## 29. The exchange-rate feed — BNR moved it; three readers, one rule (2026-10-03)
+
+Branch `fix/fx-bnr-feed`. Gates `fx-feed` (engine) and `fx-browser` (browser
++ the Edge Function's source); plant logs in `docs/engine_book/gates.md`,
+sections "fx-feed", "fx-browser" and "fx — round 3".
+
+**The incident, measured on production — two facts, not one.** BNR moved its
+reference-rate feed from `https://www.bnr.ro/nbrfxrates.xml` (now a redirect
+to a web page) to `https://curs.bnr.ro/nbrfxrates.xml`, namespace `https://`.
+1. The ENGINE endpoint (`GET /api/fx-rates`) served its bundled fallback —
+   4.97 RON per EUR as of May, 7.5% high — to `/api/health` and the EUR/USD
+   briefing regeneration only.
+2. What a READER saw came from the Supabase Edge Function `fx-rates`, which
+   the browser asks first: its last cached row, 5.2489 as of 2026-08-05,
+   marked stale — and the browser used it. Two months of EUR amounts 1.8% too
+   high and USD amounts 4.5%.
+Nothing failed loudly; `/api/health` said `fx_rates: ok`; no test read the
+feed's real bytes (now committed: `tests/engine/fixtures/fx/`).
+
+**Three readers of one feed** — `src/engine/api/fx_rates.py`,
+`supabase/functions/fx-rates/bnr.ts` (pure; `index.ts` is wiring) and
+`frontend/lib/rates.ts` — and ONE definition of a current rate in all three:
+`source: BNR`, `stale: false`, accepted inside 24 hours AND published at most
+10 days ago, never after today (Romania's date). The date is checked on the
+way IN and again wherever a payload is CALLED current (the engine's memo hit,
+the function's serve-from-row, the browser's `isCurrentBnrRate`): a label is
+not trusted against the date it is printed beside. The three bundled
+fallbacks are one figure (BNR's file of 2026-10-02), held equal by the gate.
+
+**The browser** (`lib/rates.ts`, `stores/currency.tsx`):
+- the function first; the engine only when the function's answer is not
+  current; the current rate wins; nothing current → the NEWER publication,
+  marked stale. What a browser holds changes only for something better
+  (`preferHeld`): a stale answer never replaces a current rate, nor an older
+  figure a newer one — the bundled fallback included.
+- a tab that stays open keeps itself current: the provider looks at the clock
+  every minute and on focus / visibilitychange / online; a rate past its day
+  is marked stale AT READ TIME, and the sources are asked again without a
+  reload — at most once per five minutes (the failure cooldown of both
+  sources), `online` let through once; never more than two attempts in any
+  five minutes; nothing from a hidden tab; nothing at all inside the held
+  day. Before this a tab left open for four days showed Monday's rate as
+  current on Friday.
+
+**After every backend switch — two read-only checks, both required** (§14):
+```
+docker exec cfo-ai-backend python3 /app/scripts/check_fx_live.py
+docker exec cfo-ai-backend python3 /app/scripts/check_fx_served.py
+```
+`check_fx_live` imports the engine and forces a fetch in its OWN process: it
+proves the code and the container's egress to `curs.bnr.ro`. It does not read
+the process that answers requests. `check_fx_served` asks that process over
+HTTP (`GET /api/fx-rates`, `GET /api/health`; base URL argument, default
+`http://localhost:8000`; pass the public origin to read it through Caddy) and
+exits 0 only on a current BNR rate. Its health line carries
+`fx_rates ok / source / stale / as_of` — the lane's `health ok True LIVE` is
+the same words during a BNR outage, on purpose (a BNR outage must not fail a
+deploy). **FX-SERVED RED is not a rollback:** the previous build read a dead
+address; browsers show a stale-marked figure and keep asking.
+
+**The function goes live only by its own redeploy** (a frontend or backend
+deploy does not touch it): `supabase functions deploy fx-rates --project-ref
+<ref> --use-api --no-verify-jwt` (the ref of §16, Milestone D), then the
+before/after probe in gates.md "fx-browser". Until then browsers are right
+through the engine.
+
+**Traps this left behind:**
+- A payload-shaped answer with `stale: true` was read and USED. A flag nobody
+  acts on is not a safeguard — every reader of a `stale` / `approximated` /
+  `refused` field needs a law that it changes what is shown.
+- A regex reader is not an XML parser: it accepted a commented-out Cube and
+  let a self-closed Cube take the next one's rates. The function now refuses
+  a body with a comment or CDATA; the same documents are run through both
+  readers in the gates.
+- Tests that read a date against the machine's clock rot in ten days. The
+  browser laws run on a pinned clock; `.filter(isCurrentBnrRate)` passes the
+  array index as the clock — call it through a lambda.
+- A law that drives days of a fake clock through thousands of `act()` calls
+  times out under a loaded machine and takes the next tests with it: one
+  `act` around the loop, or jump the clock.
+- Dead constants still say 4.97 (`config.yaml` `fx_eur_ron`,
+  `frontend/lib/currency.ts` `FX_RON_TO_EUR`, `frontend/lib/thresholds.ts`
+  `fxEurRon`): read by nothing live, left alone on purpose.
