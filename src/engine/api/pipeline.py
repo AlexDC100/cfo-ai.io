@@ -3198,11 +3198,22 @@ NARRATIVE_UNAVAILABLE_SENTINEL = "[NARRATIVE_UNAVAILABLE]"
 NARRATION_UNAVAILABLE_CODES = ("no_api_key", "sdk_missing", "provider_error",
                                "unparseable_reply", "empty_reply", "withheld_numerals")
 
-#: Provider error text a row written before 2026-08-04 can hold (the provider
-#: branch stored `f"Narrative unavailable: {e}"`); phrases no briefing says.
-_PROVIDER_ERROR_TEXT_RX = re.compile(
-    r"invalid_request_error|authentication_error|credit balance is too low|Error code: \d",
-    re.IGNORECASE)
+#: Provider error text as a stored body BEGINS with it: the SDK's own
+#: `str(e)` of a status error ("Error code: 400 - {…}"). Applied with
+#: `.match` — ANCHORED at the start of the body, never searched inside it.
+#:
+#: Until 2026-10-03 this was `invalid_request_error | authentication_error |
+#: credit balance is too low | Error code: \d` SEARCHED anywhere in the
+#: body. "Credit balance" (sold creditor) is this product's own vocabulary:
+#: a good briefing saying a supplier's "credit balance is too low" was
+#: served `body: null`, left unprotected against the next failed narration,
+#: and — because `narration_unavailable_code` falls back to the text
+#: predicate — a FRESH good narration saying it was refused. No failure
+#: text a writer ever stored needs the bare phrases: the provider branch
+#: before 2026-08-04 stored `f"Narrative unavailable: {e}"` (caught by that
+#: prefix) and the sentinel since. frontend/lib/briefingDefinition.ts holds
+#: the same predicate for the browser — change both together.
+_PROVIDER_ERROR_TEXT_RX = re.compile(r"Error code: \d", re.IGNORECASE)
 
 #: The languages `stage_narrate` has an instruction for; anything else is
 #: narrated in English.
@@ -3213,11 +3224,22 @@ def stored_briefing_failure_code(body: Any) -> Optional[str]:
     """The TEXT predicate, for a row already stored: the neutral code of the
     failure text `body` is, or None when it is prose.
 
-    Recognised: an empty body; the sentinel; "Narrative unavailable…" (the
-    empty-reply fallback, and the pre-2026-08-04 provider branch, which
-    appended the raw provider error); provider error text; the two operator
-    sentences; the numeral-guard sentence. NOT recognised: a fragment of an
-    unparseable reply stored as the body (it is arbitrary text)."""
+    Recognised — every one by the SHAPE of the body, never by a phrase
+    somewhere inside it: an empty body; the sentinel; a body that begins
+    "Narrative unavailable…" (the empty-reply fallback, and the
+    pre-2026-08-04 provider branch, which appended the raw provider error);
+    a body that begins with the SDK's own error text ("Error code: NNN");
+    the two operator sentences; the numeral-guard sentence; the head of a
+    raw model reply stored as the body (it begins with `{` or a backtick).
+
+    NOT recognised (it is arbitrary text no predicate can name): a reply
+    fragment that begins with prose ("Here is the briefing: {…").
+
+    A FALSE POSITIVE IS NOT A HARMLESS REFUSAL: the row is served `body:
+    null`, a failed narration may then overwrite it, and a fresh good
+    narration saying the same words is refused (`narration_unavailable_code`
+    falls back to this predicate). Prose that merely SAYS "credit balance is
+    too low", "unavailable" or "error" is prose."""
     if not isinstance(body, str) or not body.strip():
         return "empty_reply"
     text = body.strip()
@@ -3227,10 +3249,16 @@ def stored_briefing_failure_code(body: Any) -> Optional[str]:
         return "sdk_missing"
     if text.startswith("The briefing was withheld:"):
         return "withheld_numerals"
-    if NARRATIVE_UNAVAILABLE_SENTINEL in text or _PROVIDER_ERROR_TEXT_RX.search(text):
+    if NARRATIVE_UNAVAILABLE_SENTINEL in text or _PROVIDER_ERROR_TEXT_RX.match(text):
         return "provider_error"
     if text.lower().startswith("narrative unavailable"):
         return "provider_error" if ":" in text else "empty_reply"
+    # The head of a raw model REPLY, not prose: until 2026-10-02 the not-JSON
+    # branch of `stage_narrate` returned `text[:500]` and every writer stored
+    # it as the briefing (a JSON reply that was cut off, carried trailing
+    # text, or came in backticks). No briefing begins with `{` or a backtick.
+    if text.startswith(("{", "`")):
+        return "unparseable_reply"
     return None
 
 
@@ -4295,12 +4323,21 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
 
     try:
         from anthropic import Anthropic  # type: ignore
-    except ImportError:
+    except Exception as exc:  # noqa: BLE001 — an SDK that cannot be imported, for any reason
+        # ImportError is the SDK not being installed. A half-installed or
+        # version-broken SDK raises something else at import; either way
+        # there is no SDK to narrate with, and "never raises" holds.
+        if not isinstance(exc, ImportError):
+            logger.warning("anthropic SDK could not be imported (%s)", type(exc).__name__)
         return {"briefing": "anthropic SDK not installed on backend.", "recommendations": [], "alerts": [],
                 "unavailable": "sdk_missing"}
 
-    # max_retries=5 covers transient Opus 529 overloads on the narrate stage.
-    client = Anthropic(api_key=api_key, max_retries=5, timeout=180.0)
+    # The provider client is CONSTRUCTED inside the same `try` as the call
+    # (below): `Anthropic(...)` itself raises — an httpx whose `proxies`
+    # keyword is gone, a SOCKS proxy without its extra — and out here that
+    # exception left `stage_narrate`, failing a run whose statements and
+    # metrics were already replaced (and answering 500 on the regenerate
+    # route).
 
     industry_key = org.get("industry_key") or "generic"
     industry_display = org.get("industry_display_name") or industry_key
@@ -4615,6 +4652,8 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     }
 
     try:
+        # max_retries=5 covers transient Opus 529 overloads on the narrate stage.
+        client = Anthropic(api_key=api_key, max_retries=5, timeout=180.0)
         resp = client.messages.create(
             model=_narrative_model(),
             max_tokens=4096,
@@ -4637,7 +4676,21 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "unavailable": "provider_error",
         }
 
-    text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
+    # THE PROVIDER ANSWERED — whether there is anything to READ in the answer
+    # is not something the call returning guarantees. A response whose
+    # `content` is null, or whose text block carries a null `text`, raised
+    # TypeError from the join that stood here, outside any try. Read only
+    # what is text; whatever cannot be read is an EMPTY reply, never an
+    # exception.
+    try:
+        text = "".join(
+            block.text for block in (getattr(resp, "content", None) or [])
+            if getattr(block, "type", None) == "text" and isinstance(getattr(block, "text", None), str)
+        ).strip()
+    except Exception:  # noqa: BLE001 — content that cannot even be walked
+        logger.warning("Opus narrate returned a response with no readable content (%s)",
+                       type(getattr(resp, "content", None)).__name__)
+        text = ""
     if text.startswith("```"):
         text = text.strip("`")
         if text.startswith("json"):
@@ -4645,7 +4698,10 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         text = text.strip()
     try:
         data = json.loads(text)
-    except json.JSONDecodeError:
+    except (ValueError, RecursionError):
+        # Not JSON (JSONDecodeError is a ValueError) — or JSON nested deeper
+        # than the parser will follow, which is not the object asked for
+        # either and must not leave this function as an exception.
         return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": [],
                 "unavailable": "unparseable_reply" if text else "empty_reply"}
     if not isinstance(data, dict):
@@ -10129,8 +10185,24 @@ def build_router() -> APIRouter:
                 "calculated_metrics",
                 filters={"period_id": f"eq.{period_id}"},
             )
-            briefings = client.select("briefings", filters={"period_id": f"eq.{period_id}"})
-            briefing = briefings[0] if briefings else None
+            # THE TENANT IS IN THE FILTER (owner ruling 2026-10-03: "the period
+            # read without workspace is a tenant boundary bug"). `period_id`
+            # alone is not a tenant filter: `briefings.period_id` is
+            # browser-writable on a row of the WRITER's own workspace (the
+            # insert policy checks the row's own org; the foreign key only
+            # asks that the period exists), so a member of another workspace
+            # who can see this period can put a row on it — and a reader whose
+            # RLS admits both workspaces (two companies, firm staff) was
+            # served that row as THIS period's briefing. The period's briefing
+            # is the row of the period's own org — the same row the
+            # regenerate route reads (`_stored_briefing_row`) — re-checked on
+            # the row itself, never `rows[0]`.
+            _period_org = str(period["org_id"])
+            briefings = client.select(
+                "briefings",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{_period_org}"},
+            ) or []
+            briefing = next((b for b in briefings if str(b.get("org_id")) == _period_org), None)
 
             doc_rows = client.select(
                 "documents",
