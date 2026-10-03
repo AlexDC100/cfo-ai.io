@@ -51,15 +51,17 @@ describe("CurrencyToggle", () => {
   it("re-renders money surfaces in the chosen currency", () => {
     render(<Harness />);
 
-    // Fallback rates: EUR 1.0 / RON 4.97 / USD 1.08 (lib/rates.ts).
-    // 1000 RON → ~201.21 EUR → ~217.30 USD.
+    // The bundled fallback (lib/rates.ts) is BNR's file of 2026-10-02:
+    // 5.3447 RON per EUR, 4.7519 RON per USD.
+    // 1000 RON → 187.10 EUR → 210.44 USD (it was 201.21 / 217.30 at the
+    // 4.97 / 1.08 fallback of 2026-05-01).
     expect(document.body.textContent).toMatch(/1\.000,00|1,000\.00/);
 
     fireEvent.click(screen.getByTestId("currency-toggle-eur"));
-    expect(document.body.textContent).toMatch(/201/);
+    expect(document.body.textContent).toMatch(/187[.,]10/);
 
     fireEvent.click(screen.getByTestId("currency-toggle-usd"));
-    expect(document.body.textContent).toMatch(/217/);
+    expect(document.body.textContent).toMatch(/210[.,]44/);
   });
 
   it("persists the choice so a remount keeps it", () => {
