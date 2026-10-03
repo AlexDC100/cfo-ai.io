@@ -2447,39 +2447,50 @@ def _engine_gates() -> List[Gate]:
         # grants let them use it: a PATCH of {"tier":"multi","status":"active"}
         # through PostgREST was a paid plan with no payment. Two gates:
         #   subscriptions-write-lockdown
-        #       supabase/schema_phase_subscriptions_write_lockdown.sql on the
-        #       LOCAL Supabase stack, through real PostgREST with a real GoTrue
-        #       session, from FOUR starting states (the repository's catalog
-        #       before the fix — where the attack is first shown to SUCCEED —
-        #       the hand-applied stopgap, the migration's own result, and a
-        #       locked database re-opened by hand under other names): every
-        #       write refused with the row byte-identical, the reads, the
-        #       service role's upsert, the signup row, the reserve / commit
-        #       RPCs, the sibling tables, the catalog laws, the views — and
-        #       the same write through the GraphQL endpoint. Floor 275 = the
-        #       measured 281 on a stack without schema_phase_owner_plan.sql
-        #       (13 cases SKIPPED there — printed, counted apart, never a
-        #       pass; 298 with it and none skipped). VACUOUS — never green —
-        #       when the local stack is not running; refuses a non-loopback
-        #       database or API.
+        #       supabase/schema_phase_subscriptions_write_lockdown.sql on a
+        #       LOCAL Supabase stack, through real PostgREST and /graphql/v1
+        #       with a real GoTrue session, from FOUR starting states (the
+        #       repository's catalog before the fix — where the attack is
+        #       first shown to SUCCEED — the hand-applied stopgap, the
+        #       migration's own result, and a locked database re-opened by
+        #       hand under other names): 35 named attacks and one write per
+        #       column of the table refused with the row byte-identical, the
+        #       reads, the service role's writes, the reserve / commit RPCs,
+        #       the sibling tables, the catalog laws, the census of SECURITY
+        #       DEFINER functions and triggers, the views, the lock behaviour,
+        #       the error's remedies, and the read-only pre-flight / audit
+        #       files the runbook hands the operator.
+        #       IT ADDRESSES NO STACK BY DEFAULT: it creates users and re-opens
+        #       the hole to prove it sees one, and a machine's standard local
+        #       stack is shared. Without SUBS_LOCKDOWN_DB_URL and
+        #       SUBS_LOCKDOWN_API_URL naming an isolated local stack it is
+        #       VACUOUS (units=0, PASS(VACUOUS) — never green); so is it when
+        #       that stack is not running; a non-loopback host is refused.
+        #       Floor 425 = the measured 436 on a stack without
+        #       schema_phase_owner_plan.sql (13 cases SKIPPED there — printed,
+        #       counted apart, never a pass; 454 with it and none skipped).
         #   entitlement-write-laws
         #       the source half the stack cannot see: no browser or
         #       edge-function writer of a listed table, no committed SQL that
-        #       re-opens one, the runbook's lists, no user-JWT engine client
-        #       on one.
+        #       re-opens one, the migration one batch that returns what it
+        #       did, the report files one read-only statement each, the
+        #       console probe in a mocked browser, the gate's own default.
         # Plant log: docs/engine_book/gates.md.
         Gate("subscriptions-write-lockdown",
              ["bash", "scripts/check_subscriptions_write_lockdown.sh"],
-             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=275,
+             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=425,
              units="cases on the local stack", vacuous_ok=True,
              canaries=("SUBSCRIPTIONS-WRITE-LOCKDOWN GATE",)),
         Gate("entitlement-write-laws",
              [PY, "-m", "pytest", "tests/engine/test_entitlement_write_laws.py", "-q"],
-             work_junit=True, floor=9, units="tests",
+             work_junit=True, floor=34, units="tests",
              canaries=("test_the_scanner_sees_the_writer_this_law_exists_for",
                        "test_no_browser_or_edge_function_code_writes_an_entitlement_table",
                        "test_the_sql_scanner_sees_the_two_policies_this_law_exists_for",
                        "test_no_committed_sql_reopens_an_entitlement_table",
+                       "test_each_report_file_is_one_read_only_statement_returning_one_jsonb_row",
+                       "test_the_migration_is_one_batch_that_ends_with_the_row_applied",
+                       "test_the_stack_gate_is_vacuous_unless_it_is_told_which_stack",
                        "test_no_user_jwt_client_in_the_engine_names_an_entitlement_table")),
     ]
 

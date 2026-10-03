@@ -19934,19 +19934,20 @@ unauthenticated `/api/cfo/decisions` demo store.
 
 ## subscriptions-write-lockdown
 
-`supabase/schema_phase_subscriptions_write_lockdown.sql`, applied and attacked
-on the LOCAL Supabase stack through REAL PostgREST (kong → PostgREST) with a
-REAL GoTrue session — the anon key and the access token a browser holds. No
-double, no mirror, no `set role` standing in for the API.
+`supabase/schema_phase_subscriptions_write_lockdown.sql` and the read-only
+files beside it, applied and attacked on a LOCAL Supabase stack through REAL
+PostgREST and GraphQL (kong → PostgREST, pg_graphql) with a REAL GoTrue session
+— the anon key and the access token a browser holds. No double, no mirror, no
+`set role` standing in for the API.
 
 | | |
 |---|---|
-| command | `bash scripts/check_subscriptions_write_lockdown.sh` |
-| work count | `GATE-WORK subscriptions-write-lockdown units=(\d+)`, floor **275** (measured **281** on a stack without `schema_phase_owner_plan.sql`, with 13 cases SKIPPED — printed, counted apart, never a pass; **298** with it and none skipped) |
+| command | `SUBS_LOCKDOWN_DB_URL=… SUBS_LOCKDOWN_API_URL=… bash scripts/check_subscriptions_write_lockdown.sh` |
+| work count | `GATE-WORK subscriptions-write-lockdown units=(\d+)`, floor **425** (measured **436** on a stack without `schema_phase_owner_plan.sql`, with 13 cases SKIPPED — printed, counted apart, never a pass; **454** with it and none skipped) |
 | canary | `SUBSCRIPTIONS-WRITE-LOCKDOWN GATE` |
-| VACUOUS | when nothing listens on the local database or API port, or there is no `psql` / `curl` / `openssl`: `units=0`, exit 0, reported `PASS(VACUOUS)` — never green |
-| measured on | Postgres 17.6 (the local stack's image), PostgREST 14, pg_graphql 1.5.11 |
-| REFUSED | exit 2, before anything is opened, when `SUBS_LOCKDOWN_DB_URL` or `SUBS_LOCKDOWN_API_URL` names a host that is not a loopback address (the gate creates users, re-creates the open state and applies a migration) |
+| VACUOUS | **by default**: the gate addresses NO stack unless `SUBS_LOCKDOWN_DB_URL` and `SUBS_LOCKDOWN_API_URL` both name one (it creates users and re-opens the hole to prove it sees one; a machine's standard local stack is shared). Also when the named stack is not running, or there is no `psql` / `curl` / `openssl`. `units=0`, exit 0, reported `PASS(VACUOUS)` — never green |
+| REFUSED | exit 2, before anything is opened, when either URL names a host that is not a loopback address |
+| measured on | Postgres 17.6 (supabase/postgres 17.6.1.106), PostgREST 14, pg_graphql 1.5.11 |
 | the tables | `--observe` (applies nothing), `--before a\|b\|c\|d`, `--after a\|b\|c\|d` print the attack table below as the database answers it; nothing is asserted |
 
 **INCIDENT** (owner task, 2026-10-03: "Close self-service tier writes on
@@ -19957,26 +19958,31 @@ insert" (`with check (auth.uid() = user_id)`) and "subscriptions self update"
 policies. Supabase's default privileges grant ALL on every public table to
 `anon` and `authenticated`. So a signed-in user, with the public anon key and
 the session the page holds, wrote their own plan row straight through the REST
-API. `frontend/lib/billing.ts` still exposed two writers of the row with no
-caller (`cancel()`, `reactivate()`; the second wrote `status: "active"`).
+API or the GraphQL endpoint. `frontend/lib/billing.ts` still exposed two
+writers of the row with no caller (`cancel()`, `reactivate()`; the second
+wrote `status: "active"`).
 
 ### BEFORE — the hole, as a stack built from this repository answers it
 
-Measured 2026-10-03 on a FRESH isolated stack (every committed migration
-applied in `scripts/test_supabase_apply.sh` order, `schema_phase_owner_plan.sql`
-not applied — production's shape that day), with `--observe`: an invented user
-signed up through GoTrue, its access token as the bearer, the anon key as the
-`apikey`. Each row is read back with the service role; `written` compares the
-WHOLE row (`updated_at` included) before and after.
+State (a) (`--before a`): every committed migration applied,
+`schema_phase_owner_plan.sql` not applied — production's shape on 2026-10-03.
+An invented user signed up through GoTrue, its access token as the bearer, the
+anon key as the `apikey`. Each row is read back with the service role;
+`written` compares the WHOLE row (`updated_at` included) before and after.
+(The gate's rebuilt state (a) was compared with a freshly built stack's own
+answers in the first round: identical row for row.)
 
 ```
 policies on subscriptions: subscriptions self insert [INSERT], subscriptions self select [SELECT], subscriptions self update [UPDATE]
 authenticated on subscriptions: DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 anon on subscriptions: DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
-views over a listed table an API role may use: (none)
+views over a listed table an API role may use: subs_gate_cohort_public depth=1 invoker=false updatable=false anon:SELECT,authenticated:SELECT
+the pre-flight report says: hole_open hole_open=true stopgap_in_place=false fully_locked=false
 ```
 
-| attack (through PostgREST) | HTTP | the row after, read back: tier / plan / status / … | written |
+**The 35 named attacks:**
+
+| attack (through PostgREST, the last but two through GraphQL) | HTTP | the row after, read back: tier / plan / status / … | written |
 |---|---|---|---|
 | PATCH own tier → solo, status → active | 200 | solo / professional / active / founding=false / limits=∅ / cus=∅ | **YES** |
 | PATCH own tier → pro, status → active | 200 | pro / professional / active / founding=false / limits=∅ / cus=∅ | **YES** |
@@ -20014,15 +20020,45 @@ views over a listed table an API role may use: (none)
 | INSERT the row when the user has none: tier → multi, plan → enterprise, 2099 | 201 | multi / enterprise / active / founding=false / limits=∅ / cus=∅ | **YES** |
 | INSERT the row when the user has none: tier → owner | 400 | (no row) | no |
 
-26 of the 35 attacks were WRITTEN. The ones that were not: the `owner` tier
-(the tier CHECK does not admit it before `schema_phase_owner_plan.sql`; with it
-applied the trigger refuses it — `internal_plan_not_assignable`, measured, and
-the other 26 are written all the same); DELETE (no delete policy: 200, zero
-rows); every write to ANOTHER user's row (the policies are own-row); anon
-(no row is visible to it). The LAST row is the same write through the OTHER
-door: the GraphQL endpoint (`/graphql/v1`, pg_graphql — on by default on
-Supabase) answers `affectedCount: 1`. It was the privilege and the policy
-that were open, not one URL.
+26 of the 35 named attacks were WRITTEN. The ones that were not: the `owner`
+tier (the tier CHECK does not admit it before `schema_phase_owner_plan.sql`;
+with it applied the trigger refuses it and the other 26 are written all the
+same); DELETE (no delete policy: 200, zero rows); every write to ANOTHER
+user's row (the policies are own-row); anon (no row is visible to it).
+
+**One write per column of the table**, generated from `pg_attribute` at run
+time (22 columns on 2026-10-03) — a column added tomorrow is attacked the day
+it exists. These are the gate's own cases, not a table mode: against the
+pre-fix catalog they are read from suite (a) of plant p0 below (the migration
+made a no-op, so the suite attacks state (a) itself):
+
+| column (type) | HTTP | written |
+|---|---|---|
+| id (uuid) | 200 | **YES** |
+| user_id (uuid) | 403 | no |
+| plan (text) | 200 | **YES** |
+| billing_cycle (text) | 200 | **YES** |
+| status (text) | 200 | **YES** |
+| trial_start (timestamp with time zone) | 200 | **YES** |
+| trial_end (timestamp with time zone) | 200 | **YES** |
+| current_period_start (timestamp with time zone) | 200 | **YES** |
+| current_period_end (timestamp with time zone) | 200 | **YES** |
+| stripe_customer_id (text) | 200 | **YES** |
+| stripe_subscription_id (text) | 200 | **YES** |
+| cancel_at_period_end (boolean) | 200 | **YES** |
+| created_at (timestamp with time zone) | 200 | **YES** |
+| updated_at (timestamp with time zone) | 200 | **YES** |
+| tier (text) | 200 | **YES** |
+| is_founding_member (boolean) | 200 | **YES** |
+| custom_limits (jsonb) | 200 | **YES** |
+| intro_unlock_expiry (timestamp with time zone) | 200 | **YES** |
+| extra_docs_billed_period (integer) | 200 | **YES** |
+| billing_period_anchor (date) | 200 | **YES** |
+| extra_docs_pending (integer) | 200 | **YES** |
+| nonro_extra_billed_period (integer) | 200 | **YES** |
+
+21 of 22 were written. Not written: `user_id` (the own-row policy's check refuses a
+row that would no longer be the caller's).
 
 | read | HTTP | body |
 |---|---|---|
@@ -20056,10 +20092,6 @@ environment):
 | tier=pro plan=enterprise status=canceled | plan_key=pro raw_tier=pro included_docs=15 max_workspaces=5 allows_non_ro=False included_nonro_docs=0 |
 | tier=NULL plan=professional status=expired | plan_key=multi raw_tier=professional included_docs=15 max_workspaces=5 allows_non_ro=True included_nonro_docs=8 |
 
-So a self-written `tier: "multi"` is 15 documents a month, 5 workspaces and
-the non-Romanian allowance in the engine — and see "Found, not fixed" below
-for the first row of that table.
-
 **The sibling tables, before** (signed-in user; the generic verbs, then the
 real attack on the meters):
 
@@ -20070,6 +20102,7 @@ real attack on the meters):
 | document_quota_ledger | 403 | 403 | 403 | 403 |
 | founding_members | 403 | 403 | 403 | 403 |
 | billing_events | 403 | 403 | 403 | 403 |
+| renewal_email_queue | 403 | 403 | 403 | 403 |
 | plan_assignment_audit | (the table does not exist here) | | | |
 
 | the meters, the real attack (signed-in user, own counters) | HTTP | the table |
@@ -20077,90 +20110,112 @@ real attack on the meters):
 | PATCH own user_usage: uploads, uploads_reserved, llm_calls → 0 | 200 [] | unchanged |
 | DELETE own user_usage row | 200 [] | unchanged |
 | PATCH own plan_chat_daily_usage: count → 0 | 200 [] | unchanged |
-| GET own user_usage (the read the product keeps) | 200 [{"uploads":1}] | |
+| GET own user_usage (the read the product keeps) | 200 [{"uploads":2}] | |
 | ANON: GET user_usage | 200 [] | |
 
 The meters were NOT writable as found: row level security on, an own-row
 SELECT policy and no write policy, so a PATCH or DELETE answers `200 []` and
 changes nothing. What they carried was the PRIVILEGE (ALL, to `anon` too): one
 policy or one `disable row level security` away from "free documents" — state
-(d) and plant p5 below are exactly that. The three service-only tables were
-already closed (row level security on, no policy, no API privilege).
+(d) and plant p5 are exactly that.
 
 ### LAW
 
 From each of FOUR starting states the migration must end in the same catalog
-and the same refused-attack table:
+and the same refused-attack table. `written before` counts the 35 named
+attacks:
 
-| | starting state | what the table says before the migration | what the migration still has to do |
-|---|---|---|---|
-| (a) | a database built from this repository before the fix | the table above: 26 attacks written | everything |
-| (b) | the owner's hand-applied three-statement STOPGAP (the two write policies dropped; insert, update, delete, truncate, references, trigger revoked on `subscriptions` from anon and authenticated) | 0 written — the stopgap closes the plan row | anon's remaining SELECT on `subscriptions` (`anon: every row` answers 200, not 401), the meters' write privileges, the sweep of policies under other names; nothing may error on a missing policy or an already-revoked privilege |
-| (c) | the migration's own result | 0 written | nothing: the second run drops nothing and says so |
-| (d) | locked, then RE-OPENED BY HAND under names the migration has never heard of: `create policy "billing can write" … for all to authenticated using (true)`, `"everyone reads plans" for select using (true)`, `grant update (tier, status)` (column level), row level security off on `plan_chat_daily_usage` with its write grants back, `grant all on founding_members to anon`, an UPDATE policy on `user_usage` | 13 written — own AND another user's tier and status; every user's plan row readable; both meters zeroed (`CHANGED`) | drop the three policies BY NAME (each in a NOTICE), take the column grant with the table revoke, switch row level security back on |
+| | starting state | the pre-flight report says | written before | what the migration has to do |
+|---|---|---|---|---|
+| (a) | a database built from this repository before the fix | `hole_open` | 26 | everything |
+| (b) | the owner's hand-applied three-statement STOPGAP | `stopgap_in_place` | 0 | anon's remaining SELECT (and MAINTAIN on Postgres 17), the meters' privileges and policies, the sweep of policies under other names; nothing may error on a missing policy or an already-revoked privilege |
+| (c) | the migration's own result | `fully_locked` | 0 | nothing: `changed_anything: false`, no lock taken |
+| (d) | locked, then RE-OPENED BY HAND under other names: a `for all` policy to authenticated, a permissive `using (true)` read on subscriptions and on user_usage, a column-level `grant update (tier, status)`, row level security off on a meter, grants back to anon | `hole_open` | 13 | drop the policies BY NAME, take the column grant with the table revoke, switch row level security back on — and say each in its result row |
 
-State (a) as the gate rebuilds it was compared with the fresh stack's own
-answers: the two tables are identical row for row (the only difference is the
-line naming the gate's own fixture view). The four AFTER tables — from (a),
-(b), (c) and (d) — are identical to each other, row for row.
+The four AFTER tables are identical to each other, row for row.
 
 The cases, one PASS/FAIL line each (`a` / `b` / `c` / `d` = the suite run from
 that state):
-- **A, B, C, D** — the state is built and is what it claims (A0, B0, B1, D0);
-  in (a) THE HOLE IS SHOWN OPEN FIRST (A1 a PATCH of tier → multi answers 200
-  and lands; A2 `create_workspace` then creates a 2nd workspace; A3 a user with
-  no row INSERTs one; A3b the GraphQL mutation lands), and in (d) wider (D1 the attacker writes ANOTHER user's
-  tier; D1b reads every plan row) — a harness that cannot see an open hole
-  proves nothing by refusing; the migration applies with no error and no
-  WARNING (A4, B2, C0, D2), names what it dropped (A5, D3, D3b, D3c) and drops
-  nothing the second time (C1).
-- **L — the catalog** on every table of THE LIST (read from the migration —
-  one list): row level security on, no policy that is not a SELECT policy,
-  `anon` and PUBLIC holding nothing, `authenticated` holding SELECT at most —
-  table OR column level, MAINTAIN included where the server knows it (Postgres
-  17+) (L1); `subscriptions` carrying EXACTLY ONE policy, own
-  row, SELECT, to authenticated (L2); no function an API role may EXECUTE
-  names a listed table but `create_workspace` and `delete_my_account` (L3); the
-  only view over a listed table an API role may use is the gate's own
-  aggregate, SELECT only, not writable through (L4).
-- **W — every write** of the table above (35 attacks: each sold tier and
-  `owner`, status, plan, custom_limits, the founding flag, the period / trial
-  / intro dates, the billed-extras tally, both Stripe ids, the billing cycle,
-  the browser's old `cancel()` and `reactivate()` bodies, a PATCH with no user
-  filter, an upsert, DELETE, another user's row, anon, INSERT with no row):
+- **A, B, C, D** — the state is built and is what it claims; the pre-flight
+  report reads it right (A0b, B1b, D0b); in (a) THE HOLE IS SHOWN OPEN FIRST
+  (A1 a PATCH of tier → multi lands; A2 `create_workspace` then creates a 2nd
+  workspace; A3 a user with no row INSERTs one; A3b the GraphQL mutation
+  lands), and in (d) wider (D1 the attacker writes ANOTHER user's tier; D1b,
+  D1c reads every plan row and every user's meter) — a harness that cannot
+  see an open hole proves nothing by refusing; the migration applies with no
+  error and no WARNING (A4, B2, C0, D2) and its RESULT ROW says what it did
+  (A5 verified, A5b the dropped policy by name, C1 nothing the second time,
+  D3 every hand-made policy and the table whose row level security it
+  switched back on). No case reads a NOTICE.
+- **K — it waits for no one**: another session holds a row lock on
+  subscriptions; the file, sent as ONE batch, answers `lock timeout` within 7
+  s (K1) and has applied nothing — the three policies and the privilege are
+  still there (K2: one batch is one transaction). C2: a run that changes
+  nothing takes no lock above ACCESS SHARE. C1b: sent as one multi-statement
+  query — the way Studio's editor and the Management API send a file — it
+  applies and its last result is the row `applied`. C3: re-running the
+  repository's own policy statements after the lockdown changes nothing.
+- **L — the catalog** on every table of THE LIST (read from the migration):
+  row level security on, no policy that is not a SELECT policy, `anon` and
+  PUBLIC holding nothing, `authenticated` holding SELECT at most — table OR
+  column level, MAINTAIN included on Postgres 17+ (L1); subscriptions and the
+  two meters carrying EXACTLY ONE policy each, own row, SELECT, to
+  authenticated (L2, L2b, L2c); no function an API role may EXECUTE names a
+  listed table but `create_workspace` and `delete_my_account` (L3); THE
+  CENSUS — every SECURITY DEFINER function in public whose body names a
+  listed table equals a committed list, whoever may execute it (L3b), and
+  every trigger on a table an API role can write runs a function on a
+  committed list, none of them SECURITY DEFINER (L3c); the only view that
+  reads a listed table — directly or through another view — and that an API
+  role may use is the gate's own aggregate (L4); no view in public on which
+  an API role holds a write privilege, whatever it reads (L4b).
+- **W — every write**: the 35 named attacks and the 22 per-column writes,
   refused — 403 for a user, 401 for anon — with `permission denied for table
   subscriptions`, and the row byte-identical when read back. The GraphQL
   mutation is refused BY NAME (`Unknown field "updatesubscriptionsCollection"
-  on type Mutation` — the role has no such mutation; any other error is not a
-  refusal), after A3b has shown it LANDING in state (a).
-- **R — the reads**: the user still reads their own row and only that row
-  (R1), another user's is invisible (R2), anon's read is itself refused (R3).
-- **P — every legitimate writer still works**: the Stripe webhook's upsert
-  shape (`on_conflict=user_id`) and the cancel route's PATCH as the service
-  role (P1, P2); `create_workspace` still refuses the trial user's 2nd
-  workspace (P3 — the cap reads the row); the document and the chat reserve /
-  commit RPCs still count (P4, P5); a public aggregate view over a listed
-  table — the shape of production's `founder_cohort_public`, which no file in
-  this repository creates — still answers anon and is not a way to write (P6,
-  P6b). The signup row: the attacker is a brand-new GoTrue signup in every
-  run, and its seeded row is what every case reads.
-- **S — the siblings**: a user cannot zero or delete their own document meter
-  or today's chat counter and still reads them (S1–S4); on every listed table
-  a user's INSERT / PATCH / DELETE and anon's SELECT / INSERT are refused, the
-  table unchanged (S5); the meter and founding-seat RPCs are not a user's to
-  call (S6), nor `assign_internal_plan` (S7).
-- **E — both orders** against `schema_phase_owner_plan.sql` (run where that
-  file is in the checkout, or named by `SUBS_LOCKDOWN_OWNER_PLAN_MIGRATION`):
-  owner-plan after the lockdown re-opens nothing; the lockdown after owner-plan
-  closes `plan_assignment_audit` too.
-- **Z** — the gate's users, workspaces, counters and its view are gone; the
-  stack is left CLOSED. On exit the gate re-applies the REPOSITORY's migration
-  whatever file the run was pointed at.
+  on type Mutation`; any other error is not a refusal). The gate prints the
+  sentence (the counts are computed):
 
-A case that needs an object `schema_phase_owner_plan.sql` creates
-(`plan_assignment_audit`, `assign_internal_plan`, E) prints `SKIP` where the
-object is not there, is counted apart and never adds to the work count; the
-GraphQL row and A3b are skipped the same way on a stack that serves no
+  ```
+  ATTACKS on public.subscriptions — 35 of 35 named attacks and 22 of 22 per-column writes (one per column, generated from pg_attribute) REFUSED, the row byte-identical, from each of the 4 starting states
+  ```
+- **R — the reads**: the user reads their own plan row and only that (R1,
+  R2); anon's read is itself refused (R3); the user reads their own meter
+  rows and no other user's (R4, R5).
+- **Y — the files the runbook hands the operator**: after the migration the
+  post-check report, run READ ONLY, says `fully_locked` in every suite (Y1);
+  the grids file runs whole in a READ ONLY transaction (Y2); the audit report
+  lists a self-written tier (Y3), puts the same row WITH forged Stripe ids in
+  its second list and prints neither an email nor an id value (Y4), and runs
+  where `founding_members` and `billing_events` do not exist (Y5).
+- **P — every legitimate writer still works**: the Stripe webhook's upsert
+  shape and the cancel route's PATCH as the service role; `create_workspace`
+  still refusing the trial user's 2nd workspace; the document and chat
+  reserve / commit RPCs still counting; a public aggregate view over a listed
+  table — the shape of production's `founder_cohort_public` — still
+  answering anon, and not a way to write.
+- **S — the siblings**: a user cannot zero or delete their own meters and
+  still reads them; on every listed table a user's INSERT / PATCH / DELETE
+  and anon's SELECT / INSERT are refused, the table unchanged; the meter and
+  founding-seat RPCs are not a user's to call, nor `assign_internal_plan`.
+- **T — what is not the owner's to change** (each case one transaction that
+  is rolled back, roles included): a privilege granted by ANOTHER role, a
+  COLUMN-level grant made by another role, a privilege INHERITED through a
+  membership — the file raises, names each as what it is, and the statement
+  it prints is run and the file then passes (T1–T6; T1b shows the owner's
+  plain revoke removing nothing); a listed table owned by another role stops
+  the file before any change, with the owner and the statement (T7).
+- **V** — a view over a view over subscriptions, with a new view's default
+  grants: the migration WARNs at depth 2 and names it in its result row, and
+  the report names it in its verdict.
+- **E — both orders** against `schema_phase_owner_plan.sql`; **Z** — the
+  gate's users, workspaces, counters and view are gone and the stack is left
+  CLOSED: on exit the gate re-applies the REPOSITORY's migration whatever
+  file the run was pointed at.
+
+A case that needs an object `schema_phase_owner_plan.sql` creates prints
+`SKIP` where the object is not there, is counted apart and never adds to the
+work count; the GraphQL cases the same on a stack that serves no
 `/graphql/v1`.
 
 ### AFTER — the same table, the migration applied
@@ -20171,10 +20226,11 @@ GraphQL row and A3b are skipped the same way on a stack that serves no
 policies on subscriptions: subscriptions self select [SELECT]
 authenticated on subscriptions: SELECT
 anon on subscriptions: (none)
-views over a listed table an API role may use: subs_gate_cohort_public invoker=false updatable=false anon:SELECT,authenticated:SELECT
+views over a listed table an API role may use: subs_gate_cohort_public depth=1 invoker=false updatable=false anon:SELECT,authenticated:SELECT
+the pre-flight report says: fully_locked hole_open=false stopgap_in_place=false fully_locked=true
 ```
 
-| attack (through PostgREST) | HTTP | the row after, read back | written | the refusal |
+| attack | HTTP | the row after, read back | written | the refusal |
 |---|---|---|---|---|
 | PATCH own tier → solo, status → active | 403 | ∅ / professional / trial / founding=false / limits=∅ / cus=∅ | no | permission denied for table subscriptions |
 | PATCH own tier → pro, status → active | 403 | ∅ / professional / trial / founding=false / limits=∅ / cus=∅ | no | permission denied for table subscriptions |
@@ -20208,9 +20264,13 @@ views over a listed table an API role may use: subs_gate_cohort_public invoker=f
 | ANON: PATCH a user's tier → multi | 401 | ∅ / professional / trial / founding=false / limits=∅ / cus=∅ | no | permission denied for table subscriptions |
 | ANON: DELETE a user's row | 401 | ∅ / professional / trial / founding=false / limits=∅ / cus=∅ | no | permission denied for table subscriptions |
 | ANON: INSERT a row | 401 | ∅ / professional / trial / founding=false / limits=∅ / cus=∅ | no | permission denied for table subscriptions |
-| GraphQL (/graphql/v1): mutation updatesubscriptionsCollection, own tier → multi, status → active | 200 | ∅ / professional / trial / founding=false / limits=∅ / cus=∅ | no | {"data": null, "errors": [{"message": "Unknown field \"updat |
+| GraphQL (/graphql/v1): mutation updatesubscriptionsCollection, own tier → multi, status → active | 200 | ∅ / professional / trial / founding=false / limits=∅ / cus=∅ | no | Unknown field "updatesubscriptionsCollection" on type M |
 | INSERT the row when the user has none: tier → multi, plan → enterprise, 2099 | 403 | (no row) | no | permission denied for table subscriptions |
 | INSERT the row when the user has none: tier → owner | 403 | (no row) | no | permission denied for table subscriptions |
+
+The 22 per-column writes (the gate's `W  COLUMN …` cases): 22 of 22 PASS in
+each of the four suites — HTTP 403, `permission denied for table
+subscriptions`, the row byte-identical.
 
 | read | HTTP | body |
 |---|---|---|
@@ -20233,6 +20293,7 @@ views over a listed table an API role may use: subs_gate_cohort_public invoker=f
 | document_quota_ledger | 403 | 403 | 403 | 403 |
 | founding_members | 403 | 403 | 403 | 403 |
 | billing_events | 403 | 403 | 403 | 403 |
+| renewal_email_queue | 403 | 403 | 403 | 403 |
 | plan_assignment_audit | (the table does not exist here) | | | |
 
 | the meters, the real attack (signed-in user, own counters) | HTTP | the table |
@@ -20240,16 +20301,17 @@ views over a listed table an API role may use: subs_gate_cohort_public invoker=f
 | PATCH own user_usage: uploads, uploads_reserved, llm_calls → 0 | 403 {"code":"42501","details":null,"hint":null,"message":"permission denie | unchanged |
 | DELETE own user_usage row | 403 {"code":"42501","details":null,"hint":null,"message":"permission denie | unchanged |
 | PATCH own plan_chat_daily_usage: count → 0 | 403 {"code":"42501","details":null,"hint":null,"message":"permission denie | unchanged |
-| GET own user_usage (the read the product keeps) | 200 [{"uploads":1}] | |
+| GET own user_usage (the read the product keeps) | 200 [{"uploads":2}] | |
 | ANON: GET user_usage | 401 {"code":"42501","details":null,"hint":null,"message":"permission denie | |
 
 **GREEN** — exit `0`, in every condition of the stack:
 
 ```
 # without schema_phase_owner_plan.sql (production on 2026-10-03)
-GATE-WORK subscriptions-write-lockdown units=281
+ATTACKS on public.subscriptions — 35 of 35 named attacks and 22 of 22 per-column writes (one per column, generated from pg_attribute) REFUSED, the row byte-identical, from each of the 4 starting states
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: PASS — 281 case(s), 13 skipped, users removed, the tables left closed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: PASS — 436 case(s), 13 skipped, users removed, the tables left closed
 # the same stack, SUBS_LOCKDOWN_OWNER_PLAN_MIGRATION naming the file: E applies
 # owner-plan AFTER the lockdown, then the lockdown after it
 PASS E0 schema_phase_owner_plan.sql applies AFTER the lockdown
@@ -20257,198 +20319,505 @@ PASS E1 … and re-opens nothing: every listed table, plan_assignment_audit incl
 PASS E2 … a signed-in user's PATCH is still refused, the row unchanged
 PASS E3 the lockdown applies AFTER schema_phase_owner_plan.sql (the other order)
 PASS E4 … and plan_assignment_audit is on its list: closed, row level security on
-GATE-WORK subscriptions-write-lockdown units=286
+PASS E5 … and the post-check report still reads fully_locked
+ATTACKS on public.subscriptions — 35 of 35 named attacks and 22 of 22 per-column writes (one per column, generated from pg_attribute) REFUSED, the row byte-identical, from each of the 4 starting states
+GATE-WORK subscriptions-write-lockdown units=442
 SKIPPED 12 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: PASS — 286 case(s), 12 skipped, users removed, the tables left closed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: PASS — 442 case(s), 12 skipped, users removed, the tables left closed
 # with schema_phase_owner_plan.sql applied
-GATE-WORK subscriptions-write-lockdown units=298
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: PASS — 298 case(s), 0 skipped, users removed, the tables left closed
+ATTACKS on public.subscriptions — 35 of 35 named attacks and 22 of 22 per-column writes (one per column, generated from pg_attribute) REFUSED, the row byte-identical, from each of the 4 starting states
+GATE-WORK subscriptions-write-lockdown units=454
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: PASS — 454 case(s), 0 skipped, users removed, the tables left closed
 ```
+
+### The files, run the way production will run them
+
+The coordinator sends each file to production with `supabase db query --linked
+-f <file>`: the Management API runs the file as `postgres` and returns the
+LAST statement's rows as JSON. So each of the three files is one batch that
+ends in one row with one jsonb column — `report`, `applied`, `audit` — and
+nothing in the runbook reads a NOTICE. Measured here three ways; none of them
+is the Management API itself (CANNOT SEE, below).
+
+**1. `psql -f -`, one file at a time** — `docker exec -i <db container> psql -U
+postgres -v ON_ERROR_STOP=1 -At -f - < <file>`, in the coordinator's order
+(report → migration → report again → audit), from the gate's four starting
+states and from PRODUCTION'S SHAPE as the ops log records it on 2026-10-03
+(state p: the three own-row SELECT policies as main's old files create them,
+roles `{public}`, with the owner's three-statement stopgap on top). The last
+line of each run's output is the jsonb row; these are its keys:
+
+```
+2026-10-03T17:04:58Z · server_version_num 170006 · run as postgres (superuser: false) · owner-plan applied: false
+command: docker exec -i supabase_db_cfo-ai-subs psql -U postgres -v ON_ERROR_STOP=1 -At -f - < <file>
+
+STATE (a) — a database built from this repository before the fix
+  1. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="hole_open" hole_open=true stopgap_in_place=false fully_locked=false
+       why_not_fully_locked=["public.plan_chat_daily_usage: anon holds DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE", "public.plan_chat_daily_usage: authenticated holds DELETE, INSERT, MAINTAIN, REFERENCES, TR …
+       policies_this_file_will_drop=[["subscriptions", "subscriptions self insert", "INSERT"], ["subscriptions", "subscriptions self select", "SELECT"], ["subscriptions", "subscriptions self update", "UPDATE"]]
+       policies_this_file_will_create=[["subscriptions", "subscriptions self select"]]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  2. …_write_lockdown.sql     → exit=0 · stdout lines=3 · applied: {"applied": true, "at": "2026-10-03T17:04:58Z", "changed_anything": true, "policies_created": [{"policy": "subscriptions self select", "table": "subscriptions"}], "polic …
+       plan_chat_daily_usage: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[SELECT] · policie …
+       subscriptions: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[SELECT] · policies 3→1
+       user_usage: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[SELECT] · policies 1→1
+  3. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="fully_locked" hole_open=false stopgap_in_place=false fully_locked=true
+       why_not_fully_locked=[]
+       policies_this_file_will_drop=[]
+       policies_this_file_will_create=[]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  4. …_audit_report.sql       → exit=0 · stdout lines=1 · audit: subscriptions_total=1 listed_count=1 rows=1 why_listed=["status active, no Stripe customer", "tier set, no Stripe subscription"]
+       stripe_ids_in_no_billing_event: checked=true count=0 · tables_present={"billing_events": true, "founding_members": true} · rows_by_tier_plan_status=[{"count": 1, "plan": "professional", "status": "active", "tier": "multi"}]
+       keys of a row: created_at, current_period_end, founding_seat_claimed, has_custom_limits, has_stripe_customer, has_stripe_subscription, intro_unlock_expiry, is_founding_member, plan, status, stripe_event_names_user, tier, trial_en …
+
+STATE (b) — the hand-applied three-statement stopgap
+  1. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="stopgap_in_place" hole_open=false stopgap_in_place=true fully_locked=false
+       why_not_fully_locked=["public.plan_chat_daily_usage: anon holds DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE", "public.plan_chat_daily_usage: authenticated holds DELETE, INSERT, MAINTAIN, REFERENCES, TR …
+       policies_this_file_will_drop=[["subscriptions", "subscriptions self select", "SELECT"]]
+       policies_this_file_will_create=[["subscriptions", "subscriptions self select"]]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  2. …_write_lockdown.sql     → exit=0 · stdout lines=3 · applied: {"applied": true, "at": "2026-10-03T17:04:59Z", "changed_anything": true, "policies_created": [{"policy": "subscriptions self select", "table": "subscriptions"}], "polic …
+       plan_chat_daily_usage: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[SELECT] · policie …
+       subscriptions: rls True→True · anon [MAINTAIN, SELECT]→[] · authenticated [MAINTAIN, SELECT]→[SELECT] · policies 1→1
+       user_usage: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[SELECT] · policies 1→1
+  3. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="fully_locked" hole_open=false stopgap_in_place=false fully_locked=true
+       why_not_fully_locked=[]
+       policies_this_file_will_drop=[]
+       policies_this_file_will_create=[]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  4. …_audit_report.sql       → exit=0 · stdout lines=1 · audit: subscriptions_total=1 listed_count=1 rows=1 why_listed=["status active, no Stripe customer", "tier set, no Stripe subscription"]
+       stripe_ids_in_no_billing_event: checked=true count=0 · tables_present={"billing_events": true, "founding_members": true} · rows_by_tier_plan_status=[{"count": 1, "plan": "professional", "status": "active", "tier": "multi"}]
+       keys of a row: created_at, current_period_end, founding_seat_claimed, has_custom_limits, has_stripe_customer, has_stripe_subscription, intro_unlock_expiry, is_founding_member, plan, status, stripe_event_names_user, tier, trial_en …
+
+STATE (c) — the migration already applied
+  1. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="fully_locked" hole_open=false stopgap_in_place=false fully_locked=true
+       why_not_fully_locked=[]
+       policies_this_file_will_drop=[]
+       policies_this_file_will_create=[]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  2. …_write_lockdown.sql     → exit=0 · stdout lines=3 · applied: {"applied": true, "at": "2026-10-03T17:04:59Z", "changed_anything": false, "policies_created": [], "policies_dropped": [], "row_level_security_switched_on": [], "run_as" …
+  3. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="fully_locked" hole_open=false stopgap_in_place=false fully_locked=true
+       why_not_fully_locked=[]
+       policies_this_file_will_drop=[]
+       policies_this_file_will_create=[]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  4. …_audit_report.sql       → exit=0 · stdout lines=1 · audit: subscriptions_total=1 listed_count=1 rows=1 why_listed=["status active, no Stripe customer", "tier set, no Stripe subscription"]
+       stripe_ids_in_no_billing_event: checked=true count=0 · tables_present={"billing_events": true, "founding_members": true} · rows_by_tier_plan_status=[{"count": 1, "plan": "professional", "status": "active", "tier": "multi"}]
+       keys of a row: created_at, current_period_end, founding_seat_claimed, has_custom_limits, has_stripe_customer, has_stripe_subscription, intro_unlock_expiry, is_founding_member, plan, status, stripe_event_names_user, tier, trial_en …
+
+STATE (d) — locked, then re-opened by hand under other names
+  1. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="hole_open" hole_open=true stopgap_in_place=false fully_locked=false
+       why_not_fully_locked=["public.founding_members: anon holds DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE", "public.plan_chat_daily_usage: authenticated holds DELETE, INSERT, UPDATE", "public.plan_chat_da …
+       policies_this_file_will_drop=[["subscriptions", "billing can write", "ALL"], ["subscriptions", "everyone reads plans", "SELECT"], ["user_usage", "everyone reads usage", "SELECT"], ["user_usage", "users write own usage", "UPDATE"] …
+       policies_this_file_will_create=[]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  2. …_write_lockdown.sql     → exit=0 · stdout lines=3 · applied: {"applied": true, "at": "2026-10-03T17:05:00Z", "changed_anything": true, "policies_created": [], "policies_dropped": [{"cmd": "ALL", "policy": "billing can write", "tab …
+       founding_members: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated []→[] · policies 0→0
+       plan_chat_daily_usage: rls False→True · anon []→[] · authenticated [DELETE, INSERT, SELECT, UPDATE]→[SELECT] · policies 1→1
+       subscriptions: rls True→True · anon []→[] · authenticated [SELECT, UPDATE]→[SELECT] · policies 3→1
+       user_usage: rls True→True · anon []→[] · authenticated [SELECT, UPDATE]→[SELECT] · policies 3→1
+  3. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="fully_locked" hole_open=false stopgap_in_place=false fully_locked=true
+       why_not_fully_locked=[]
+       policies_this_file_will_drop=[]
+       policies_this_file_will_create=[]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  4. …_audit_report.sql       → exit=0 · stdout lines=1 · audit: subscriptions_total=1 listed_count=1 rows=1 why_listed=["status active, no Stripe customer", "tier set, no Stripe subscription"]
+       stripe_ids_in_no_billing_event: checked=true count=0 · tables_present={"billing_events": true, "founding_members": true} · rows_by_tier_plan_status=[{"count": 1, "plan": "professional", "status": "active", "tier": "multi"}]
+       keys of a row: created_at, current_period_end, founding_seat_claimed, has_custom_limits, has_stripe_customer, has_stripe_subscription, intro_unlock_expiry, is_founding_member, plan, status, stripe_event_names_user, tier, trial_en …
+
+STATE (p) — NOT one of the gate's four — production as the ops log records it on 2026-10-03: main's old policies (roles {public}) + the owner's stopgap
+  1. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="stopgap_in_place" hole_open=false stopgap_in_place=true fully_locked=false
+       why_not_fully_locked=["public.plan_chat_daily_usage: 1 policy(ies) — exactly one is expected: \"plan_chat_daily_usage_own_select\", own row, SELECT, to authenticated", "public.plan_chat_daily_usage: anon holds DELETE, INSERT, MAI …
+       policies_this_file_will_drop=[["plan_chat_daily_usage", "plan_chat_daily_usage_own_select", "SELECT"], ["subscriptions", "subscriptions self select", "SELECT"], ["user_usage", "users_see_own_usage", "SELECT"]]
+       policies_this_file_will_create=[["plan_chat_daily_usage", "plan_chat_daily_usage_own_select"], ["subscriptions", "subscriptions self select"], ["user_usage", "users_see_own_usage"]]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  2. …_write_lockdown.sql     → exit=0 · stdout lines=3 · applied: {"applied": true, "at": "2026-10-03T17:05:00Z", "changed_anything": true, "policies_created": [{"policy": "subscriptions self select", "table": "subscriptions"}, {"polic …
+       plan_chat_daily_usage: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[SELECT] · policie …
+       subscriptions: rls True→True · anon [MAINTAIN, SELECT]→[] · authenticated [MAINTAIN, SELECT]→[SELECT] · policies 1→1
+       user_usage: rls True→True · anon [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[] · authenticated [DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE]→[SELECT] · policies 1→1
+  3. …_preflight_report.sql   → exit=0 · stdout lines=1 · report.verdict: state="fully_locked" hole_open=false stopgap_in_place=false fully_locked=true
+       why_not_fully_locked=[]
+       policies_this_file_will_drop=[]
+       policies_this_file_will_create=[]
+       tables_not_owned_by_runner=[] views_that_can_be_written_through=[] functions_an_api_role_may_execute=["create_workspace(text,text,text)", "delete_my_account()"]
+       server_version_num=170006 run_as=postgres listed tables present=7 absent=["plan_assignment_audit"] views=["public.current_user_usage", "public.founding_member_count"]
+  4. …_audit_report.sql       → exit=0 · stdout lines=1 · audit: subscriptions_total=1 listed_count=1 rows=1 why_listed=["status active, no Stripe customer", "tier set, no Stripe subscription"]
+       stripe_ids_in_no_billing_event: checked=true count=0 · tables_present={"billing_events": true, "founding_members": true} · rows_by_tier_plan_status=[{"count": 1, "plan": "professional", "status": "active", "tier": "multi"}]
+       keys of a row: created_at, current_period_end, founding_seat_claimed, has_custom_limits, has_stripe_customer, has_stripe_subscription, intro_unlock_expiry, is_founding_member, plan, status, stripe_event_names_user, tier, trial_en …
+
+left: policies on subscriptions = subscriptions self select [SELECT {authenticated}] · authenticated UPDATE = false · anon SELECT = false · owner-plan applied: false
+```
+
+What to read in it: from every state the migration's row says `applied: true`
+and `verified`, and the report run after it says `fully_locked: true` with an
+empty `why_not_fully_locked` — the same end state five times. From (c) the
+migration changes nothing (`changed_anything: false`, nothing dropped or
+created). From (p) — what production is expected to answer — the pre-flight
+says `stopgap_in_place`, the migration drops the three own-row SELECT
+policies in their `{public}` form and re-creates them `to authenticated`,
+takes anon's remaining SELECT and the meters' write privileges, and skips
+`plan_assignment_audit`. The audit lists no email and no Stripe id value (the
+`keys of a row` line is every key a listed row carries).
+
+**2. The Supabase CLI against the local stack, and pg-meta's `/query`** (the
+endpoint Studio's SQL editor posts a file to; started beside the stack for
+this measurement: postgres-meta v0.96.4):
+
+```
+supabase CLI 2.95.4 · postgres-meta v0.96.4 · server_version_num 170006
+
+STATE (a) built by hand (the three policies of the old schema.sql, the default grants)
+1. supabase db query --local -f …_preflight_report.sql      → exit=0
+     keys=['advisory', 'boundary', 'rows', 'warning'] rows=1 · report.verdict: state=hole_open hole_open=True stopgap_in_place=False fully_locked=False · will drop [{"cmd": "INSERT", "policy": "subscriptions self insert", "roles": "{pub …
+2. supabase db query --local -f …_audit_report.sql          → exit=0
+     keys=['advisory', 'boundary', 'rows', 'warning'] rows=1 · audit: subscriptions_total=1 listed_count=1 stripe_ids_in_no_billing_event.count=0 checked=True tables_present={"billing_events": true, "founding_members": true}
+3. supabase db query --local -f …_write_lockdown.sql        → failed to execute query: ERROR: cannot insert multiple commands into a prepared statement (SQLSTATE 42601) Try rerunning the command with --debug to troubleshoot the error. e …
+     and nothing was applied — the report again: keys=['advisory', 'boundary', 'rows', 'warning'] rows=1 · report.verdict: state=hole_open hole_open=True stopgap_in_place=False fully_locked=False · will drop [{"cmd": "INSERT", "policy": …
+4. POST pg-meta /query {query: <the whole file>}           → http=200
+     rows=1 · applied: {"applied": true, "at": "2026-10-03T17:05:23Z", "changed_anything": true, "policies_created": [{"policy": "subscriptions self select", "table": "subscriptions"}], "policies_dropped": [{"cmd": "INSERT", "policy": " …
+5. supabase db query --local -f …_preflight_report.sql      → exit=0
+     keys=['advisory', 'boundary', 'rows', 'warning'] rows=1 · report.verdict: state=fully_locked hole_open=False stopgap_in_place=False fully_locked=True · will drop [] · will create [] · not owned []
+6. the whole file through pg-meta a second time            → http=200
+     rows=1 · applied: {"applied": true, "at": "2026-10-03T17:05:25Z", "changed_anything": false, "policies_created": [], "policies_dropped": [], "row_level_security_switched_on": [], "run_as": "postgres", "server_version_num": 170006, …
+
+STATE (a) again — the fallback where a client refuses a multi-statement file: the DO block alone
+   awk '/^do \$lockdown\$/,/^\$lockdown\$;/' <the migration> > do_block.sql   (378 lines, 1 statement)
+7. supabase db query --local -f do_block.sql                → NOTICE (00000): write lockdown: dropped policy "subscriptions self insert" (INSERT) on public.subscriptions NOTICE (00000): write lockdown: dropped policy "subscriptions self …
+     stdout: DO
+8. supabase db query --local -f …_preflight_report.sql      → exit=0
+     keys=['advisory', 'boundary', 'rows', 'warning'] rows=1 · report.verdict: state=fully_locked hole_open=False stopgap_in_place=False fully_locked=True · will drop [] · will create [] · not owned []
+9. the LAST statement alone (a client that splits the file over connections) → exit=0
+     {"applied": {"applied": null, "note": "this session holds no result from the lockdown block: either it raised (the error is above this row, and that run changed nothing) or the statements were sent over separate connections, and th …
+
+STATE (a) again — is one batch ONE TRANSACTION through pg-meta? The file with a failing statement appended after its last
+10. POST pg-meta /query {query: <the file> + 'select 1/0;'}   → http=400  {"error":"ERROR:  22012: division by zero\n","length":65,"name":"error","severity":"ERROR","code":"22012","file":"int.c","line":"841","routine":"int4div","messa
+11. supabase db query --local -f …_preflight_report.sql      → exit=0
+     keys=['advisory', 'boundary', 'rows', 'warning'] rows=1 · report.verdict: state=hole_open hole_open=True stopgap_in_place=False fully_locked=False · will drop [{"cmd": "INSERT", "policy": "subscriptions self insert", "roles": "{pub …
+12. the whole file through pg-meta (the stack is closed again) → http=200
+     rows=1 · applied: {"applied": true, "at": "2026-10-03T17:05:30Z", "changed_anything": true, "policies_created": [{"policy": "subscriptions self select", "table": "subscriptions"}], "policies_dropped": [{"cmd": "INSERT", "policy": " …
+
+psql, the way the gate sends it (one multi-statement query, `psql -c "$(cat file)"`): gate cases C1b, K1, K2.
+```
+
+`supabase db query --local` sends ONE PREPARED STATEMENT: the two report
+files (one statement each) run; the migration (four statements) is refused
+whole — `cannot insert multiple commands into a prepared statement` — and
+nothing is applied (line 3 and the report after it). pg-meta's `/query` takes
+the whole file as one query and returns the last statement's rows: the row
+`applied` (line 4; line 6, the second run, changed nothing). ONE BATCH IS ONE
+TRANSACTION there too: the file with a failing statement appended after its
+last answers HTTP 400 and the report still reads `hole_open` — nothing was
+applied (lines 10–11). If `--linked` ever answers like `--local`, the
+fallback is in the migration's header: the `do $lockdown$ … $lockdown$;`
+block alone is the whole migration in one statement (lines 7–8), and the
+report run after it is the result. The last statement alone (line 9) answers
+`applied: null` with a note naming the report — it does not claim a result it
+cannot see.
+
+**3. The schema-cache reload is discipline, not what closes the door.** The
+runbook's step 2 is the Dashboard click (CLAUDE.md §14). A REVOKE or a dropped
+policy is enforced by Postgres on the next statement, whatever PostgREST has
+cached — measured with the ops log's own probe (an anonymous PATCH whose
+filter matches no row), with no NOTIFY sent between the steps:
+
+```
+1. as found (the lockdown applied): anonymous PATCH, a filter matching no row → {"code":"42501","details":null,"hint":null,"message":"permission denied for table subscriptions"} HTTP 401
+   … anonymous GET → {"code":"42501","details":null,"hint":null,"message":"permission denied for table subscriptions"} HTTP 401
+2. after `grant select, update on public.subscriptions to anon` — NO notify, no reload → [] HTTP 200
+   … anonymous GET → [] HTTP 200
+3. after `revoke all on public.subscriptions from anon` — NO notify, no reload → {"code":"42501","details":null,"hint":null,"message":"permission denied for table subscriptions"} HTTP 401
+   … anonymous GET → {"code":"42501","details":null,"hint":null,"message":"permission denied for table subscriptions"} HTTP 401
+left: anon on subscriptions = []
+4. a psql session LISTENing on channel `pgrst` while it ran GRANT, REVOKE, CREATE POLICY and DROP POLICY on subscriptions → no notification received (the stack's `pgrst_ddl_watch` event trigger asks for no reload on these)
+```
+
+So where the Dashboard cannot be reached, the anonymous probe answering 401
+is the evidence that the lockdown is in force; the file sends its own NOTIFY
+for the cache either way.
+
+**What proves "0 of 35" in production.** This gate cannot run there: it
+creates accounts and re-opens the hole to prove it sees one. Here it shows
+that the catalog state the report calls `fully_locked` refuses 35 of the 35
+named attacks and one write per column, from each of four starting states.
+In production the proof is the same catalog state, read from outside:
+1. the post-check — `…_preflight_report.sql` after the migration —
+   answering `verdict.fully_locked: true`, `why_not_fully_locked: []`;
+2. anonymous, with the public key only: `GET /rest/v1/subscriptions?select=user_id`
+   and `POST /rest/v1/subscriptions {}` both answering 401, `permission denied
+   for table subscriptions` (the GET answered 200 `[]` under the stopgap);
+3. signed in, `…_probe.js` pasted into the browser console printing `CLOSED`.
+Not proven by those three: that no hand-made function or view writes past
+the tables — the report's `functions` and `views` sections are what to read.
 
 ### The plants
 
 Each alone, on the stack without `schema_phase_owner_plan.sql`, RED, then the
-clean gate GREEN again (281 cases) before the next. A stack plant is a COPY of
-the migration with the defect appended after its last statement, handed to
-the gate as `SUBS_LOCKDOWN_MIGRATION` — the gate applies the migration itself,
-so a defect planted in the database would be closed by the run that was meant
-to see it. `[a b c d]` = the suites the case failed in.
+clean gate GREEN again (436 cases) before the next. A stack plant is a COPY
+with the defect in it — the gate applies the migration itself, so a defect
+planted in the database would be closed by the run that was meant to see it:
+- `p…` / `e…` — a copy of the MIGRATION, handed to the gate as
+  `SUBS_LOCKDOWN_MIGRATION`;
+- `y…` — a copy of one of the READ-ONLY FILES (the report, the audit, the
+  grids), put over the tracked file for the planted run and restored
+  byte-exact from git before the clean run.
+`[a b c d]` = the suites the case failed in. p0 is the gate against a
+migration that does nothing; p1–p5 are the brief's. The first `e` ones come
+from the two reviews (each stayed GREEN with the hole live before this round
+— reproduced first). The second list (from e5b on) is one plant for each
+case of this round that no plant had yet turned red: a case nobody has seen
+fail is not known to be able to.
 
-**PLANT (p1)** — the self-update policy re-created:
+**PLANT (p0)** — the migration does nothing: its block returns at once — every suite then attacks the catalog it started from:
 
 ```
-create policy "subscriptions self update" on public.subscriptions for update using (auth.uid() = user_id);
+-   perform set_config('lock_timeout', '5s', true);
++   return;
+    perform set_config('lock_timeout', '5s', true);
 ```
 
-**RED** — exit `1`. The behaviour stays refused (the privilege is gone), so it is the CATALOG laws that red: a policy waiting for a grant.
+**RED** — exit `1`, 144 of 436 cases FAIL. The gate is not vacuous: with nothing closed, suite (a) is the pre-fix catalog under attack — the named attacks and the per-column writes LAND (the BEFORE table of per-column writes above is read from this run).
+
+```
+FAIL K1 with a row lock held on subscriptions by another session, the file — sent as one batch — answers 'lock timeout' in about 5 s instead of waiting
+FAIL A5 … and its LAST RESULT is the row `applied`: verified
+FAIL A5b … which names the policy it dropped — no NOTICE is needed to know what changed
+FAIL A5c … and says it changed something
+FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
+FAIL [a b c d] L1 user_usage: row level security on, no non-select policy, anon nothing, authenticated no write
+FAIL [a b c d] L1 plan_chat_daily_usage: row level security on, no non-select policy, anon nothing, authenticated no write
+FAIL [a b d] L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated
+FAIL [a b c d] R3 anon sees nothing: the read itself is refused
+     | got:  200 []
+FAIL [a b c d] R3b … with the table's own refusal
+     | got:  []
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL [a b c d] S1 a user cannot zero their own document meter (user_usage)
+     | got:  200 unchanged
+FAIL [a b c d] S2 … nor delete the meter row
+FAIL [a b c d] S3 a user cannot zero today's chat counter (plan_chat_daily_usage)
+     | got:  200 unchanged
+FAIL [a b c d] S5 user_usage: user SELECT 200, INSERT / PATCH / DELETE 403; anon SELECT / INSERT 401; the table unchanged
+FAIL [a b c d] S5 plan_chat_daily_usage: user SELECT 200, INSERT / PATCH / DELETE 403; anon SELECT / INSERT 401; the table unchanged
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+FAIL T1 a write privilege granted by ANOTHER role: the file raises, and each line ends with the statement that removes that grant
+FAIL T2 … and those statements, run as the owner, remove it: the file then passes
+FAIL T3 a COLUMN-level grant made by another role: named as that, with the two statements that remove it (a cascade at table level leaves it)
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 144 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (p1)** — the self-update policy re-created (the brief's first):
+
+```
+appended to a copy of the migration, after its last statement:
+create policy "subscriptions self update" on public.subscriptions
+  for update using (auth.uid() = user_id);
+```
+
+**RED** — exit `1`, 17 of 436 cases FAIL. The policy alone lets nothing through (the privilege is gone), so the attack rows stay refused; the catalog laws are what see it.
 
 ```
 FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
-     | got:  rls=true non-select-policies=1 anon=- authenticated=SELECT public=-
 FAIL [a b c d] L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated
-     | got:  subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)| ; subscriptions self update|UPDATE|{public}|(auth.uid() = user_id)|
-FAIL C1 the second run drops nothing (it found its own end state)
-     | psql:<stdin>:629: NOTICE:  write lockdown: dropped policy "subscriptions self update" (UPDATE) on public.subscriptions
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
 FAIL D0 state (d) is built on the migration's result: a FOR ALL policy, a permissive read, a column-level grant, RLS off on a meter, anon re-granted
-     | got:  |billing can write [ALL],everyone reads plans [SELECT],subscriptions self select [SELECT],subscriptions self update [UPDATE]|t|f|f|t
 FAIL Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role
-     | got:  subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)| ; subscriptions self update|UPDATE|{public}|(auth.uid() = user_id)||r
-GATE-WORK subscriptions-write-lockdown units=281
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 11 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 17 of 436 case(s) failed
 exit=1
 ```
 
 **PLANT (p2)** — the self-insert policy re-created:
 
 ```
-create policy "subscriptions self insert" on public.subscriptions for insert with check (auth.uid() = user_id);
+appended to a copy of the migration, after its last statement:
+create policy "subscriptions self insert" on public.subscriptions
+  for insert with check (auth.uid() = user_id);
 ```
 
-**RED** — exit `1`. As p1: the catalog laws.
+**RED** — exit `1`, 17 of 436 cases FAIL. As p1: seen by the catalog laws.
 
 ```
 FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
-     | got:  rls=true non-select-policies=1 anon=- authenticated=SELECT public=-
 FAIL [a b c d] L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated
-     | got:  subscriptions self insert|INSERT|{public}||(auth.uid() = user_id) ; subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)|
-FAIL C1 the second run drops nothing (it found its own end state)
-     | psql:<stdin>:629: NOTICE:  write lockdown: dropped policy "subscriptions self insert" (INSERT) on public.subscriptions
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
 FAIL D0 state (d) is built on the migration's result: a FOR ALL policy, a permissive read, a column-level grant, RLS off on a meter, anon re-granted
-     | got:  |billing can write [ALL],everyone reads plans [SELECT],subscriptions self insert [INSERT],subscriptions self select [SELECT]|t|f|f|t
 FAIL Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role
-     | got:  subscriptions self insert|INSERT|{public}||(auth.uid() = user_id) ; subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)||r
-GATE-WORK subscriptions-write-lockdown units=281
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 11 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 17 of 436 case(s) failed
 exit=1
 ```
 
-**PLANT (p3)** — UPDATE granted back to authenticated, with a permissive policy under ANOTHER name:
+**PLANT (p3)** — UPDATE granted back to authenticated, with a write policy under another name:
 
 ```
+appended to a copy of the migration, after its last statement:
 grant update on public.subscriptions to authenticated;
-create policy "billing sync" on public.subscriptions for update to authenticated using (true) with check (true);
+create policy "billing sync" on public.subscriptions
+  for update to authenticated using (true) with check (true);
 ```
 
-**RED** — exit `1`. The hole is open again and the attack table says so: 25 writes land in every suite.
+**RED** — exit `1`, 212 of 436 cases FAIL. The hole fully open again: the attack table goes red beside the catalog laws, and the per-column writes with it.
 
 ```
 FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
-     | got:  rls=true non-select-policies=1 anon=- authenticated=SELECT,UPDATE public=-
 FAIL [a b c d] L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated
-     | got:  billing sync|UPDATE|{authenticated}|true|true ; subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)|
-FAIL C1 the second run drops nothing (it found its own end state)
-     | psql:<stdin>:629: NOTICE:  write lockdown: dropped policy "billing sync" (UPDATE) on public.subscriptions
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL B1b the pre-flight report reads state (b) as stopgap_in_place
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+FAIL T8 nothing of T outlived its transaction: no role, no grant, the table's owner
 FAIL D0 state (d) is built on the migration's result: a FOR ALL policy, a permissive read, a column-level grant, RLS off on a meter, anon re-granted
-     | got:  |billing can write [ALL],billing sync [UPDATE],everyone reads plans [SELECT],subscriptions self select [SELECT]|t|t|f|t
 FAIL Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role
-     | got:  billing sync|UPDATE|{authenticated}|true|true ; subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)||rls=true non-select-p
-FAIL [a×26 b×26 c×26 d×26] W  … 26 attack row(s) of the table, e.g.:
+FAIL [a×48 b×48 c×48 d×48] W  … 48 attack row(s) of the table, e.g.:
        PATCH own tier → solo, status → active — refused, the row unchanged
          | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
        PATCH own tier → pro, status → active — refused, the row unchanged
          | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
        PATCH own tier → multi, status → active — refused, the row unchanged
          | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
-GATE-WORK subscriptions-write-lockdown units=281
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 115 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 212 of 436 case(s) failed
 exit=1
 ```
 
-**PLANT (p4)** — row level security disabled on subscriptions:
+**PLANT (p4)** — row level security switched off on subscriptions:
 
 ```
+appended to a copy of the migration, after its last statement:
 alter table public.subscriptions disable row level security;
 ```
 
-**RED** — exit `1`. With the SELECT privilege and no row level security every user reads every user's plan row.
+**RED** — exit `1`, 23 of 436 cases FAIL. No write lands (no privilege) — but a user now reads EVERY plan row: L1 and the read cases.
 
 ```
 FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
-     | got:  rls=false non-select-policies=0 anon=- authenticated=SELECT public=-
 FAIL [a b c d] R1 a signed-in user still reads their own row — and only that row
      | got:  200 [{"user_id":"<id>"},   {"user_id":"<id>"},   {"user_id":"<id>
 FAIL [a b c d] R2 another user's row is invisible to them
      | got:  200 [{"user_id":"<id>"}]
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL B1b the pre-flight report reads state (b) as stopgap_in_place
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+FAIL D3 … and its result row names each hand-made policy it dropped — the FOR ALL one, both permissive reads, the UPDATE on a meter — and the table it switched row level security back on for
 FAIL Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role
-     | got:  subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)||rls=false non-select-policies=0 anon=- authenticated=SELECT public=-
-GATE-WORK subscriptions-write-lockdown units=281
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 13 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 23 of 436 case(s) failed
 exit=1
 ```
 
-**PLANT (p5)** — a sibling table's write grant restored with row level security off:
+**PLANT (p5)** — a sibling: the document meter writable (the reviewed "free documents" shape):
 
 ```
+appended to a copy of the migration, after its last statement:
 alter table public.user_usage disable row level security;
 grant update, delete on public.user_usage to authenticated;
 ```
 
-**RED** — exit `1`. Free documents: the user zeroes and deletes the meter.
+**RED** — exit `1`, 33 of 436 cases FAIL. The user zeroes their own document counter: the S cases and L1.
 
 ```
 FAIL [a b c d] L1 user_usage: row level security on, no non-select policy, anon nothing, authenticated no write
-     | got:  rls=false non-select-policies=0 anon=- authenticated=DELETE,SELECT,UPDATE public=-
+FAIL [a b c d] R4 a signed-in user reads their own document meter — and no other user's
+     | got:  200 [{"user_id":"<id>"},   {"user_id":"<id>"}]
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
 FAIL [a b c d] S1 a user cannot zero their own document meter (user_usage)
      | got:  200 CHANGED
 FAIL [a b c d] S2 … nor delete the meter row
-     | got:  200 CHANGED
 FAIL [a b c d] S4 … and still reads their own meter (the select is left as found)
-     | got:  200 []
 FAIL [a b c d] S5 user_usage: user SELECT 200, INSERT / PATCH / DELETE 403; anon SELECT / INSERT 401; the table unchanged
-     | got:  200 403 200 200 401 401 unchanged
-GATE-WORK subscriptions-write-lockdown units=281
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+FAIL D3 … and its result row names each hand-made policy it dropped — the FOR ALL one, both permissive reads, the UPDATE on a meter — and the table it switched row level security back on for
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 20 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 33 of 436 case(s) failed
 exit=1
 ```
 
-**PLANT (p8)** — (added) a row-level view over subscriptions, with the privileges a new public view gets by default:
+**PLANT (p8)** — a row-level view over subscriptions, left with a new view's default grants:
 
 ```
+appended to a copy of the migration, after its last statement:
 create or replace view public.my_plan as select * from public.subscriptions;
 ```
 
-**RED** — exit `1`. The door the revoke does not close. The migration WARNs on its next run (three applies red) and L4 reds in every suite.
+**RED** — exit `1`, 13 of 436 cases FAIL. A plain view runs with its owner's rights: the gate's L4 / L4b and the migration's own WARNING.
 
 ```
-FAIL [a b c d] L4 the only view over a listed table an API role may use is the gate's own aggregate: SELECT only, not writable through
-     | got:  my_plan invoker=false updatable=true anon:DELETE,anon:INSERT,anon:SELECT,anon:UPDATE,authenticated:DELETE,authenticated:INSERT,authenticated:S
+FAIL [a b c d] L4 the only view over a listed table — directly or through another view — an API role may use is the gate's own aggregate: SELECT only, not writable through
+     | got:  my_plan depth=1 invoker=false updatable=true anon:DELETE,anon:INSERT,anon:SELECT,anon:UPDATE,authenticated:DELETE,authenticated:INSERT,authent
+FAIL [a b c d] L4b no view in public, whatever it reads, on which anon or authenticated hold INSERT, UPDATE or DELETE
+     | got:  my_plan anon:DELETE,anon:INSERT,anon:UPDATE,authenticated:DELETE,authenticated:INSERT,authenticated:UPDATE
 FAIL B2 the migration applies ON TOP of the stopgap: nothing errors on a missing policy or an already-revoked privilege
-     | psql:<stdin>:629: WARNING:  write lockdown: view public.my_plan reads a listed table, can be written through, and anon / authenticated hold [anon:DE
+     | psql:<stdin>:639: WARNING:  write lockdown: view public.my_plan reads a listed table (depth 1), can be written through, and anon / authenticated hol
 FAIL C0 the migration applies a second time (idempotent)
-     | psql:<stdin>:629: WARNING:  write lockdown: view public.my_plan reads a listed table, can be written through, and anon / authenticated hold [anon:DE
+     | psql:<stdin>:639: WARNING:  write lockdown: view public.my_plan reads a listed table (depth 1), can be written through, and anon / authenticated hol
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL V1 a view over a view over subscriptions can be written through: the migration says so at depth 2 and names it in its result row, and the pre-flight report names it in its verdict
 FAIL D2 the migration applies over the hand-made openings, with no error and no warning
-     | psql:<stdin>:629: WARNING:  write lockdown: view public.my_plan reads a listed table, can be written through, and anon / authenticated hold [anon:DE
-GATE-WORK subscriptions-write-lockdown units=281
+     | psql:<stdin>:639: WARNING:  write lockdown: view public.my_plan reads a listed table (depth 1), can be written through, and anon / authenticated hol
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 7 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 13 of 436 case(s) failed
 exit=1
 ```
 
-**PLANT (p9)** — (added) a defect INSIDE the file: the revoke from `authenticated` on the user-readable tables deleted:
+**PLANT (p9)** — the migration's revoke of the write privileges from authenticated, deleted:
 
 ```
--      execute format('revoke insert, update, delete, truncate, references, trigger on table %s from authenticated', v_rel);
-+      null;
+in the close loop, for the user-readable tables:
+-   execute format('revoke insert, update, delete, truncate, references, trigger on table %s from authenticated', v_rel);
++   null;
 ```
 
-**RED** — exit `1`. THE FILE REFUSES TO HALF-APPLY: it reads its own result back, raises `write lockdown INCOMPLETE — nothing was applied`, and every suite then runs against a database the migration did not change.
+**RED** — exit `1`, 141 of 436 cases FAIL. The migration's own self-check refuses to commit: every state's apply case is red, and nothing after it is closed.
 
 ```
 FAIL A4 the migration applies on state (a), with no error and no warning
-     |   public.plan_chat_daily_usage: authenticated still holds REFERENCES (granted by: postgres)
+     |   public.plan_chat_daily_usage: authenticated still holds REFERENCES — granted by postgres. Run: revoke references on public.plan_chat_daily_usage f
+FAIL A5 … and its LAST RESULT is the row `applied`: verified
+FAIL A5b … which names the policy it dropped — no NOTICE is needed to know what changed
+FAIL A5c … and says it changed something
 FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
 FAIL [a b c d] L1 user_usage: row level security on, no non-select policy, anon nothing, authenticated no write
 FAIL [a b c d] L1 plan_chat_daily_usage: row level security on, no non-select policy, anon nothing, authenticated no write
-FAIL [a b c d] L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated
+FAIL [a b d] L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated
 FAIL [a b c d] R3 anon sees nothing: the read itself is refused
      | got:  200 []
 FAIL [a b c d] R3b … with the table's own refusal
      | got:  []
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
 FAIL [a b c d] S1 a user cannot zero their own document meter (user_usage)
      | got:  200 unchanged
 FAIL [a b c d] S2 … nor delete the meter row
@@ -20457,307 +20826,1199 @@ FAIL [a b c d] S3 a user cannot zero today's chat counter (plan_chat_daily_usage
 FAIL [a b c d] S5 user_usage: user SELECT 200, INSERT / PATCH / DELETE 403; anon SELECT / INSERT 401; the table unchanged
 FAIL [a b c d] S5 plan_chat_daily_usage: user SELECT 200, INSERT / PATCH / DELETE 403; anon SELECT / INSERT 401; the table unchanged
 FAIL B2 the migration applies ON TOP of the stopgap: nothing errors on a missing policy or an already-revoked privilege
-     |   public.plan_chat_daily_usage: authenticated still holds REFERENCES (granted by: postgres)
+     |   public.plan_chat_daily_usage: authenticated still holds REFERENCES — granted by postgres. Run: revoke references on public.plan_chat_daily_usage f
 FAIL C0 the migration applies a second time (idempotent)
-     |   public.plan_chat_daily_usage: authenticated still holds REFERENCES (granted by: postgres)
-FAIL C1 the second run drops nothing (it found its own end state)
-FAIL D2 the migration applies over the hand-made openings, with no error and no warning
-     |   public.plan_chat_daily_usage: authenticated still holds REFERENCES (granted by: postgres)
-FAIL [d] L1 founding_members: row level security on, no non-select policy, anon nothing, authenticated no write
-FAIL [d] R1 a signed-in user still reads their own row — and only that row
-     | got:  200 [{"user_id":"<id>"},   {"user_id":"<id>"},   {"user_id":"<id>
-FAIL [d] R2 another user's row is invisible to them
-     | got:  200 [{"user_id":"<id>"}]
-FAIL [d] S5 founding_members: user SELECT 403, INSERT / PATCH / DELETE 403; anon SELECT / INSERT 401; the table unchanged
-FAIL Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role
-FAIL [a×35 d×14] W  … 35 attack row(s) of the table, e.g.:
-       PATCH own tier → solo, status → active — refused, the row unchanged
-         | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
-       PATCH own tier → pro, status → active — refused, the row unchanged
-         | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
-       PATCH own tier → multi, status → active — refused, the row unchanged
-         | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
-GATE-WORK subscriptions-write-lockdown units=281
+     |   public.plan_chat_daily_usage: authenticated still holds REFERENCES — granted by postgres. Run: revoke references on public.plan_chat_daily_usage f
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 103 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 141 of 436 case(s) failed
 exit=1
 ```
 
-**PLANT (pA)** — (added) MAINTAIN granted back (Postgres 17+):
+**PLANT (pA)** — MAINTAIN (Postgres 17) granted back to authenticated:
 
 ```
+appended to a copy of the migration, after its last statement:
 grant maintain on public.subscriptions to authenticated;
 ```
 
-**RED** — exit `1`. Not a write through the API — the catalog law reads it all the same.
+**RED** — exit `1`, 12 of 436 cases FAIL. No REST verb uses it; the catalog law counts it as a write privilege.
 
 ```
 FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
      | got:  rls=true non-select-policies=0 anon=- authenticated=MAINTAIN,SELECT public=-
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+     | got:  stopgap_in_place hole_open=false stopgap_in_place=true fully_locked=false
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+     | got:   MISSING("changed_anything": false) ok ok ok
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+     | got:  no applied row: {"at": "2026-10-03T16:25:09Z", "after": {"user_usage": {"anon": "", "public": "", "policies": [{"cmd": "SELECT", "roles": "{au
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+     | got:  statements re-run: 3 create, 5 drop; errors: 0; THE NEXT LOCKDOWN RUN CHANGED SOMETHING: "policies_dropped": []
 FAIL Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role
      | got:  subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)||rls=true non-select-policies=0 anon=- authenticated=MAINTAIN,SELECT p
-GATE-WORK subscriptions-write-lockdown units=281
+GATE-WORK subscriptions-write-lockdown units=436
 SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
-SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 5 of 281 case(s) failed
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 12 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (e1)** — a column-level UPDATE on four columns no named attack writes, with an own-row update policy (attack review, e1: GREEN before this round's per-column writes):
+
+```
+appended to a copy of the migration, after its last statement:
+grant update (billing_period_anchor, extra_docs_pending, nonro_extra_billed_period, trial_start)
+  on public.subscriptions to authenticated;
+create policy "self upd" on public.subscriptions for update using (auth.uid() = user_id);
+```
+
+**RED** — exit `1`, 39 of 436 cases FAIL. The four per-column writes LAND; before the attack list was generated from pg_attribute only the catalog law saw this.
+
+```
+FAIL [a b c d] L1 subscriptions: row level security on, no non-select policy, anon nothing, authenticated no write
+FAIL [a b c d] L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL B1b the pre-flight report reads state (b) as stopgap_in_place
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+FAIL D0 state (d) is built on the migration's result: a FOR ALL policy, a permissive read, a column-level grant, RLS off on a meter, anon re-granted
+FAIL Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role
+FAIL [a×5 b×5 c×5 d×5] W  … 5 attack row(s) of the table, e.g.:
+       GraphQL (/graphql/v1): mutation updatesubscriptionsCollection, own tier → multi, status → active — refused (no such muta
+         | got:  200 {"data": null, "errors": [{"message": "Input for type subscriptionsUpdateInput contains extra keys [\"status\", \"tier\"]"}]} unchanged
+       COLUMN trial_start (timestamp with time zone): PATCH own row — refused, the row unchanged
+         | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
+       COLUMN billing_period_anchor (date): PATCH own row — refused, the row unchanged
+         | got:  200 [{"id":"<id>","user_id":"<id>","plan":"professional","billing_cycle":"mont
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 39 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (e4)** — a view over a view over subscriptions; the inner one closed, the outer one granted (attack review, e4: GREEN before the recursive walk):
+
+```
+appended to a copy of the migration, after its last statement:
+create or replace view public.va_plan_base as select * from public.subscriptions;
+revoke all on public.va_plan_base from public, anon, authenticated;
+create or replace view public.va_account_overview as select * from public.va_plan_base;
+grant select, update on public.va_account_overview to authenticated;
+```
+
+**RED** — exit `1`, 13 of 436 cases FAIL. L4 walks the dependency (depth 2) and L4b sees the write privilege, whatever the view reads.
+
+```
+FAIL [a b c d] L4 the only view over a listed table — directly or through another view — an API role may use is the gate's own aggregate: SELECT only, not writable through
+     | got:  subs_gate_cohort_public depth=1 invoker=false updatable=false anon:SELECT,authenticated:SELECT ; va_account_overview depth=2 invoker=false upd
+FAIL [a b c d] L4b no view in public, whatever it reads, on which anon or authenticated hold INSERT, UPDATE or DELETE
+     | got:  va_account_overview anon:DELETE,anon:INSERT,anon:UPDATE,authenticated:DELETE,authenticated:INSERT,authenticated:UPDATE
+FAIL B2 the migration applies ON TOP of the stopgap: nothing errors on a missing policy or an already-revoked privilege
+     | psql:<stdin>:639: WARNING:  write lockdown: view public.va_account_overview reads a listed table (depth 2), can be written through, and anon / authe
+FAIL C0 the migration applies a second time (idempotent)
+     | psql:<stdin>:639: WARNING:  write lockdown: view public.va_account_overview reads a listed table (depth 2), can be written through, and anon / authe
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL V1 a view over a view over subscriptions can be written through: the migration says so at depth 2 and names it in its result row, and the pre-flight report names it in its verdict
+FAIL D2 the migration applies over the hand-made openings, with no error and no warning
+     | psql:<stdin>:639: WARNING:  write lockdown: view public.va_account_overview reads a listed table (depth 2), can be written through, and anon / authe
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 13 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (e5)** — a permissive read on the document meter (attack review, e5: GREEN — 281 of 281 — before this round):
+
+```
+appended to a copy of the migration, after its last statement:
+create policy "everyone reads usage" on public.user_usage for select using (true);
+```
+
+**RED** — exit `1`, 16 of 436 cases FAIL. L2b (exactly one policy on the meter) and R5 (the user reads another user's meter row).
+
+```
+FAIL [a b c d] L2b user_usage carries EXACTLY ONE policy: own row, SELECT, to authenticated
+FAIL [a b c d] R4 a signed-in user reads their own document meter — and no other user's
+     | got:  200 [{"user_id":"<id>"},   {"user_id":"<id>"}]
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 16 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (e7)** — a SECURITY DEFINER trigger on profiles — a table every user may write — that writes the plan row (attack review, e7: GREEN before the census):
+
+```
+appended to a copy of the migration, after its last statement:
+create function public.subs_plant_e7() returns trigger language plpgsql security definer … as
+  $$ begin if new.company_name = 'upgrade' then
+       update public.subscriptions set tier = 'multi', status = 'active' where user_id = new.id; end if;
+     return new; end $$;
+revoke all on function public.subs_plant_e7() from public, anon, authenticated;
+create trigger subs_plant_e7 after update on public.profiles
+  for each row execute function public.subs_plant_e7();
+```
+
+**RED** — exit `1`, 9 of 436 cases FAIL. Nobody may EXECUTE it, so the old L3 was blind. L3b (the census of SECURITY DEFINER functions naming a listed table) and L3c (the trigger census) name it.
+
+```
+FAIL [a b c d] L3b THE CENSUS: every SECURITY DEFINER function in public whose body names a listed table is on the committed list, whoever may execute it
+     | got:  _purge_org_content claim_founding_seat commit_user_chat commit_user_nonro_upload commit_user_upload create_workspace delete_my_account handle_
+FAIL [a b c d] L3c every trigger on a table an API role can write runs a function on the committed list, and none of them SECURITY DEFINER
+     | got:  firm_attention_pin_era set_updated_at_now subs_plant_e7[SECURITY-DEFINER]
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+     | got:  LOCK profiles AccessExclusiveLock LOCK profiles ShareRowExclusiveLock
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 9 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eA)** — the migration's last statement — the row `applied` — removed:
+
+```
+- select coalesce(nullif(current_setting('entitlement_lockdown.applied', true), '')::jsonb, …) as applied;
+```
+
+**RED** — exit `1`, 11 of 436 cases FAIL. A client that returns the last result would return nothing: every case that reads the result row.
+
+```
+FAIL A5 … and its LAST RESULT is the row `applied`: verified
+FAIL A5b … which names the policy it dropped — no NOTICE is needed to know what changed
+FAIL A5c … and says it changed something
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+FAIL T2 … and those statements, run as the owner, remove it: the file then passes
+FAIL T4 … and they remove it: the file then passes
+FAIL T6 … and it removes it: the file then passes
+FAIL V1 a view over a view over subscriptions can be written through: the migration says so at depth 2 and names it in its result row, and the pre-flight report names it in its verdict
+FAIL D3 … and its result row names each hand-made policy it dropped — the FOR ALL one, both permissive reads, the UPDATE on a meter — and the table it switched row level security back on for
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 11 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eH)** — the INCOMPLETE error prints the first round's hint — a plain revoke from the grantee (runbook review, finding 2):
+
+```
+-   format('revoke %s on public.%I from %I cascade;', lower(v_priv), v_table, v_src.grantor)
++   format('revoke %s on public.%I from %I;', lower(v_priv), v_table, v_role)
+```
+
+**RED** — exit `1`, 2 of 436 cases FAIL. T2 runs the printed statement and the file must then pass: it does not.
+
+```
+FAIL T1 a write privilege granted by ANOTHER role: the file raises, and each line ends with the statement that removes that grant
+     | got:  INCOMPLETE
+FAIL T2 … and those statements, run as the owner, remove it: the file then passes
+     | got:  ERROR: psql:<stdin>:650: ERROR:  write lockdown INCOMPLETE — nothing was applied:   public.subscriptions: anon still holds INSERT — granted by
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 2 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eL)** — no lock_timeout (runbook review, finding 1):
+
+```
+-   perform set_config('lock_timeout', '5s', true);
+```
+
+**RED** — exit `1`, 4 of 436 cases FAIL. K1: behind another session's row lock the file waits instead of answering within 7 s.
+
+```
+FAIL K1 with a row lock held on subscriptions by another session, the file — sent as one batch — answers 'lock timeout' in about 5 s instead of waiting
+     | got:  NO lock timeout: NOTICE:  write lockdown: verified — every listed table is closed to anon and authenticated writes {"at": "2026-10-03T16:05:50
+FAIL K2 … and NOTHING was applied: the three policies and the write privilege are still there (one batch is one transaction)
+     | got:  subscriptions self select|f
+FAIL A5b … which names the policy it dropped — no NOTICE is needed to know what changed
+     | got:
+FAIL A5c … and says it changed something
+     | got:
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 4 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eM)** — the two meters are swept for write policies only — the first round's behaviour (attack review, finding 8):
+
+```
+the sweep, the kept policy and the self-check apply to subscriptions alone:
+-   and case when v_keep ? v_table                 (the sweep)
++   and case when v_table = 'subscriptions'
++   continue when v_table <> 'subscriptions';      (the kept policy)
+-   if v_keep ? v_table then                       (the self-check)
++   if v_table = 'subscriptions' then
+```
+
+**RED** — exit `1`, 4 of 436 cases FAIL. State (d)'s hand-made `using (true)` read on user_usage survives the migration.
+
+```
+FAIL D3 … and its result row names each hand-made policy it dropped — the FOR ALL one, both permissive reads, the UPDATE on a meter — and the table it switched row level security back on for
+     | got:   ok ok ok MISSING({"cmd": "SELECT", "table": "user_usage", "policy": "everyone reads usage"}) ok
+FAIL [d] L2b user_usage carries EXACTLY ONE policy: own row, SELECT, to authenticated
+     | got:  everyone reads usage|SELECT|{public}|true| ; users_see_own_usage|SELECT|{authenticated}|(auth.uid() = user_id)|
+FAIL [d] R4 a signed-in user reads their own document meter — and no other user's
+     | got:  200 [{"user_id":"<id>"},   {"user_id":"<id>"}]
+FAIL [d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+     | got:  stopgap_in_place hole_open=false stopgap_in_place=true fully_locked=false
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 4 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eO)** — the ownership pre-check removed (runbook review, finding 5):
+
+```
+-   if v_foreign <> '' then
++   if false then
+```
+
+**RED** — exit `1`, 1 of 436 cases FAIL. T7: on a table owned by another role the file dies on Postgres's bare `must be owner`, with no owner and no statement.
+
+```
+FAIL T7 a listed table owned by ANOTHER role: the file stops before changing anything and says what Postgres' bare 'must be owner' does not
+     | got:  DID NOT STOP:
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 1 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eR)** — `enable row level security` on every run — the first round's behaviour (runbook review, finding 1):
+
+```
+-   if not (select c.relrowsecurity …) then execute format('alter table %s enable row level security', v_rel); … end if;
++   execute format('alter table %s enable row level security', v_rel);
+```
+
+**RED** — exit `1`, 2 of 436 cases FAIL. C2: a run that changes nothing takes ACCESS EXCLUSIVE on every listed table.
+
+```
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+     | got:  LOCK billing_events AccessExclusiveLock LOCK document_quota_ledger AccessExclusiveLock LOCK founding_members AccessExclusiveLock LOCK plan_cha
+FAIL D3 … and its result row names each hand-made policy it dropped — the FOR ALL one, both permissive reads, the UPDATE on a meter — and the table it switched row level security back on for
+     | got:   ok ok ok ok MISSING("row_level_security_switched_on": ["plan_chat_daily_usage"])
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 2 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eV)** — the migration's view walk stops at depth 1 — the first round's behaviour (runbook review, finding 3):
+
+```
+-   where w.ev_class <> walk.view_oid and walk.depth < 10
++   where false
+```
+
+**RED** — exit `1`, 1 of 436 cases FAIL. V1: the view over a view is not in the WARNING, nor in the result row.
+
+```
+FAIL V1 a view over a view over subscriptions can be written through: the migration says so at depth 2 and names it in its result row, and the pre-flight report names it in its verdict
+     | got:  NO WARNING for the nested view; named in 1 of 2 result rows (applied, report)
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 1 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (e5b)** — a permissive read on the daily chat counter (e5 did it to the document meter; L2c and R5 had never been red):
+
+```
+appended to a copy of the migration, after its last statement:
+create policy "everyone reads chat usage" on public.plan_chat_daily_usage for select using (true);
+```
+
+**RED** — exit `1`, 16 of 436 cases FAIL. L2c (exactly one policy on the chat counter) and R5 (the user reads another user's counter row).
+
+```
+FAIL [a b c d] L2c plan_chat_daily_usage carries EXACTLY ONE policy: own row, SELECT, to authenticated
+FAIL [a b c d] R5 … and their own chat counter — and no other user's
+     | got:  200 [{"user_id":"<id>"},   {"user_id":"<id>"}]
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 16 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (e9)** — the renewal mail queue — the table this round added to THE LIST — handed back to the API roles:
+
+```
+appended to a copy of the migration, after its last statement:
+alter table public.renewal_email_queue disable row level security;
+grant select, insert, update, delete on public.renewal_email_queue to anon, authenticated;
+```
+
+**RED** — exit `1`, 17 of 436 cases FAIL. L1 and S5 on renewal_email_queue: the table is on the list, so the gate attacks it.
+
+```
+FAIL [a b c d] L1 renewal_email_queue: row level security on, no non-select policy, anon nothing, authenticated no write
+FAIL [a b c d] Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked
+FAIL [a b c d] S5 renewal_email_queue: user SELECT 403, INSERT / PATCH / DELETE 403; anon SELECT / INSERT 401; the table unchanged
+FAIL C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched
+FAIL C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row `applied`
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+FAIL C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as i …
+FAIL D3 … and its result row names each hand-made policy it dropped — the FOR ALL one, both permissive reads, the UPDATE on a meter — and the table it switched row level security back on for
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 17 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eC)** — the INCOMPLETE error does not read the column ACLs (runbook review, finding 2: the two cases told apart):
+
+```
+in the self-check, the loop over pg_attribute.attacl:
+-   where att.attrelid = v_rel and att.attnum > 0 and not att.attisdropped
++   where false and att.attrelid = v_rel …
+```
+
+**RED** — exit `1`, 2 of 436 cases FAIL. T3: a column-level grant made by another role is no longer named as one, and carries no statement; T4: so nothing removes it.
+
+```
+FAIL T3 a COLUMN-level grant made by another role: named as that, with the two statements that remove it (a cascade at table level leaves it)
+     | got:
+FAIL T4 … and they remove it: the file then passes
+     | got:  ERROR: psql:<stdin>:649: ERROR:  write lockdown INCOMPLETE — nothing was applied:   public.subscriptions: authenticated still holds UPDATE — t
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 2 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eI)** — the INCOMPLETE error does not read role memberships (runbook review, finding 2):
+
+```
+in the self-check, the loop over pg_roles:
+-   where m.oid <> v_role_oid and pg_has_role(v_role_oid, m.oid, 'USAGE')
++   where false and m.oid <> v_role_oid …
+```
+
+**RED** — exit `1`, 2 of 436 cases FAIL. T5: a privilege inherited through a membership is no longer named as one; T6: nothing removes it.
+
+```
+FAIL T5 a privilege INHERITED through a role membership: named as that — not as a column-level grant — with its statement
+     | got:
+FAIL T6 … and it removes it: the file then passes
+     | got:  ERROR: psql:<stdin>:645: ERROR:  write lockdown INCOMPLETE — nothing was applied:   public.subscriptions: authenticated still holds UPDATE — t
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 2 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eS)** — the migration closes the legitimate writer too: it revokes from service_role:
+
+```
+in the close loop, after the revoke from public and anon:
++   execute format('revoke all on table %s from service_role', v_rel);
+```
+
+**RED** — exit `1`, 8 of 436 cases FAIL. P1 and P2: the webhook-shaped upsert and the cancel route's PATCH, as the service role, are refused. (The repository's migration does not hand the privilege back: the plant runner grants it again by name before the clean run.)
+
+```
+FAIL [a b c d] P1 the service role's webhook-shaped upsert (on_conflict=user_id) lands
+     | got:  403 {"code":"42501","details":null,"hint":null,"message":"permission denied for table subscriptions"}
+FAIL [a b c d] P2 the service role's PATCH (the cancel route clearing stale Stripe ids) lands
+     | got:  403 ∅
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 8 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eW)** — the migration changes a view: the aggregate over founding_members is made security_invoker:
+
+```
+appended to a copy of the migration, after its last statement:
+alter view if exists public.subs_gate_cohort_public set (security_invoker = true);
+```
+
+**RED** — exit `1`, 9 of 436 cases FAIL. P6: the public aggregate — the shape of production's founder_cohort_public — stops answering anon; L4 sees the option.
+
+```
+FAIL [a b c d] L4 the only view over a listed table — directly or through another view — an API role may use is the gate's own aggregate: SELECT only, not writable through
+     | got:  subs_gate_cohort_public depth=1 invoker=true updatable=false anon:SELECT,authenticated:SELECT
+FAIL [a b c d] P6 a public aggregate view over a listed table (the shape of production's founder_cohort_public) still answers anon
+     | got:  401 {"code":"42501","details":null,"hint":null,"message":"permission denied for table founding_members"}
+FAIL C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)
+     | got:  LOCK subs_gate_cohort_public AccessExclusiveLock
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 9 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (eX)** — a meter RPC granted to a signed-in user (the shape the attack review measured on the engine's release route):
+
+```
+appended to a copy of the migration, after its last statement:
+grant execute on function public.release_user_upload(uuid, text, boolean) to authenticated;
+```
+
+**RED** — exit `1`, 8 of 436 cases FAIL. L3 (a function an API role may call names a listed table) and S6 (the user's call is no longer refused). (Revoked again by name before the clean run.)
+
+```
+FAIL [a b c d] L3 no function an API role may call names a listed table, but the product's two
+     | got:  create_workspace,delete_my_account,release_user_upload
+FAIL [a b c d] S6 a user cannot call the meter / founding-seat RPCs (reserve, release, release chat, claim seat)
+     | got:  403 200 403 403
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 8 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (yF)** — THE PRE-FLIGHT REPORT says fully_locked whatever the catalog holds:
+
+```
+in supabase/schema_phase_subscriptions_write_lockdown_preflight_report.sql:
+-   not exists (select 1 from problems) as fully_locked
++   true as fully_locked
+```
+
+**RED** — exit `1`, 3 of 436 cases FAIL. A0b, B1b, D0b: the report is asked about three databases that are not locked, and must not say they are.
+
+```
+FAIL A0b the pre-flight report (…_preflight_report.sql, run READ ONLY) reads state (a) as hole_open
+     | got:  fully_locked hole_open=true stopgap_in_place=false fully_locked=true
+FAIL B1b the pre-flight report reads state (b) as stopgap_in_place
+     | got:  fully_locked hole_open=false stopgap_in_place=false fully_locked=true
+FAIL D0b the pre-flight report reads state (d) as hole_open
+     | got:  fully_locked hole_open=true stopgap_in_place=false fully_locked=true
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 3 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (yV)** — THE PRE-FLIGHT REPORT's view walk stops at depth 1 (runbook review, finding 3, the report's half):
+
+```
+in …_preflight_report.sql, the recursive step of `walk`:
+-   where w.ev_class <> walk.view_oid and walk.depth < 10
++   where false
+```
+
+**RED** — exit `1`, 1 of 436 cases FAIL. V1: the view over a view is named in 1 of the 2 result rows.
+
+```
+FAIL V1 a view over a view over subscriptions can be written through: the migration says so at depth 2 and names it in its result row, and the pre-flight report names it in its verdict
+     | got:  the migration warns at depth 2; named in 1 of 2 result rows (applied, report)
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 1 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (yA3)** — THE AUDIT REPORT no longer lists a tier with no Stripe subscription behind it:
+
+```
+in supabase/schema_phase_subscriptions_write_lockdown_audit_report.sql:
+-   case when sub.tier is not null and lower(sub.tier) <> 'trial'
++   case when false and sub.tier is not null …
+```
+
+**RED** — exit `1`, 1 of 436 cases FAIL. Y3: the self-written row is not listed for that reason.
+
+```
+FAIL Y3 the audit report (…_audit_report.sql, READ ONLY) lists a self-written tier with no payment behind it
+     | got:  no error, no email
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 1 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (yA4)** — THE AUDIT REPORT's second list never asks the recorded Stripe events about a subscription id (runbook review, finding 4):
+
+```
+in …_audit_report.sql:
+-   then not coalesce(ev.sub_in_events, false) end as subscription_id_in_no_event,
++   then false end as subscription_id_in_no_event,
+```
+
+**RED** — exit `1`, 1 of 436 cases FAIL. Y4: a self-written tier WITH forged ids of the right shape is in neither list.
+
+```
+FAIL Y4 … and the same row WITH forged Stripe ids of the right shape — which the first list cannot see — in stripe_ids_in_no_billing_event
+     | got:  NOT in the second list, no Stripe id value
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 1 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (yA5)** — THE AUDIT REPORT names founding_members outside a string — the first round's behaviour (runbook review, finding 4):
+
+```
+in …_audit_report.sql:
++   'founding_seats', (select count(*) from public.founding_members),
+```
+
+**RED** — exit `1`, 1 of 436 cases FAIL. Y5: where the table does not exist the statement fails to parse and the owner has no audit.
+
+```
+FAIL Y5 … and it runs where founding_members and billing_events do not exist
+     | got:  ERROR: psql:<stdin>:201: ERROR:  relation "public.founding_members" does not exist
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 1 of 436 case(s) failed
+exit=1
+```
+
+**PLANT (yG)** — THE GRIDS FILE holds a write:
+
+```
+appended to supabase/schema_phase_subscriptions_write_lockdown_preflight.sql:
+update public.subscriptions set tier = tier;
+```
+
+**RED** — exit `1`, 1 of 436 cases FAIL. Y2: run inside a READ ONLY transaction the file errors.
+
+```
+FAIL Y2 the pre-flight grids (…_preflight.sql) run whole inside a READ ONLY transaction
+     | got:  ERROR: psql:<stdin>:321: ERROR:  cannot execute UPDATE in a read-only transaction, the policies grid, the functions grid
+GATE-WORK subscriptions-write-lockdown units=436
+SKIPPED 13 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — 1 of 436 case(s) failed
 exit=1
 ```
 
 **REVERT** — after every plant the clean gate, the repository's migration:
 
 ```
-p1_self_update_policy_recreated: plant exit=1 (11 FAIL) ; revert exit=0 (0 FAIL)
-p2_self_insert_policy_recreated: plant exit=1 (11 FAIL) ; revert exit=0 (0 FAIL)
-p3_update_granted_back_policy_under_another_name: plant exit=1 (115 FAIL) ; revert exit=0 (0 FAIL)
-p4_rls_disabled_on_subscriptions: plant exit=1 (13 FAIL) ; revert exit=0 (0 FAIL)
-p5_sibling_write_grant_restored_rls_off: plant exit=1 (20 FAIL) ; revert exit=0 (0 FAIL)
-p8_row_level_view_with_default_grants: plant exit=1 (7 FAIL) ; revert exit=0 (0 FAIL)
-p9_revoke_from_authenticated_deleted: plant exit=1 (103 FAIL) ; revert exit=0 (0 FAIL)
-pA_maintain_granted_back: plant exit=1 (5 FAIL) ; revert exit=0 (0 FAIL)
+p0_the_migration_does_nothing: plant exit=1 (144 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+e1_column_grant_on_unnamed_columns_with_an_own_row_update_policy: plant exit=1 (39 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+e4_view_over_a_view: plant exit=1 (13 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+e5_permissive_select_on_a_meter: plant exit=1 (16 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+e7_definer_trigger_on_profiles: plant exit=1 (9 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eA_no_result_row: plant exit=1 (11 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eH_hint_names_the_statement_that_does_nothing: plant exit=1 (2 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eL_lock_timeout_removed: plant exit=1 (4 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eM_meters_keep_any_select_policy: plant exit=1 (4 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eO_ownership_check_removed: plant exit=1 (1 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eR_enable_rls_unconditional: plant exit=1 (2 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eV_view_walk_not_transitive: plant exit=1 (1 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+p1_self_update_policy_recreated: plant exit=1 (17 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+p2_self_insert_policy_recreated: plant exit=1 (17 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+p3_update_granted_back_policy_under_another_name: plant exit=1 (212 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+p4_rls_disabled_on_subscriptions: plant exit=1 (23 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+p5_sibling_write_grant_restored_rls_off: plant exit=1 (33 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+p8_row_level_view_with_default_grants: plant exit=1 (13 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+p9_revoke_from_authenticated_deleted: plant exit=1 (141 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+pA_maintain_granted_back: plant exit=1 (12 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+e5b_permissive_select_on_the_chat_counter: plant exit=1 (16 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+e9_the_renewal_mail_queue_handed_back: plant exit=1 (17 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eC_column_level_grant_not_told_apart: plant exit=1 (2 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eI_inherited_privilege_not_told_apart: plant exit=1 (2 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eS_service_role_revoked_too: plant exit=1 (8 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eW_the_migration_changes_a_view: plant exit=1 (9 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+eX_a_meter_rpc_granted_to_authenticated: plant exit=1 (8 FAIL of 436) ; revert exit=0 (0 FAIL of 436)
+yF_report_always_says_fully_locked: plant exit=1 (3 FAIL of 436) ; revert exit=0 (0 FAIL of 436) ; file restored byte-exact
+yV_report_view_walk_not_transitive: plant exit=1 (1 FAIL of 436) ; revert exit=0 (0 FAIL of 436) ; file restored byte-exact
+yA3_audit_loses_its_first_reason: plant exit=1 (1 FAIL of 436) ; revert exit=0 (0 FAIL of 436) ; file restored byte-exact
+yA4_audit_second_list_sees_no_subscription_id: plant exit=1 (1 FAIL of 436) ; revert exit=0 (0 FAIL of 436) ; file restored byte-exact
+yA5_audit_names_founding_members_directly: plant exit=1 (1 FAIL of 436) ; revert exit=0 (0 FAIL of 436) ; file restored byte-exact
+yG_grids_file_writes: plant exit=1 (1 FAIL of 436) ; revert exit=0 (0 FAIL of 436) ; file restored byte-exact
 ```
 
-(`plant exit=1 (N FAIL)` is the planted run; `revert exit=0 (0 FAIL)` the clean
-run that followed it, 281 cases each. The planted run itself leaves the stack
-closed: on exit the gate applies the repository's file, not the planted one.)
+(`plant exit=1 (N FAIL of M)` is the planted run; `revert exit=0 (0 FAIL of M)`
+the clean run that followed it. The planted run itself leaves the stack
+closed: on exit the gate applies the repository's file, not the planted one.
+Five plants leave something the repository's file does not undo — p8 and e4
+their views, e7 its trigger and function, eS the service role's privileges,
+eX the function grant — and the runner undid each by name before the clean
+run. The public catalog's fingerprint — functions with their ACLs, policies,
+table and column ACLs, owners, triggers, constraints — was taken before
+owner-plan was first applied and again after the last run of this round:
+`1aed9392139f77cb2e61ca4ae9c67b4d 1548` both times.)
 p6 (the browser writer put back) and p7 (`schema.sql` creating the write
 policies again) are source plants: `## entitlement-write-laws` below.
+
+**Which plant turned which case red** (computed from the 33 planted runs):
+
+```
+A0b  yF
+K1   p0 eL
+K2   eL
+A4   p9
+A5   p0 p9 eA
+A5b  p0 p9 eA eL
+A5c  p0 p9 eA eL
+L1   p0 p1 p2 p3 p4 p5 p9 pA e1 e9
+L2   p0 p1 p2 p3 p9 e1
+L2b  p0 p9 e5 eM
+L2c  e5b
+L3   eX
+L3b  e7
+L3c  e7
+L4   p8 e4 eW
+L4b  p8 e4
+W    p0 p3 p9 e1
+R1   p0 p4 p9
+R2   p0 p4 p9
+R3   p0 p9
+R3b  p0 p9
+R4   p0 p5 p9 e5 eM
+R5   p0 p9 e5b
+Y1   p0 p1 p2 p3 p4 p5 p9 pA e1 e5 eM e5b e9
+P1   eS
+P2   eS
+P6   eW
+S1   p0 p5 p9
+S2   p0 p5 p9
+S3   p0 p9
+S4   p5
+S5   p0 p5 p9 e9
+S6   eX
+B1b  p3 p4 e1 yF
+B2   p8 p9 e4
+C0   p8 p9 e4
+C1   p0 p1 p2 p3 p4 p5 p9 pA e1 e5 eA e5b e9
+C1b  p0 p1 p2 p3 p4 p5 p9 pA e1 e5 eA e5b e9
+C2   p1 p2 p3 p4 p5 p8 p9 e1 e4 e5 e7 eR e5b e9 eW
+C3   p0 p3 p4 p5 p9 pA e1 e5 eA e5b e9
+Y2   yG
+Y3   yA3
+Y4   yA4
+Y5   yA5
+T1   p0 eH
+T2   p0 eA eH
+T3   p0 eC
+T4   p0 eA eC
+T5   p0 eI
+T6   p0 eA eI
+T7   p0 eO
+T8   p3
+V1   p0 p8 p9 e4 eA eV yV
+D0   p1 p2 p3 e1
+D0b  yF
+D2   p8 p9 e4
+D3   p0 p4 p5 p9 eA eM eR e9
+Z2   p0 p1 p2 p3 p4 p9 pA e1
+
+no plant: A0 A1 A2 A3 A3b W0 P3 P4 P5 P6b S7 B0 B1 T1b D1 D1b D1c E Z1
+```
+
+**The cases no plant in a FILE can turn red**, and why they are there:
+- A0, A1, A2, A3, A3b, B0, B1, D1, D1b, D1c — the HARNESS proving it sees an
+  open hole before it asks anything to be closed (the write lands, the
+  workspace cap follows, GraphQL lands too, the permissive reads read). They
+  red when the attack does NOT land in the open state — a broken harness, not
+  a broken migration: e.g. a stack that serves no row to the session.
+- T1b — a control of Postgres itself: the owner's plain revoke of a grant
+  another role made answers REVOKE and removes nothing. It reds the day
+  Postgres changes that, and the hint would then be wrong.
+- W0 — the per-column list covers the catalog's columns (it reds if the
+  generator returns fewer than the 22 of 2026-10-03).
+- P3, P4, P5, P6b — what the migration must NOT break and does not touch: the
+  workspace cap's read of the row, the two reserve / commit RPC pairs, an
+  aggregate view that cannot be written. eS and eW are the over-closing
+  plants (P1, P2, P6); no edit of these files reaches the other four.
+- Z1 — the gate's own cleanup. S7 and E exist only where
+  `schema_phase_owner_plan.sql` is applied (SKIP here).
 
 **The refusals of the gate itself**, observed:
 
 ```
-$ SUBS_LOCKDOWN_DB_URL=postgresql://postgres:x@db.example.com:5432/postgres scripts/check_subscriptions_write_lockdown.sh
+$ bash scripts/check_subscriptions_write_lockdown.sh                    # no stack named
 SUBSCRIPTIONS-WRITE-LOCKDOWN GATE — schema_phase_subscriptions_write_lockdown.sql on the local stack
-REFUSED — SUBS_LOCKDOWN_DB_URL names host 'db.example.com'. This gate creates users, re-creates the open
+VACUOUS — SUBS_LOCKDOWN_DB_URL and SUBS_LOCKDOWN_API_URL are not both set.
+This gate addresses NO stack by default: it creates users and re-opens the hole to
+prove it sees one, and a machine's standard local stack is shared with other work.
+Name an isolated local stack, both its database and its API:
+  SUBS_LOCKDOWN_DB_URL=postgresql://postgres:postgres@127.0.0.1:<db port>/postgres \
+  SUBS_LOCKDOWN_API_URL=http://127.0.0.1:<api port> scripts/check_subscriptions_write_lockdown.sh
+The write lockdown was NOT exercised; this line is not a pass.
+GATE-WORK subscriptions-write-lockdown units=0
+exit=0
+
+$ SUBS_LOCKDOWN_DB_URL=postgresql://postgres:x@db.example.supabase.co:5432/postgres SUBS_LOCKDOWN_API_URL=http://127.0.0.1:55321 bash …
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE — schema_phase_subscriptions_write_lockdown.sql on the local stack
+REFUSED — SUBS_LOCKDOWN_DB_URL names host 'db.example.supabase.co'. This gate creates users, re-creates the open
 pre-fix state and applies a migration; it runs against a loopback stack only
 (127.0.0.1, localhost, ::1).
 GATE-WORK subscriptions-write-lockdown units=0
-(exit 2)
+exit=2
 
-$ SUBS_LOCKDOWN_API_URL=https://project.supabase.co scripts/check_subscriptions_write_lockdown.sh
+$ SUBS_LOCKDOWN_DB_URL=postgresql://postgres:postgres@127.0.0.1:55322/postgres SUBS_LOCKDOWN_API_URL=https://example.supabase.co bash …
 SUBSCRIPTIONS-WRITE-LOCKDOWN GATE — schema_phase_subscriptions_write_lockdown.sql on the local stack
-REFUSED — SUBS_LOCKDOWN_API_URL names host 'project.supabase.co'. This gate creates users, re-creates the open
+REFUSED — SUBS_LOCKDOWN_API_URL names host 'example.supabase.co'. This gate creates users, re-creates the open
 pre-fix state and applies a migration; it runs against a loopback stack only
 (127.0.0.1, localhost, ::1).
 GATE-WORK subscriptions-write-lockdown units=0
-(exit 2)
+exit=2
 
-$ SUBS_LOCKDOWN_DB_URL=postgresql://postgres:postgres@127.0.0.1:54999/postgres scripts/check_subscriptions_write_lockdown.sh
+$ SUBS_LOCKDOWN_DB_URL=postgresql://postgres:postgres@127.0.0.1:55998/postgres SUBS_LOCKDOWN_API_URL=http://127.0.0.1:55997 bash …   # nothing listens there
 SUBSCRIPTIONS-WRITE-LOCKDOWN GATE — schema_phase_subscriptions_write_lockdown.sql on the local stack
-VACUOUS — nothing is listening on 127.0.0.1:54999 (the local Supabase stack is not running)
+VACUOUS — nothing is listening on 127.0.0.1:55998 (the local Supabase stack is not running)
 The write lockdown was NOT exercised on this host. Start the local stack
 (supabase start) and run this gate again; this line is not a pass.
 GATE-WORK subscriptions-write-lockdown units=0
-(exit 0)
+exit=0
 
-$ scripts/check_subscriptions_write_lockdown.sh --before z
+$ bash scripts/check_subscriptions_write_lockdown.sh --before e
 usage: check_subscriptions_write_lockdown.sh [--observe | --before a|b|c|d | --after a|b|c|d]
 GATE-WORK subscriptions-write-lockdown units=0
-(exit 2)
+exit=2
 ```
+
+**Two things about the local Postgres image** (supabase/postgres 17.6.1.106),
+both measured: `grant <role> to current_user` SEGFAULTS the backend and the
+whole cluster restarts (the first draft of the T cases did it twice; the
+runner is now named in every role statement) — and, as `## owner-plan-sql`
+records, so does a `permission denied for function` inside a `set role`
+session. A gate run cut by such a restart shows `the database system is in
+recovery mode` in its failures: run it again.
 
 ### owner-plan-sql under the lockdown
 
-`scripts/check_owner_plan_sql.sh` (branch `feat/owner-plan`, tip 3c252a7a; the
-script and its migration are byte-identical at 3af570d1, 74021cbe and
-3c252a7a) run from a scratch checkout against the same stack with the
-lockdown applied: **1 of 59 fails — F4** ("a signed-in user cannot write the
-owner plan onto their own row"). It expected the trigger's text,
-`internal_plan_not_assignable`; `authenticated` now holds no UPDATE, so
-Postgres answers `permission denied for table subscriptions` before any
-trigger runs. The change F4 needs is NOT committed on this branch; it is
-`specs-durable/owner_plan_sql_after_lockdown.patch` (F4 passes on either
-refusal and prints which wall refused; F5, the row unchanged, is kept).
-Measured with the patch: lockdown applied — 59 pass; its plant s-c (the
-trigger gutted) — RED, 7 of 59 (F1 F2 F3 F6 F7 F8 I3: the service role, which
-no table privilege stops, so the trigger's own cases still red); lockdown NOT
-applied — 59 pass with F4 "refused by the trigger", and plant s-c RED 9 of 59
-(F4 and F5 with the others, as before).
+`scripts/check_owner_plan_sql.sh` and `supabase/schema_phase_owner_plan.sql`
+of branch `feat/owner-plan` (tip 4fc3143d), run from a scratch checkout
+against the same stack with the lockdown applied — the lockdown gate's own E
+case having applied owner-plan after it, and the lockdown again after that:
+
+```
+# as committed
+PASS F4 a signed-in user cannot write the owner plan onto their own row (refused by the write lockdown: no UPDATE privilege)
+GATE-WORK owner-plan-sql units=63
+OWNER-PLAN-SQL GATE: PASS — 63 case(s), users and workspaces removed
+# its plant s-c — the guard trigger's body gutted (`return new;`)
+FAIL F1 a Stripe-style upsert (tier 'pro') on the owner row keeps the owner plan and lands its Stripe facts
+FAIL F2 a cancellation write (tier 'trial', then null) does not downgrade the owner row
+FAIL F3 … and the owner-plan account is still never refused (workspace #8)
+PASS F4 a signed-in user cannot write the owner plan onto their own row (refused by the write lockdown: no UPDATE privilege)
+FAIL F6 the service role cannot write the owner plan with a plain UPDATE (the webhook's path)
+FAIL F7 … nor with an upsert
+FAIL F8 … and the solo row is still solo
+FAIL I3 revoke_internal_plan returns the user to the tier they held before (none) and audits it
+FAIL J2 deleting a SOLD plan's row writes no audit row
+GATE-WORK owner-plan-sql units=63
+OWNER-PLAN-SQL GATE: FAIL — 8 of 63 case(s) failed
+# reverted
+PASS F4 a signed-in user cannot write the owner plan onto their own row (refused by the write lockdown: no UPDATE privilege)
+GATE-WORK owner-plan-sql units=63
+OWNER-PLAN-SQL GATE: PASS — 63 case(s), users and workspaces removed
+```
+
+**63 of 63 pass under the lockdown.** F4 ("a signed-in user cannot write the
+owner plan onto their own row") is refused by the LOCKDOWN — `authenticated`
+holds no UPDATE, so Postgres answers before any trigger runs — and the case
+says which wall refused. The first round found F4 red here (it expected the
+trigger's text) and left the change as a patch; the branch took it itself in
+0abb612b, and `specs-durable/owner_plan_sql_after_lockdown.patch` is marked
+superseded. With the trigger gutted the cases that red are the SERVICE ROLE's
+(F1 F2 F3 F6 F7 F8 I3 J2), which no table privilege stops: under the lockdown
+the trigger is the wall for the service role only, and F4 does not move.
+
+The lockdown gate after those three runs, owner-plan still applied:
+
+```
+ATTACKS on public.subscriptions — 35 of 35 named attacks and 22 of 22 per-column writes (one per column, generated from pg_attribute) REFUSED, the row byte-identical, from each of the 4 starting states
+GATE-WORK subscriptions-write-lockdown units=448
+SKIPPED 1 case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)
+SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: PASS — 448 case(s), 1 skipped, users removed, the tables left closed
+```
+
+(E is skipped in that run: the owner-plan file was not named to it.) Owner-plan
+was then taken off the stack again — the three functions it replaces restored
+from definitions saved before it, its own objects dropped — and the public
+catalog compared: the same fingerprint before owner-plan and after the undo
+(md5 `1aed9392139f77cb2e61ca4ae9c67b4d` over 1548 catalog entries, both times).
 
 **After the repair it reds on:** a non-select policy or a write privilege for
 an API role on a listed table, at table or column level; row level security
-off on one; a second policy on `subscriptions`; any of the 35 attacks landing
-or answering anything but the table's own refusal; a user reading another
-user's plan row; anon reading at all; a legitimate writer (the service
-role's upsert, the reserve / commit RPCs, the workspace cap's read) breaking;
-a new function granted to an API role that names a listed table; a view
-over a listed table an API role can use; the migration erroring or warning
-from any of the four states, or dropping something on its second run.
+off on one; a second policy on subscriptions or on a meter; any named attack
+or any per-column write landing, or answering anything but the table's own
+refusal; a user reading another user's plan row or meter; anon reading at
+all; a legitimate writer breaking; a new SECURITY DEFINER function that names
+a listed table, whoever may execute it; a new trigger function on a table an
+API role can write; a view over a listed table — or over such a view — that
+an API role may use, and any public view an API role can write; the file
+waiting on a lock, locking on a run that changes nothing, erroring or warning
+from any of the four states, dropping something on its second run, returning
+no result row; the error not carrying the statement that removes a foreign
+grant; a report file that misreads a state or is not read-only.
 
 **CANNOT SEE:**
 - PRODUCTION'S CATALOG. Whether production carried the two policies, whether
-  the stopgap was run, what else was made by hand there — only the
-  migration's read-only pre-flight, run in Studio, says. The gate proves the
-  FILE on four states; it cannot know which one production is.
-- Whether the hole was USED. The migration's audit query lists rows whose
-  entitlement has no payment visible behind it, with its false positives; it
-  cannot see a self-written row a later webhook overwrote, nor a paying user
-  who raised their own tier (reconcile tier per Stripe subscription by hand).
-- A policy, a grant, a `disable row level security` or a view created BY HAND
-  AFTER the migration. Nothing watches production's catalog; state (d) proves
-  only that re-running the file closes it again.
-- A SECURITY DEFINER function someone grants to `authenticated` later whose
-  body builds the table name dynamically, or reaches a listed table through
-  another function (L3 reads `prosrc` for the names).
-- A view over a view, and what a readable definer-rights view SELECTS (L4
-  requires that only the gate's own aggregate is usable by an API role; it
-  does not judge a view's content).
-- `founder_cohort_public`: the pricing page reads it with the anon key and no
-  file here creates it. P6 proves a plain aggregate view of that shape
-  survives the lockdown; if production's is `security_invoker`, its anon read
-  is refused afterwards (pre-flight (d) in the migration's header).
-- Supabase's own gateway and the managed PostgREST's schema cache (§14: the
-  Dashboard "Reload schema cache" click) — the local stack reloads on NOTIFY.
-- Postgres before 17. The file was run on 17.6 only (the one image this host
-  has); the MAINTAIN statements are behind a `server_version_num` check and
-  nothing else in it is newer than Postgres 15, but it was not executed there.
-- A grant made by a role other than the table's owner: REVOKE removes only
-  what the revoking role (or the owner) granted. The file raises and names
-  the grantor; the local stack has no such grant to exercise it for real.
-- While it runs, states (a), (b) and (d) are OPEN on the local stack for
-  seconds at a time: another gate on the same stack that asserts a refused
-  user write must not run at the same moment (the battery is serial).
+  the stopgap was run, who owns its tables, what was made by hand there —
+  only the pre-flight report, run there, says. The gate proves the FILES on
+  four states; it cannot know which one production is.
+- Whether the hole was USED. The audit lists rows whose entitlement has no
+  payment visible behind it and rows whose Stripe id is in no recorded
+  event, with their false positives; it cannot see a self-written row a
+  later webhook overwrote, nor a paying user who raised their own tier
+  (reconcile tier per Stripe subscription).
+- A policy, a grant, a `disable row level security`, a view or a function
+  created BY HAND AFTER the migration. Nothing watches production's catalog;
+  the report, run again, would say.
+- A SECURITY DEFINER function whose body builds the table name at run time
+  (`'subscr' || 'iptions'`) or reaches a listed table through another
+  function: the census reads `prosrc` for the names. Such a function granted
+  to an API role stays green here (measured by the attack review, plant e3b).
+  L4b closes the view half of that blind spot; nothing here closes this one.
+- What a readable definer-rights view SELECTS (L4 requires that only the
+  gate's own aggregate is usable by an API role; it does not judge content).
+- `founder_cohort_public`: no file here creates it. P6 proves a plain
+  aggregate view of that shape survives the lockdown; if production's is
+  `security_invoker`, its anon read is refused afterwards.
+- The Management API itself. The batch was run through psql (one
+  multi-statement query) and through pg-meta's `/query` on the local stack —
+  where one batch was shown to be one transaction; `supabase db query
+  --linked` and Studio were not reachable from here.
+- A STALE result row. The row `applied` is carried from the block to the
+  last statement in a session setting. A client that sends the statements
+  over different pooled sessions could meet a row an earlier run left on
+  that session (its `at` would be old). The post-check report is the
+  authority; the row is the convenience.
+- The audit on a large table. Its second list compares every row with every
+  recorded Stripe event (rows × events): instant at the sizes run here, not
+  measured beyond them. It is read-only; a timeout costs the list, nothing
+  else.
+- Postgres before 17. The files were run on 17.6 only; the MAINTAIN
+  statements are behind a `server_version_num` check.
+- A grant made by `supabase_admin` is recorded as the owner's and is revoked
+  normally (measured by the runbook review); a grantor the owner cannot act
+  for is the case T covers.
+- While it runs, states (a), (b) and (d) are OPEN on the named stack for
+  seconds at a time — the reason it addresses no stack by default.
 
-**Found by this work, not fixed by it** (flagged to the owner; each measured
-on the isolated stack, 2026-10-03):
-- **The workspace cap is passable without touching `subscriptions`.** (1) A
-  member may PATCH `organizations.archived_at` directly (policy
-  "organizations owner update" `is_member_of(id)` + the default grants): a
-  TRIAL user (cap 1) sets it, `create_workspace` answers 200, sets it back to
-  null — 2 live workspaces; `purge_after` (what the purge cron reads) is
-  writable the same way. (2) Without any direct table write, through the
-  product's own RPCs: `archive_workspace` on the only workspace →
-  `create_workspace` → `restore_workspace` — 2 live workspaces;
-  `restore_workspace` never re-checks the cap. A column-level grant on
-  `organizations` (name, industry_key, industry_display_name, caen_code — the
-  columns the browser and the upload route write with the user's JWT) closes
-  (1) and was tried on the stack and reverted; it does not close (2). Not
-  bundled here: `organizations` IS written by the browser, so the plain
-  closure does not apply, and (2) is a change to a SECURITY DEFINER function.
-- **`get_plan_state` never reads `status` or a date, and falls back from
-  `tier` to `plan`.** The row this repository's signup trigger seeds (`tier`
-  NULL, `plan` 'professional', `status` 'trial') resolves to the MULTI
-  allowance in the engine (the first row of the engine table above), while
-  `create_workspace`'s SQL cap reads `tier` only and says trial. A canceled
-  row keeps its tier's allowance. Whether production's rows carry `tier` is
-  unknown: `select coalesce(tier, 'NULL'), plan, status, count(*) from
-  subscriptions group by 1, 2, 3 order by 4 desc;`.
-- `supabase/schema_phase_intelligence_engine.sql` on main ends with pasted
-  shell text and does not apply as committed; the isolated stack was built
-  with the repaired copy of branch fix/test-supabase-local.
-- Settings' profile save (`profiles` upsert `on_conflict=id`,
-  `frontend/pages/cfo/Settings.tsx`) answers 403 on a repo-built database:
-  `profiles` has no INSERT policy. Production may differ.
-- `profiles.role` is user-writable and read by nothing that grants anything
-  (the engine never reads the `profiles` table) — out of scope, left.
-- Twelve public-market / intelligence tables have row level security OFF
-  and the default grants, so the anon key alone writes them (measured: an
-  anon POST of a complete row into `macro_signal_cache` answers 201; removed
-  after): `company_exposure_profiles`,
+**Found by this work and by its two reviews, not fixed by it** (each needs
+its own change and the owner's ruling; measured on the isolated stack
+2026-10-03 unless it says read):
+- **The workspace cap has three ways round it, none touching `subscriptions`.**
+  `create_workspace` counts the caller's LIVE workspaces
+  (`organizations.archived_at is null`) against the plan's cap; a trial user is
+  refused a 2nd (400, `workspace_cap_reached`). Then, as that same user:
+  1. *a direct write* — `organizations` carries a member UPDATE policy and the
+     default grants: `PATCH /rest/v1/organizations` `archived_at = now()` →
+     200, `create_workspace` → 200, `PATCH archived_at = null` → 200: **2 live
+     workspaces on a cap of 1** (and `purge_after`, which the purge cron reads,
+     is writable the same way);
+  2. *RPC only*, with that PATCH refused: `archive_workspace` → 200,
+     `create_workspace` → 200, `restore_workspace` → 204: **2 live workspaces**
+     — `restore_workspace` never re-checks the cap;
+  3. *the firm path*: `create_firm` → 200, `import_firm_client` ×3 → 200 each,
+     `detach_workspace_from_firm` → 204: **4 live workspaces on a trial** —
+     neither function reads a plan (measured in the review round).
+  → Paths 1 and 2 are CLOSED ON ANOTHER BRANCH: `fix/entitlement-holes`
+  (9c463940, `supabase/schema_phase_workspace_cap_guard.sql` — a BEFORE UPDATE
+  guard on `organizations`: a browser session cannot write `archived_at`,
+  `purge_after`, `firm_id` or `cui`, and a restore is held to
+  `create_workspace`'s own cap). **Path 3 is open everywhere**: whether a
+  firm's clients count against the importer's cap is the owner's ruling.
+- **The engine gives every signup the Multi allowance.** `get_plan_state`
+  reads `tier`, else `plan`, never `status`; the row the signup trigger of
+  this repository seeds is `tier` NULL, `plan` 'professional', `status`
+  'trial', which resolves to `multi` — 15 documents, 5 workspaces, non-RO
+  uploads (the table above; `tier` NULL + `status` 'expired' resolves the
+  same). The SQL caps read `tier` and answer `trial`. Only the engine's
+  document and non-RO rails are affected, and only with
+  `USAGE_LIMITS_ENABLED` on. Read production first:
+  `rows_by_tier_plan_status` in the audit report.
+  → CLOSED FOR NEW SIGNUPS ON ANOTHER BRANCH: `fix/entitlement-holes`
+  (c5eb29b1, `supabase/schema_phase_signup_tier_trial.sql` — the signup
+  trigger's insert writes `tier = 'trial'`, forward only). **Still open**: the
+  rows that already hold `tier` NULL (no row is rewritten — the owner's fence)
+  and `get_plan_state`'s fall-back to the legacy `plan` column, which is an
+  engine change.
+- **The chat cap is skipped when the call carries no bearer** (read, not
+  measured here — the stack serves no edge function and the deployed one is
+  out of bounds): `supabase/functions/chat-llm/index.ts` reserves a turn only
+  `if (userId)`, `userId` stays null without an `Authorization` header, and
+  the function is deployed `--no-verify-jwt`. The meters this branch closes at
+  the table are bypassed by omitting one header.
+  → CLOSED ON ANOTHER BRANCH: `fix/chat-cap-always` (e2fbc98b — no verified
+  user, no model call; gate `chat-cap-real`). It takes effect when the
+  function is redeployed.
+- **`upsert_dashboard_config` is executable by `anon` and trusts its
+  `p_user_id` argument** (`schema_phase_dashboard_config.sql`; SECURITY
+  DEFINER). Measured with the anon key alone: `POST
+  /rest/v1/rpc/upsert_dashboard_config` naming ANOTHER user's id → 200, and
+  that user's `dashboard_configs` row held the planted value (removed after).
+  Not an entitlement; any visitor can overwrite any user's dashboard layout.
+  → CLOSED ON ANOTHER BRANCH: `fix/entitlement-holes` (d620c114,
+  `supabase/schema_phase_dashboard_config_caller.sql` — the RPC refuses
+  another user's id; `anon` loses EXECUTE and the table's write privileges).
+- **Delete the account, sign up again**: `delete_my_account` removes the
+  plan row and the meter with the user; a new signup with the same address
+  gets a fresh 14-day trial and a meter at zero (measured by the attack
+  review: a user at 3 of 3 uploads was `allowed`, used 0, after it). It costs
+  the user all their data and a new address does the same. **Open
+  everywhere** — the owner's call (a tombstone keyed on a hash of the
+  address).
+- **Billing stamps on a browser-writable table**: `documents.metered_extra`,
+  `nonro_doc`, `nonro_metered_extra` — the overage columns — sit on a table
+  whose member UPDATE policy and default grants let the browser write them.
+  **Open everywhere.**
+- **Twelve public-market tables have row level security off** with the
+  default grants (the Supabase CLI's own advisory names them on a stack built
+  from this repository: `public_companies`, `public_company_periods`,
+  `public_company_quotes`, `public_company_risk_scores`,
+  `public_company_opportunity_scores`, `company_exposure_profiles`,
   `company_signal_links`, `intelligence_signals`, `macro_signal_cache`,
-  `nasdaq_responses`, `public_companies`, `public_company_opportunity_scores`,
-  `public_company_periods`, `public_company_quotes`,
-  `public_company_risk_scores`, `risk_interpretations`, `sector_risk_models`.
-  No entitlement — caches and public-company data anyone can poison.
-  Production may differ.
-- `documents.metered_extra` / `nonro_doc` / `nonro_metered_extra` are billing
-  stamps on a browser-writable table; they are read by two operator scripts
-  (`recompute_document_quota.py`, `list_duplicate_charges.py`), not by an
-  online entitlement path.
+  `nasdaq_responses`, `risk_interpretations`, `sector_risk_models`): anyone
+  with the anon key can write the public storefront's market data.
+  → CLOSED ON ANOTHER BRANCH: `fix/entitlement-holes` (d86083ad,
+  `supabase/schema_phase_public_tables_write_revoke.sql` — `anon` and
+  `authenticated` lose the write privileges on the twelve and on the
+  calibration queue).
+- `profiles.role` is writable by its own user (`PATCH profiles role = admin`
+  → 200). No reader of that column was found in `src/engine/api` or
+  `frontend/lib` (a grep, not a proof). **Open everywhere.**
+- **CLOSED ON ANOTHER BRANCH** the same day: the document reservation routes
+  `POST /api/plan/release-document-reservation` and
+  `…/commit-document-usage` took any signed-in user's bearer (the attack
+  review measured 4 documents on a 1-document plan through them). They are
+  the operator's now — `fix/plan-meter-routes` (62710096, gate
+  `plan-meter-routes`).
+
+"Closed on another branch" means the change and its gate are committed THERE
+(the hashes are those branches' commits on 2026-10-03): none of it is in this
+branch, and a SQL file closes nothing in a database until it is applied to it.
+One consequence for THIS gate: `schema_phase_workspace_cap_guard.sql` puts a
+trigger function (`_organizations_guard_write`, SECURITY INVOKER, naming no
+listed table) on `organizations`, a table an API role can write — on a stack
+where that file is applied, L3c reds until the name is read and added to
+`TRIGGER_FUNCTIONS_ALLOWED` in the gate. That is the census doing its work.
 
 ## entitlement-write-laws
 
-The source half of the lockdown — what the local stack cannot see.
+The source half of the lockdown — what a local stack cannot see, and what
+runs where no stack is named.
 
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_entitlement_write_laws.py -q` |
-| canary | `test_the_scanner_sees_the_writer_this_law_exists_for`, `test_no_browser_or_edge_function_code_writes_an_entitlement_table`, `test_the_sql_scanner_sees_the_two_policies_this_law_exists_for`, `test_no_committed_sql_reopens_an_entitlement_table`, `test_no_user_jwt_client_in_the_engine_names_an_entitlement_table` |
-| work count | junit tests, floor **9** (measured 9) |
+| canary | `test_the_scanner_sees_the_writer_this_law_exists_for`, `test_no_browser_or_edge_function_code_writes_an_entitlement_table`, `test_the_sql_scanner_sees_the_two_policies_this_law_exists_for`, `test_no_committed_sql_reopens_an_entitlement_table`, `test_each_report_file_is_one_read_only_statement_returning_one_jsonb_row`, `test_the_migration_is_one_batch_that_ends_with_the_row_applied`, `test_the_stack_gate_is_vacuous_unless_it_is_told_which_stack`, `test_no_user_jwt_client_in_the_engine_names_an_entitlement_table` |
+| work count | junit tests, floor **34** (measured 34; the twelve console-probe scenarios need `node` — skipped without it, which reds the floor) |
 
 **INCIDENT** — the one of `## subscriptions-write-lockdown`. The stack gate
-proves the database; it is VACUOUS wherever no local stack runs, and it
-cannot see a browser writer put back or a committed SQL file that re-opens a
-table the next time it is applied.
+proves the database; it is VACUOUS wherever no stack is named, and it cannot
+see a browser writer put back, a committed SQL file that re-opens a table the
+next time it is applied, or a runbook file that is not what it says.
 
-**LAW** — over THE LIST the migration carries (read from the file, between
-its `ENTITLEMENT-TABLES-*` markers — one place): no file under `frontend/`,
-`mobile/` or `supabase/functions/` calls insert / update / upsert / delete on
-a listed table through a supabase-js client, or names its REST path, and no
-browser file calls an RPC that writes one; `useSubscription` exposes exactly
-`subscription, loading, refresh, setPlan`; no committed `supabase/**/*.sql`
-creates a policy on a listed table whose command is not SELECT (no FOR clause
-is FOR ALL), or grants an API role a privilege on one — table or column level
-— but the lockdown's own `grant select on public.subscriptions to
-authenticated`; `schema.sql` still DROPS the two policies it used to create;
-the four pre-flight queries of the migration's header name exactly the list;
-no `_supabase.per_user(jwt)` block in `src/engine` names a listed table (the
-census must find at least 20 such blocks). Each scanner is first shown the
-defect it exists for — the deleted `reactivate()` verbatim, the three old
-policy lines — and the shapes it must not flag.
+**LAW**
+- **A, the list**: the pre-flight report and the grids file name exactly THE
+  LIST the migration carries, and the same three kept policies.
+- **B, the browser**: no file under `frontend/`, `mobile/` or
+  `supabase/functions/` writes a listed table through a supabase-js client or
+  names its REST path; no browser file calls a writer RPC; no browser file
+  that names a listed table in quotes also makes a supabase-js write, a write
+  `fetch` or a GraphQL call (the handle kept in a variable, the name in a
+  constant, a path assembled from parts, `.from<any>(…)`);
+  `useSubscription` exposes exactly `subscription, loading, refresh, setPlan`.
+- **C, the SQL**: no committed `supabase/**/*.sql` creates a non-select policy
+  on a listed table or grants an API role a privilege on one — quoted
+  identifiers included — nor `on all tables in schema public`, nor `disable
+  row level security`, nor an `execute` string naming one; no view over a
+  listed table, or over such a view, that nothing closes (`security_invoker`,
+  or a revoke from anon and authenticated); no function naming a listed table
+  granted to an API role but the product's two.
+- **D**: `schema.sql` still DROPS the two policies it used to create, and the
+  three files that create the kept policies create them `to authenticated`.
+- **E, the migration is one batch**: no psql meta-command; four statements;
+  `lock_timeout` before anything else; `enable row level security` behind its
+  guard; the notify; the row `applied` last — and, where the session holds
+  no result from the block, `applied: null` with the name of the report, not
+  a claim that nothing was applied; the three remedies in the error.
+- **F, the read-only files**: each report file is ONE SELECT / WITH statement
+  returning one jsonb row; the grids file is SELECTs only; no statement, and
+  no query string handed to `query_to_xml`, holds a keyword or a function
+  that writes; the audit returns no email and no Stripe id value.
+- **G, the console probe**, run by node in a mocked browser, twelve
+  scenarios: CLOSED on a refusal, OPEN on an accepted write, NOT CLOSED on an
+  accepted write that touched no row, INCONCLUSIVE when not signed in, when
+  the anon key is not found, when the read is not one row, on a 5xx — never
+  an uncaught error, and the only write it ever sends is the value it read.
+- **H**: the stack gate has no default stack (the text first; then it is run
+  with no stack named and must answer VACUOUS, units=0).
+- **I**: no `_supabase.per_user(jwt)` block in `src/engine` names a listed
+  table.
+Each scanner is first shown the defect it exists for and the shapes it must
+not flag.
 
 ```
-PLANT p6 the browser writer put back: frontend/lib/billing.ts restored to 91fc4e24 (cancel() and reactivate() in useSubscription)
-E       frontend/lib/billing.ts: .from('subscriptions').update(…)
-E       frontend/lib/billing.ts: .from('subscriptions').update(…)
-E   AssertionError: {'cancel', 'loading', 'reactivate', 'refresh', 'setPlan', 'subscription'}
-FAILED tests/engine/test_entitlement_write_laws.py::test_no_browser_or_edge_function_code_writes_an_entitlement_table
-FAILED tests/engine/test_entitlement_write_laws.py::test_use_subscription_exposes_no_writer
-========================= 2 failed, 7 passed in 1.23s ==========================
-  exit=1
-  -> file restored byte-exact
-PLANT p7 schema.sql creates the two write policies again: supabase/schema.sql restored to 91fc4e24
-E       supabase/schema.sql: create policy … on subscriptions for insert
-E       supabase/schema.sql: create policy … on subscriptions for update
-E   AssertionError: subscriptions self insert
-FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_sql_reopens_an_entitlement_table
-FAILED tests/engine/test_entitlement_write_laws.py::test_schema_sql_still_drops_the_two_write_policies_it_used_to_create
-========================= 2 failed, 7 passed in 1.20s ==========================
-  exit=1
-  -> file restored byte-exact
-PLANT p7b a NEW migration grants one column back: supabase/schema_phase_zz_plant.sql = grant update (cancel_at_period_end) on public.subscriptions to authenticated;
-E       supabase/schema_phase_zz_plant.sql: grant update on subscriptions to authenticated
-FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_sql_reopens_an_entitlement_table
-========================= 1 failed, 8 passed in 1.14s ==========================
-  exit=1
-  -> file removed
-PLANT p6b an edge function zeroes a meter: supabase/functions/chat-llm/index.ts + one line  await admin.from("user_usage").update({ llm_calls: 0 }).eq("user_id", userId);
-E       supabase/functions/chat-llm/index.ts: .from('user_usage').update(…)
-FAILED tests/engine/test_entitlement_write_laws.py::test_no_browser_or_edge_function_code_writes_an_entitlement_table
-========================= 1 failed, 8 passed in 1.01s ==========================
-  exit=1
-  -> file restored byte-exact
-PLANT p7c the migration's header list falls behind THE LIST: one pre-flight query loses 'billing_events'
-FAILED tests/engine/test_entitlement_write_laws.py::test_the_migrations_pre_flight_queries_name_exactly_the_list
-========================= 1 failed, 8 passed in 1.07s ==========================
-  exit=1
-  -> file restored byte-exact
-REVERT (clean tree) tests/engine/test_entitlement_write_laws.py:
-============================== 9 passed in 0.98s ===============================
-  exit=0
+PLANT (p6) the browser writer put back: frontend/lib/billing.ts restored to 91fc4e24 (cancel() and reactivate())
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_browser_or_edge_function_code_writes_an_entitlement_table
+    FAILED tests/engine/test_entitlement_write_laws.py::test_use_subscription_exposes_no_writer
+    ========================= 2 failed, 32 passed in 2.81s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (p7) schema.sql creates the two write policies again: supabase/schema.sql restored to 91fc4e24
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_sql_reopens_an_entitlement_table
+    FAILED tests/engine/test_entitlement_write_laws.py::test_schema_sql_still_drops_the_two_write_policies_it_used_to_create
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_repository_creates_the_three_kept_policies_in_the_form_the_lockdown_keeps
+    ========================= 3 failed, 31 passed in 2.70s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s1) a NEW migration grants one column back, with quoted identifiers: grant update ("tier") on table "public"."subscriptions" to authenticated;
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_sql_reopens_an_entitlement_table
+    ========================= 1 failed, 33 passed in 2.82s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s2) an edge function zeroes a meter: chat-llm/index.ts + admin.from("user_usage").update({ llm_calls: 0 })
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_browser_or_edge_function_code_writes_an_entitlement_table
+    ========================= 1 failed, 33 passed in 2.72s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s3) the grids file's list falls behind THE LIST: one block loses 'billing_events'
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_files_beside_the_migration_name_exactly_the_list_and_the_kept_policies
+    ========================= 1 failed, 33 passed in 2.69s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s4) a view over a listed table that nothing closes: create view public.my_plan as select * from public.subscriptions;
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_view_over_an_entitlement_table_is_left_open
+    ========================= 1 failed, 33 passed in 2.77s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s5) grant all on all tables in schema public to anon, authenticated;
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_sql_reopens_an_entitlement_table
+    ========================= 1 failed, 33 passed in 2.84s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s6) alter table user_usage disable row level security;
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_sql_reopens_an_entitlement_table
+    ========================= 1 failed, 33 passed in 2.63s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s7) a grant inside an execute string: do $$ begin execute 'grant update on public.subscriptions to authenticated'; end $$;
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_committed_sql_reopens_an_entitlement_table
+    ========================= 1 failed, 33 passed in 2.71s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s8) a SECURITY DEFINER function that sets the tier, granted to authenticated
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_function_that_names_an_entitlement_table_is_granted_to_an_api_role
+    ========================= 1 failed, 33 passed in 2.55s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s9) browser code keeps the table handle in a variable: const t = sb.from("subscriptions"); t.update({ tier })
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_browser_or_edge_function_code_writes_an_entitlement_table
+    ========================= 1 failed, 33 passed in 2.81s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s10) browser code writes through GraphQL: a mutation naming a listed table, posted to /graphql/v1
+    FAILED tests/engine/test_entitlement_write_laws.py::test_no_browser_or_edge_function_code_writes_an_entitlement_table
+    ========================= 1 failed, 33 passed in 2.75s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s11) the pre-flight report gains a second statement
+    FAILED tests/engine/test_entitlement_write_laws.py::test_each_report_file_is_one_read_only_statement_returning_one_jsonb_row[path0-report]
+    ========================= 1 failed, 33 passed in 2.66s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s12) the audit report's dynamic query writes: query_to_xml('delete from public.founding_members …')
+    FAILED tests/engine/test_entitlement_write_laws.py::test_each_report_file_is_one_read_only_statement_returning_one_jsonb_row[path1-audit]
+    ========================= 1 failed, 33 passed in 2.80s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s13) the grids file gains a write: update public.subscriptions set tier = tier;
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_grids_file_is_selects_only
+    ========================= 1 failed, 33 passed in 2.66s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s14) the migration loses its lock_timeout
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_migration_is_one_batch_that_ends_with_the_row_applied
+    ========================= 1 failed, 33 passed in 2.68s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s15) the migration loses its result row (the final select)
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_migration_is_one_batch_that_ends_with_the_row_applied
+    ========================= 1 failed, 33 passed in 2.65s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s16) the migration gains a psql meta-command: \set ON_ERROR_STOP on
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_migration_is_one_batch_that_ends_with_the_row_applied
+    ========================= 1 failed, 33 passed in 2.71s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s17) the migration enables row level security unconditionally again
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_migration_is_one_batch_that_ends_with_the_row_applied
+    ========================= 1 failed, 33 passed in 2.79s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s18) the probe loses its two not-signed-in guards (no storage key; a stored session with no token) — the first round's uncaught TypeError
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[not signed in]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[a session without a token]
+    ========================= 2 failed, 32 passed in 2.80s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s19) the probe writes status beside the harmless field
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write is refused 403]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write is refused 401]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write lands]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write answers 204]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write is not refused but changes no row]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the server errors 500]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the publishable key format]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the value read is the value written back]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_probe_writes_one_harmless_field_and_never_a_tier
+    ========================= 9 failed, 25 passed in 2.93s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s20) the probe no longer skips a script it cannot fetch
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write is refused 403]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write is refused 401]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write lands]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write answers 204]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the write is not refused but changes no row]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the server errors 500]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the read answers two rows]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[no anon key in the page's scripts]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the publishable key format]
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the value read is the value written back]
+    ======================== 10 failed, 24 passed in 2.31s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s21) schema.sql creates the kept policy without `to authenticated`
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_repository_creates_the_three_kept_policies_in_the_form_the_lockdown_keeps
+    ========================= 1 failed, 33 passed in 2.67s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s22) the stack gate gets a default stack back (the law fails on the text and never runs it)
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_stack_gate_is_vacuous_unless_it_is_told_which_stack
+    ========================= 1 failed, 33 passed in 2.80s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s23) the result row answers `applied: false` where the session holds no result from the block (it cannot know that)
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_migration_is_one_batch_that_ends_with_the_row_applied
+    ========================= 1 failed, 33 passed in 2.76s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s24) THE LIST in the migration loses the renewal mail queue (the gate reads the list from the migration: a table off it is a table nothing checks)
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_list_is_read_from_the_migration_and_names_the_plan_row_and_the_meters
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_files_beside_the_migration_name_exactly_the_list_and_the_kept_policies
+    ========================= 2 failed, 32 passed in 2.86s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s25) the probe reads a server error as an accepted write: `write.status >= 200` with no upper bound
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_console_probe_in_a_mocked_browser[the server errors 500]
+    ========================= 1 failed, 33 passed in 2.72s =========================
+  exit=1 -> RED ; files restored byte-exact
+PLANT (s26) the audit report returns a Stripe id VALUE in its second list
+    FAILED tests/engine/test_entitlement_write_laws.py::test_the_preflight_report_computes_the_three_verdicts_and_the_audit_report_selects_no_email_or_stripe_id
+    ========================= 1 failed, 33 passed in 2.82s =========================
+  exit=1 -> RED ; files restored byte-exact
+REVERT (clean tree) tests/engine/test_entitlement_write_laws.py: exit=0 ============================== 34 passed in 2.76s ==============================
 ```
 
-**PLANT (p6)** is the first block above, **PLANT (p7)** the second; p7b, p6b
-and p7c are added shapes. **RED** — every plant exits `1`. **REVERT** — each
-file restored byte-exact (`git diff --quiet`), exit `0`, `9 passed`.
+**PLANT (p6)** and **PLANT (p7)** are the first two blocks; the `s` ones were
+added. **RED** — every plant exits `1`. **REVERT** — each file restored
+byte-exact (`git status` clean for it), exit `0`, `34 passed`.
+
+s18 as first written removed ONE of the probe's two not-signed-in guards and
+stayed GREEN: the second guard gives the same answer for a missing storage
+key (`localStorage.getItem(null)` is null). That was the plant being no
+defect, not the law being blind — the probe's behaviour was unchanged. The
+plant now removes both, which is the first round's uncaught `TypeError`.
 
 **Why p7 is a law that READS the SQL, not the gate applying `schema.sql`.**
 The static law runs in every checkout and in CI, where the stack gate is
-vacuous; it covers every committed `supabase/**/*.sql`, not one file; and
-applying all of `schema.sql` to a live local stack re-runs a thousand lines
-of DDL on a database other lanes share. What re-running the OLD `schema.sql`
-does to a database is the stack gate's state (a), which the migration is
-proven to close.
+vacuous; it covers every committed `supabase/**/*.sql`, not one file. What
+re-running the OLD `schema.sql` does to a database is the stack gate's state
+(a); what re-running the CURRENT policy statements does is its case C3.
 
-**After the repair it reds on:** a supabase-js write to a listed table, or
-its REST path, in browser, mobile or edge-function code; a writer RPC called
-from the browser; a writer back on `useSubscription`; a committed SQL file
-with a non-select policy or an API-role grant on a listed table; `schema.sql`
-losing its two `drop policy` lines; the header's lists falling behind THE
-LIST; an engine `per_user(jwt)` block naming a listed table.
-
-**CANNOT SEE:** a write built from a table name held in a variable, or made
-through `fetch` to a URL assembled at run time; SQL whose table name is built
-dynamically (`execute format(…)`) — the lockdown itself is that shape, and is
-the stack gate's to judge; a `create view` over a listed table (the stack
-gate's L4 and the migration's WARNING); an engine route that reaches a listed
-table with the caller's JWT through a helper handed the client outside a
-`with per_user(jwt)` block; anything applied to production by hand.
+**CANNOT SEE:** a browser write whose table name never appears in quotes in
+that file (imported from another module, or decoded at run time); SQL whose
+table name is built dynamically without the name appearing in a string; a
+SECURITY DEFINER function left executable by PUBLIC with no `grant` line
+(the stack gate's L3); an engine route that reaches a listed table with the
+caller's JWT through a helper handed the client outside a `with
+per_user(jwt)` block, or that moves a meter through a service-role RPC on a
+user's bearer (the `plan-meter-routes` gate, branch fix/plan-meter-routes);
+the probe in a real browser; anything applied to production by hand.
