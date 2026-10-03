@@ -80,6 +80,7 @@ declare
   v_left     jsonb := '[]'::jsonb;
 begin
   perform set_config('lock_timeout', '5s', true);
+  perform set_config('cfo_holes.result', '', false);   -- never answer with another file's result
 
   -- ── 1. the function ──────────────────────────────────────────────────
   if v_fn is null then

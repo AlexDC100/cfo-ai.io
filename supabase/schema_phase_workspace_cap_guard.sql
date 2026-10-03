@@ -1,0 +1,244 @@
+-- ═══════════════════════════════════════════════════════════════════════
+-- schema_phase_workspace_cap_guard.sql — the plan's workspace cap holds on
+-- the way BACK from the archive, and a browser session cannot write the
+-- columns the cap, the purge and the firm model read.
+-- ═══════════════════════════════════════════════════════════════════════
+--
+-- THE HOLE (measured 2026-10-03, review of the subscriptions lockdown; and
+-- again at the SQL level for this file). create_workspace() enforces the
+-- plan's cap by counting the caller's LIVE workspaces (archived ones do not
+-- count — by design: a user at the cap may archive one and create another).
+-- A trial user (cap 1) reached 2, 3, 4 … live workspaces without touching
+-- the plan row:
+--
+--   (i)  PATCH organizations.archived_at on their own workspace (policy
+--        "organizations owner update" + the default grants let a member
+--        write EVERY column) → create_workspace → PATCH it back to null;
+--        purge_after, firm_id and cui were writable the same way.
+--   (ii) no direct write at all: archive_workspace → create_workspace →
+--        restore_workspace. restore_workspace never re-checked the cap.
+--   (iii) create_firm → import_firm_client ×N → detach_workspace_from_firm
+--        (only where schema_phase_firm.sql is applied). NOT changed by this
+--        file — whether a firm's clients count against the importer's cap is
+--        the owner's ruling.
+--
+-- THE FIX — one trigger on public.organizations, restrict only. No function
+-- this repository defines is replaced: create_workspace, restore_workspace
+-- and archive_workspace keep their bodies byte for byte (the file reads
+-- md5(prosrc) of each before and after and refuses to commit a difference),
+-- so NO CAP NUMBER and no tier → cap mapping is touched or copied.
+--
+--   organizations_guard_write  BEFORE UPDATE … FOR EACH ROW
+--     1. a statement that runs AS `anon` or `authenticated` — a PATCH from a
+--        browser session — may not change archived_at, purge_after, firm_id
+--        or cui (42501). The workspace functions (archive_workspace,
+--        restore_workspace, purge_workspace, the purge cron, the firm
+--        functions) are SECURITY DEFINER: inside them current_user is the
+--        function's owner and the update passes. The service role passes
+--        (the workspace migration and its rollback archive / un-archive
+--        through PostgREST as the service role). Every other column — name,
+--        industry_key, industry_display_name, caen_code, which the browser
+--        and the upload commit route write with the user's JWT — is not
+--        guarded.
+--     2. a workspace going from ARCHIVED to LIVE under a signed-in user's
+--        request — restore_workspace today, any function tomorrow — is
+--        allowed only if create_workspace would let that user add one more
+--        workspace right now. The trigger ASKS create_workspace: it calls it
+--        inside a sub-transaction that is always rolled back, and lets its
+--        refusal ('workspace_cap_reached: your … plan allows … workspace(s)…',
+--        the message the engine and the frontend already parse) through
+--        unchanged. One cap authority: whatever create_workspace is
+--        installed — this repository's, or feat/owner-plan's with its
+--        unlimited branch — is the cap on a restore too. The service role
+--        and a session with no JWT (the SQL editor) are not asked.
+--
+-- WHY A TRIGGER AND NOT A NEW restore_workspace BODY. (a) production's
+-- function bodies are not known to be this repository's; replacing one would
+-- overwrite a body nobody has read. (b) re-running
+-- schema_phase_multi_workspace.sql or schema_phase_archive_hold_guard.sql —
+-- both written to be re-run — re-creates restore_workspace; a cap inside it
+-- would be silently lost, a cap on the table is not. (c) it covers every
+-- path that un-archives, not the one function known today.
+--
+-- WHAT IT LEAVES. Path (iii) above. A user who is ALREADY over their cap
+-- keeps every workspace they have (no row is read for change, none is
+-- written); they cannot restore another until they are under it. A workspace
+-- restored by the service role or from the SQL editor is not capped.
+-- INSERT / DELETE / TRUNCATE on organizations (no policy admits the first two;
+-- no API verb reaches the third). The other columns no user-JWT path writes
+-- and nothing reads for an entitlement (default_currency, caen_code_source,
+-- caen_code_confirmed_at) stay writable by a member.
+--
+-- ── HOW IT IS APPLIED ────────────────────────────────────────────────────
+--   0. PREFLIGHT (read-only, one row):
+--        supabase/preflight/schema_phase_workspace_cap_guard_preflight_report.sql
+--      Apply this file only where it answers  "hole_open": true.
+--   1. Run this file as one batch (`supabase db query --linked -f <file>`,
+--      or pasted whole into the SQL editor). One DO block: everything or — on
+--      any error, a lock timeout included (5 s) — nothing. A lock timeout
+--      means nothing was applied: run it again. Its LAST statement returns
+--      one jsonb row: what it changed, what it skipped, and the md5 of each
+--      workspace function before and after.
+--   2. Dashboard → Settings → API → "Reload schema cache" (CLAUDE.md §14).
+--      No table, column or function signature changes; the click is the
+--      discipline.
+--   3. POST-CHECK: the preflight report again — "hole_open": false.
+-- Idempotent: a second run changes nothing and says so. Safe before or after
+-- schema_phase_owner_plan.sql, schema_phase_firm.sql and the subscriptions
+-- write lockdown. On a database without organizations.archived_at
+-- (schema_phase_multi_workspace.sql not applied) it installs nothing and
+-- says so.
+--
+-- ROLLBACK (re-opens the hole):
+--   drop trigger if exists organizations_guard_write on public.organizations;
+--   drop function if exists public._organizations_guard_write();
+--
+-- Gate: scripts/check_hole_workspace_cap.sh (hole-workspace-cap);
+-- static laws: tests/engine/test_entitlement_hole_laws.py.
+-- ═══════════════════════════════════════════════════════════════════════
+
+do $migration$
+declare
+  v_org       regclass := to_regclass('public.organizations');
+  v_changed   jsonb := '[]'::jsonb;
+  v_skipped   jsonb := '[]'::jsonb;
+  v_before    jsonb;
+  v_after     jsonb;
+  v_guard_before text;
+  v_guard_after  text;
+  v_trigger   record;
+begin
+  perform set_config('lock_timeout', '5s', true);
+  perform set_config('cfo_holes.result', '', false);   -- never answer with another file's result
+
+  if v_org is null then
+    v_skipped := v_skipped || to_jsonb('public.organizations does not exist — nothing to guard'::text);
+  elsif not exists (select 1 from pg_attribute
+                     where attrelid = v_org and attname = 'archived_at' and not attisdropped) then
+    v_skipped := v_skipped || to_jsonb('public.organizations has no archived_at column (schema_phase_multi_workspace.sql is not applied) — there is no archive to come back from; nothing installed'::text);
+  else
+    -- The workspace functions, before: this file must not change one byte of them.
+    select coalesce(jsonb_object_agg(p.oid::regprocedure::text, md5(p.prosrc)), '{}'::jsonb)
+      into v_before
+      from pg_proc p
+     where p.pronamespace = 'public'::regnamespace
+       and p.proname in ('create_workspace', 'restore_workspace', 'archive_workspace',
+                         'purge_workspace', 'purge_expired_workspaces');
+
+    select md5(p.prosrc) into v_guard_before
+      from pg_proc p
+     where p.oid = to_regprocedure('public._organizations_guard_write()');
+
+    -- SECURITY INVOKER on purpose: current_user must be the role the
+    -- statement runs as (authenticated for a PATCH, the owner inside a
+    -- SECURITY DEFINER function).
+    create or replace function public._organizations_guard_write()
+    returns trigger
+    language plpgsql
+    set search_path = public
+    as $$
+declare
+  v_new jsonb := to_jsonb(new);
+  v_old jsonb := to_jsonb(old);
+  v_col text;
+begin
+  -- 1. A browser session writes the lifecycle and firm columns only through
+  --    the workspace functions.
+  if current_user in ('anon', 'authenticated') then
+    foreach v_col in array array['archived_at', 'purge_after', 'firm_id', 'cui'] loop
+      if (v_new -> v_col) is distinct from (v_old -> v_col) then
+        raise exception 'organizations.% is not writable directly: use the workspace functions (archive_workspace, restore_workspace, purge_workspace, the firm functions).', v_col
+          using errcode = '42501';
+      end if;
+    end loop;
+  end if;
+
+  -- 2. Back from the archive under a signed-in user's request: the plan's
+  --    workspace cap, asked of create_workspace itself. The probe workspace
+  --    never exists outside the sub-transaction; create_workspace's own
+  --    refusal (workspace_cap_reached: …) passes through unchanged.
+  if old.archived_at is not null and new.archived_at is null then
+    if auth.uid() is not null
+       and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+       and to_regprocedure('public.create_workspace(text,text,text)') is not null then
+      begin
+        perform public.create_workspace('workspace cap probe (rolled back)');
+        raise exception 'workspace cap probe passed' using errcode = 'ZC001';
+      exception
+        when sqlstate 'ZC001' then
+          null;
+      end;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+    -- A trigger function is fired, never called: no API role needs EXECUTE.
+    revoke all on function public._organizations_guard_write() from public, anon, authenticated;
+
+    select md5(p.prosrc) into v_guard_after
+      from pg_proc p
+     where p.oid = to_regprocedure('public._organizations_guard_write()');
+    if v_guard_after is distinct from v_guard_before then
+      v_changed := v_changed || to_jsonb(format('_organizations_guard_write(): %s (md5 %s)',
+        case when v_guard_before is null then 'created' else 'body replaced, was md5 ' || v_guard_before end, v_guard_after));
+    end if;
+
+    select t.tgenabled, t.tgtype, t.tgfoid into v_trigger
+      from pg_trigger t
+     where t.tgrelid = v_org and t.tgname = 'organizations_guard_write' and not t.tgisinternal;
+    if not found then
+      create trigger organizations_guard_write
+        before update on public.organizations
+        for each row execute function public._organizations_guard_write();
+      v_changed := v_changed || to_jsonb('trigger organizations_guard_write created (BEFORE UPDATE, FOR EACH ROW) on public.organizations'::text);
+    elsif v_trigger.tgfoid <> 'public._organizations_guard_write()'::regprocedure
+          or v_trigger.tgtype <> 19 then
+      -- The name is taken by something that is not this guard.
+      drop trigger organizations_guard_write on public.organizations;
+      create trigger organizations_guard_write
+        before update on public.organizations
+        for each row execute function public._organizations_guard_write();
+      v_changed := v_changed || to_jsonb('trigger organizations_guard_write re-created (it existed with another function or another event)'::text);
+    elsif v_trigger.tgenabled <> 'O' then
+      alter table public.organizations enable trigger organizations_guard_write;
+      v_changed := v_changed || to_jsonb(format('trigger organizations_guard_write enabled (it was %s)',
+        case v_trigger.tgenabled when 'D' then 'DISABLED' when 'R' then 'REPLICA-only' when 'A' then 'ALWAYS' else v_trigger.tgenabled::text end));
+    end if;
+
+    -- The workspace functions, after.
+    select coalesce(jsonb_object_agg(p.oid::regprocedure::text, md5(p.prosrc)), '{}'::jsonb)
+      into v_after
+      from pg_proc p
+     where p.pronamespace = 'public'::regnamespace
+       and p.proname in ('create_workspace', 'restore_workspace', 'archive_workspace',
+                         'purge_workspace', 'purge_expired_workspaces');
+    if v_after is distinct from v_before then
+      raise exception 'workspace cap guard: a workspace function body changed during this file (before %, after %) — nothing was applied', v_before, v_after;
+    end if;
+
+    if to_regprocedure('public.create_workspace(text,text,text)') is null then
+      v_skipped := v_skipped || to_jsonb('public.create_workspace(text, text, text) does not exist: the guard is installed, and there is no cap for a restore to be held to'::text);
+    end if;
+  end if;
+
+  notify pgrst, 'reload schema';
+
+  perform set_config('cfo_holes.result', jsonb_build_object(
+    'migration', 'schema_phase_workspace_cap_guard.sql',
+    'changed', v_changed,
+    'changed_count', jsonb_array_length(v_changed),
+    'skipped', v_skipped,
+    'workspace_function_md5_before', coalesce(v_before, '{}'::jsonb),
+    'workspace_function_md5_after', coalesce(v_after, '{}'::jsonb),
+    'workspace_function_bodies_unchanged', coalesce(v_after, '{}'::jsonb) = coalesce(v_before, '{}'::jsonb),
+    'not_changed_on_purpose', 'create_firm / import_firm_client / detach_workspace_from_firm (path iii — the owner''s ruling); no organizations row; no cap number',
+    'next', 'Reload the schema cache (Dashboard → Settings → API), then run the preflight report again: "hole_open" must be false.'
+  )::text, false);
+end
+$migration$;
+
+select coalesce(nullif(current_setting('cfo_holes.result', true), ''),
+                '{"error": "the migration block did not run"}')::jsonb as result;
