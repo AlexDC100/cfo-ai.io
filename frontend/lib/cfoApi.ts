@@ -295,6 +295,44 @@ function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   return callUrl<T>(`${API_URL}${path}`, init);
 }
 
+/** What the chat function answers on success. */
+export interface ChatLlmResponse {
+  answer: string;
+  model: string | null;
+  usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number } | null;
+}
+
+/** "ro" or "en" — the UI language, read where i18n keeps it: the
+ *  <html lang> it syncs (i18n/LanguageSync), then the stored choice
+ *  (i18n LANGUAGE_STORAGE_KEY). Deliberately not an import of the i18n
+ *  instance: this module stays free of it. */
+function uiLanguage(): "ro" | "en" {
+  let raw = "";
+  try {
+    raw = (typeof document !== "undefined" && document.documentElement.lang) || "";
+    if (!raw && typeof localStorage !== "undefined") raw = localStorage.getItem("cfo.userLanguage") ?? "";
+  } catch {
+    /* storage blocked — English */
+  }
+  return raw.toLowerCase().startsWith("ro") ? "ro" : "en";
+}
+
+/** Ask Supabase for a fresh session — once. True when one came back. Only
+ *  when a session exists: a signed-out caller has nothing to refresh. */
+async function refreshSessionOnce(): Promise<boolean> {
+  try {
+    const { getSupabase } = await import("@/lib/supabase");
+    const sb = getSupabase();
+    if (!sb) return false;
+    const { data: current } = await sb.auth.getSession();
+    if (!current.session) return false;
+    const { data, error } = await sb.auth.refreshSession();
+    return !error && Boolean(data.session?.access_token);
+  } catch {
+    return false;
+  }
+}
+
 /** RECONCILIATION FLOW (docs/CANONICAL_BS_V2_CONTRACT.md §"RECONCILIATION
  *  FLOW") — response of POST /api/period/{id}/reconcile/undo (and the
  *  ops-only /reconcile). The engine serves the freshly rebuilt
@@ -520,16 +558,28 @@ export const cfoApi = {
           ),
         );
       }
-      return callUrl<{
-        answer: string;
-        model: string | null;
-        usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number } | null;
-      }>(`${SUPABASE_FUNCTIONS_URL}/chat-llm`, {
-        method: "POST",
-        body: JSON.stringify(req),
-        // Deleting the conversation mid-reply aborts the request (see
-        // chatPendingStore.abortChatReply) so "thinking" stops instantly.
-        signal,
+      const send = () =>
+        callUrl<ChatLlmResponse>(`${SUPABASE_FUNCTIONS_URL}/chat-llm`, {
+          method: "POST",
+          // `language`: the function words its refusals for a caller with no
+          // words of its own in the request's language. The app renders its
+          // own sentence from the refusal's CODE (lib/chatRefusal.ts); the
+          // field is never part of the prompt.
+          body: JSON.stringify({ ...req, language: uiLanguage() }),
+          // Deleting the conversation mid-reply aborts the request (see
+          // chatPendingStore.abortChatReply) so "thinking" stops instantly.
+          signal,
+        });
+      // The function answers 401 when the bearer does not verify (it calls
+      // no model and meters nothing for that request). A signed-in reader's
+      // token can simply have expired: refresh the session ONCE and send the
+      // request ONCE more. No loop — a second 401 is the answer, and the
+      // chat renders "sign in again" from its code.
+      return send().catch(async (err: unknown) => {
+        if (!(err instanceof CfoApiError) || err.status !== 401) throw err;
+        if (signal?.aborted) throw err;
+        if (!(await refreshSessionOnce())) throw err;
+        return send();
       });
     })(),
 

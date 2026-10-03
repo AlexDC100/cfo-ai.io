@@ -1,0 +1,24 @@
+{
+  "en": {
+    "chatRefusal": {
+      "signInHeadline": "Sign in to keep using Ask CFO AI",
+      "signInBody": "Your session has ended, so this question was not sent to the assistant. Sign in again and ask it once more.",
+      "signInLink": "Sign in",
+      "meteringHeadline": "Ask CFO AI could not check your plan's message allowance",
+      "meteringBody": "Your question was not sent to the assistant and nothing was counted against your plan. Try again in a moment.",
+      "capDailyBody": "Your plan includes {{cap}} Ask CFO AI messages a day, and today's have been used. The count starts again at midnight UTC.",
+      "capMonthlyBody": "Your plan includes {{cap}} Ask CFO AI messages a month, and this month's have been used. The count starts again on the 1st of next month (UTC)."
+    }
+  },
+  "ro": {
+    "chatRefusal": {
+      "signInHeadline": "Autentifică-te ca să folosești în continuare Ask CFO AI",
+      "signInBody": "Sesiunea ta s-a încheiat, așa că întrebarea nu a fost trimisă asistentului. Autentifică-te din nou și pune-o încă o dată.",
+      "signInLink": "Autentifică-te",
+      "meteringHeadline": "Ask CFO AI nu a putut verifica mesajele incluse în planul tău",
+      "meteringBody": "Întrebarea nu a fost trimisă asistentului și nu s-a contorizat nimic din planul tău. Încearcă din nou în câteva momente.",
+      "capDailyBody": "Planul tău include {{cap}} mesaje Ask CFO AI pe zi, iar cele de azi au fost folosite. Contorul repornește la miezul nopții (UTC).",
+      "capMonthlyBody": "Planul tău include {{cap}} mesaje Ask CFO AI pe lună, iar cele din luna aceasta au fost folosite. Contorul repornește pe 1 ale lunii următoare (UTC)."
+    }
+  }
+}

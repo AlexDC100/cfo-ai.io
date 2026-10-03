@@ -266,16 +266,21 @@ function MiniMarkdown({ text }: { text: string }) {
 }
 
 function renderInline(text: string): React.ReactNode {
-  // Tokenise on **bold**, `code`, and bare URLs. Order matters —
+  // Tokenise on **bold**, `code`, bare URLs, and a labelled link to a page
+  // of THIS app — `[See plans →](/pricing)`, which the app's own messages
+  // (the plan cap, "sign in again") carry and which used to print as raw
+  // brackets. Only a same-site path gets a label: a labelled link to
+  // another host is left as text with its URL in view. Order matters —
   // codespans win over bold so we don't accidentally bold ``...``.
-  const tokens: Array<{ kind: "text" | "bold" | "code" | "link"; v: string }> = [];
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(https?:\/\/[^\s)]+)/g;
+  const tokens: Array<{ kind: "text" | "bold" | "code" | "link" | "applink"; v: string; label?: string }> = [];
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|\[([^\]\n]+)\]\((\/(?!\/)[^\s)]*)\)|(https?:\/\/[^\s)]+)/g;
   let i = 0; let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     if (m.index > i) tokens.push({ kind: "text", v: text.slice(i, m.index) });
     if (m[1]) tokens.push({ kind: "code", v: m[1].slice(1, -1) });
     else if (m[2]) tokens.push({ kind: "bold", v: m[2].slice(2, -2) });
-    else if (m[3]) tokens.push({ kind: "link", v: m[3] });
+    else if (m[3] && m[4]) tokens.push({ kind: "applink", v: m[4], label: m[3] });
+    else if (m[5]) tokens.push({ kind: "link", v: m[5] });
     i = m.index + m[0].length;
   }
   if (i < text.length) tokens.push({ kind: "text", v: text.slice(i) });
@@ -283,6 +288,7 @@ function renderInline(text: string): React.ReactNode {
   return tokens.map((t, k) => {
     if (t.kind === "bold") return <strong key={k} className="font-semibold text-ink">{t.v}</strong>;
     if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded-sm text-[12.5px] font-mono bg-bg-2/70 text-ink break-all">{t.v}</code>;
+    if (t.kind === "applink") return <a key={k} href={t.v} className="font-medium text-brand-dark dark:text-brand-light underline underline-offset-2 hover:text-brand">{t.label}</a>;
     if (t.kind === "link") return <a key={k} href={t.v} target="_blank" rel="noreferrer" className="text-brand-dark dark:text-brand-light underline underline-offset-2 hover:text-brand break-all">{t.v}</a>;
     return <span key={k}>{t.v}</span>;
   });
