@@ -1213,6 +1213,20 @@ check "T8 nothing of T outlived its transaction: no role, no grant, the table's 
   "$(sql "select (select count(*) from pg_roles where rolname like 'subs\_gate\_%'), has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE'), (select pg_get_userbyid(relowner) from pg_class where oid = 'public.billing_events'::regclass);")" \
   "0|f|$RUNNER"
 
+# ── V. a view over a view over subscriptions, with the privileges a new view
+# gets by default — rolled back like T. The migration does not close it; it
+# must NAME it (a WARNING, and its result row), and so must the report.
+out="$(in_rolled_back_txn "create view public.subs_gate_v_base as select * from public.subscriptions;
+revoke all on public.subs_gate_v_base from public, anon, authenticated;
+create view public.subs_gate_v_outer as select * from public.subs_gate_v_base;
+$(cat "$MIGRATION")
+$(cat "$PREFLIGHT_REPORT")")"
+got=""
+case "$out" in *"WARNING:  write lockdown: view public.subs_gate_v_outer reads a listed table (depth 2), can be written through"*) got="the migration warns at depth 2" ;; *) got="NO WARNING for the nested view" ;; esac
+got="$got; named in $(printf '%s' "$out" | grep -o '"views_that_can_be_written_through": \["public.subs_gate_v_outer"\]' | wc -l | tr -d ' ') of 2 result rows (applied, report)"
+check "V1 a view over a view over subscriptions can be written through: the migration says so at depth 2 and names it in its result row, and the pre-flight report names it in its verdict" \
+  "$got" "the migration warns at depth 2; named in 2 of 2 result rows (applied, report)"
+
 # ══ D. from state (d): locked, then re-opened by hand under other names ══
 out="$(state_d)"
 check "D0 state (d) is built on the migration's result: a FOR ALL policy, a permissive read, a column-level grant, RLS off on a meter, anon re-granted" \

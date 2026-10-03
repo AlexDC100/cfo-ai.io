@@ -624,6 +624,8 @@ def test_the_migration_is_one_batch_that_ends_with_the_row_applied():
                    "inherited through its membership in role %s", "is owned by %s"):
         assert needle in body, needle
     assert "write lockdown INCOMPLETE" in body
+    # the views are walked transitively
+    assert "with recursive listed as" in body and "walk.depth + 1" in body, "the migration's view walk is no longer transitive"
 
 
 # ── F. THE READ-ONLY FILES ARE READ-ONLY ─────────────────────────────────
