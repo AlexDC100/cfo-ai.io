@@ -14,7 +14,7 @@ from datetime import date as Date, datetime
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
@@ -32,6 +32,7 @@ from ..models import (
 from ..pipeline import run_pipeline
 from ..recommendations import generate_recommendations, reconcile
 from ..sku_pipeline import run_sku_pipeline
+from ..public.refresh_shield import has_operator_bearer, require_operator
 from ..storage import PostgresAdapter
 from .chat import SUGGESTED_PROMPTS
 
@@ -91,6 +92,9 @@ class TodayRequest(BaseModel):
     skus: List[SkuRowIn] = Field(default_factory=list)
     categories: List[CategoryRowIn] = Field(default_factory=list)
     period_months: int = 12
+    # Honoured ONLY for the operator bearer (ENGINE_API_TOKEN). The route is
+    # public and the queue has no tenant column, so for every other caller
+    # the answer is computed from the body and nothing is stored.
     persist_recommendations: bool = True
 
 
@@ -176,10 +180,36 @@ def create_cfo_router(
             raise HTTPException(503, "Database adapter not configured")
         return adapter
 
+    # ── THE DECISIONS QUEUE IS THE OPERATOR'S ───────────────────────────
+    #
+    # `recommendations` (the shared SQLite store, engine.db) is keyed by
+    # (target_type, target_id) and carries NO user or workspace column.
+    # Until 2026-10-02 every route below was anonymous and three of them
+    # touched that table:
+    #
+    #   POST /today                  wrote one row per SKU in the BODY (the
+    #                                default: persist_recommendations=True),
+    #                                reconciled it against EVERY stored row
+    #                                (a second caller's run closed the
+    #                                first's), and answered `top_actions`
+    #                                from the table — other callers' rows;
+    #   GET  /decisions              returned every row to anyone;
+    #   POST /decisions/{id}/status  let anyone rewrite a row's status/owner.
+    #
+    # Measured against the real create_app(): visitor A posts a SKU named
+    # after a customer's product, visitor B reads its name, margin, volume
+    # and DIO back from GET /decisions with no bearer. "Mine" cannot be told
+    # from "someone else's" on a table without the column, so — the same
+    # ruling as /api/sessions in server.py — the queue is the operator's:
+    # the public routes compute from the body and store nothing, and the
+    # stored queue is read and written only with the engine bearer, failing
+    # closed where it is not configured.
+    # Gate: tests/engine/test_public_demo_store.py.
+
     # ── Today ───────────────────────────────────────────────────────────
 
     @router.post("/today")
-    def today(req: TodayRequest) -> Dict[str, Any]:
+    def today(req: TodayRequest, request: Request) -> Dict[str, Any]:
         skus = _to_sku_rows(req.skus)
         cats = _to_cat_rows(req.categories)
 
@@ -191,7 +221,8 @@ def create_cfo_router(
         # Recommendations from SKU-level decisions
         fresh_recs = generate_recommendations(sku_decisions, cfg)
 
-        if req.persist_recommendations and adapter is not None:
+        if (req.persist_recommendations and adapter is not None
+                and has_operator_bearer(request)):
             existing = adapter.list_recommendations(limit=1000)
             inserts, updates, archives = reconcile(fresh_recs, existing)
             for rec in inserts:
@@ -428,10 +459,12 @@ def create_cfo_router(
 
     @router.get("/decisions")
     def list_decisions(
+        request: Request,
         status: Optional[str] = None,
         bucket: Optional[str] = None,
         limit: int = 200,
     ) -> Dict[str, Any]:
+        require_operator(request, route="GET /api/cfo/decisions")
         a = _need_adapter()
         recs = a.list_recommendations(status=status, bucket=bucket, limit=limit)
         return {
@@ -440,7 +473,10 @@ def create_cfo_router(
         }
 
     @router.post("/decisions/{rec_id}/status")
-    def set_decision_status(rec_id: int, body: StatusUpdate) -> Dict[str, Any]:
+    def set_decision_status(
+        rec_id: int, body: StatusUpdate, request: Request
+    ) -> Dict[str, Any]:
+        require_operator(request, route="POST /api/cfo/decisions/{rec_id}/status")
         a = _need_adapter()
         valid = {"new", "in_review", "approved", "assigned",
                  "done", "rejected", "archived"}

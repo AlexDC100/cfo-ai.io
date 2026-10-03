@@ -415,6 +415,30 @@ def _engine_gates() -> List[Gate]:
                        "test_the_override_table_is_never_read_under_the_service_role_or_without_the_user",
                        "test_a_save_persists_the_engines_figures_in_the_shared_row",
                        "test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row")),
+        # THE PUBLIC DEMO STORE (owner ticket 2026-10-02). engine.db — the
+        # SQLite file create_app() opens through PostgresAdapter — has six
+        # tables and no tenant column on any of them. Anonymous POST
+        # /api/cfo/today wrote the BODY's recommendations into it (the
+        # default), GET /api/cfo/decisions handed every row to anyone, and
+        # POST /decisions/{id}/status let anyone rewrite one. The law, on
+        # the REAL create_app() over a real SQLite file: a customer-shaped
+        # row planted in EVERY table is returned by no route to a caller
+        # without the operator bearer (every route of the app's own table,
+        # token set and token unset); no such request changes any table but
+        # session_log; what one visitor posts never reaches another; the
+        # operator still reads, persists and updates; a seventh table reds
+        # until it is planted; the operator's count tool
+        # (scripts/check_public_store.py) prints no stored value. Measured
+        # 9. Plant log: docs/engine_book/gates.md "public-demo-store".
+        Gate("public-demo-store",
+             [PY, "-m", "pytest", "tests/engine/test_public_demo_store.py", "-q"],
+             work_junit=True, floor=9, units="tests",
+             canaries=("test_no_route_returns_a_stored_row_without_the_operator_bearer",
+                       "test_no_request_without_the_operator_bearer_changes_the_store",
+                       "test_what_one_visitor_posts_never_comes_back_to_another",
+                       "test_the_operator_still_reads_persists_and_updates_the_queue",
+                       "test_the_queue_fails_closed_where_no_operator_token_is_configured",
+                       "test_the_store_has_exactly_the_tables_this_gate_plants")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the

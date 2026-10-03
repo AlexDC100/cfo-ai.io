@@ -20106,4 +20106,116 @@ plan gate reading the subscription of whoever `documents.uploaded_by` names,
 the journal `asof` chain keyed by content hash alone (unreachable while
 `ENGINE_JOURNAL_DIR` is unset), the firm digest cron and the founder
 renewal-reminder recipient (both behind flags / an operator bearer), and the
-unauthenticated `/api/cfo/decisions` demo store.
+unauthenticated `/api/cfo/decisions` demo store (closed by `public-demo-store`,
+below).
+
+## public-demo-store
+
+The shared SQLite store holds nothing a visitor can read back, and a
+visitor's request stores nothing another visitor can read. The store is
+`engine.db` — `sqlite:////app/data/engine.db` in the `Dockerfile` CMD, on the
+`backend_data` volume (`docker-compose.yml`), created by `create_app()`
+(`PostgresAdapter.create_all`, `src/engine/storage/postgres.py`). Six tables,
+no user or workspace column on any of them: `recommendations`, `session_log`,
+`chat_messages`, `daily_decisions`, `category_metrics`, `master_skus`. Only
+`server.py` and `cfo_ai.py` hold the adapter; no upload, pipeline stage,
+storefront ingest, test-mode session or script writes to it.
+
+MEASURED 2026-10-02 on the real `create_app()` (main `72a29c72`), no bearer:
+
+- `POST /api/cfo/today` with one SKU row and `persist_recommendations` left
+  at its default (`True`) wrote the row's id, real margin, volume and DIO
+  into `recommendations`, reconciled against EVERY stored row, and answered
+  `top_actions` from the table;
+- `GET /api/cfo/decisions` returned every stored row — a second client read
+  the first client's SKU back;
+- `POST /api/cfo/decisions/{id}/status` let that second client rewrite the
+  row's status and owner;
+- with `ENGINE_API_TOKEN` unset, `_make_auth_dependency` disabled its own
+  check: `GET /decisions/{run_date}` and `POST /run-daily` were open
+  (production sets the token, so this half was latent).
+
+The identity wall's census had all of it declared "public demo: computes
+from the request body" — true of four of the six `/api/cfo` POST routes and
+false of the two that touched the table. No screen of the current frontend
+calls `today`, `listDecisions` or `setDecisionStatus` (the wrappers in
+`frontend/lib/cfoApi.ts` have no call site), so the path was open to a
+direct caller, not driven by a signed-in customer's browser.
+
+The repair: the stored queue is the operator's. `GET /api/cfo/decisions` and
+`POST /api/cfo/decisions/{id}/status` call `require_operator` (503 with no
+token configured, 401 otherwise); `POST /api/cfo/today` persists only when
+`has_operator_bearer` and otherwise computes from the body and stores
+nothing; `_make_auth_dependency` answers 503 when the token is unset. The
+census reasons for `/api/cfo/today`, `/decisions/{rec_id}/status` and
+`/api/sessions/track` in `tests/engine/test_identity_wall.py` now say what
+the routes do.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_public_demo_store.py -q` |
+| work count | junit-xml, floor **9** tests (measured 9); the sweep floors its own subject (≥ 200 routes enumerated; measured 230 with every surface flag on, 160 in production's posture) |
+| canary | `test_no_route_returns_a_stored_row_without_the_operator_bearer`, `test_no_request_without_the_operator_bearer_changes_the_store`, `test_what_one_visitor_posts_never_comes_back_to_another`, `test_the_operator_still_reads_persists_and_updates_the_queue`, `test_the_queue_fails_closed_where_no_operator_token_is_configured`, `test_the_store_has_exactly_the_tables_this_gate_plants` |
+| operator tool | `scripts/check_public_store.py` — opens the file `mode=ro`, prints row counts, column names and date ranges, never a row; exit 3 when a table that should be empty is not |
+
+**SCOPE.** The real `create_app()` with every surface flag ON (firm cockpit,
+public markets, radar, legacy SKU AI — the widest route table the code can
+mount) over a real SQLite FILE. One customer-shaped row is planted in EVERY
+table through the store's own models, each carrying a marker no computation
+yields. Every route of the app's own route table is then called with no
+`Authorization` header (and, token unset, with the would-be operator bearer
+too), and the six body-computing demo routes again with a body that produces
+decisions (an empty body exercises nothing: measured, it writes no row on
+the pre-fix code either). Each table's rows are hashed through a second
+connection before and after every call. A socket tripwire of the gate's own
+refuses every non-loopback connect, so it does not depend on `-p netblock`.
+
+**GREEN** — exit `0`: `9 passed`.
+
+**PLANT** — thirteen, each applied ALONE by
+`specs-durable/public_demo_store/plants.py`, the touched files restored
+byte-exact after each (sha256 asserted):
+
+| plant | RED |
+|---|---|
+| P0 the pre-fix `cfo_ai.py` and `server.py` (main's files verbatim) | `5 failed, 4 passed` |
+| P1 `POST /today` persists the body's recommendations for any caller | `2 failed, 7 passed` — `…changes_the_store`, `…never_comes_back_to_another` |
+| P2 `GET /decisions` answers without the operator bearer | `3 failed, 6 passed` |
+| P3 `POST /decisions/{id}/status` answers without the operator bearer | `3 failed, 6 passed` |
+| P4 the legacy bearer check is disabled again when the token is unset | `1 failed, 8 passed` — `…fails_closed_where_no_operator_token_is_configured` |
+| P5 `GET /api/sessions` answers without the operator bearer | `2 failed, 7 passed` |
+| P6 any `Bearer` is accepted on the queue (a user bearer is enough) | `2 failed, 7 passed` |
+| P7 `/today` never persists, even for the operator | `1 failed, 8 passed` — the positive control |
+| P8 the queue reader is open where no token is configured | `1 failed, 8 passed` |
+| P9 a seventh table in the store, unplanted | `2 failed, 7 passed` — `…exactly_the_tables_this_gate_plants`, and the count tool's own table check |
+| P10 a NEW anonymous reader (`GET /api/cfo/queue-peek`) | `2 failed, 7 passed` |
+| P11 a NEW anonymous writer (`POST /api/cfo/products` stores what it classified) | `2 failed, 7 passed` |
+| P12 the count tool prints the rows it counted | `1 failed, 8 passed` — `…prints_counts_and_columns_and_never_a_row` |
+
+**RED** — every plant exits `1` (full output with the failing test names:
+`specs-durable/public_demo_store/plants.out`).
+
+**REVERT** — the four files restored byte-exact; exit `0`: `9 passed`.
+Verdict: proven RED, thirteen of thirteen.
+
+**After the repair it reds on:** any route of the real app that puts a stored
+row of `engine.db` in an answer to a caller without the operator bearer; any
+such request that changes a table other than `session_log` (the one declared
+anonymous write, by `POST /api/sessions/track`); a table added to the store
+without a plant here; a bearer other than the engine token being enough; the
+queue or the legacy bearer routes answering anything but 503 with no token
+configured; the walls refusing the operator; the count tool printing a stored value or
+writing to the file.
+
+**CANNOT SEE:** what production's `engine.db` holds today — the rows written
+before this repair stay in the file until the owner clears them, and are now
+readable only with the engine bearer; a row a route returns in a form that
+does not contain the planted string (a count, a hash, a figure rounded or
+re-derived — the sweep searches for the marker, the planted address and the
+planted figure's `repr`); a route that needs a valid body, path id or
+signed-in user to reach its read (the sweep sends `{}` and placeholder ids;
+only the six demo routes are driven with a real body); a reader outside the
+FastAPI route table (a script, a cron, `docker exec`); the other files on
+the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
+the journal) — each has its own gates; whether the operator bearer is held
+only by the operator.
