@@ -16,7 +16,7 @@ Every journal event is one JSONL line:
 Hash chain: ``event_hash = sha256(canonical_json(event - event_hash))``.
 The first event of a run carries ``prev_event_hash`` equal to the tail
 hash of the PREVIOUS run in the same document chain (``None`` for the
-very first run of a document), so the per-document chain is one
+very first run on that chain), so the per-(organisation, document) chain is one
 continuous cryptographic sequence across runs. ``verify_event`` /
 ``Journal.verify_chain`` recompute every link; any byte flipped in any
 committed line breaks the chain loudly.

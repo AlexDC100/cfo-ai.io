@@ -174,6 +174,11 @@ KERNEL_MODULES: Dict[str, Dict[str, Any]] = {
             "engine.journal.journal.xǁJournalǁread_index*",
             "engine.journal.journal.xǁJournalǁregistered_runs*",
             "engine.journal.journal.xǁJournalǁchain_events*",
+            # (org, content hash) chain key, 2026-10-02: the owner check
+            # every chain read goes through, and the layout guard every
+            # write goes through.
+            "engine.journal.journal.xǁJournalǁ_chain_run_events*",
+            "engine.journal.journal.xǁJournalǁ_ensure_layout*",
             "engine.journal.journal.xǁJournalǁchain_tail*",
             "engine.journal.journal.xǁJournalǁbegin_run*",
             "engine.journal.journal.xǁJournalǁobserve_serving*",
@@ -300,7 +305,9 @@ EQUIVALENT_MUTANTS = frozenset({
     "engine.journal.journal.xǁRunHandleǁrecord_snapshot__mutmut_69",
     # -- journal: observe_serving drops `period_id=None` from the
     #    record_snapshot call — identical to passing the default.
-    "engine.journal.journal.xǁJournalǁobserve_serving__mutmut_52",
+    #    (Index 52 until the (org, content hash) chain key of
+    #    2026-10-02 added arguments above it; re-identified by diff.)
+    "engine.journal.journal.xǁJournalǁobserve_serving__mutmut_59",
     # -- journal: _append_line fcntl guard flips (16: skip flock when
     #    present / 27: same for unlock). flock is a cross-PROCESS
     #    concurrency guard; single-process tests cannot observe its

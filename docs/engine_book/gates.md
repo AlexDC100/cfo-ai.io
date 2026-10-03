@@ -17462,3 +17462,172 @@ the journal `asof` chain keyed by content hash alone (unreachable while
 `ENGINE_JOURNAL_DIR` is unset), the firm digest cron and the founder
 renewal-reminder recipient (both behind flags / an operator bearer), and the
 unauthenticated `/api/cfo/decisions` demo store.
+
+## journal-chain-key
+
+The run journal's chain — the link from one journal entry to the previous one
+for the same subject — is keyed by **(organisation, content hash)**. Never by
+the content hash alone, a period id or a file name: two organisations
+uploading byte-identical documents, or one organisation re-uploading, can
+never read, chain onto, deduplicate against or supersede each other's
+entries. Owner ticket 2026-10-02, "before `ENGINE_JOURNAL_DIR` is ever set".
+
+**THE KEY BEFORE THE REPAIR** (main @ `72a29c72`): the content hash alone.
+`Journal._index_path(file_hash)` → `index/<file_hash>.jsonl`
+(`journal.py:357-358`); `begin_run(file_hash=…)` read the predecessor, the
+rolling hash and the duplicate check from that file (`journal.py:463-471`);
+the hooks passed `documents.content_hash` and nothing else
+(`hooks.py:95-97`, `:118-119`, `:228-234`, `:263-269`); the serve seam keyed
+on `envelope.provenance.content_hash` (`journal.py:516-527`); the reader,
+`asof(ref, t)` → `resolve_chain(ref)` (`journal.py:708-734`, `:759-806`),
+searched EVERY chain for a period id or document id and accepted a bare
+content hash; the route `GET /api/period/{id}/asof` checked that the caller
+could see the period and then read the journal by period id, falling back to
+the envelope's content hash (`_journal_routes.py:85-96`) — no organisation in
+either lookup; `resolve_dlq_for` matched a dead letter by `file_hash`
+(`journal.py:630-637`).
+
+**MEASURED ON THE UNCHANGED CODE** (temporary directory, two invented
+organisations `org-a` / `org-b`, one corpus trial balance byte-for-byte, the
+real `stage_map` / `stage_persist` / serve seam / route function; 5 of 5
+reproduced, 2026-10-02):
+
+```
+[1] index files on disk: ['sha256-26dde384…2390b0.jsonl']
+[1] runs registered on that ONE chain: [('doc-of-org-a', None), ('doc-of-org-b', 'c3bfecb4…')]
+[1] org-b RUN_STARTED.prev_event_hash == org-a tail hash: True; verify_chain: intact
+[2] org-a asks as-of(now) for period-of-org-a -> envelope of document: doc-of-org-b | snapshot.period_id: period-of-org-b
+[2] org-b asks as-of(before its own upload) for period-of-org-b -> envelope of document: doc-of-org-a
+[3] org-b run short_circuited: True | duplicate_of == org-a's run: True
+[3] org-b as-of(period-b) -> snapshot.period_id: period-a
+[4] DLQ depth after org-b's success: 0 | resolved: ['299dc9cd….json']      (org-a's dead letter)
+[5] snapshots before org-a's page view: 2, after: 3      (a 'serve_observed' era on the shared chain)
+```
+
+NEVER LIVE: `ENGINE_JOURNAL_DIR` is unset in production, every hook is a
+no-op without it, and no journal directory exists there. No tenant was ever
+chained to, or answered from, another's entries.
+
+**THE REPAIR.** `engine/journal/layout.py`: `ChainKey(org_id, file_hash)`;
+`index/<org_id>/<file_hash>.jsonl`; a `LAYOUT.json` marker written before
+anything else. `Journal.begin_run(org_id=…, file_hash=…)` — `org_id` is
+required and is used verbatim or refused (lower-case, no path characters, no
+leading dot or underscore), never sanitised into a directory two ids could
+share. Every chain read and write resolves through `Journal._index_path`,
+which raises `TypeError` on a bare string. A run's `RUN_STARTED` names its
+organisation (hash-bound); `chain_events` does not read a run whose own
+`RUN_STARTED` names another organisation, whatever the index says, and
+`verify_chain` reports it. The hooks take the organisation from the document
+ROW (`documents.org_id`), the serve seam from the served period ROW, the
+route from the period row the caller's own client returned; a row naming no
+organisation is not journaled and has no coverage — there is no shared chain
+for "organisation unknown". Dead letters name their organisation and are
+resolved inside it only. The open-data ingest (`public_ro`), which belongs to
+no customer, chains under the reserved `_platform` scope, which no document
+or period row can name. The content-addressed object store stays global: an
+object is reached only through a chain event, and identical bytes are the
+same object by construction.
+
+**OLD DIRECTORIES** (migration note — none exists in production). A root
+holding a version-1 index file (`index/<file_hash>.jsonl`), or any journal
+content without `LAYOUT.json`, was written under the retired key and is
+REFUSED: `Journal(root)` raises `JournalLayoutError` before creating or
+writing anything; the hooks stay silent no-ops; the route answers 503; the
+CLI exits 5; and `boot_verify.verify_journal_layout` — called by
+`verify_config` and NOT skipped by `CFO_AI_SKIP_BOOT_VERIFY` — refuses to
+start the app. There is no in-place upgrade: a version-1 chain interleaves
+organisations inside one hash chain, and re-keying it would rewrite
+committed, hash-bound events. A local directory (`<repo>/data/journal`, or
+wherever a developer pointed the variable) is checked with
+`python scripts/journal_cli.py --journal-root <dir> layout` and moved aside
+or deleted; the next run starts a fresh version-2 root.
+
+**BEFORE ANYONE SETS `ENGINE_JOURNAL_DIR` IN PRODUCTION:** run
+`journal_cli.py layout` against the MOUNTED volume path first. The pre-switch
+boot probe of the deploy protocol (`docker run … cfo-ai-backend:latest`
+without the data volume) sees an absent directory and passes; the real
+container, with the volume, is the one that would refuse to start over a
+stale directory.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_journal_chain_key.py -q` |
+| work count | junit-xml, floor **18** tests (measured 18); the on-disk census test floors its own subject (≥ 8 index lines, ≥ 6 runs, 1 dead letter — `GATE-WORK journal-chain-key-census`) |
+| canary | `test_two_orgs_with_identical_bytes_hold_two_chains_that_never_link`, `test_each_org_is_answered_its_own_envelope_by_the_asof_route`, `test_an_identical_analysis_by_another_org_is_not_a_duplicate`, `test_one_orgs_success_never_resolves_another_orgs_dead_letter`, `test_the_committed_old_key_journal_is_refused_everywhere`, `test_boot_refuses_a_journal_written_under_the_old_key` |
+
+**SCOPE.** The real journal (Journal, hooks, layout, resume) on a real
+temporary directory; the real `pipeline.stage_map` / `stage_persist` / serve
+seam over the `corpus/csv` trial balance; the real as-of endpoint function;
+the real `boot_verify` and the real `create_app()`; the real CLI. Only the
+database is a double (one `financial_periods` row per organisation) — the
+subject is the filesystem journal and nothing of it is doubled. The old-key
+journal under `tests/engine/fixtures/journal_content_hash_key/` is REAL: it
+was written by the unchanged code at `72a29c72` (its README says how) and
+holds the defect itself — one index file, two organisations, the second
+chained to the first. Every "nothing was written" claim compares the whole
+directory tree byte for byte.
+
+**GREEN** — exit `0`: `18 passed`; through the battery:
+`PASS journal-chain-key (2.3s, 18 tests)`.
+
+**PLANT** — twenty, each applied ALONE, the files restored byte-exact after
+each (sha256 asserted):
+
+| plant | RED |
+|---|---|
+| P1 **the old key**: `Journal._index_path` returns `index/<file_hash>.jsonl` | `10 failed, 8 passed` — first failure: `JournalLayoutError … [legacy: 1 chain(s) keyed by content hash alone: index/sha256-26dde384….jsonl]` (the layout guard refuses the root the moment the old key writes to it) |
+| P2 the old key AND `inspect_layout` blind to a flat index file | `11 failed, 7 passed` — `test_two_orgs_with_identical_bytes_hold_two_chains_that_never_link`: `assert [] == [ChainKey(org_id='org-a', …), ChainKey(org_id='org-b', …)]`; the fixture and boot refusals red too |
+| P3 the hooks chain every document under one constant organisation | `10 failed, 8 passed` |
+| P4 the route's content-hash fallback looks in every organisation | `1 failed` — `…answered_its_own_envelope_by_the_asof_route` (B, before its upload, is answered A's) |
+| P5 `resolve_dlq_for` matches by content hash whatever the organisation | `1 failed` — `…never_resolves_another_orgs_dead_letter` |
+| P6 `resolve_chain` searches every organisation's index | `1 failed` — `…reference_of_another_org_resolves_to_nothing` |
+| P7 `chain_events` reads any run an index line names | `1 failed` — `…filed_under_another_orgs_index_is_not_read_and_fails_verify` |
+| P8 `verify_chain` no longer checks whose run it is | `1 failed` — the same test, on the verifier's report |
+| P9 the serve seam stops naming the period row's organisation | `2 failed` — the page-view law and the census (no SERVED recorded) |
+| P10 the boot check sits behind `CFO_AI_SKIP_BOOT_VERIFY` | `1 failed` — `test_boot_refuses_a_journal_written_under_the_old_key` |
+| P11 `verify_journal_layout` refuses nothing | `6 failed` |
+| P12 `Journal(root)` adopts an old-key root (writes the marker over it) | `6 failed` — incl. `test_the_committed_old_key_journal_is_refused_everywhere` |
+| P13 journal content with no marker reads as an empty root | `4 failed` |
+| P14 an organisation id is sanitised into a directory name, not refused | `1 failed` — `test_there_is_no_chain_without_an_organisation` |
+| P15 a document row may name the `_platform` scope | `1 failed` — the same |
+| P16 a write no longer makes sure the marker is on disk | `1 failed` — `test_a_marker_cannot_bless_an_old_key_index_or_another_layout` |
+| P17 a caller's extra payload can rename the run's owner | `1 failed` |
+| P18 a run that names no organisation is resumed anyway | `1 failed` |
+| P19 a bare content hash is accepted as a chain key again | `1 failed` |
+| P20 `begin_run` reads the predecessor and the duplicate check with the organisation dropped | `9 failed, 9 passed` |
+
+**RED** — every plant exits `1` (the failing test names per plant:
+`specs-durable/journal_chain_key/journal_plants.out`; the runner is
+`journal_plants.py` beside it, and the pre-repair proof and its output are
+`proof_old_key.py` / `proof_old_key.out`). Through the battery, P1:
+`BATTERY: FAIL — 0/1 gates green`, `10 failed, 8 passed`.
+
+**REVERT** — every file restored byte-exact; exit `0`: `18 passed`; no
+`# PLANT` marker left in `src/` or `scripts/`. Verdict: proven RED, twenty
+of twenty.
+
+**After the repair it reds on:** an index file keyed by the hash alone, or
+two organisations resolving to one index file; a run whose predecessor,
+rolling hash or duplicate check comes from another organisation's chain; the
+as-of route, `asof` or `resolve_chain` reaching a chain outside the caller's
+period row's organisation; a dead letter resolved across organisations; a
+page view recording anything on another organisation's chain, or anything at
+all for a row with no organisation; a bare string accepted as a chain key; an
+unsafe organisation id mapped instead of refused; a run adopted by an index
+line; the old-key fixture (or content without a marker, or a foreign marker)
+being opened, written to, or booted over.
+
+**CANNOT SEE:** the row-level policy on `financial_periods` — that the
+caller may see the period at all is the database's, and the double returns
+whatever row the test hands it; whether `documents.org_id` on the row the
+pipeline loaded is the true owner (the service-role census,
+`tenant-boundary`, owns that); two processes appending to one chain at once
+(the journal's own stated limit); a journal on a filesystem this suite does
+not run on; the as-of semantics INSIDE one organisation when it holds two
+periods built from the same bytes — they share one chain by design, and
+as-of for either period answers the chain's last snapshot at that moment;
+the frontend, which has no as-of surface yet. The object store is global by
+design and is not a tenant boundary. A hand-made directory that has a
+current marker, organisation-shaped index directories and old-format run
+files is not detected at boot (the boot check reads the marker and the index
+layout, not every run) — `journal_cli.py verify --all` reports each such run.

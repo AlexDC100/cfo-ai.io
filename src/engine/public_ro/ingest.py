@@ -353,7 +353,13 @@ def ingest_year(
     handle = None
     if journal is not None:
         try:
+            from engine.journal.layout import PLATFORM_ORG
+
             handle = journal.begin_run(
+                # Open government data ingested by the platform: it
+                # belongs to no customer organisation, so it chains under
+                # the reserved platform scope and never beside a tenant's.
+                org_id=PLATFORM_ORG,
                 file_hash=sha,
                 document_id="public_ro:%d:%s" % (year, family),
                 engine_version=_engine_version(),

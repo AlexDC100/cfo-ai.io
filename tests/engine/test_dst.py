@@ -39,7 +39,7 @@ import pytest
 
 from engine.api import _reconcile
 from engine.api import pipeline as _pipeline
-from engine.journal import Journal, ResumeRefused, resume_run
+from engine.journal import Journal, ResumeRefused, chain_key, resume_run
 from engine.journal import hooks as _hooks
 
 import engine.dst as dst
@@ -172,7 +172,7 @@ def test_k1_lane_resume_uses_recorded_assembled(tmp_path):
         killed = dst_harness.run_fixture(fixture, admin=admin, at_boundary=_kill)
         assert killed.outcome == "killed"
         assert journal is not None
-        result = dst_harness.resume_latest(journal, killed.file_hash, admin)
+        result = dst_harness.resume_latest(journal, killed.chain, admin)
         assert result["status"] == "resumed"
 
         envelope = admin.envelope()
@@ -190,7 +190,7 @@ def test_k1_lane_resume_uses_recorded_assembled(tmp_path):
         # The resume run recorded PASS_DONE for the lane assembled.
         resume_events = journal.read_run(str(result["resume_run_id"]))
         assert "PASS_DONE" in [e.get("type") for e in resume_events]
-        assert journal.verify_chain(killed.file_hash) == []
+        assert journal.verify_chain(killed.chain) == []
 
 
 def test_k1_resume_refuses_zero_account_payload(tmp_path):
@@ -224,7 +224,7 @@ def test_k1_resume_refuses_zero_account_payload(tmp_path):
         _hooks.set_active_run(None)  # process death after the checkpoint
         _hooks.reset_cache()
         assert journal is not None
-        run_id = str(journal.registered_runs(doc["content_hash"])[0]["run_id"])
+        run_id = str(journal.registered_runs(chain_key(doc["org_id"], doc["content_hash"]))[0]["run_id"])
         with dst.admin_seam(admin):
             with pytest.raises(ResumeRefused) as excinfo:
                 resume_run(journal, run_id)

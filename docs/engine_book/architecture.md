@@ -59,7 +59,7 @@ graph LR
     pkg_intelligence["intelligence (4 modules)"]
     pkg_interp["interp (6 modules)"]
     pkg_ir["ir (4 modules)"]
-    pkg_journal["journal (6 modules)"]
+    pkg_journal["journal (7 modules)"]
     pkg_methodology["methodology (3 modules)"]
     pkg_obs["obs (5 modules)"]
     pkg_packs["packs (5 modules)"]
@@ -76,6 +76,7 @@ graph LR
     pkg_workspaces["workspaces (6 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
+    pkg__root_ -->|1| pkg_journal
     pkg__root_ -->|1| pkg_ratios
     pkg__root_ -->|1| pkg_storage
     pkg_ai -->|3| pkg_ai_lane
@@ -246,6 +247,7 @@ graph LR
         engine_journal_events["events"]
         engine_journal_hooks["hooks"]
         engine_journal_journal["journal"]
+        engine_journal_layout["layout"]
         engine_journal_resume["resume"]
         engine_journal_store["store"]
     end
@@ -338,11 +340,14 @@ graph LR
     engine_ir_schema --> engine_ir_money
     engine_journal --> engine_journal_events
     engine_journal --> engine_journal_journal
+    engine_journal --> engine_journal_layout
     engine_journal --> engine_journal_resume
     engine_journal --> engine_journal_store
     engine_journal_hooks --> engine_journal_events
     engine_journal_hooks --> engine_journal_journal
+    engine_journal_hooks --> engine_journal_layout
     engine_journal_journal --> engine_journal_events
+    engine_journal_journal --> engine_journal_layout
     engine_journal_journal --> engine_journal_store
     engine_journal_resume --> engine_api_pipeline
     engine_journal_resume --> engine_journal

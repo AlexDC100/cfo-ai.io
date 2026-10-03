@@ -1236,6 +1236,13 @@ from engine.journal.journal import (  # noqa: E402
     extract_snapshot_key,
     sanitize_key,
 )
+from engine.journal.layout import ChainKey  # noqa: E402
+
+#: The chain key is (organisation, content hash). Every test below runs
+#: inside one invented organisation; the cross-organisation laws live in
+#: tests/engine/test_journal_chain_key.py.
+_ORG = "org-m"
+_CH = ChainKey(_ORG, "fh-1")
 
 
 def _env(**over):
@@ -1262,20 +1269,21 @@ class TestJournalRegistrationAndLinkage:
 
     def test_index_entry_exact_and_cross_run_linkage(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="doc-1", engine_version="e-1")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="doc-1", engine_version="e-1")
         h1.emit("PASS_DONE", {"stage": "parse"})
         h2 = j.begin_run(
-            file_hash="fh-1", document_id="doc-1", engine_version="e-1",
+            org_id=_ORG, file_hash="fh-1", document_id="doc-1", engine_version="e-1",
             run_kind="adhoc",
         )
-        entries = j.registered_runs("fh-1")
+        entries = j.registered_runs(_CH)
         assert len(entries) == 2
         started = entries[0].pop("started_at")
         assert re.match(r"\d{4}-\d{2}-\d{2}T", started)
         assert entries[0] == {
-            "v": 1,
+            "v": 2,
             "kind": "run",
             "run_id": h1.run_id,
+            "org_id": "org-m",
             "file_hash": "fh-1",
             "document_id": "doc-1",
             "run_kind": "pipeline",
@@ -1284,9 +1292,10 @@ class TestJournalRegistrationAndLinkage:
         }
         entries[1].pop("started_at")
         assert entries[1] == {
-            "v": 1,
+            "v": 2,
             "kind": "run",
             "run_id": h2.run_id,
+            "org_id": "org-m",
             "file_hash": "fh-1",
             "document_id": "doc-1",
             "run_kind": "adhoc",
@@ -1298,19 +1307,20 @@ class TestJournalRegistrationAndLinkage:
         assert j.read_run(h2.run_id)[0]["prev_event_hash"] == tail_of_run1
         # storage layout is part of the chain's addressing
         assert (j.root / "runs" / ("%s.jsonl" % h1.run_id)).is_file()
-        assert (j.root / "index" / "fh-1.jsonl").is_file()
+        assert (j.root / "index" / "org-m" / "fh-1.jsonl").is_file()
+        assert not (j.root / "index" / "fh-1.jsonl").exists()  # never the hash alone
 
     def test_resume_runs_are_provisional_after_a_snapshot(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h1.record_snapshot(_env(), period_id="p1")
         h_resume = j.begin_run(
-            file_hash="fh-1", document_id="d", engine_version="e",
+            org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e",
             run_kind="resume",
         )
         assert h_resume.provisional is True
         h_adhoc = j.begin_run(
-            file_hash="fh-1", document_id="d", engine_version="e",
+            org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e",
             run_kind="adhoc",
         )
         assert h_adhoc.provisional is False
@@ -1323,10 +1333,10 @@ class TestJournalFlushSemantics:
 
     def test_provisional_buffers_then_flushes_in_order(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h1.record_snapshot(_env(), period_id="p1")
 
-        h2 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         assert h2.provisional
         h2.emit("PASS_DONE", {"stage": "classify"})
         run_file = j.root / "runs" / ("%s.jsonl" % h2.run_id)
@@ -1348,11 +1358,11 @@ class TestDuplicateDeliveryContract:
 
     def test_duplicate_result_dict_exact_both_branches(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         r1 = h1.record_snapshot(_env(), period_id="p1")
         assert r1["duplicate"] is False
 
-        h2 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         dup_env = _env(written_at="2026-02-02T00:00:00+00:00")  # volatile only
         expected = {
             "duplicate": True,
@@ -1368,20 +1378,20 @@ class TestDuplicateDeliveryContract:
         h2.flush()
         assert not (j.root / "runs" / ("%s.jsonl" % h2.run_id)).exists()
         snapshots = [
-            e for e in j.chain_events("fh-1") if e["type"] == "SNAPSHOT_PERSISTED"
+            e for e in j.chain_events(_CH) if e["type"] == "SNAPSHOT_PERSISTED"
         ]
         assert len(snapshots) == 1
 
     def test_distinct_state_same_key_is_not_duplicate(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         r1 = h1.record_snapshot(_env(), period_id="p1")
-        h2 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         r2 = h2.record_snapshot(_env(assembled=2))  # REAL field changed
         assert r2["duplicate"] is False
         assert r2["snapshot_id"] != r1["snapshot_id"]
         snapshots = [
-            e for e in j.chain_events("fh-1") if e["type"] == "SNAPSHOT_PERSISTED"
+            e for e in j.chain_events(_CH) if e["type"] == "SNAPSHOT_PERSISTED"
         ]
         assert len(snapshots) == 2
 
@@ -1397,7 +1407,7 @@ class TestSnapshotCommitShape:
 
         j = Journal(tmp_path / "j")
         env = _env()
-        h1 = j.begin_run(file_hash="fh-1", document_id="doc-1", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="doc-1", engine_version="e")
         r1 = h1.record_snapshot(env, period_id="p1")
 
         exact_hash = hash_bytes(canonical_bytes(env)[0])
@@ -1427,8 +1437,9 @@ class TestSnapshotCommitShape:
         }
         # period lookup aid, exact line
         assert {
-            "v": 1, "kind": "period", "period_id": "p1", "run_id": h1.run_id,
-        } in j.read_index("fh-1")
+            "v": 2, "kind": "period", "org_id": "org-m", "period_id": "p1",
+            "run_id": h1.run_id,
+        } in j.read_index(_CH)
 
     def test_extract_snapshot_key_defensive_shapes(self) -> None:
         assert extract_snapshot_key(_env()) == {
@@ -1452,14 +1463,16 @@ class TestVerifyChainReporting:
 
     def test_unknown_chain_message_exact(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        assert j.verify_chain("ghost") == ["no runs registered for chain ghost"]
+        assert j.verify_chain(ChainKey(_ORG, "ghost")) == [
+            "no runs registered for chain org-m/ghost"
+        ]
 
     def test_missing_run_file_does_not_stop_the_scan(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h1.emit("PASS_DONE", {"stage": "parse"})
         (j.root / "runs" / ("%s.jsonl" % h1.run_id)).unlink()
-        h2 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e",
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e",
                          run_kind="adhoc")
         h2.emit("PASS_DONE", {"stage": "parse"})
         # tamper run2's LAST event so the scan must reach and report it
@@ -1473,7 +1486,7 @@ class TestVerifyChainReporting:
         from engine.journal.events import _hash_basis, hash_bytes
 
         expected_recomputed = hash_bytes(_hash_basis(ev))
-        errors = j.verify_chain("fh-1")
+        errors = j.verify_chain(_CH)
         assert errors == [
             "run %s registered but has no event file" % h1.run_id,
             "event_hash mismatch (run %s seq 1): stored deadbeef != "
@@ -1482,13 +1495,13 @@ class TestVerifyChainReporting:
 
     def test_corrupt_line_reported_and_chain_recovers(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         first = j.read_run(h.run_id)[0]
         run_path = j.root / "runs" / ("%s.jsonl" % h.run_id)
         with open(str(run_path), "a", encoding="utf-8") as fh:
             fh.write("{this is not json\n")
         h.emit("PASS_DONE", {"stage": "parse"})  # seq 1, prev = first's hash
-        errors = j.verify_chain("fh-1")
+        errors = j.verify_chain(_CH)
         assert errors == [
             "run %s: unparseable line" % h.run_id,
             # after a corrupt line the verifier resets its expectation to
@@ -1501,7 +1514,7 @@ class TestVerifyChainReporting:
         from engine.journal.events import make_event
 
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         first = j.read_run(h.run_id)[0]
         gap = make_event(
             run_id=h.run_id, seq=5, ts="2026-01-01T00:00:00+00:00",
@@ -1519,28 +1532,124 @@ class TestVerifyChainReporting:
                 fh.write(json.dumps(ev, sort_keys=True, ensure_ascii=False,
                                     separators=(",", ":")) + "\n")
         # exactly ONE gap error: 0 -> 5 gaps, then 5 -> 6 is contiguous
-        assert j.verify_chain("fh-1") == [
+        assert j.verify_chain(_CH) == [
             "run %s: seq gap (expected 1, found 5)" % h.run_id,
         ]
 
     def test_snapshot_object_missing_and_corrupt_exact(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         r = h.record_snapshot(_env(), period_id="p1")
         digest = r["content_hash"]
         snap_seq = r["event"]["seq"]
         obj_path = j.store._path_for(digest)
         obj_path.unlink()
-        assert j.verify_chain("fh-1") == [
+        assert j.verify_chain(_CH) == [
             "run %s seq %s: snapshot object %s missing from store"
             % (h.run_id, snap_seq, digest),
         ]
         obj_path.write_bytes(b"garbage bytes")
-        assert j.verify_chain("fh-1") == [
+        assert j.verify_chain(_CH) == [
             "run %s seq %s: snapshot object %s corrupt: snapshot object "
             "%s failed content re-verification"
             % (h.run_id, snap_seq, digest, digest),
         ]
+
+
+class TestChainOwnership:
+    """The (organisation, content hash) chain key, 2026-10-02 — kills
+    the survivors it introduced in xǁJournalǁverify_chain (the two
+    ownership findings, exact text), xǁJournalǁ_chain_run_events (a run
+    belongs to the chain its own RUN_STARTED names) and
+    xǁJournalǁ_ensure_layout (no write without the layout marker)."""
+
+    @staticmethod
+    def _file_into(j, chain, line) -> None:
+        j._index_path(chain).parent.mkdir(parents=True, exist_ok=True)
+        with open(str(j._index_path(chain)), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line, sort_keys=True, ensure_ascii=False,
+                                separators=(",", ":")) + "\n")
+
+    def test_another_organisations_run_is_reported_exactly(self, tmp_path) -> None:
+        j = Journal(tmp_path / "j")
+        other = j.begin_run(org_id="org-n", file_hash="fh-1", document_id="d", engine_version="e")
+        own = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
+        own_tail = j.read_run(own.run_id)[-1]["event_hash"]
+        foreign_line = j.registered_runs(ChainKey("org-n", "fh-1"))[0]
+        self._file_into(j, _CH, foreign_line)
+        assert j.verify_chain(_CH) == [
+            "run %s: index line names organisation 'org-n' on chain org-m/fh-1"
+            % other.run_id,
+            "run %s: RUN_STARTED names organisation 'org-n' — it is not "
+            "part of chain org-m/fh-1" % other.run_id,
+            "run %s seq 0: prev_event_hash broken link (stored None != "
+            "expected %r)" % (other.run_id, own_tail),
+        ]
+        assert j.verify_chain(ChainKey("org-n", "fh-1")) == []
+
+    def test_an_index_line_relabelled_to_this_organisation_is_still_reported(self, tmp_path) -> None:
+        j = Journal(tmp_path / "j")
+        other = j.begin_run(org_id="org-n", file_hash="fh-1", document_id="d", engine_version="e")
+        foreign_line = j.registered_runs(ChainKey("org-n", "fh-1"))[0]
+        self._file_into(j, _CH, dict(foreign_line, org_id=_ORG))
+        # the index line now CLAIMS org-m; the run's own RUN_STARTED does not
+        assert j.verify_chain(_CH) == [
+            "run %s: RUN_STARTED names organisation 'org-n' — it is not "
+            "part of chain org-m/fh-1" % other.run_id,
+        ]
+
+    def test_chain_reads_skip_a_foreign_run_and_say_so(self, tmp_path, caplog) -> None:
+        import logging
+
+        j = Journal(tmp_path / "j")
+        other = j.begin_run(org_id="org-n", file_hash="fh-1", document_id="d", engine_version="e")
+        own = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
+        own.emit("PASS_DONE", {"stage": "parse"})
+        own_events = j.read_run(own.run_id)
+        self._file_into(j, _CH, j.registered_runs(ChainKey("org-n", "fh-1"))[0])
+        self._file_into(j, _CH, {"kind": "run", "run_id": "no-such-run", "org_id": _ORG})
+        with caplog.at_level(logging.ERROR, logger="engine.journal"):
+            assert j.chain_events(_CH) == own_events
+            assert j._chain_run_events(_CH, other.run_id) == []
+            assert j._chain_run_events(_CH, "no-such-run") == []
+            assert j._chain_run_events(_CH, own.run_id) == own_events
+        assert j.chain_tail(_CH) == own_events[-1]
+        messages = [r.getMessage() for r in caplog.records]
+        assert messages == [
+            "[journal] run %s is listed on chain org-m/fh-1 but its RUN_STARTED "
+            "names organisation 'org-n' — not read as part of this chain" % other.run_id
+        ] * 3
+        # a run whose first line is not a RUN_STARTED names no organisation
+        headless = j.root / "runs" / "headless.jsonl"
+        headless.write_text(json.dumps(own_events[1]) + "\n", encoding="utf-8")
+        assert j._chain_run_events(_CH, "headless") == []
+
+    def test_no_write_without_the_layout_marker(self, tmp_path) -> None:
+        from engine.journal.layout import JournalLayoutError
+
+        root = tmp_path / "j"
+        j = Journal(root)
+        marker = root / "LAYOUT.json"
+        original = marker.read_bytes()
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
+        # marker present: the guard is a no-op and does not rewrite it
+        stamp = marker.stat().st_mtime_ns
+        j._ensure_layout()
+        assert marker.stat().st_mtime_ns == stamp
+        # marker lost under a root that holds content: nothing is written
+        marker.unlink()
+        run_file = j.root / "runs" / ("%s.jsonl" % h.run_id)
+        before = run_file.read_bytes()
+        with pytest.raises(JournalLayoutError):
+            h.emit("PASS_DONE", {"stage": "parse"})
+        assert run_file.read_bytes() == before
+        assert not marker.exists()
+        with pytest.raises(JournalLayoutError):
+            j.store.write_object(b"x")
+        # a wiped root (no content, no marker) gets the marker back first
+        shutil.rmtree(str(root))
+        j._ensure_layout()
+        assert marker.read_bytes() == original
 
 
 class TestObserveServing:
@@ -1552,11 +1661,11 @@ class TestObserveServing:
         from engine.journal.events import canonical_bytes, hash_bytes, normalized_hash
 
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="doc-1", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="doc-1", engine_version="e")
         env = _env()
         h.record_snapshot(env, period_id="p1")
 
-        out = j.observe_serving(env, envelope_version="v9")
+        out = j.observe_serving(env, envelope_version="v9", org_id=_ORG)
         assert set(out.keys()) == {"run_id", "snapshot", "served_event"}
         assert out["snapshot"] is None  # same era — self-heal not needed
         assert out["served_event"]["payload"] == {
@@ -1565,30 +1674,30 @@ class TestObserveServing:
             "normalized_hash": normalized_hash(env),
         }
         serve_entry = [
-            e for e in j.registered_runs("fh-1") if e["run_id"] == out["run_id"]
+            e for e in j.registered_runs(_CH) if e["run_id"] == out["run_id"]
         ][0]
         assert serve_entry["run_kind"] == "serve"
         assert serve_entry["engine_version"] == "serve-observation"
         assert serve_entry["document_id"] == "doc-1"
         # same state again: complete no-op
-        assert j.observe_serving(env) is None
+        assert j.observe_serving(env, org_id=_ORG) is None
 
     def test_out_of_band_change_self_heals(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         env = _env()
         h.record_snapshot(env, period_id="p1")
-        j.observe_serving(env)
+        j.observe_serving(env, org_id=_ORG)
         mutated = _env(assembled=99)  # out-of-band mutation, same chain
-        out = j.observe_serving(mutated)
+        out = j.observe_serving(mutated, org_id=_ORG)
         assert out is not None and out["snapshot"] is not None
         assert out["snapshot"]["duplicate"] is False
 
     def test_noop_guards(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        assert j.observe_serving({}) is None
-        assert j.observe_serving(["not-a-dict"]) is None  # type: ignore[arg-type]
-        assert j.observe_serving({"provenance": {}}) is None
+        assert j.observe_serving({}, org_id=_ORG) is None
+        assert j.observe_serving(["not-a-dict"], org_id=_ORG) is None  # type: ignore[arg-type]
+        assert j.observe_serving({"provenance": {}}, org_id=_ORG) is None
         assert j.list_chains() == []  # nothing was registered by the no-ops
 
 
@@ -1606,10 +1715,30 @@ class TestJournalStorageHygiene:
     def test_append_recreates_wiped_tree(self, tmp_path) -> None:
         root = tmp_path / "j"
         j = Journal(root)
-        h = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         shutil.rmtree(str(root))  # simulate external wipe of the whole store
         h.emit("PASS_DONE", {"stage": "parse"})
         assert (root / "runs" / ("%s.jsonl" % h.run_id)).is_file()
+        # ... and the layout marker came back BEFORE the event did, so the
+        # recreated root is not content-without-a-marker (which the next
+        # boot would refuse as written under the retired key).
+        assert (root / "LAYOUT.json").is_file()
+        from engine.journal.layout import inspect_layout
+
+        assert inspect_layout(root)["state"] == "current"
+
+    def test_a_first_run_after_a_wipe_recreates_the_organisations_index(self, tmp_path) -> None:
+        # Kills xǁJournalǁ_append_line__mutmut_{3,5,7} under the (org,
+        # content hash) key: the layout guard recreates the ROOT, so the
+        # run file is one level down and no longer needs parents=True —
+        # the chain's index file (index/<org>/<hash>.jsonl, two levels)
+        # does.
+        root = tmp_path / "j"
+        j = Journal(root)
+        shutil.rmtree(str(root))
+        h = j.begin_run(org_id="org-n", file_hash="fh-9", document_id="d", engine_version="e")
+        assert (root / "index" / "org-n" / "fh-9.jsonl").is_file()
+        assert [e["run_id"] for e in j.registered_runs(ChainKey("org-n", "fh-9"))] == [h.run_id]
 
     def test_storage_path_literals_case_exact(self, tmp_path) -> None:
         # macOS default APFS is case-insensitive, so an is_file() probe
@@ -1617,7 +1746,7 @@ class TestJournalStorageHygiene:
         # (case-sensitive) production filesystem. Pin the literal path.
         j = Journal(tmp_path / "j")
         assert str(j._run_path("r1")).endswith("/runs/r1.jsonl")
-        assert str(j._index_path("fh")).endswith("/index/fh.jsonl")
+        assert str(j._index_path(ChainKey(_ORG, "fh"))).endswith("/index/org-m/fh.jsonl")
 
 
 class TestJournalSecondPass:
@@ -1639,11 +1768,12 @@ class TestJournalSecondPass:
 
     def test_run_started_payload_exact(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="doc-1", engine_version="e-1")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="doc-1", engine_version="e-1")
         first = j.read_run(h.run_id)[0]
         assert first["type"] == "RUN_STARTED"
         assert first["payload"] == {
             "run_id": h.run_id,
+            "org_id": "org-m",
             "file_hash": "fh-1",
             "engine_version": "e-1",
             "document_id": "doc-1",
@@ -1652,18 +1782,18 @@ class TestJournalSecondPass:
 
     def test_short_circuited_run_never_registers(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h1.record_snapshot(_env(), period_id="p1")
-        h2 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h2.record_snapshot(_env(written_at="x"))  # duplicate -> short-circuit
         h2.flush()
-        assert [e["run_id"] for e in j.registered_runs("fh-1")] == [h1.run_id]
+        assert [e["run_id"] for e in j.registered_runs(_CH)] == [h1.run_id]
 
     def test_flush_leaves_provisional_false(self, tmp_path) -> None:
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h1.record_snapshot(_env(), period_id="p1")
-        h2 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h2.flush()
         assert h2.provisional is False
 
@@ -1671,15 +1801,15 @@ class TestJournalSecondPass:
         import logging
 
         j = Journal(tmp_path / "j")
-        h1 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h1 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         h1.record_snapshot(_env(), period_id="p1")
-        h2 = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         with caplog.at_level(logging.INFO, logger="engine.journal"):
             h2.record_snapshot(_env(written_at="x"))
         messages = [r.getMessage() for r in caplog.records]
         assert (
             "[journal] duplicate delivery short-circuited to run %s "
-            "(file fh-1)" % h1.run_id
+            "(chain org-m/fh-1)" % h1.run_id
         ) in messages
 
     def test_simulated_crash_messages_exact(self, tmp_path) -> None:
@@ -1690,13 +1820,13 @@ class TestJournalSecondPass:
         )
 
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
         with pytest.raises(SimulatedCrash) as ei:
             h.record_snapshot(_env(), crash_after=CRASH_AFTER_OBJECT_WRITE)
         assert str(ei.value) == (
             "crash injected after object write (before journal event)"
         )
-        h2 = j.begin_run(file_hash="fh-2", document_id="d", engine_version="e")
+        h2 = j.begin_run(org_id=_ORG, file_hash="fh-2", document_id="d", engine_version="e")
         with pytest.raises(SimulatedCrash) as ei:
             h2.record_snapshot(
                 _env(provenance={"content_hash": "fh-2"}),
@@ -1710,12 +1840,12 @@ class TestJournalSecondPass:
         j = Journal(tmp_path / "j")
         # one dead letter matchable ONLY by document_id, one ONLY by
         # file_hash — a successful snapshot must resolve both halves.
-        ha = j.begin_run(file_hash="fh-A", document_id="doc-1", engine_version="e")
+        ha = j.begin_run(org_id=_ORG, file_hash="fh-A", document_id="doc-1", engine_version="e")
         j.record_failure(ha, stage="parse", error_type="Boom", message="boom-1")
-        hb = j.begin_run(file_hash="fh-1", document_id=None, engine_version="e")
+        hb = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id=None, engine_version="e")
         j.record_failure(hb, stage="parse", error_type="Boom", message="boom-2")
         assert j.dlq_depth() == 2
-        h = j.begin_run(file_hash="fh-1", document_id="doc-1", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="doc-1", engine_version="e")
         h.record_snapshot(_env(), period_id="p1")
         assert j.dlq_depth() == 0
 
@@ -1725,7 +1855,7 @@ class TestJournalSecondPass:
         import logging
 
         j = Journal(tmp_path / "j")
-        h = j.begin_run(file_hash="fh-1", document_id="d", engine_version="e")
+        h = j.begin_run(org_id=_ORG, file_hash="fh-1", document_id="d", engine_version="e")
 
         def boom_index(file_hash, entry):
             if entry.get("kind") == "period":

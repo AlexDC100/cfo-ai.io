@@ -25,10 +25,19 @@ built here — consumes exactly this; documented in
     422  unparseable ``t``
     503  snapshot object referenced by the chain is unavailable
          (storage fault — the chain says what was live; the bytes
-         cannot currently be produced)
+         cannot currently be produced), OR the journal directory was
+         not written under the (org_id, content hash) chain key and is
+         refused (engine/journal/layout.py — boot refuses it first)
 
 The journal root comes from ``ENGINE_JOURNAL_DIR``; with the journal
 disabled every period honestly has no coverage (404).
+
+TENANCY. The journal is read with the organisation of the period row the
+caller's own client returned (``financial_periods.org_id``): the chain
+key is (org_id, content hash), so the period id and the content-hash
+fallback are both resolved inside that organisation only. Another
+organisation's chain for the same bytes is not reachable from here; a
+period row carrying no organisation has no coverage (404).
 """
 from __future__ import annotations
 
@@ -38,7 +47,9 @@ from typing import Any, Dict, Optional
 
 from fastapi import Header, HTTPException
 
+from engine.journal import JournalLayoutError
 from engine.journal import hooks as _journal_hooks
+from engine.journal.layout import tenant_org
 
 from . import _supabase
 
@@ -78,11 +89,22 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
                 422, "Query parameter t must be an ISO-8601 timestamp."
             )
 
-        journal = _journal_hooks.journal_from_env()
+        try:
+            journal = _journal_hooks.journal_from_env()
+        except JournalLayoutError:
+            logger.exception("[asof] journal directory refused")
+            raise HTTPException(503, "The run journal is unavailable.")
         if journal is None:
             raise HTTPException(404, _NO_COVERAGE_DETAIL)
+        # The organisation half of the chain key is the period ROW's — the
+        # row the caller's own client returned. No row organisation, no
+        # chain: never a lookup by period id or content hash alone.
+        try:
+            org_id = tenant_org(str(period.get("org_id") or ""))
+        except ValueError:
+            raise HTTPException(404, _NO_COVERAGE_DETAIL)
 
-        result = journal.asof(period_id, t)
+        result = journal.asof(period_id, t, org_id=org_id)
         if result is None:
             # The period id may predate the period-index lines; fall back
             # to the chain keyed by the period's source file hash (the
@@ -93,7 +115,7 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
             )
             file_hash = (provenance or {}).get("content_hash")
             if file_hash:
-                result = journal.asof(str(file_hash), t)
+                result = journal.asof(str(file_hash), t, org_id=org_id)
         if result is None:
             raise HTTPException(404, _NO_COVERAGE_DETAIL)
         if result.get("error"):

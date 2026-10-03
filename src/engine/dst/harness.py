@@ -65,7 +65,14 @@ import engine.ai_lane as _lane
 from engine.api import _reconcile
 from engine.api import pipeline as _pipeline
 from engine.core.country_pack_registry import get_pack
-from engine.journal import Journal, canonical_bytes, normalized_envelope, resume_run
+from engine.journal import (
+    ChainKey,
+    Journal,
+    canonical_bytes,
+    chain_key,
+    normalized_envelope,
+    resume_run,
+)
 from engine.journal import hooks as _hooks
 from engine.serving import FactsGateway
 
@@ -593,6 +600,12 @@ class DstRunResult:
     ai_propose_calls: int = 0
     boundaries_hit: List[str] = field(default_factory=list)
 
+    @property
+    def chain(self) -> ChainKey:
+        """The journal chain this run lands on: the document's
+        organisation AND its content hash (never the hash alone)."""
+        return chain_key(self.doc["org_id"], self.file_hash)
+
 
 def doc_for(fixture: Fixture, content: bytes, *, doc_id: Optional[str] = None) -> Dict[str, Any]:
     return {
@@ -791,12 +804,12 @@ def run_fixture(
     )
 
 
-def resume_latest(journal: Journal, file_hash: str, admin: Any) -> Dict[str, Any]:
+def resume_latest(journal: Journal, chain: ChainKey, admin: Any) -> Dict[str, Any]:
     """Resume the LAST registered run of the chain through the REAL
     resume machinery, persisting into ``admin``."""
-    runs = journal.registered_runs(file_hash)
+    runs = journal.registered_runs(chain)
     if not runs:
-        raise RuntimeError("no registered runs for chain %s" % file_hash)
+        raise RuntimeError("no registered runs for chain %s" % chain.label())
     run_id = str(runs[-1]["run_id"])
     with admin_seam(admin):
         return resume_run(journal, run_id)
@@ -882,14 +895,14 @@ def check(condition: Any, message: str) -> None:
         raise InvariantViolation(message)
 
 
-def snapshot_events(journal: Journal, file_hash: str) -> List[Dict[str, Any]]:
-    return journal.snapshots(file_hash)
+def snapshot_events(journal: Journal, chain: ChainKey) -> List[Dict[str, Any]]:
+    return journal.snapshots(chain)
 
 
-def every_snapshot_object_present(journal: Journal, file_hash: str) -> bool:
+def every_snapshot_object_present(journal: Journal, chain: ChainKey) -> bool:
     """K2's journal half: an event without its (verifiable) object is
     never allowed — the ordering rule's observable."""
-    for event in journal.snapshots(file_hash):
+    for event in journal.snapshots(chain):
         digest = (event.get("payload") or {}).get("content_hash")
         if not digest or not journal.store.has(str(digest)):
             return False

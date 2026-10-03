@@ -6380,7 +6380,10 @@ def _apply_envelope_truth_to_statements(
         # hook: appends only when the served state differs from the last
         # recorded one, and self-heals the chain when the persisted
         # envelope changed out-of-band (e.g. reconcile undo).
-        _journal_hooks.on_served(_env, _cbs if isinstance(_cbs, dict) else None)
+        _journal_hooks.on_served(
+            _env, _cbs if isinstance(_cbs, dict) else None,
+            org_id=period.get("org_id"),
+        )
     except Exception:  # noqa: BLE001
         logger.exception(
             "[envelope-truth] persisted-envelope override failed (non-fatal)"

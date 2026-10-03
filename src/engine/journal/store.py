@@ -29,15 +29,25 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import Iterator, Union
+from typing import Callable, Iterator, Optional, Union
 
 from .events import hash_bytes
 
 
 class SnapshotStore:
-    def __init__(self, root: Union[str, Path]) -> None:
+    def __init__(
+        self,
+        root: Union[str, Path],
+        *,
+        before_write: Optional[Callable[[], None]] = None,
+    ) -> None:
         self.root = Path(root)
         self.objects_dir = self.root / "objects"
+        # The owning Journal's layout guard: runs before any NEW object
+        # lands, so the layout marker is on disk before the first byte
+        # of content (journal.Journal._ensure_layout). May raise — then
+        # nothing is written.
+        self._before_write = before_write
 
     # ── writes ─────────────────────────────────────────────────────
 
@@ -48,6 +58,8 @@ class SnapshotStore:
         path = self._path_for(digest)
         if path.is_file():
             return digest
+        if self._before_write is not None:
+            self._before_write()
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp_name = tempfile.mkstemp(
             prefix=".tmp-%s-" % digest[:8], dir=str(path.parent)

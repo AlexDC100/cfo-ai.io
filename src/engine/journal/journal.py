@@ -7,14 +7,28 @@ Filesystem layout under the journal root (``ENGINE_JOURNAL_DIR``;
 locally ``<repo>/data/journal`` — gitignored; in-container
 ``/app/data/journal`` on the mounted volume):
 
+    LAYOUT.json                 the layout marker (layout.py) — written
+                                before anything else
     objects/<sha[:2]>/<sha>     content-addressed snapshot store
     runs/<run_id>.jsonl         one hash-chained event stream per run
-    index/<file_hash>.jsonl     per-document chain index: one line per
-                                registered run (append-only) + one line
-                                per persisted period (asof lookup aid)
+    index/<org_id>/<file_hash>.jsonl
+                                per-(organisation, document) chain
+                                index: one line per registered run
+                                (append-only) + one line per persisted
+                                period (asof lookup aid)
     dlq/<run_id>.json           dead-lettered runs (typed reason)
     dlq/resolved/<run_id>.json  dead letters cleared by a later success
                                 (moved, never deleted — audit trail)
+
+THE CHAIN KEY is ``ChainKey(org_id, file_hash)`` (layout.py) — the
+organisation AND the content hash, never the hash alone: two
+organisations uploading byte-identical documents hold two chains that
+never link, read, deduplicate against or resolve each other. Every
+chain read and write resolves its file through ``Journal._index_path``,
+which refuses anything that is not a ChainKey. A run belongs to the
+chain its own RUN_STARTED names: a run file listed in another
+organisation's index is not read as part of that chain
+(``chain_events``) and is reported by ``verify_chain``.
 
 PERSIST ORDERING RULE (crash safety — encoded as tests in
 tests/engine/test_crash_safety.py, not just prose):
@@ -31,10 +45,12 @@ DUPLICATE SHORT-CIRCUIT: a run whose document chain already carries a
 completed snapshot begins PROVISIONAL — its events buffer in memory and
 are flushed to disk only when its own snapshot proves NEW (normalized
 content or snapshot key differs from the chain head). Re-delivery of
-the same upload under the same engine (same file_hash + parser_version
-+ mapping_version + pack_hash → byte-identical analysis modulo volatile
-write stamps) therefore leaves exactly one chain and one snapshot on
-disk. A crash mid-provisional-run loses only the buffer — the chain
+the same upload BY THE SAME ORGANISATION under the same engine (same
+org_id + file_hash + parser_version + mapping_version + pack_hash →
+byte-identical analysis modulo volatile write stamps) therefore leaves
+exactly one chain and one snapshot on disk. Another organisation's
+identical upload is not a duplicate of it: it is a first run on its own
+chain. A crash mid-provisional-run loses only the buffer — the chain
 already describes the served state, and the serve-seam observation
 self-heals any divergence at the next read.
 
@@ -76,6 +92,14 @@ from .events import (
     strip_volatile,
     verify_event,
 )
+from .layout import (
+    LAYOUT_FILE,
+    ChainKey,
+    adopt as _adopt_layout,
+    chain_key,
+    org_component,
+    require_chain,
+)
 from .store import SnapshotStore
 
 logger = logging.getLogger("engine.journal")
@@ -95,6 +119,10 @@ CRASH_AFTER_OBJECT_WRITE = "object_write"
 CRASH_AFTER_EVENT_APPEND = "event_append"
 
 _SAFE_COMPONENT = re.compile(r"[^A-Za-z0-9._-]")
+
+#: Schema version of index lines and dead-letter entries. 2 == they name
+#: their organisation (1 was keyed by content hash alone — layout.py).
+INDEX_SCHEMA_VERSION = 2
 
 
 def sanitize_key(key: str) -> str:
@@ -134,7 +162,7 @@ class RunHandle:
         journal: "Journal",
         *,
         run_id: str,
-        file_hash: str,
+        chain: ChainKey,
         document_id: Optional[str],
         run_kind: str,
         provisional: bool,
@@ -144,7 +172,9 @@ class RunHandle:
     ) -> None:
         self.journal = journal
         self.run_id = run_id
-        self.file_hash = file_hash
+        self.chain = require_chain(chain)
+        self.org_id = chain.org_id
+        self.file_hash = chain.file_hash
         self.document_id = document_id
         self.run_kind = run_kind
         self.provisional = provisional
@@ -198,11 +228,12 @@ class RunHandle:
         if self._registered:
             return
         self.journal._append_index(
-            self.file_hash,
+            self.chain,
             {
-                "v": 1,
+                "v": INDEX_SCHEMA_VERSION,
                 "kind": "run",
                 "run_id": self.run_id,
+                "org_id": self.org_id,
                 "file_hash": self.file_hash,
                 "document_id": self.document_id,
                 "run_kind": self.run_kind,
@@ -229,7 +260,7 @@ class RunHandle:
         contract. Returns ``{"duplicate": bool, "snapshot_id",
         "content_hash", "normalized_hash", "run_id"}``."""
         if self.short_circuited:
-            prior = self.journal.last_snapshot_event(self.file_hash)
+            prior = self.journal.last_snapshot_event(self.chain)
             prior_payload = (prior or {}).get("payload") or {}
             return {
                 "duplicate": True,
@@ -244,24 +275,26 @@ class RunHandle:
         key = extract_snapshot_key(envelope)
 
         if self.provisional:
-            prior = self.journal.last_snapshot_event(self.file_hash)
+            prior = self.journal.last_snapshot_event(self.chain)
             prior_payload = (prior or {}).get("payload") or {}
             if (
                 prior is not None
                 and prior_payload.get("normalized_hash") == norm_hash
                 and (prior_payload.get("key") or {}) == key
             ):
-                # DUPLICATE DELIVERY — same upload, same engine, same
-                # analysis: short-circuit to the existing chain. Exactly
-                # one snapshot, one chain (K3).
+                # DUPLICATE DELIVERY — same organisation, same upload,
+                # same engine, same analysis: short-circuit to the
+                # existing chain. Exactly one snapshot, one chain (K3).
+                # ``prior`` is read from THIS run's (org, hash) chain, so
+                # another organisation's snapshot is never the duplicate.
                 self.short_circuited = True
                 self.duplicate_of = prior.get("run_id")
                 self._buffer = []
                 logger.info(
                     "[journal] duplicate delivery short-circuited to run %s "
-                    "(file %s)",
+                    "(chain %s)",
                     self.duplicate_of,
-                    self.file_hash,
+                    self.chain.label(),
                 )
                 return {
                     "duplicate": True,
@@ -303,10 +336,11 @@ class RunHandle:
         if period_id:
             try:
                 self.journal._append_index(
-                    self.file_hash,
+                    self.chain,
                     {
-                        "v": 1,
+                        "v": INDEX_SCHEMA_VERSION,
                         "kind": "period",
+                        "org_id": self.org_id,
                         "period_id": str(period_id),
                         "run_id": self.run_id,
                     },
@@ -315,7 +349,7 @@ class RunHandle:
                 logger.exception("[journal] period index line failed (non-fatal)")
         try:
             self.journal.resolve_dlq_for(
-                document_id=self.document_id, file_hash=self.file_hash
+                chain=self.chain, document_id=self.document_id
             )
         except Exception:  # noqa: BLE001
             logger.exception("[journal] dlq resolution failed (non-fatal)")
@@ -338,7 +372,11 @@ class Journal:
         clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
         self.root = Path(root)
-        self.store = SnapshotStore(self.root)
+        # Refuses (JournalLayoutError) a root written under the retired
+        # content-hash key BEFORE creating or touching anything in it; on
+        # a fresh root the layout marker is the first file written.
+        _adopt_layout(self.root)
+        self.store = SnapshotStore(self.root, before_write=self._ensure_layout)
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._lock = threading.RLock()
         for sub in ("runs", "index", "dlq", "objects"):
@@ -354,16 +392,39 @@ class Journal:
     def _run_path(self, run_id: str) -> Path:
         return self.root / "runs" / ("%s.jsonl" % sanitize_key(run_id))
 
-    def _index_path(self, file_hash: str) -> Path:
-        return self.root / "index" / ("%s.jsonl" % sanitize_key(file_hash))
+    def _index_path(self, chain: ChainKey) -> Path:
+        """THE chain key → file mapping; every chain read and write
+        resolves through here. A bare string (the retired content-hash
+        key) is a TypeError; an organisation id is used verbatim or
+        refused (``layout.org_component``), never rewritten, so two
+        organisations can never resolve to one file."""
+        chain = require_chain(chain)
+        return (
+            self.root
+            / "index"
+            / org_component(chain.org_id)
+            / ("%s.jsonl" % sanitize_key(chain.file_hash))
+        )
 
     def _dlq_path(self, run_id: str) -> Path:
         return self.root / "dlq" / ("%s.json" % sanitize_key(run_id))
 
     # ── low-level append (locked, fsynced) ─────────────────────────
 
+    def _ensure_layout(self) -> None:
+        """Before every write: the layout marker is on disk, or nothing
+        is written. A root wiped under a live process (the append path
+        recreates the tree) gets its marker back first, so it never ends
+        up holding content with no marker — which the next boot would
+        have to refuse as written under the retired key. A root that
+        holds content and has LOST its marker is refused here too
+        (JournalLayoutError): it cannot be told from an old one."""
+        if not (self.root / LAYOUT_FILE).is_file():
+            _adopt_layout(self.root)
+
     def _append_line(self, path: Path, obj: Dict[str, Any]) -> None:
         data, _lossy = canonical_bytes(obj)
+        self._ensure_layout()
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._lock:
             with open(str(path), "ab") as fh:
@@ -386,8 +447,8 @@ class Journal:
     def _append_event(self, run_id: str, event: Dict[str, Any]) -> None:
         self._append_line(self._run_path(run_id), event)
 
-    def _append_index(self, file_hash: str, entry: Dict[str, Any]) -> None:
-        self._append_line(self._index_path(file_hash), entry)
+    def _append_index(self, chain: ChainKey, entry: Dict[str, Any]) -> None:
+        self._append_line(self._index_path(chain), entry)
 
     # ── reads ──────────────────────────────────────────────────────
 
@@ -409,38 +470,91 @@ class Journal:
     def read_run(self, run_id: str) -> List[Dict[str, Any]]:
         return self._read_jsonl(self._run_path(run_id))
 
-    def read_index(self, file_hash: str) -> List[Dict[str, Any]]:
-        return self._read_jsonl(self._index_path(file_hash))
+    def read_index(self, chain: ChainKey) -> List[Dict[str, Any]]:
+        return self._read_jsonl(self._index_path(chain))
 
-    def registered_runs(self, file_hash: str) -> List[Dict[str, Any]]:
-        return [e for e in self.read_index(file_hash) if e.get("kind") == "run"]
+    def registered_runs(self, chain: ChainKey) -> List[Dict[str, Any]]:
+        return [e for e in self.read_index(chain) if e.get("kind") == "run"]
 
-    def list_chains(self) -> List[str]:
+    def list_chains(self, org_id: Optional[str] = None) -> List[ChainKey]:
+        """Every chain on disk, or one organisation's. The all-chains
+        form is for operator integrity tooling (verify --all, metrics);
+        nothing that answers a tenant calls it without ``org_id``."""
         index_dir = self.root / "index"
         if not index_dir.is_dir():
             return []
-        return sorted(p.stem for p in index_dir.glob("*.jsonl"))
+        if org_id is not None:
+            org_dirs = [index_dir / org_component(org_id)]
+        else:
+            org_dirs = sorted(p for p in index_dir.iterdir() if p.is_dir())
+        out: List[ChainKey] = []
+        for org_dir in org_dirs:
+            if not org_dir.is_dir():
+                continue
+            try:
+                org_component(org_dir.name)
+            except ValueError:
+                # Not a directory this code can have written; it holds no
+                # chain any organisation resolves to.
+                logger.warning(
+                    "[journal] index/%s is not an organisation directory — skipped",
+                    org_dir.name,
+                )
+                continue
+            for path in sorted(org_dir.glob("*.jsonl")):
+                out.append(ChainKey(org_dir.name, path.stem))
+        return out
 
-    def chain_events(self, file_hash: str) -> List[Dict[str, Any]]:
-        """Every committed event of the document chain, in structural
-        order (index registration order, then per-run seq)."""
-        events: List[Dict[str, Any]] = []
-        for entry in self.registered_runs(file_hash):
-            events.extend(self.read_run(str(entry.get("run_id"))))
+    @staticmethod
+    def _run_owner(events: List[Dict[str, Any]]) -> Tuple[Optional[str], Optional[str]]:
+        """(org_id, file_hash) a run's own RUN_STARTED names — hash-bound
+        in the event, so it cannot be changed without breaking the run."""
+        if not events or events[0].get("type") != "RUN_STARTED":
+            return None, None
+        payload = events[0].get("payload") or {}
+        return payload.get("org_id"), payload.get("file_hash")
+
+    def _chain_run_events(self, chain: ChainKey, run_id: str) -> List[Dict[str, Any]]:
+        """A registered run's events — or nothing, when the run's own
+        RUN_STARTED does not name this chain's organisation. An index
+        line cannot make another organisation's run part of this chain."""
+        events = self.read_run(run_id)
+        if not events:
+            return []
+        owner_org, _owner_hash = self._run_owner(events)
+        if owner_org != chain.org_id:
+            logger.error(
+                "[journal] run %s is listed on chain %s but its RUN_STARTED "
+                "names organisation %r — not read as part of this chain",
+                run_id,
+                chain.label(),
+                owner_org,
+            )
+            return []
         return events
 
-    def chain_tail(self, file_hash: str) -> Optional[Dict[str, Any]]:
-        events = self.chain_events(file_hash)
+    def chain_events(self, chain: ChainKey) -> List[Dict[str, Any]]:
+        """Every committed event of the (organisation, document) chain,
+        in structural order (index registration order, then per-run
+        seq)."""
+        chain = require_chain(chain)
+        events: List[Dict[str, Any]] = []
+        for entry in self.registered_runs(chain):
+            events.extend(self._chain_run_events(chain, str(entry.get("run_id"))))
+        return events
+
+    def chain_tail(self, chain: ChainKey) -> Optional[Dict[str, Any]]:
+        events = self.chain_events(chain)
         return events[-1] if events else None
 
-    def last_snapshot_event(self, file_hash: str) -> Optional[Dict[str, Any]]:
-        for event in reversed(self.chain_events(file_hash)):
+    def last_snapshot_event(self, chain: ChainKey) -> Optional[Dict[str, Any]]:
+        for event in reversed(self.chain_events(chain)):
             if event.get("type") == "SNAPSHOT_PERSISTED":
                 return event
         return None
 
-    def last_served_normalized_hash(self, file_hash: str) -> Optional[str]:
-        for event in reversed(self.chain_events(file_hash)):
+    def last_served_normalized_hash(self, chain: ChainKey) -> Optional[str]:
+        for event in reversed(self.chain_events(chain)):
             if event.get("type") == "SERVED":
                 return (event.get("payload") or {}).get("normalized_hash")
         return None
@@ -450,30 +564,36 @@ class Journal:
     def begin_run(
         self,
         *,
+        org_id: str,
         file_hash: str,
         document_id: Optional[str],
         engine_version: str,
         run_kind: str = "pipeline",
         extra_payload: Optional[Dict[str, Any]] = None,
     ) -> RunHandle:
-        """Open a run on the document chain and emit RUN_STARTED.
+        """Open a run on the (organisation, document) chain and emit
+        RUN_STARTED. ``org_id`` is required — there is no chain for a
+        document whose organisation is unknown (ValueError), and the
+        predecessor, the rolling hash and the duplicate check are all
+        read from THIS organisation's chain only.
         ``pipeline``/``resume`` runs on a chain that already holds a
         completed snapshot begin PROVISIONAL (duplicate short-circuit,
         module docstring); ``serve``/``adhoc`` runs are always durable."""
+        chain = chain_key(org_id, file_hash)
         with self._lock:
-            registered = self.registered_runs(file_hash)
+            registered = self.registered_runs(chain)
             prev_run_id = str(registered[-1]["run_id"]) if registered else None
-            tail = self.chain_tail(file_hash)
+            tail = self.chain_tail(chain)
             prev_hash = tail.get("event_hash") if tail else None
             provisional = (
                 run_kind in ("pipeline", "resume")
-                and self.last_snapshot_event(file_hash) is not None
+                and self.last_snapshot_event(chain) is not None
             )
             run_id = uuid.uuid4().hex
             handle = RunHandle(
                 self,
                 run_id=run_id,
-                file_hash=file_hash,
+                chain=chain,
                 document_id=document_id,
                 run_kind=run_kind,
                 provisional=provisional,
@@ -483,13 +603,19 @@ class Journal:
             )
             payload = {
                 "run_id": run_id,
-                "file_hash": file_hash,
+                "org_id": chain.org_id,
+                "file_hash": chain.file_hash,
                 "engine_version": engine_version,
                 "document_id": document_id,
                 "run_kind": run_kind,
             }
             if extra_payload:
                 payload.update(extra_payload)
+            # The run's owner is hash-bound in RUN_STARTED and read back
+            # by chain_events / verify_chain: a caller's extra payload
+            # never gets to rename it.
+            payload["org_id"] = chain.org_id
+            payload["file_hash"] = chain.file_hash
             handle.emit("RUN_STARTED", payload)
             return handle
 
@@ -499,6 +625,7 @@ class Journal:
         self,
         envelope: Dict[str, Any],
         *,
+        org_id: str,
         envelope_version: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """The serve seam (``_apply_envelope_truth_to_statements``):
@@ -508,7 +635,12 @@ class Journal:
         passing through ``stage_persist``) by capturing a
         ``serve_observed`` snapshot of the new era. Reads that serve the
         same state as last recorded are complete no-ops — the journal
-        never grows per page view."""
+        never grows per page view.
+
+        ``org_id`` is the organisation of the PERIOD ROW being served
+        (the envelope does not carry one). "Last recorded" is read from
+        that organisation's chain only: another organisation serving the
+        same bytes is not this chain's previous state."""
         if not isinstance(envelope, dict) or not envelope:
             return None
         provenance = envelope.get("provenance")
@@ -516,16 +648,18 @@ class Journal:
         file_hash = provenance.get("content_hash")
         if not file_hash:
             return None
+        chain = chain_key(org_id, str(file_hash))
         norm_hash = normalized_hash(envelope)
         with self._lock:
-            if self.last_served_normalized_hash(file_hash) == norm_hash:
+            if self.last_served_normalized_hash(chain) == norm_hash:
                 return None
-            last_snapshot = self.last_snapshot_event(file_hash)
+            last_snapshot = self.last_snapshot_event(chain)
             last_snapshot_norm = (
                 ((last_snapshot or {}).get("payload") or {}).get("normalized_hash")
             )
             handle = self.begin_run(
-                file_hash=str(file_hash),
+                org_id=chain.org_id,
+                file_hash=chain.file_hash,
                 document_id=provenance.get("source_document_id"),
                 engine_version="serve-observation",
                 run_kind="serve",
@@ -563,8 +697,8 @@ class Journal:
         """Append RUN_FAILED and dead-letter the run. The pipeline has no
         internal retry loop (retries are user-triggered re-runs), so
         every failed run dead-letters immediately; a later successful
-        snapshot for the same document resolves its entries (moved to
-        dlq/resolved/, never deleted)."""
+        snapshot on the same (organisation, document) chain resolves its
+        entries (moved to dlq/resolved/, never deleted)."""
         if handle.short_circuited:
             return None
         handle.flush()
@@ -573,8 +707,9 @@ class Journal:
             {"stage": stage, "error_type": error_type, "message": message},
         )
         entry = {
-            "v": 1,
+            "v": INDEX_SCHEMA_VERSION,
             "run_id": handle.run_id,
+            "org_id": handle.org_id,
             "file_hash": handle.file_hash,
             "document_id": handle.document_id,
             "run_kind": handle.run_kind,
@@ -611,12 +746,20 @@ class Journal:
     def resolve_dlq_for(
         self,
         *,
+        chain: Optional[ChainKey] = None,
         document_id: Optional[str] = None,
-        file_hash: Optional[str] = None,
         run_id: Optional[str] = None,
     ) -> List[str]:
         """Move matching dead letters to dlq/resolved/ (audit-preserving
-        — nothing is deleted). Returns the resolved run ids."""
+        — nothing is deleted). Returns the resolved run ids.
+
+        An entry matches by its own ``run_id``, or — inside ``chain``'s
+        organisation only — by the chain's content hash or by
+        ``document_id``. One organisation's success never resolves
+        another's dead letter, whatever bytes they share; an entry that
+        names no organisation matches no chain."""
+        if chain is not None:
+            chain = require_chain(chain)
         dlq_dir = self.root / "dlq"
         resolved_dir = dlq_dir / "resolved"
         moved: List[str] = []
@@ -627,13 +770,16 @@ class Journal:
                 entry = json.loads(path.read_text(encoding="utf-8"))
             except ValueError:
                 continue
-            match = (
-                (run_id is not None and entry.get("run_id") == run_id)
-                or (
-                    document_id is not None
-                    and entry.get("document_id") == document_id
+            match = (run_id is not None and entry.get("run_id") == run_id) or (
+                chain is not None
+                and entry.get("org_id") == chain.org_id
+                and (
+                    entry.get("file_hash") == chain.file_hash
+                    or (
+                        document_id is not None
+                        and entry.get("document_id") == document_id
+                    )
                 )
-                or (file_hash is not None and entry.get("file_hash") == file_hash)
             )
             if not match:
                 continue
@@ -644,21 +790,36 @@ class Journal:
 
     # ── verification ───────────────────────────────────────────────
 
-    def verify_chain(self, file_hash: str) -> List[str]:
-        """Re-hash every committed event of the document chain and check
-        every link (intra-run contiguity + cross-run linkage + snapshot
-        object presence/content). Returns error strings; [] == intact."""
+    def verify_chain(self, chain: ChainKey) -> List[str]:
+        """Re-hash every committed event of the (organisation, document)
+        chain and check every link (intra-run contiguity + cross-run
+        linkage + snapshot object presence/content) AND that every run
+        on it is this organisation's: the index line and the run's own
+        hash-bound RUN_STARTED must both name the chain's organisation.
+        Returns error strings; [] == intact."""
+        chain = require_chain(chain)
         errors: List[str] = []
         prev_hash: Optional[str] = None
-        registered = self.registered_runs(file_hash)
+        registered = self.registered_runs(chain)
         if not registered:
-            return ["no runs registered for chain %s" % file_hash]
+            return ["no runs registered for chain %s" % chain.label()]
         for entry in registered:
             run_id = str(entry.get("run_id"))
+            if entry.get("org_id") != chain.org_id:
+                errors.append(
+                    "run %s: index line names organisation %r on chain %s"
+                    % (run_id, entry.get("org_id"), chain.label())
+                )
             events = self.read_run(run_id)
             if not events:
                 errors.append("run %s registered but has no event file" % run_id)
                 continue
+            owner_org, _owner_hash = self._run_owner(events)
+            if owner_org != chain.org_id:
+                errors.append(
+                    "run %s: RUN_STARTED names organisation %r — it is not "
+                    "part of chain %s" % (run_id, owner_org, chain.label())
+                )
             expected_seq = 0
             for event in events:
                 if "__corrupt_line__" in event:
@@ -705,44 +866,58 @@ class Journal:
 
     # ── as-of reconstruction ───────────────────────────────────────
 
-    def resolve_chain(self, ref: str) -> Optional[str]:
-        """Map a reference (file_hash | document_id | period_id) to the
-        chain's file_hash. Index lines first; falls back to scanning run
-        events for period ids (the period index line is a best-effort
-        lookup aid, not the source of truth)."""
+    def resolve_chain(self, ref: str, *, org_id: str) -> Optional[ChainKey]:
+        """Map a reference (file_hash | document_id | period_id) to a
+        chain OF ``org_id``. Only that organisation's index is searched:
+        a period id, a document id or a content hash that belongs to
+        another organisation resolves to nothing here. Index lines
+        first; falls back to scanning run events for period ids (the
+        period index line is a best-effort lookup aid, not the source of
+        truth)."""
         ref = str(ref)
-        if self._index_path(ref).is_file():
-            return ref
-        for chain_key in self.list_chains():
-            for entry in self.read_index(chain_key):
+        org = org_component(org_id)
+        if ref:
+            direct = ChainKey(org, ref)
+            if self._index_path(direct).is_file():
+                return direct
+        chains = self.list_chains(org)
+        for chain in chains:
+            for entry in self.read_index(chain):
                 if entry.get("kind") == "run" and entry.get("document_id") == ref:
-                    return str(entry.get("file_hash") or chain_key)
+                    return chain
                 if entry.get("kind") == "period" and entry.get("period_id") == ref:
-                    file_hashes = [
-                        e.get("file_hash")
-                        for e in self.read_index(chain_key)
-                        if e.get("kind") == "run"
-                    ]
-                    return str(file_hashes[0]) if file_hashes else chain_key
-        for chain_key in self.list_chains():
-            for event in self.chain_events(chain_key):
+                    return chain
+        for chain in chains:
+            for event in self.chain_events(chain):
                 if (
                     event.get("type") == "SNAPSHOT_PERSISTED"
                     and (event.get("payload") or {}).get("period_id") == ref
                 ):
-                    return str((event.get("payload") or {}).get("file_hash") or chain_key)
+                    return chain
         return None
 
-    def _chain_file_hash_of(self, chain_key: str) -> str:
-        for entry in self.read_index(chain_key):
-            if entry.get("kind") == "run" and entry.get("file_hash"):
-                return str(entry["file_hash"])
-        return chain_key
+    def find_chains(self, ref: str) -> List[ChainKey]:
+        """OPERATOR tooling only (``journal_cli.py verify REF``): every
+        chain, in any organisation, that ``ref`` resolves to. A content
+        hash uploaded by two organisations is two chains. Nothing that
+        answers a tenant calls this."""
+        found: List[ChainKey] = []
+        index_dir = self.root / "index"
+        if not index_dir.is_dir():
+            return found
+        for org_dir in sorted(p for p in index_dir.iterdir() if p.is_dir()):
+            try:
+                chain = self.resolve_chain(ref, org_id=org_dir.name)
+            except ValueError:
+                continue
+            if chain is not None:
+                found.append(chain)
+        return found
 
-    def snapshots(self, file_hash: str) -> List[Dict[str, Any]]:
+    def snapshots(self, chain: ChainKey) -> List[Dict[str, Any]]:
         return [
             e
-            for e in self.chain_events(file_hash)
+            for e in self.chain_events(chain)
             if e.get("type") == "SNAPSHOT_PERSISTED"
         ]
 
@@ -756,21 +931,21 @@ class Journal:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed
 
-    def asof(self, ref: str, t_iso: str) -> Optional[Dict[str, Any]]:
-        """The envelope that was live at ``t``: the LAST
-        SNAPSHOT_PERSISTED whose ``ts`` <= t (structural chain order
-        breaks exact-timestamp ties), loaded from the content-addressed
-        store. None == no journal coverage at that moment (pre-journal
-        history is honestly absent, never reconstructed)."""
-        chain_key = self.resolve_chain(ref)
-        if chain_key is None:
+    def asof(self, ref: str, t_iso: str, *, org_id: str) -> Optional[Dict[str, Any]]:
+        """The envelope that was live at ``t`` for ``org_id``: the LAST
+        SNAPSHOT_PERSISTED on that organisation's chain whose ``ts`` <=
+        t (structural chain order breaks exact-timestamp ties), loaded
+        from the content-addressed store. ``ref`` (file_hash |
+        document_id | period_id) is resolved inside ``org_id`` only.
+        None == no journal coverage at that moment (pre-journal history
+        is honestly absent, never reconstructed) — which is also the
+        answer for a reference that belongs to another organisation."""
+        chain = self.resolve_chain(ref, org_id=org_id)
+        if chain is None:
             return None
-        # ``resolve_chain`` returns the raw file_hash when the ref WAS
-        # the file hash; sanitize-keyed chains resolve through the index.
-        file_hash = chain_key
         target = self._parse_ts(t_iso)
         live: Optional[Dict[str, Any]] = None
-        for event in self.snapshots(file_hash):
+        for event in self.snapshots(chain):
             try:
                 event_ts = self._parse_ts(str(event.get("ts")))
             except ValueError:
@@ -791,7 +966,8 @@ class Journal:
                 "run_id": live.get("run_id"),
             }
         return {
-            "file_hash": file_hash,
+            "org_id": chain.org_id,
+            "file_hash": chain.file_hash,
             "as_of": t_iso,
             "snapshot": {
                 "snapshot_id": payload.get("snapshot_id"),

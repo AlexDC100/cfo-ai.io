@@ -121,6 +121,13 @@ def resume_run(
     file_hash = str(started_payload.get("file_hash") or "")
     if not file_hash:
         raise ResumeRefused("chain_incomplete", "RUN_STARTED carries no file_hash")
+    # The resume run opens on the chain the crashed run's own RUN_STARTED
+    # names — its organisation and its content hash. A run that names no
+    # organisation was not written under the (org_id, file_hash) key and
+    # is not resumed onto anyone's chain.
+    org_id = str(started_payload.get("org_id") or "")
+    if not org_id:
+        raise ResumeRefused("chain_incomplete", "RUN_STARTED carries no org_id")
 
     frontend = checkpoints["FRONTEND_DONE"]
     passed = checkpoints["PASS_DONE"]
@@ -202,6 +209,7 @@ def resume_run(
     from . import hooks  # late import — avoid a cycle at package import
 
     handle = journal.begin_run(
+        org_id=org_id,
         file_hash=file_hash,
         document_id=started_payload.get("document_id"),
         engine_version=str(started_payload.get("engine_version") or "unknown"),

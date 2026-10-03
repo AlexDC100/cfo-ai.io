@@ -12,7 +12,17 @@ Activation: hooks are COMPLETE NO-OPS unless ``ENGINE_JOURNAL_DIR`` is
 set (default OFF — corpus replay and the determinism gate run without
 it; production points it at ``/app/data/journal``).
 
+CHAIN KEY: ``ChainKey(org_id, file_hash)`` — the organisation AND the
+document's content hash (layout.py). Never the content hash alone, a
+period id or a file name: two organisations uploading byte-identical
+documents hold two chains that never link, read, deduplicate against or
+resolve each other. A journal directory written under the retired
+content-hash key is refused (``Journal(root)`` raises
+``JournalLayoutError``; ``boot_verify.verify_journal_layout`` refuses to
+start) — layout.py carries the migration note.
+
 Public surface:
+    ChainKey / chain_key / inspect_layout     layout.py
     Journal / RunHandle / SimulatedCrash      journal.py
     SnapshotStore                             store.py
     hooks.*                                   the pipeline seams
@@ -62,6 +72,16 @@ from .events import (  # noqa: F401
     normalized_hash,
     strip_volatile,
 )
+from .layout import (  # noqa: F401
+    CHAIN_KEY_FIELDS,
+    LAYOUT_FILE,
+    LAYOUT_VERSION,
+    PLATFORM_ORG,
+    ChainKey,
+    JournalLayoutError,
+    chain_key,
+    inspect_layout,
+)
 from .journal import (  # noqa: F401
     CRASH_AFTER_EVENT_APPEND,
     CRASH_AFTER_OBJECT_WRITE,
@@ -83,6 +103,14 @@ __all__ = [
     "content_hash",
     "normalized_hash",
     "strip_volatile",
+    "CHAIN_KEY_FIELDS",
+    "LAYOUT_FILE",
+    "LAYOUT_VERSION",
+    "PLATFORM_ORG",
+    "ChainKey",
+    "JournalLayoutError",
+    "chain_key",
+    "inspect_layout",
     "CRASH_AFTER_EVENT_APPEND",
     "CRASH_AFTER_OBJECT_WRITE",
     "Journal",

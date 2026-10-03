@@ -329,6 +329,31 @@ def _engine_gates() -> List[Gate]:
                        "test_the_override_table_is_never_read_under_the_service_role_or_without_the_user",
                        "test_a_save_persists_the_engines_figures_in_the_shared_row",
                        "test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row")),
+        # THE RUN JOURNAL'S CHAIN KEY IS (ORGANISATION, CONTENT HASH)
+        # (owner ticket 2026-10-02, before ENGINE_JOURNAL_DIR is ever set).
+        # The key was the content hash ALONE: two organisations uploading
+        # byte-identical documents shared one chain — B's run chained onto
+        # A's, each was answered the other's envelope by the as-of route, a
+        # byte-identical analysis was swallowed as the other's "duplicate",
+        # B's success resolved A's dead letter, A's page view recorded an
+        # era on the shared chain (all five measured on main @ 72a29c72;
+        # never live — the journal is off in production). The REAL journal
+        # on a temporary directory, the real stage_map / stage_persist /
+        # serve seam, the real as-of endpoint, two invented organisations,
+        # identical bytes; a REAL old-key journal (written by 72a29c72,
+        # committed) must be refused by Journal(), the hooks, the route, the
+        # CLI, boot_verify and the real create_app(), and never written to.
+        # Measured 18, floor exact. Plant log (twenty plants, the first the
+        # old key itself): docs/engine_book/gates.md "journal-chain-key".
+        Gate("journal-chain-key",
+             [PY, "-m", "pytest", "tests/engine/test_journal_chain_key.py", "-q"],
+             work_junit=True, floor=18, units="tests",
+             canaries=("test_two_orgs_with_identical_bytes_hold_two_chains_that_never_link",
+                       "test_each_org_is_answered_its_own_envelope_by_the_asof_route",
+                       "test_an_identical_analysis_by_another_org_is_not_a_duplicate",
+                       "test_one_orgs_success_never_resolves_another_orgs_dead_letter",
+                       "test_the_committed_old_key_journal_is_refused_everywhere",
+                       "test_boot_refuses_a_journal_written_under_the_old_key")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the

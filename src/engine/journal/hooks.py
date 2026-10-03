@@ -31,6 +31,14 @@ Emission map (each is one call-line at a stage boundary in pipeline.py):
 ``on_snapshot_persisted`` without an active run context (e.g. the
 reanalyze-with-overrides path calling ``stage_persist`` directly) opens
 an implicit ``adhoc`` run so out-of-band persists are still captured.
+
+THE CHAIN KEY. Every hook that opens a run names the ORGANISATION and
+the content hash (``Journal.begin_run(org_id=..., file_hash=...)`` —
+layout.py). The organisation comes from the row the pipeline already
+holds — ``documents.org_id`` for the run hooks, the served period row's
+``org_id`` for ``on_served`` — never from the envelope, a file name or a
+period id. A row with no organisation is NOT journaled: there is no
+shared chain for "organisation unknown".
 """
 from __future__ import annotations
 
@@ -41,6 +49,7 @@ from typing import Any, Dict, Optional
 
 from .events import canonical_bytes, content_hash
 from .journal import Journal
+from .layout import tenant_org
 
 logger = logging.getLogger("engine.journal")
 
@@ -97,6 +106,15 @@ def _file_hash_of(doc: Dict[str, Any]) -> Optional[str]:
     return str(value) if value else None
 
 
+def _org_of(row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """The organisation half of the chain key, from the row itself.
+    None when the row names none (nothing is journaled); ValueError —
+    logged by the calling hook, nothing journaled — when it names
+    something that cannot be an organisation (``layout.tenant_org``)."""
+    value = (row or {}).get("org_id")
+    return tenant_org(str(value)) if value else None
+
+
 # ── hook functions (one per pipeline seam) ─────────────────────────────
 
 
@@ -107,7 +125,8 @@ def on_run_started(doc: Dict[str, Any], industry: Optional[str] = None) -> None:
         if journal is None:
             return
         file_hash = _file_hash_of(doc)
-        if not file_hash:
+        org_id = _org_of(doc)
+        if not file_hash or not org_id:
             return
         # Object BEFORE the event that references it (same ordering
         # discipline as snapshots). The store is content-addressed and
@@ -116,6 +135,7 @@ def on_run_started(doc: Dict[str, Any], industry: Optional[str] = None) -> None:
         data, doc_lossy = canonical_bytes(doc)
         doc_hash = journal.store.write_object(data)
         handle = journal.begin_run(
+            org_id=org_id,
             file_hash=file_hash,
             document_id=str((doc or {}).get("id") or "") or None,
             engine_version=_engine_version(),
@@ -228,9 +248,12 @@ def on_snapshot_persisted(
             file_hash = _file_hash_of(doc) or (
                 ((canonical or {}).get("provenance") or {}).get("content_hash")
             )
-            if not file_hash:
+            # The organisation is the DOCUMENT ROW's, or there is no run.
+            org_id = _org_of(doc)
+            if not file_hash or not org_id:
                 return
             handle = journal.begin_run(
+                org_id=org_id,
                 file_hash=str(file_hash),
                 document_id=str((doc or {}).get("id") or "") or None,
                 engine_version=_engine_version(),
@@ -261,11 +284,13 @@ def on_period_moved(doc: Dict[str, Any], record: Dict[str, Any]) -> None:
         if journal is None:
             return
         file_hash = _file_hash_of(doc)
-        if not file_hash:
+        org_id = _org_of(doc)
+        if not file_hash or not org_id:
             return
         source = (record or {}).get("from") or {}
         destination = (record or {}).get("to") or {}
         handle = journal.begin_run(
+            org_id=org_id,
             file_hash=str(file_hash),
             document_id=str((doc or {}).get("id") or "") or None,
             engine_version=_engine_version(),
@@ -298,15 +323,25 @@ def on_period_moved(doc: Dict[str, Any], record: Dict[str, Any]) -> None:
 def on_served(
     envelope: Optional[Dict[str, Any]],
     served_cbs: Optional[Dict[str, Any]] = None,
+    *,
+    org_id: Optional[str] = None,
 ) -> None:
+    """``org_id`` is the served PERIOD ROW's organisation (the envelope
+    carries none). Without it nothing is recorded."""
     try:
         journal = journal_from_env()
         if journal is None or not isinstance(envelope, dict) or not envelope:
             return
+        if not org_id:
+            return
         envelope_version = None
         if isinstance(served_cbs, dict):
             envelope_version = served_cbs.get("envelope_version")
-        journal.observe_serving(envelope, envelope_version=envelope_version)
+        journal.observe_serving(
+            envelope,
+            org_id=tenant_org(str(org_id)),
+            envelope_version=envelope_version,
+        )
     except Exception:  # noqa: BLE001
         logger.exception("[journal] on_served failed (non-fatal)")
 

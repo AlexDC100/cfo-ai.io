@@ -1,0 +1,4 @@
+{"document_id":"doc-of-org-a","engine_version":"scandia-engine@0.1.0","file_hash":"sha256-143b338470815758721175bbe3375cf6a4c840f7219da01bdc52ec5e9ca225f9","kind":"run","prev_run_id":null,"run_id":"035977fdbf6b41ebbc9994b25e4754fe","run_kind":"pipeline","started_at":"2026-10-02T19:38:02.338324+00:00","v":1}
+{"kind":"period","period_id":"period-of-org-a","run_id":"035977fdbf6b41ebbc9994b25e4754fe","v":1}
+{"document_id":"doc-of-org-b","engine_version":"scandia-engine@0.1.0","file_hash":"sha256-143b338470815758721175bbe3375cf6a4c840f7219da01bdc52ec5e9ca225f9","kind":"run","prev_run_id":"035977fdbf6b41ebbc9994b25e4754fe","run_id":"aa2ff979505945ad9604c18c4f27450a","run_kind":"pipeline","started_at":"2026-10-02T19:38:02.340563+00:00","v":1}
+{"kind":"period","period_id":"period-of-org-b","run_id":"aa2ff979505945ad9604c18c4f27450a","v":1}

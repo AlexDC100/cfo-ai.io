@@ -81,9 +81,44 @@ def verify_margin_meaning_pack() -> None:
     logger.warning("[boot_verify] margin-meaning pack OK: %s", pack_path())
 
 
+def verify_journal_layout() -> None:
+    """With ``ENGINE_JOURNAL_DIR`` set, the directory must have been written
+    under the (org_id, content hash) chain key — or be absent or empty.
+
+    Until 2026-10-02 a chain was keyed by the content hash alone, so two
+    organisations uploading byte-identical documents shared one chain. A
+    directory holding such a chain (or any journal content without the
+    layout marker the current code writes first) is REFUSED here: the
+    container does not come up over it, so no run can chain onto it and
+    no as-of read can be answered from it. Read-only — the check creates
+    and writes nothing. A no-op when the journal is disabled (unset), which
+    is production's state today. Migration note: engine/journal/layout.py.
+
+    NOT behind CFO_AI_SKIP_BOOT_VERIFY: it needs no credentials, and a
+    stale local journal is exactly what a dev tree is likely to hold."""
+    root = os.environ.get("ENGINE_JOURNAL_DIR")
+    if not root:
+        return
+    from engine.journal.layout import inspect_layout, refusal_text
+
+    report = inspect_layout(root)
+    if not report["usable"]:
+        raise RuntimeError(
+            "[boot_verify] FATAL — ENGINE_JOURNAL_DIR is set and %s Unset "
+            "ENGINE_JOURNAL_DIR to start without the journal."
+            % refusal_text(report)
+        )
+    logger.warning(
+        "[boot_verify] run journal layout OK: %s (%s; chains keyed by "
+        "organisation + content hash)", report["root"], report["state"],
+    )
+
+
 def verify_config() -> None:
-    """Run on app boot. Raises RuntimeError on missing critical env or an
-    unusable credit or margin-meaning pack."""
+    """Run on app boot. Raises RuntimeError on missing critical env, an
+    unusable credit or margin-meaning pack, or a run-journal directory
+    written under the retired content-hash chain key."""
+    verify_journal_layout()
     verify_credit_pack()
     verify_margin_meaning_pack()
     missing_critical: List[str] = [k for k in _CRITICAL if not os.environ.get(k)]
@@ -120,6 +155,9 @@ def verify_config_safe() -> None:
     `create_app()`; let pytest / local dev set the env var to skip when
     the dev tree doesn't have a full .env."""
     if os.environ.get("CFO_AI_SKIP_BOOT_VERIFY") == "1":
+        # The journal layout refusal is the one check the bypass does not
+        # skip (see verify_journal_layout).
+        verify_journal_layout()
         logger.warning("[boot_verify] skipped via CFO_AI_SKIP_BOOT_VERIFY=1")
         return
     verify_config()

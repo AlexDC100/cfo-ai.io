@@ -423,6 +423,7 @@ def test_collect_metrics_reads_ai_signals_from_a_crafted_chain(tmp_path):
         },
     }
     handle = journal.begin_run(
+        org_id="org-obs",
         file_hash="sha256-crafted-ai-doc",
         document_id="doc-ai",
         engine_version="test",

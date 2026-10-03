@@ -183,7 +183,7 @@ def scenario_kill_between_stages(
         result = run_fixture(fixture, admin=admin, at_boundary=_kill_at(boundary))
         check(result.outcome == "killed", "kill did not take at %s" % boundary)
         _expect_no_ai(result, fixture_name)
-        file_hash = result.file_hash
+        chain = result.chain
         assert journal is not None
 
         if boundary != "persist_done":
@@ -198,7 +198,7 @@ def scenario_kill_between_stages(
             # REFUSE with the typed reason — re-extraction needs the
             # original bytes; faking it would violate the honesty rule.
             try:
-                resume_latest(journal, file_hash, admin)
+                resume_latest(journal, chain, admin)
             except ResumeRefused as refused:
                 check(
                     refused.reason == "cannot_resume",
@@ -213,7 +213,7 @@ def scenario_kill_between_stages(
             second = run_fixture(fixture, admin=admin)
             check(second.outcome == "completed", "fresh delivery failed")
         else:
-            resumed = resume_latest(journal, file_hash, admin)
+            resumed = resume_latest(journal, chain, admin)
             check(resumed["status"] == "resumed", "resume did not complete")
             summary["resume"] = (
                 "short_circuited" if resumed["short_circuited"] else "resumed"
@@ -235,12 +235,12 @@ def scenario_kill_between_stages(
             "K1: reconciliation receipt presence changed across kill+resume",
         )
         check(
-            len(journal.snapshots(file_hash)) == 1,
+            len(journal.snapshots(chain)) == 1,
             "K1/K3: expected exactly one snapshot after recovery",
         )
-        check(journal.verify_chain(file_hash) == [], "chain verification failed")
+        check(journal.verify_chain(chain) == [], "chain verification failed")
         check(
-            every_snapshot_object_present(journal, file_hash),
+            every_snapshot_object_present(journal, chain),
             "K2: snapshot event without a verifiable object",
         )
     return summary
@@ -293,7 +293,7 @@ def scenario_kill_inside_snapshot_commit(
             "hooks must swallow a journal crash (pipeline unaffected)",
         )
         _expect_no_ai(result, fixture_name)
-        file_hash = result.file_hash
+        chain = result.chain
         envelope = admin.envelope()
         check(
             norm_bytes(envelope) == baseline.norm,
@@ -305,7 +305,7 @@ def scenario_kill_inside_snapshot_commit(
         # collectable too, so orphan assertions are digest-specific.
         envelope_digest, _lossy = content_hash(envelope)
 
-        snaps = journal.snapshots(file_hash)
+        snaps = journal.snapshots(chain)
         report = journal.gc_orphans()
         if position == CRASH_AFTER_OBJECT_WRITE:
             check(len(snaps) == 0, "event committed despite object-write crash")
@@ -321,10 +321,10 @@ def scenario_kill_inside_snapshot_commit(
                 "a committed snapshot's object must never be collectable",
             )
             check(
-                every_snapshot_object_present(journal, file_hash),
+                every_snapshot_object_present(journal, chain),
                 "K2: committed event must reference a verifiable object",
             )
-        check(journal.verify_chain(file_hash) == [], "chain verification failed")
+        check(journal.verify_chain(chain) == [], "chain verification failed")
 
         # Heal: re-delivery (crash seam removed) → exactly one snapshot
         # whose OWN object is referenced (the crashed run's object may
@@ -333,7 +333,7 @@ def scenario_kill_inside_snapshot_commit(
         second = run_fixture(fixture, admin=admin)
         check(second.outcome == "completed", "healing re-delivery failed")
         check(
-            len(journal.snapshots(file_hash)) == 1,
+            len(journal.snapshots(chain)) == 1,
             "K3: heal must leave exactly one snapshot",
         )
         healed_digest, _lossy = content_hash(admin.envelope())
@@ -342,10 +342,10 @@ def scenario_kill_inside_snapshot_commit(
             "the healed snapshot's object must not be collectable",
         )
         check(
-            every_snapshot_object_present(journal, file_hash),
+            every_snapshot_object_present(journal, chain),
             "K2: healed chain must reference a verifiable object",
         )
-        check(journal.verify_chain(file_hash) == [], "chain broken after heal")
+        check(journal.verify_chain(chain) == [], "chain broken after heal")
         check(norm_bytes(admin.envelope()) == baseline.norm, "healed envelope differs")
     return summary
 
@@ -401,13 +401,13 @@ def scenario_disk_full_snapshot_write(
             norm_bytes(envelope) == baseline.norm,
             "journal ENOSPC leaked into the pipeline result",
         )
-        file_hash = result.file_hash
+        chain = result.chain
         check(
-            journal.snapshots(file_hash) == [],
+            journal.snapshots(chain) == [],
             "K2: no snapshot event may commit when its object cannot land",
         )
-        check(journal.verify_chain(file_hash) in ([], [
-            "no runs registered for chain %s" % file_hash
+        check(journal.verify_chain(chain) in ([], [
+            "no runs registered for chain %s" % chain.label()
         ]), "chain must be honestly empty or verifiably incomplete")
         # No object at a valid address; only temp debris is collectable.
         check(
@@ -443,8 +443,8 @@ def scenario_torn_write(
         assert journal is not None
         result = run_fixture(fixture, admin=admin)
         check(result.outcome == "completed", "setup run failed")
-        file_hash = result.file_hash
-        snaps = journal.snapshots(file_hash)
+        chain = result.chain
+        snaps = journal.snapshots(chain)
         check(len(snaps) == 1, "setup expected one snapshot")
         digest = str((snaps[0].get("payload") or {}).get("content_hash"))
         path = journal.store._path_for(digest)
@@ -462,16 +462,16 @@ def scenario_torn_write(
                 "K2: store.read_object served a torn object"
             )
         check(
-            not every_snapshot_object_present(journal, file_hash),
+            not every_snapshot_object_present(journal, chain),
             "K2: torn object counted as present",
         )
-        errors = journal.verify_chain(file_hash)
+        errors = journal.verify_chain(chain)
         check(
             any("corrupt" in e for e in errors),
             "verify_chain did not report the torn object: %r" % errors,
         )
         # As-of refuses to serve it and says so, in-band.
-        asof = journal.asof(file_hash, datetime.now(_UTC).isoformat())
+        asof = journal.asof(chain.file_hash, datetime.now(_UTC).isoformat(), org_id=chain.org_id)
         check(isinstance(asof, dict), "asof returned nothing")
         check(
             "error" in asof and "assembled_canonical_v1" not in asof,
@@ -528,11 +528,11 @@ def scenario_journal_append_failure(
             norm_bytes(admin.envelope()) == baseline.norm,
             "append failure leaked into the pipeline result",
         )
-        file_hash = result.file_hash
+        chain = result.chain
         envelope_digest, _lossy = content_hash(admin.envelope())
         if arm_point == "run_start":
             check(
-                journal.registered_runs(file_hash) == [],
+                journal.registered_runs(chain) == [],
                 "nothing may register when the very first append fails",
             )
         else:
@@ -540,10 +540,10 @@ def scenario_journal_append_failure(
             # append failed AFTER its object landed → the object is
             # collectable garbage until a later event references it.
             check(
-                journal.snapshots(file_hash) == [],
+                journal.snapshots(chain) == [],
                 "snapshot event committed despite append failure",
             )
-            check(journal.verify_chain(file_hash) == [], "partial chain must verify")
+            check(journal.verify_chain(chain) == [], "partial chain must verify")
             check(
                 envelope_digest in journal.gc_orphans()["orphans"],
                 "expected the snapshot object as a collectable orphan",
@@ -556,10 +556,10 @@ def scenario_journal_append_failure(
         second = run_fixture(fixture, admin=admin)
         check(second.outcome == "completed", "healing delivery failed")
         check(
-            len(journal.snapshots(file_hash)) == 1,
+            len(journal.snapshots(chain)) == 1,
             "heal must leave exactly one committed snapshot",
         )
-        check(journal.verify_chain(file_hash) == [], "chain broken after heal")
+        check(journal.verify_chain(chain) == [], "chain broken after heal")
         healed_digest, _lossy = content_hash(admin.envelope())
         check(
             healed_digest not in journal.gc_orphans()["orphans"],
@@ -593,18 +593,18 @@ def scenario_duplicate_delivery(
         check(second.outcome == "completed", "second delivery failed")
         _expect_no_ai(first, fixture_name)
         _expect_no_ai(second, fixture_name)
-        file_hash = first.file_hash
-        check(second.file_hash == file_hash, "content hash must be identical")
+        chain = first.chain
+        check(second.chain == chain, "organisation and content hash must be identical")
 
         check(
-            len(journal.registered_runs(file_hash)) == 1,
+            len(journal.registered_runs(chain)) == 1,
             "K3: duplicate delivery registered a second run",
         )
         check(
-            len(journal.snapshots(file_hash)) == 1,
+            len(journal.snapshots(chain)) == 1,
             "K3: duplicate delivery committed a second snapshot",
         )
-        check(journal.verify_chain(file_hash) == [], "chain verification failed")
+        check(journal.verify_chain(chain) == [], "chain verification failed")
         check(
             len(admin.period_rows) == 1,
             "K3: duplicate delivery minted a second period row",
@@ -645,20 +645,20 @@ def scenario_clock_skew(
         assert journal is not None
         result = run_fixture(fixture, admin=admin)
         check(result.outcome == "completed", "setup run failed")
-        file_hash = result.file_hash
+        chain = result.chain
         check(
             norm_bytes(admin.envelope()) == baseline.norm,
             "journal clock leaked into the pipeline result",
         )
 
         if mode == "frozen":
-            stamps = {e.get("ts") for e in journal.chain_events(file_hash)}
+            stamps = {e.get("ts") for e in journal.chain_events(chain)}
             check(
                 stamps == {t0.isoformat()},
                 "frozen clock produced mixed stamps: %r" % stamps,
             )
-            check(journal.verify_chain(file_hash) == [], "chain broke under frozen clock")
-            asof = journal.asof(file_hash, t0.isoformat())
+            check(journal.verify_chain(chain) == [], "chain broke under frozen clock")
+            asof = journal.asof(chain.file_hash, t0.isoformat(), org_id=chain.org_id)
             check(
                 isinstance(asof, dict) and "assembled_canonical_v1" in asof,
                 "asof at the frozen instant must serve the snapshot "
@@ -675,9 +675,9 @@ def scenario_clock_skew(
             fixture, admin=admin, doc_id="doc-dst-%s-redelivered" % fixture_name
         )
         check(second.outcome == "completed", "second-era run failed")
-        check(second.file_hash == file_hash, "content hash must be identical")
-        check(journal.verify_chain(file_hash) == [], "chain broke under backward clock")
-        snaps = journal.snapshots(file_hash)
+        check(second.chain == chain, "organisation and content hash must be identical")
+        check(journal.verify_chain(chain) == [], "chain broke under backward clock")
+        snaps = journal.snapshots(chain)
         check(len(snaps) == 2, "expected two provenance eras on the chain")
         check(
             str(snaps[0].get("ts")) > str(snaps[1].get("ts")),
@@ -685,7 +685,7 @@ def scenario_clock_skew(
         )
         # As-of at a later instant returns the STRUCTURALLY last state,
         # not the latest wall-clock stamp.
-        asof = journal.asof(file_hash, (t0 + timedelta(hours=2)).isoformat())
+        asof = journal.asof(chain.file_hash, (t0 + timedelta(hours=2)).isoformat(), org_id=chain.org_id)
         check(isinstance(asof, dict) and "assembled_canonical_v1" in asof, "asof failed")
         check(
             asof["snapshot"]["normalized_hash"] == normalized_hash(admin.envelope()),
@@ -726,7 +726,7 @@ def _assert_dead_letter_and_heal(
     check(result.outcome == "failed", "fault did not fail the run")
     check(result.error_type == "AiLaneError", "expected AiLaneError, got %r" % result.error_type)
     check(admin.envelope() is None, "failed lane run must persist nothing")
-    file_hash = result.file_hash
+    chain = result.chain
 
     entries = journal.dlq_entries()
     check(len(entries) == 1, "expected exactly one dead letter")
@@ -763,8 +763,8 @@ def _assert_dead_letter_and_heal(
     check(journal.dlq_depth() == 0, "dead letter not resolved by the success")
     resolved = list((root / "dlq" / "resolved").glob("*.json"))
     check(len(resolved) == 1, "resolved dead letter must be archived, not deleted")
-    check(journal.verify_chain(file_hash) == [], "chain verification failed")
-    check(len(journal.snapshots(file_hash)) == 1, "expected exactly one snapshot")
+    check(journal.verify_chain(chain) == [], "chain verification failed")
+    check(len(journal.snapshots(chain)) == 1, "expected exactly one snapshot")
     return {"dlq_reason": entry["reason_type"], "resolved": len(resolved)}
 
 
@@ -843,7 +843,7 @@ def scenario_ai_malformed_recovers(
         check(facts == baseline.facts, "gateway facts drifted on the recovered run")
         check(journal.dlq_depth() == 0, "recovered run must not dead-letter")
         check(
-            len(journal.snapshots(result.file_hash)) == 1,
+            len(journal.snapshots(result.chain)) == 1,
             "expected exactly one snapshot",
         )
     return {"stage": stage, "audit_attempts": attempts}
@@ -909,7 +909,7 @@ def scenario_db_error_mid_persist(
     with journal_env(root) as journal:
         assert journal is not None
         result = run_fixture(fixture, admin=admin)
-        file_hash = result.file_hash
+        chain = result.chain
         check(admin.faults_raised >= 1, "the DB fault never fired")
 
         if target in DB_FATAL_TARGETS:
@@ -927,7 +927,7 @@ def scenario_db_error_mid_persist(
             )
             check(entries[0]["stage"] == "persist", "DB fault must dead-letter at persist")
             check(
-                journal.snapshots(file_hash) == [],
+                journal.snapshots(chain) == [],
                 "no snapshot may commit for the failed persist",
             )
             # Operator path: DLQ replay with the fault cleared.
@@ -940,8 +940,8 @@ def scenario_db_error_mid_persist(
                 "K1: replayed envelope differs from baseline",
             )
             check(journal.dlq_depth() == 0, "dead letter not resolved by the replay")
-            check(len(journal.snapshots(file_hash)) == 1, "expected one snapshot")
-            check(journal.verify_chain(file_hash) == [], "chain verification failed")
+            check(len(journal.snapshots(chain)) == 1, "expected one snapshot")
+            check(journal.verify_chain(chain) == [], "chain verification failed")
             summary["dlq"] = "replayed"
         else:
             check(
@@ -953,10 +953,10 @@ def scenario_db_error_mid_persist(
                 "the failed serving flip must leave no envelope",
             )
             check(
-                len(journal.snapshots(file_hash)) == 1,
+                len(journal.snapshots(chain)) == 1,
                 "the journal must run AHEAD of serving (ordering rule)",
             )
-            check(journal.verify_chain(file_hash) == [], "chain verification failed")
+            check(journal.verify_chain(chain) == [], "chain verification failed")
             # Heal: re-delivery with the fault cleared → serving catches
             # up; the journal short-circuits the duplicate.
             admin.armed = False
@@ -967,11 +967,11 @@ def scenario_db_error_mid_persist(
                 "healed envelope differs from baseline",
             )
             check(
-                len(journal.snapshots(file_hash)) == 1,
+                len(journal.snapshots(chain)) == 1,
                 "K3: heal must not add a second snapshot",
             )
             check(
-                len(journal.registered_runs(file_hash)) == 1,
+                len(journal.registered_runs(chain)) == 1,
                 "K3: the duplicate heal run must short-circuit, not register",
             )
             summary["dlq"] = "not_needed"
@@ -1003,7 +1003,7 @@ def scenario_crash_during_undo(
         assert journal is not None
         result = run_fixture(fixture, admin=admin)
         check(result.outcome == "completed", "setup run failed")
-        file_hash = result.file_hash
+        chain = result.chain
         norm_before = norm_bytes(admin.envelope())
 
         # The undo attempt whose envelope write dies mid-flight.
@@ -1033,7 +1033,7 @@ def scenario_crash_during_undo(
         check(_suppressed(current) == [], "partial suppression from a crashed undo")
         check(_history(current) == [], "partial history from a crashed undo")
         check(
-            len(journal.snapshots(file_hash)) == 1,
+            len(journal.snapshots(chain)) == 1,
             "a crashed undo must not touch the chain",
         )
 
@@ -1057,13 +1057,13 @@ def scenario_crash_during_undo(
         else:
             raise InvariantViolation("double undo was not rejected")
         # The serve seam self-heals the chain with the new era.
-        observed = journal.observe_serving(final)
+        observed = journal.observe_serving(final, org_id=chain.org_id)
         check(
             isinstance(observed, dict) and observed.get("snapshot") is not None,
             "serve seam did not capture the undone era",
         )
-        check(journal.verify_chain(file_hash) == [], "chain verification failed")
-        check(len(journal.snapshots(file_hash)) == 2, "expected two eras on the chain")
+        check(journal.verify_chain(chain) == [], "chain verification failed")
+        check(len(journal.snapshots(chain)) == 2, "expected two eras on the chain")
     return {"history": 1, "suppressed": 1}
 
 
@@ -1114,12 +1114,12 @@ def scenario_suppression_survives_kill(
         assert journal is not None
         first = run_fixture(fixture, admin=admin)
         check(first.outcome == "completed", "fault-leg run failed")
-        file_hash = first.file_hash
-        run1_id = str(journal.registered_runs(file_hash)[0]["run_id"])
+        chain = first.chain
+        run1_id = str(journal.registered_runs(chain)[0]["run_id"])
         _undo_in_place(admin, str(first.period_id))
         # The serve seam observes the undone era (production reads the
         # period after an undo), keeping the chain honest pre-kill.
-        journal.observe_serving(admin.envelope())
+        journal.observe_serving(admin.envelope(), org_id=chain.org_id)
 
         killed = run_fixture(fixture, admin=admin, at_boundary=_kill_at(boundary))
         check(killed.outcome == "killed", "kill did not take")
@@ -1143,9 +1143,9 @@ def scenario_suppression_survives_kill(
         check(_receipt(final) is None, "K1: the suppressed fix was re-applied")
         check(len(_suppressed(final)) == 1, "K1: suppression entries not intact")
         check(len(_history(final)) == 1, "K1: history not intact")
-        check(journal.verify_chain(file_hash) == [], "chain verification failed")
+        check(journal.verify_chain(chain) == [], "chain verification failed")
         # The chain's last era agrees with serving.
-        snaps = journal.snapshots(file_hash)
+        snaps = journal.snapshots(chain)
         check(len(snaps) >= 2, "expected the undone era on the chain")
         check(
             (snaps[-1].get("payload") or {}).get("normalized_hash")

@@ -33,8 +33,10 @@ from engine.api import pipeline as _pipeline
 from engine.api import _reconcile
 from engine.journal import (
     EVENT_TYPES,
+    ChainKey,
     Journal,
     canonical_bytes,
+    chain_key,
     normalized_envelope,
 )
 from engine.journal import hooks as _hooks
@@ -152,13 +154,17 @@ def deliver(doc: Dict[str, Any], parsed: Dict[str, Any]) -> str:
 
 
 def serve(fake: FakeAdminClient) -> Dict[str, Any]:
-    """The REAL shared serve hook over the persisted period row (fires
-    the SERVED journal seam)."""
+    """The REAL shared serve hook over the persisted period ROW (fires
+    the SERVED journal seam — the row's org_id is half of the chain key)."""
     statements: Dict[str, Any] = {"assembled_bs": {}, "assembled_pl": {"revenue": 0.0}}
-    _pipeline._apply_envelope_truth_to_statements(
-        statements, {"assembled_canonical_v1": fake.envelope()}
-    )
+    _pipeline._apply_envelope_truth_to_statements(statements, fake.period_rows[0])
     return statements
+
+
+def chain_of(doc: Dict[str, Any]) -> ChainKey:
+    """The journal chain a document lands on: its organisation AND its
+    content hash."""
+    return chain_key(doc["org_id"], doc["content_hash"])
 
 
 def norm_dump(envelope: Dict[str, Any]) -> bytes:
@@ -166,8 +172,8 @@ def norm_dump(envelope: Dict[str, Any]) -> bytes:
     return data
 
 
-def event_types(journal: Journal, file_hash: str) -> List[str]:
-    return [e["type"] for e in journal.chain_events(file_hash)]
+def event_types(journal: Journal, chain: ChainKey) -> List[str]:
+    return [e["type"] for e in journal.chain_events(chain)]
 
 
 # ── no-op guarantee (corpus replay / determinism gates depend on it) ───
@@ -202,7 +208,7 @@ def test_k1_event_sequence_and_chain_verifies(journal_dir, fake_admin):
     serve(fake_admin)
 
     journal = Journal(journal_dir)
-    fh = doc["content_hash"]
+    fh = chain_of(doc)
     types = event_types(journal, fh)
     assert types == [
         "RUN_STARTED", "FRONTEND_DONE", "PASS_DONE",
@@ -213,7 +219,8 @@ def test_k1_event_sequence_and_chain_verifies(journal_dir, fake_admin):
         assert t in EVENT_TYPES
     events = journal.chain_events(fh)
     started = events[0]
-    assert started["payload"]["file_hash"] == fh
+    assert started["payload"]["file_hash"] == doc["content_hash"]
+    assert started["payload"]["org_id"] == doc["org_id"]
     assert started["payload"]["engine_version"].startswith("scandia-engine@")
     assert started["prev_event_hash"] is None
     frontend = events[1]
@@ -247,7 +254,7 @@ def test_k1_tamper_detection(journal_dir, fake_admin):
     doc, parsed = load_case("csv")
     deliver(doc, parsed)
     journal = Journal(journal_dir)
-    fh = doc["content_hash"]
+    fh = chain_of(doc)
     assert journal.verify_chain(fh) == []
 
     run_id = journal.registered_runs(fh)[0]["run_id"]
@@ -284,7 +291,7 @@ def test_k3_duplicate_delivery_one_chain_one_snapshot(journal_dir, fake_admin):
     doc, parsed = load_case("csv")
     deliver(doc, parsed)
     journal = Journal(journal_dir)
-    fh = doc["content_hash"]
+    fh = chain_of(doc)
     baseline_events = event_types(journal, fh)
     assert baseline_events.count("SNAPSHOT_PERSISTED") == 1
 
@@ -322,7 +329,7 @@ def test_served_emitted_once_per_distinct_state(journal_dir, fake_admin):
     serve(fake_admin)
     serve(fake_admin)
     journal = Journal(journal_dir)
-    fh = doc["content_hash"]
+    fh = chain_of(doc)
     assert event_types(journal, fh).count("SERVED") == 1
 
 
@@ -331,14 +338,14 @@ def test_serve_observes_out_of_band_envelope_mutation(journal_dir, fake_admin):
     deliver(doc, parsed)
     serve(fake_admin)
     journal = Journal(journal_dir)
-    fh = doc["content_hash"]
+    fh = chain_of(doc)
     assert len(journal.snapshots(fh)) == 1
 
     # Out-of-band mutation (the undo route's write shape) — no
     # stage_persist involved.
     mutated = copy.deepcopy(fake_admin.envelope())
     mutated["reconciliation_suppressed"] = [
-        {"content_hash": fh, "suppressed_by": "user-1"}
+        {"content_hash": doc["content_hash"], "suppressed_by": "user-1"}
     ]
     fake_admin.update(
         "financial_periods",
@@ -361,7 +368,7 @@ def test_reconcile_applied_event_carries_receipt_hash(journal_dir, fake_admin):
     doc, parsed = load_case("rounding_004pct")
     deliver(doc, parsed)
     journal = Journal(journal_dir)
-    fh = doc["content_hash"]
+    fh = chain_of(doc)
     events = journal.chain_events(fh)
     applied = [e for e in events if e["type"] == "RECONCILE_APPLIED"]
     assert len(applied) == 1
@@ -377,7 +384,7 @@ def test_reconcile_applied_event_carries_receipt_hash(journal_dir, fake_admin):
 def test_k9_asof_returns_each_eras_envelope(journal_dir, fake_admin):
     doc, parsed = load_case("rounding_004pct")
     journal = Journal(journal_dir)
-    fh = doc["content_hash"]
+    fh = chain_of(doc)
 
     t0 = datetime.now(timezone.utc).isoformat()  # before any history
     time.sleep(0.01)
@@ -421,27 +428,29 @@ def test_k9_asof_returns_each_eras_envelope(journal_dir, fake_admin):
 
     # As-of resolution: the envelope that was live at each moment,
     # byte-compared under the corpus volatile-normalization discipline.
-    assert journal.asof(fh, t0) is None  # pre-journal history is absent
+    org = doc["org_id"]
+    raw_hash = doc["content_hash"]
+    assert journal.asof(raw_hash, t0, org_id=org) is None  # pre-journal history is absent
 
-    got1 = journal.asof(fh, t1)
+    got1 = journal.asof(raw_hash, t1, org_id=org)
     assert got1 is not None
     assert norm_dump(got1["assembled_canonical_v1"]) == norm_dump(era1)
     assert isinstance(got1["assembled_canonical_v1"].get("reconciliation"), dict)
 
-    got2 = journal.asof(fh, t2)
+    got2 = journal.asof(raw_hash, t2, org_id=org)
     assert got2 is not None
     assert norm_dump(got2["assembled_canonical_v1"]) == norm_dump(era2)
     assert "reconciliation" not in got2["assembled_canonical_v1"]
     assert got2["snapshot"]["origin"] == "serve_observed"
 
-    got3 = journal.asof(fh, t3)
+    got3 = journal.asof(raw_hash, t3, org_id=org)
     assert got3 is not None
     assert norm_dump(got3["assembled_canonical_v1"]) == norm_dump(era3)
 
     # Chain lookup also works by document id and by period id.
-    assert journal.resolve_chain(doc["id"]) == fh
-    assert journal.resolve_chain("period-1") == fh
-    got_by_period = journal.asof("period-1", t1)
+    assert journal.resolve_chain(doc["id"], org_id=org) == fh
+    assert journal.resolve_chain("period-1", org_id=org) == fh
+    got_by_period = journal.asof("period-1", t1, org_id=org)
     assert got_by_period is not None
     assert norm_dump(got_by_period["assembled_canonical_v1"]) == norm_dump(era1)
 
@@ -461,14 +470,16 @@ def test_cli_verify_asof_dlq_notice(journal_dir, fake_admin, capsys):
     assert cli.main(["--journal-root", str(journal_dir), "verify", "--all"]) == 0
     capsys.readouterr()
 
-    assert cli.main(["--journal-root", str(journal_dir), "asof", doc["content_hash"], t]) == 0
+    assert cli.main(["--journal-root", str(journal_dir), "asof", "--org", doc["org_id"],
+                     doc["content_hash"], t]) == 0
     out = capsys.readouterr().out
     payload = json.loads(out)
     assert payload["snapshot"]["origin"] == "pipeline"
     assert payload["assembled_canonical_v1"]["provenance"]["source_document_id"] == doc["id"]
 
     # No coverage → exit 3 (honest absence).
-    assert cli.main(["--journal-root", str(journal_dir), "asof", "sha256-unknown", t]) == 3
+    assert cli.main(["--journal-root", str(journal_dir), "asof", "--org", doc["org_id"],
+                     "sha256-unknown", t]) == 3
     capsys.readouterr()
 
     # DLQ list prints the battery NOTICE line and never fails.
@@ -537,7 +548,8 @@ def test_asof_route_404s_without_coverage(journal_dir, fake_admin, monkeypatch):
     from fastapi import HTTPException
 
     # A visible period that the journal has never seen (pre-journal).
-    period_row = {"id": "period-legacy", "assembled_canonical_v1": None}
+    period_row = {"id": "period-legacy", "org_id": "org-journal",
+                  "assembled_canonical_v1": None}
     endpoint = _mounted_asof_endpoint(monkeypatch, period_row)
     t = datetime.now(timezone.utc).isoformat()
     with pytest.raises(HTTPException) as exc_info:
@@ -579,7 +591,7 @@ def test_gc_never_collects_a_crashed_runs_resume_checkpoints(
     _hooks.reset_cache()
 
     journal = Journal(journal_dir)
-    file_hash = doc["content_hash"]
+    file_hash = chain_of(doc)
     by_type = {e["type"]: e for e in journal.chain_events(file_hash)}
     checkpoints = {
         str((by_type["RUN_STARTED"].get("payload") or {})["doc_object"]),

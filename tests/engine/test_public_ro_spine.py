@@ -37,10 +37,11 @@ def _load_journal_cli():
 
 
 def _dead_letter_public_ingest_run(tmp_path):
-    from engine.journal import Journal
+    from engine.journal import PLATFORM_ORG, Journal
 
     journal = Journal(tmp_path / "journal")
     handle = journal.begin_run(
+        org_id=PLATFORM_ORG,
         file_hash="f" * 64,
         document_id="public_ro:2024:UU",
         engine_version="test@0",
@@ -92,6 +93,7 @@ def test_journal_cli_pipeline_run_kind_still_reaches_resume_machinery(
     cli = _load_journal_cli()
     journal = Journal(tmp_path / "journal")
     handle = journal.begin_run(
+        org_id="org-spine",
         file_hash="a" * 64,
         document_id="doc-1",
         engine_version="test@0",
@@ -622,7 +624,7 @@ def test_anaf_refresh_updates_pj_only(tmp_path):
 
 
 def test_ingest_journals_run_and_dead_letters_failures(tmp_path):
-    from engine.journal import Journal
+    from engine.journal import PLATFORM_ORG, ChainKey, Journal
     from engine.public_ro.ingest import ParseError, ingest_year, sha256_hex
 
     journal = Journal(tmp_path / "journal")
@@ -636,9 +638,11 @@ def test_ingest_journals_run_and_dead_letters_failures(tmp_path):
         journal=journal,
     )
     sha = summary["sha256"]
-    events = journal.chain_events(sha)
+    # Open data belongs to no customer: it chains under the platform scope.
+    events = journal.chain_events(ChainKey(PLATFORM_ORG, sha))
     types = [e["type"] for e in events]
     assert types[0] == "RUN_STARTED"
+    assert events[0]["payload"]["org_id"] == PLATFORM_ORG
     assert (events[0]["payload"]["run_kind"] == "public_ingest"
             and events[0]["payload"]["year"] == 2024)
     assert "PASS_DONE" in types
@@ -655,6 +659,7 @@ def test_ingest_journals_run_and_dead_letters_failures(tmp_path):
     assert journal.dlq_depth() == 1
     entry = journal.dlq_entries()[0]
     assert entry["run_kind"] == "public_ingest"
+    assert entry["org_id"] == PLATFORM_ORG
     assert entry["file_hash"] == sha256_hex(junk)
 
 

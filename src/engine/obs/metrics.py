@@ -256,7 +256,7 @@ def _rate(numerator: float, denominator: float) -> Optional[float]:
 
 def _collect_chain(
     journal: Any,
-    chain_key: str,
+    chain_key: Any,  # engine.journal.ChainKey(org_id, file_hash)
     registry: MetricsRegistry,
     tally: Dict[str, float],
 ) -> None:

@@ -1556,6 +1556,51 @@ report and alert bodies) are NOT converted — a separate ruling.
   (the list only shrinks). `GATE-WORK provenance-burndown open=N` prints
   every run; the count is reported weekly (`weekly` rows in the file).
 
+## 29. Run journal: the chain key is (organisation, content hash) (2026-10-02)
+
+Owner ticket, done BEFORE `ENGINE_JOURNAL_DIR` is ever set (it is unset in
+production; the journal has never run there). Branch
+`fix/journal-chain-key-org`. No production change, nothing to deploy.
+
+**What was wrong.** A journal chain was keyed by the document's content hash
+ALONE (`index/<file_hash>.jsonl`). Two organisations uploading byte-identical
+documents shared one chain: B's run chained onto A's, each was answered the
+other's envelope by `GET /api/period/{id}/asof`, a byte-identical analysis was
+swallowed as the other's "duplicate", B's success resolved A's dead letter,
+and A's page view recorded an era on the shared chain. All five were measured
+on the unchanged code (gates.md § journal-chain-key).
+
+**The rule now.** `engine.journal.ChainKey(org_id, file_hash)`
+(`src/engine/journal/layout.py`); `index/<org_id>/<file_hash>.jsonl`;
+`Journal.begin_run(org_id=…, file_hash=…)`. The organisation comes from the
+ROW — `documents.org_id` for the run hooks, the served period row for
+`on_served`, the period row the caller's client returned for the route —
+never from the envelope, a period id or a file name. A row with no
+organisation is not journaled; there is no shared chain for "unknown". An
+organisation id is used verbatim or refused, never sanitised. The open-data
+ingest chains under the reserved `_platform` scope. The content-addressed
+object store stays global by design.
+
+**Old directories are refused, not migrated.** A root with a flat index file,
+or with any journal content and no `LAYOUT.json`, raises `JournalLayoutError`
+from `Journal(root)` and makes `boot_verify.verify_journal_layout` refuse to
+start the app (not skipped by `CFO_AI_SKIP_BOOT_VERIFY`). Check a directory
+with `python scripts/journal_cli.py --journal-root <dir> layout`; move it
+aside or delete it. CLI: `asof` now requires `--org`.
+
+**Before enabling the journal in production:** run `journal_cli.py layout`
+against the MOUNTED volume path. The §14 pre-switch boot probe runs without
+the data volume, sees an absent directory and passes — the real container is
+the one that would crash-loop over a stale directory.
+
+**Gate:** `journal-chain-key` (`tests/engine/test_journal_chain_key.py`,
+floor 18, twenty plants, the first the old key itself). The mutation kernel's
+`journal` module was re-measured at 100% (678 mutants, 671 caught, 7
+equivalent). `EQUIVALENT_MUTANTS` is keyed by mutmut INDEX: this change moved
+one documented equivalent from 52 to 59, and the stale pin would have excluded
+a real mutant from scoring — after any edit to a kernel function, re-identify
+its pinned equivalents by diff (docs/engine_book/mutation.md).
+
 ---
 
 # 📘 Appendix A — Full Financial Analysis Methodology

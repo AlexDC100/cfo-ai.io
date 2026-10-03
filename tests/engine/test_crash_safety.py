@@ -35,6 +35,7 @@ import pytest
 from engine.core.country_pack_registry import get_pack
 from engine.api import pipeline as _pipeline
 from engine.journal import (
+    chain_key,
     CRASH_AFTER_EVENT_APPEND,
     CRASH_AFTER_OBJECT_WRITE,
     Journal,
@@ -176,9 +177,9 @@ def _synthetic_envelope(tag: str = "a") -> Dict[str, Any]:
 def test_crash_between_object_write_and_event_leaves_collectable_orphan(journal_dir):
     journal = Journal(journal_dir)
     envelope = _synthetic_envelope()
-    fh = envelope["provenance"]["content_hash"]
+    fh = chain_key("org-crash", envelope["provenance"]["content_hash"])
     handle = journal.begin_run(
-        file_hash=fh, document_id="doc-syn", engine_version="test", run_kind="pipeline"
+        org_id=fh.org_id, file_hash=fh.file_hash, document_id="doc-syn", engine_version="test", run_kind="pipeline"
     )
 
     with pytest.raises(SimulatedCrash):
@@ -216,9 +217,9 @@ def test_crash_between_object_write_and_event_leaves_collectable_orphan(journal_
 def test_event_without_object_is_impossible_by_ordering(journal_dir, monkeypatch):
     journal = Journal(journal_dir)
     envelope = _synthetic_envelope("b")
-    fh = envelope["provenance"]["content_hash"]
+    fh = chain_key("org-crash", envelope["provenance"]["content_hash"])
     handle = journal.begin_run(
-        file_hash=fh, document_id="doc-syn", engine_version="test", run_kind="pipeline"
+        org_id=fh.org_id, file_hash=fh.file_hash, document_id="doc-syn", engine_version="test", run_kind="pipeline"
     )
 
     def _failing_write(data):
@@ -243,9 +244,9 @@ def test_crash_after_event_before_serving_flip_is_resumable(journal_dir):
     duplicate short-circuit, never a second snapshot."""
     journal = Journal(journal_dir)
     envelope = _synthetic_envelope("c")
-    fh = envelope["provenance"]["content_hash"]
+    fh = chain_key("org-crash", envelope["provenance"]["content_hash"])
     handle = journal.begin_run(
-        file_hash=fh, document_id="doc-syn", engine_version="test", run_kind="pipeline"
+        org_id=fh.org_id, file_hash=fh.file_hash, document_id="doc-syn", engine_version="test", run_kind="pipeline"
     )
     with pytest.raises(SimulatedCrash):
         handle.record_snapshot(
@@ -257,7 +258,7 @@ def test_crash_after_event_before_serving_flip_is_resumable(journal_dir):
     # "Re-delivery" after the crash (same content, same key) — e.g. the
     # user retries the scan: exactly one snapshot remains.
     retry = journal.begin_run(
-        file_hash=fh, document_id="doc-syn", engine_version="test", run_kind="pipeline"
+        org_id=fh.org_id, file_hash=fh.file_hash, document_id="doc-syn", engine_version="test", run_kind="pipeline"
     )
     result = retry.record_snapshot(envelope, period_id="period-1")
     assert result["duplicate"] is True
@@ -304,7 +305,7 @@ def test_k2_crash_after_pass_done_resumes_byte_identical(tmp_path, monkeypatch):
     _hooks.reset_cache()
 
     journal = Journal(root)
-    fh = doc["content_hash"]
+    fh = chain_key(doc["org_id"], doc["content_hash"])
     runs = journal.registered_runs(fh)
     assert len(runs) == 1
     crashed_run_id = str(runs[0]["run_id"])
@@ -336,7 +337,7 @@ def test_k2_crash_after_frontend_done_resumes_byte_identical(tmp_path, monkeypat
     _hooks.reset_cache()
 
     journal = Journal(root)
-    fh = doc["content_hash"]
+    fh = chain_key(doc["org_id"], doc["content_hash"])
     crashed_run_id = str(journal.registered_runs(fh)[0]["run_id"])
 
     with fake_persist_seam() as fake:
@@ -402,7 +403,7 @@ def test_dlq_fail_list_replay_resolve(journal_dir, capsys):
     _hooks.on_frontend_done(doc, parsed)
     _hooks.on_run_failed(doc["id"], RuntimeError("mapper exploded"))
 
-    fh = doc["content_hash"]
+    fh = chain_key(doc["org_id"], doc["content_hash"])
     events = journal.chain_events(fh)
     assert events[-1]["type"] == "RUN_FAILED"
     assert events[-1]["payload"]["error_type"] == "RuntimeError"
@@ -476,7 +477,7 @@ def test_dlq_resolved_by_later_successful_run(journal_dir):
 def test_unknown_event_type_rejected(journal_dir):
     journal = Journal(journal_dir)
     handle = journal.begin_run(
-        file_hash="sha256-x", document_id=None, engine_version="test",
+        org_id="org-crash", file_hash="sha256-x", document_id=None, engine_version="test",
         run_kind="adhoc",
     )
     with pytest.raises(ValueError):

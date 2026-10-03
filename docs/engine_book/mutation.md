@@ -179,8 +179,8 @@ dedicated job).
 | `reconcile` | validator + trigger + placement | 583 | 16 | 567 | **100.00%** | 100% |
 | `classify` | whole file | 182 | 1 | 181 | **100.00%** | 100% |
 | `journal_events` | whole file | 116 | 4 | 112 | **100.00%** | 100% |
-| `journal` | hash-chain scope | 602 | 7 | 595 | **100.00%** | 100% |
-| **default gate overall** | | **1,729** | **28** | **1,701** | **100.00%** | **100%** |
+| `journal` | hash-chain scope | 678 | 7 | 671 | **100.00%** | 100% |
+| **default gate overall** | | **1,805** | **28** | **1,777** | **100.00%** | **100%** |
 | `canonical_bs_v2` | build_canonical_bs_v2 region | 1,093 | — | — | measured-and-deferred | 85% provisional, dedicated nightly job |
 
 Raw pre-triage kill rates — what the battery alone caught before C1:
@@ -387,7 +387,7 @@ their kills (all in `test_mutation_regressions.py`):
   `_placement_for` 17 (`>0`→`>=0` inside a ternary guarded by
   `!= 0`). Full list with ids in `EQUIVALENT_MUTANTS`.
 
-### `engine.journal.journal` (hash-chain scope) — 602 mutants, raw 57.5% (346/602), post-triage **100% of scoreable** (595 caught + 7 equivalent)
+### `engine.journal.journal` (hash-chain scope) — 678 mutants (602 at C1, raw 57.5% = 346/602), post-triage **100% of scoreable** (671 caught + 7 equivalent)
 
 Scope note: the C1 boundary for this file is the HASH CHAIN — append/
 write path, run registration + cross-run linkage, chain read/verify,
@@ -439,6 +439,40 @@ nightly gap-closure backlog below.
   flips (cross-process concurrency guard, not deterministically
   unit-killable — 2), and two mutmut generation artifacts whose emitted
   bodies are byte-identical to the original (verified by raw diff).
+
+**2026-10-02 — the (organisation, content hash) chain key.** The key
+change (`engine/journal/layout.py`; gates.md § journal-chain-key) rewrote
+`_index_path`, `begin_run`, `chain_events`, `verify_chain`,
+`observe_serving`, `record_snapshot` and `_ensure_registered`, and added
+two functions to this scope: `Journal._chain_run_events` (a run belongs to
+the chain its own RUN_STARTED names) and `Journal._ensure_layout` (no write
+without the layout marker). Re-measured with `--modules journal --fresh`:
+**678 mutants, 671 caught + 7 equivalent, 100%** (the `journal` row above
+and the overall row are updated from this run; the other rows stand as
+measured on 2026-08-24). First run after the change: 97.23%, 18 survivors —
+
+* `verify_chain` (14): the two new ownership findings ("index line names
+  organisation …", "RUN_STARTED names organisation … — it is not part of
+  chain …") were unpinned text. Killed by `TestChainOwnership` — a real
+  on-disk chain with another organisation's run filed into its index,
+  asserting the EXACT full error list.
+* `_append_line` `parents=True` (3, the same three mutants as before): the
+  layout guard now recreates a wiped ROOT itself, so the run file is one
+  level down and no longer needs it — the chain's index file
+  (`index/<org>/<hash>.jsonl`, two levels) does. Killed by starting a
+  first run in a new organisation after the wipe.
+* `observe_serving` (1): not a survivor but the documented equivalent
+  (drops `period_id=None`), whose mutmut index moved from 52 to 59 when
+  arguments were added above it. `EQUIVALENT_MUTANTS` is keyed by index:
+  **after any edit to a kernel function, re-identify its pinned
+  equivalents by diff** — index 52 had become `run_kind="serve"→"SERVE"`,
+  a real mutant the stale pin would have silently excluded from scoring.
+  All seven were re-read against the regenerated mutants tree.
+
+`engine/journal/layout.py` itself (the key type, the organisation-id rule,
+the layout verdict) is NOT in the mutation kernel; it is covered by the
+`journal-chain-key` battery gate and its twenty plants. Candidate for the
+next kernel extension, with `SnapshotStore`.
 
 ### `engine.passes.classify` — 182 mutants, raw 73.08% (133/182), post-triage **100% of scoreable** (181 caught + 1 equivalent)
 

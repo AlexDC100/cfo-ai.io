@@ -904,7 +904,7 @@ def test_period_moved_is_part_of_the_journal_vocabulary():
 
 
 def test_the_journal_records_the_move_with_before_and_after(tmp_path, monkeypatch):
-    from engine.journal import Journal
+    from engine.journal import Journal, chain_key
     from engine.journal import hooks as journal_hooks
 
     monkeypatch.setenv("ENGINE_JOURNAL_DIR", str(tmp_path / "journal"))
@@ -922,7 +922,8 @@ def test_the_journal_records_the_move_with_before_and_after(tmp_path, monkeypatc
     journal_hooks.on_period_moved(doc, record)
 
     journal = Journal(str(tmp_path / "journal"))
-    events = journal.chain_events("f" * 64)
+    # The move is recorded on the DOCUMENT's organisation's chain.
+    events = journal.chain_events(chain_key(doc["org_id"], "f" * 64))
     moved = [e for e in events if e["type"] == "PERIOD_MOVED"]
     assert len(moved) == 1
     payload = moved[0]["payload"]
