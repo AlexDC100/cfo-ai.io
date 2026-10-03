@@ -75,7 +75,9 @@
 -- as one transaction: on ANY error nothing is applied. Its LAST statement
 -- returns one row, one jsonb column `applied`: what each table held before
 -- and after, every policy dropped or created, every table skipped, every
--- view named, `changed_anything`, and `verified`.
+-- view named, `changed_anything`, and `verified`. (`applied.applied` null
+-- with a `note` means the client did not run the file as one batch on one
+-- connection: the row cannot see the result — run the pre-flight report.)
 -- A client that sends ONE PREPARED STATEMENT at a time (`supabase db query
 -- --local` does) refuses a file of several statements — "cannot insert
 -- multiple commands into a prepared statement" — and applies nothing. The
@@ -641,11 +643,14 @@ $lockdown$;
 notify pgrst, 'reload schema';
 
 -- THE RESULT ROW — the last statement, because a client that runs the file
--- as one batch returns the last result.
+-- as one batch returns the last result. Where this session holds no result
+-- from the block above — it raised and the client carried on, or the client
+-- sent the statements over separate connections — the row cannot know what
+-- the catalog is now, and says which file does.
 select coalesce(
          nullif(current_setting('entitlement_lockdown.applied', true), '')::jsonb,
          jsonb_build_object(
-           'applied', false,
+           'applied', null,
            'verified', null,
-           'note', 'the lockdown block did not complete in this session — nothing was applied by this run')
+           'note', 'this session holds no result from the lockdown block: either it raised (the error is above this row, and that run changed nothing) or the statements were sent over separate connections, and this row cannot see what was applied. Run schema_phase_subscriptions_write_lockdown_preflight_report.sql and read verdict.fully_locked.')
        ) as applied;

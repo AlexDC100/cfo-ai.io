@@ -607,6 +607,11 @@ def test_the_migration_is_one_batch_that_ends_with_the_row_applied():
     assert stmts[2] == "notify pgrst, 'reload schema'"
     assert stmts[3].startswith("select coalesce(") and stmts[3].endswith(") as applied"), stmts[3][-80:]
     assert "current_setting('entitlement_lockdown.applied', true)" in stmts[3]
+    # Where this session did not run the block (a client that sends the statements one at a
+    # time, or over separate connections) the row cannot know what was applied: it must say
+    # so and name the file that does know — never "nothing was applied".
+    assert "'applied', null" in stmts[3] and "_preflight_report.sql" in stmts[3], stmts[3][-500:]
+    assert "nothing was applied" not in stmts[3], "the fallback row claims a result it cannot see"
     body = _strip_sql_comments(stmts[1])
     # lock_timeout before anything else the block does
     first = re.search(r"\$snapshot\$;\s*begin\s+(.*?);", body, re.S)
