@@ -37,7 +37,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from . import _detect
@@ -8048,10 +8048,20 @@ def build_router() -> APIRouter:
     # ── FX rates endpoint (currency toggle, BNR proxy) ────────────────
     # Returns {base, rates, source, as_of, fetched_at, stale}. Backend
     # proxy avoids browser CORS on bnr.ro + caches 24h across all FE clients.
+    #
+    # `?refresh=true` is the OPERATOR's. The route is anonymous; honoured for
+    # anyone, the parameter skipped both memos (the 24 h success memo and the
+    # 300 s failure cooldown) — measured 2026-10-03 on the real app: five
+    # anonymous hits were five BNR fetches, ten with the feed down. Without
+    # the operator bearer it is IGNORED and the answer is the plain route's
+    # (not a 401: the caller still gets the rates, and a wrong bearer is no
+    # oracle). `Request` is imported at module scope — this module has
+    # `from __future__ import annotations` (gate route-binding).
     @router.get("/api/fx-rates")
-    def get_fx_rates_endpoint(refresh: bool = False) -> Dict[str, Any]:
+    def get_fx_rates_endpoint(request: Request, refresh: bool = False) -> Dict[str, Any]:
+        from ..public.refresh_shield import has_operator_bearer
         from .fx_rates import get_fx_rates
-        return get_fx_rates(force_refresh=refresh)
+        return get_fx_rates(force_refresh=bool(refresh) and has_operator_bearer(request))
 
     # ── PERIOD DETECTION (Part B) ────────────────────────────────────
     # REGISTRATION ORDER IS LOAD-BEARING. `/api/period/{period_id}`
