@@ -29,8 +29,9 @@
 # In each: every write of a signed-in user to their own row is refused
 # (status, the body's reason, and the row read back with the service role is
 # byte-identical), on every sold tier and every entitlement column; INSERT
-# when no row exists, DELETE, and every write to another user's row; anon
-# sees nothing; the user still reads their own row and only that; the service
+# when no row exists, DELETE, and every write to another user's row — and the
+# same write through the GraphQL endpoint (/graphql/v1) where the stack serves
+# it; anon sees nothing; the user still reads their own row and only that; the service
 # role's webhook-shaped upsert, a brand-new signup's seeded row and the
 # document / chat reserve-commit RPCs still work; every sibling entitlement
 # table refuses a user write. Beside the behaviour, the catalog laws: row
@@ -46,7 +47,8 @@
 # supabase/schema_phase_owner_plan.sql. A case that needs an owner-plan
 # object (plan_assignment_audit, assign_internal_plan, the both-orders run)
 # is SKIPPED when the object is not there — printed as `SKIP`, counted
-# apart, never a pass.
+# apart, never a pass. The GraphQL row is skipped the same way on a stack
+# that serves no /graphql/v1.
 #
 # LOCAL ONLY. The database is SUBS_LOCKDOWN_DB_URL (default: the local test
 # stack, postgresql://postgres:postgres@127.0.0.1:54322/postgres) and the API
@@ -231,6 +233,16 @@ req GET "/rest/v1/subscriptions?select=user_id&limit=1" "$SERVICE_KEY"
 [ "$HTTP_STATUS" = "200" ] \
   || vacuous "the service-role key is not accepted by the local PostgREST (HTTP $HTTP_STATUS) — pass SUBS_LOCKDOWN_SERVICE_ROLE_KEY and SUBS_LOCKDOWN_ANON_KEY"
 
+# The GraphQL endpoint (pg_graphql behind /graphql/v1) is a second door onto
+# the same privileges. Where the stack serves it, the attack is made through
+# it too; where it does not, that row is a SKIP — never a pass.
+GRAPHQL=0
+req POST "/graphql/v1" "$ANON_KEY" '{"query":"{ __typename }"}'
+case "$HTTP_STATUS $HTTP_BODY" in "200 "*'"Query"'*) GRAPHQL=1 ;; esac
+graphql_body() { # user id → the mutation that writes that user's tier
+  printf '{"query":"mutation { updatesubscriptionsCollection(set: {tier: \\"multi\\", status: \\"active\\"}, filter: {user_id: {eq: \\"%s\\"}}) { affectedCount } }"}' "$1"
+}
+
 RUN="$(date +%s)$$"
 DOMAIN="subs-gate.invalid"
 MONTH="$(date -u +%Y-%m)"
@@ -373,6 +385,7 @@ INSERT a second row for ANOTHER user's id|POST|/rest/v1/subscriptions|user|{"use
 ANON: PATCH a user's tier → multi|PATCH|$VIC|anon|{"tier":"multi","status":"active"}|$V
 ANON: DELETE a user's row|DELETE|$VIC|anon||$V
 ANON: INSERT a row|POST|/rest/v1/subscriptions|anon|{"user_id":"$V","tier":"multi","status":"active"}|$V
+GraphQL (/graphql/v1): mutation updatesubscriptionsCollection, own tier → multi, status → active|POST|/graphql/v1|user|$(graphql_body "$A")|$A
 LIST
 }
 fire() { # METHOD path who body → HTTP_STATUS, HTTP_BODY
@@ -457,6 +470,14 @@ build_state() { # a|b|c|d — quietly; every state starts from (a)
     d) apply_file "$MIGRATION"; state_d >/dev/null ;;
   esac
 }
+# What a role holds on subscriptions, as the ACL has it (MAINTAIN shows on
+# Postgres 17 and later).
+acl_of() {
+  sql "select coalesce(string_agg(a.privilege_type, ',' order by a.privilege_type), '(none)')
+         from pg_class c, aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
+        where c.oid = 'public.subscriptions'::regclass
+          and a.grantee = (select oid from pg_roles where rolname = '$1');" | head -1
+}
 # Views over a listed table that an API role holds a privilege on: name,
 # security_invoker, whether the view can be written through, the privileges.
 api_views() {
@@ -504,8 +525,8 @@ if [ "$MODE" != gate ]; then
       echo "Nothing is asserted. The repository's migration is re-applied on exit." ;;
   esac
   echo "policies on subscriptions: $(sql "select coalesce(string_agg(policyname || ' [' || cmd || ']', ', ' order by policyname), '(none)') from pg_policies where schemaname = 'public' and tablename = 'subscriptions';")"
-  echo "authenticated on subscriptions: $(sql "select coalesce(string_agg(privilege_type, ',' order by privilege_type), '(none)') from information_schema.role_table_grants where table_schema = 'public' and table_name = 'subscriptions' and grantee = 'authenticated';")"
-  echo "anon on subscriptions: $(sql "select coalesce(string_agg(privilege_type, ',' order by privilege_type), '(none)') from information_schema.role_table_grants where table_schema = 'public' and table_name = 'subscriptions' and grantee = 'anon';")"
+  echo "authenticated on subscriptions: $(acl_of authenticated)"
+  echo "anon on subscriptions: $(acl_of anon)"
   echo "views over a listed table an API role may use: $(api_views)"
   echo
   echo "| attack (through PostgREST) | HTTP | the row, read back with the service role: tier / plan / status / … | written? | body |"
@@ -581,15 +602,16 @@ fi
 
 # ══ The catalog law, one line per listed table ═══════════════════════════
 # rls · policies that are not SELECT · what anon holds · what authenticated
-# holds (table OR column level) · what PUBLIC holds.
+# holds (table OR column level; MAINTAIN too on Postgres 17 and later, where
+# the default grant carries it) · what PUBLIC holds.
 catalog_of() {
   sql "select 'rls=' || c.relrowsecurity
           || ' non-select-policies=' || (select count(*) from pg_policies p
                                           where p.schemaname = 'public' and p.tablename = c.relname and p.cmd <> 'SELECT')
-          || ' anon=' || coalesce((select string_agg(x, ',' order by x) from unnest(array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE']) x
+          || ' anon=' || coalesce((select string_agg(x, ',' order by x) from unnest(array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'] || case when current_setting('server_version_num')::int >= 170000 then array['MAINTAIN'] else array[]::text[] end) x
                                     where case when x in ('INSERT','UPDATE','REFERENCES','SELECT') then has_any_column_privilege('anon', c.oid, x)
                                                else has_table_privilege('anon', c.oid, x) end), '-')
-          || ' authenticated=' || coalesce((select string_agg(x, ',' order by x) from unnest(array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE']) x
+          || ' authenticated=' || coalesce((select string_agg(x, ',' order by x) from unnest(array['DELETE','INSERT','REFERENCES','SELECT','TRIGGER','TRUNCATE','UPDATE'] || case when current_setting('server_version_num')::int >= 170000 then array['MAINTAIN'] else array[]::text[] end) x
                                     where case when x in ('INSERT','UPDATE','REFERENCES','SELECT') then has_any_column_privilege('authenticated', c.oid, x)
                                                else has_table_privilege('authenticated', c.oid, x) end), '-')
           || ' public=' || coalesce((select string_agg(a.privilege_type, ',' order by a.privilege_type)
@@ -642,6 +664,20 @@ suite() { # state label
     before="$(fp "$uid")"
     fire "$method" "$path" "$who" "$body"
     after="$(fp "$uid")"
+    case "$label" in
+      GraphQL*)
+        if [ "$GRAPHQL" != 1 ]; then skip "$S W  $label" "this stack serves no /graphql/v1"; continue; fi
+        # pg_graphql answers 200 either way: a role without the privilege has no such
+        # mutation, and says so by name — any OTHER error is not a refusal (A3b).
+        case "$HTTP_BODY" in
+          *'"affectedCount"'*) got="ACCEPTED $HTTP_BODY" ;;
+          *'Unknown field'*'updatesubscriptionsCollection'*) got="refused" ;;
+          *) got="$HTTP_STATUS $HTTP_BODY" ;;
+        esac
+        [ "$before" = "$after" ] && got="$got unchanged" || got="$got ROW CHANGED: $(show "$uid")"
+        check "$S W  $label — refused (no such mutation for this role), the row unchanged" "$got" "refused unchanged"
+        continue ;;
+    esac
     want="403"; [ "$who" = "anon" ] && want="401"
     case "$HTTP_BODY" in *"permission denied for table subscriptions"*) got="$HTTP_STATUS denied" ;; *) got="$HTTP_STATUS $HTTP_BODY" ;; esac
     [ "$before" = "$after" ] && got="$got unchanged" || got="$got ROW CHANGED: $(show "$uid")"
@@ -780,6 +816,18 @@ fire POST "/rest/v1/subscriptions" user "$(norow_body multi)"
 check "A3 … and a user with NO row INSERTs one: tier multi, plan enterprise, period end 2099" \
   "$HTTP_STATUS $(show "$A" | cut -d' ' -f1-5)" "201 multi / enterprise / active"
 return_row
+# The same write through the OTHER door. Without this case a malformed
+# mutation would read as a refusal in every suite below.
+if [ "$GRAPHQL" = 1 ]; then
+  baseline
+  fire POST "/graphql/v1" user "$(graphql_body "$A")"
+  case "$HTTP_BODY" in *'"affectedCount": 1'*|*'"affectedCount":1'*) got="landed" ;; *) got="$HTTP_STATUS $HTTP_BODY" ;; esac
+  check "A3b … and through the GraphQL endpoint (/graphql/v1) the same write lands: own tier → multi, status → active" \
+    "$got $(show "$A" | cut -d' ' -f1-5)" "landed multi / professional / active"
+  baseline
+else
+  skip "A3b … and through the GraphQL endpoint (/graphql/v1) the same write lands" "this stack serves no /graphql/v1"
+fi
 migrate "A4 the migration applies on state (a), with no error and no warning"
 check_has "A5 … and names what it dropped (the NOTICEs an operator reads)" "$APPLY_OUT" 'dropped policy "subscriptions self update" (UPDATE) on public.subscriptions'
 suite "a"
@@ -850,7 +898,7 @@ check "Z2 the stack is left CLOSED: one policy on subscriptions, no write privil
   "$ONE_POLICY|rls=true non-select-policies=0 anon=- authenticated=SELECT public=-"
 
 echo "GATE-WORK $GATE units=$UNITS"
-[ "$SKIPS" -gt 0 ] && echo "SKIPPED $SKIPS case(s) — NOT passes: they need an object schema_phase_owner_plan.sql creates"
+[ "$SKIPS" -gt 0 ] && echo "SKIPPED $SKIPS case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)"
 if [ "$FAILS" -gt 0 ]; then
   echo "SUBSCRIPTIONS-WRITE-LOCKDOWN GATE: FAIL — $FAILS of $UNITS case(s) failed"
   exit 1

@@ -22,9 +22,12 @@
 -- (the billed-extras tally) and `stripe_customer_id` /
 -- `stripe_subscription_id` (which POST /api/billing/portal and
 -- /api/billing/cancel then hand to Stripe) were writable, and the row could
--- be INSERTed when none existed. The engine (src/engine/api/_plan_state.py
--- get_plan_state), the SQL workspace cap (create_workspace) and the chat edge
--- function (supabase/functions/chat-llm) all read the plan from that row.
+-- be INSERTed when none existed. The same write lands through the GraphQL
+-- endpoint (/graphql/v1, pg_graphql — on by default on Supabase): it is the
+-- privilege and the policy that were open, not one door. The engine
+-- (src/engine/api/_plan_state.py get_plan_state), the SQL workspace cap
+-- (create_workspace) and the chat edge function (supabase/functions/chat-llm)
+-- all read the plan from that row.
 --
 -- This file does not depend on schema_phase_owner_plan.sql and is correct
 -- with or without it. Without it (production on 2026-10-03) the tier CHECK
@@ -50,7 +53,10 @@
 --     in production is closed too, and you see that it was there;
 --   · ALL privileges are revoked from `anon` and from PUBLIC;
 --   · INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES and TRIGGER are revoked
---     from `authenticated` (table level, which takes the column level with it).
+--     from `authenticated` (table level, which takes the column level with it)
+--     — and MAINTAIN on Postgres 17 and later, where the default grant
+--     carries it (vacuum, analyze, reindex, lock table: not reachable through
+--     the REST API; revoked so that SELECT is all that is left).
 -- What a signed-in user KEEPS, per table:
 --   · subscriptions — SELECT is granted, and the table is left with EXACTLY
 --     ONE policy:  "subscriptions self select"  for select  to authenticated
@@ -134,7 +140,8 @@
 --       order by tablename, cmd, policyname;
 --
 --    (b) who holds what (table level; `postgres`, `service_role` and
---        `supabase_admin` are expected and left out):
+--        `supabase_admin` are expected and left out; on Postgres 17 and later
+--        the default grant shows MAINTAIN too):
 --      select c.relname as table_name,
 --             coalesce(r.rolname, 'PUBLIC') as grantee,
 --             string_agg(a.privilege_type, ', ' order by a.privilege_type) as privileges
@@ -461,6 +468,9 @@ declare
   v_priv  text;
   v_n     int;
   v_open  text := '';
+  -- Postgres 17 added the MAINTAIN privilege; the keyword does not exist
+  -- before it, so every statement that names it is behind this flag.
+  v_pg17  boolean := current_setting('server_version_num')::int >= 170000;
 begin
   -- ── 1. close ──────────────────────────────────────────────────────────
   foreach v_table in array v_user_readable || v_service_only loop
@@ -501,6 +511,9 @@ begin
       execute format(
         'revoke insert, update, delete, truncate, references, trigger on table %s from authenticated',
         v_rel);
+      if v_pg17 then
+        execute format('revoke maintain on table %s from authenticated', v_rel);
+      end if;
     else
       execute format('revoke all on table %s from authenticated', v_rel);
     end if;
@@ -545,6 +558,11 @@ begin
                      'a column-level grant'));
         end if;
       end loop;
+      if v_pg17 then
+        if has_table_privilege(v_role, v_rel, 'MAINTAIN') then
+          v_open := v_open || format(E'\n  public.%s: %s still holds MAINTAIN', v_table, v_role);
+        end if;
+      end if;
     end loop;
 
     select count(*) into v_n from pg_policies
