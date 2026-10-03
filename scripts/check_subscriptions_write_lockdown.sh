@@ -559,6 +559,22 @@ if [ "$MODE" != gate ]; then
     echo "| $t | $s1 | $s2 | $s3 | $s4 |"
   done
   echo
+  echo "| the meters, the real attack (signed-in user, own counters) | HTTP | the table |"
+  echo "|---|---|---|"
+  before="$(tfp user_usage)"
+  req PATCH "/rest/v1/user_usage?user_id=eq.$A" "$ATK_TOKEN" '{"uploads":0,"uploads_reserved":0,"llm_calls":0}'
+  echo "| PATCH own user_usage: uploads, uploads_reserved, llm_calls → 0 | $HTTP_STATUS $(printf '%s' "$HTTP_BODY" | cut -c1-70) | $( [ "$before" = "$(tfp user_usage)" ] && echo unchanged || echo CHANGED ) |"
+  before="$(tfp user_usage)"
+  req DELETE "/rest/v1/user_usage?user_id=eq.$A" "$ATK_TOKEN"
+  echo "| DELETE own user_usage row | $HTTP_STATUS $(printf '%s' "$HTTP_BODY" | cut -c1-70) | $( [ "$before" = "$(tfp user_usage)" ] && echo unchanged || echo CHANGED ) |"
+  before="$(tfp plan_chat_daily_usage)"
+  req PATCH "/rest/v1/plan_chat_daily_usage?user_id=eq.$A" "$ATK_TOKEN" '{"count":0}'
+  echo "| PATCH own plan_chat_daily_usage: count → 0 | $HTTP_STATUS $(printf '%s' "$HTTP_BODY" | cut -c1-70) | $( [ "$before" = "$(tfp plan_chat_daily_usage)" ] && echo unchanged || echo CHANGED ) |"
+  req GET "/rest/v1/user_usage?select=uploads&user_id=eq.$A" "$ATK_TOKEN"
+  echo "| GET own user_usage (the read the product keeps) | $HTTP_STATUS $(printf '%s' "$HTTP_BODY" | cut -c1-70) | |"
+  req GET "/rest/v1/user_usage?select=user_id" "$ANON_KEY"
+  echo "| ANON: GET user_usage | $HTTP_STATUS $(printf '%s' "$HTTP_BODY" | cut -c1-70) | |"
+  echo
   echo "GATE-WORK $GATE units=0"
   exit 0
 fi

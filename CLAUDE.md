@@ -3672,3 +3672,100 @@ xlsx/xls trial balances do not. With credits at zero every PDF 502s.
 
 Fast unblock for the pre-fix bundle: remove `cfo-upload-current` from
 localStorage and reload.
+
+---
+
+## 27. Entitlement tables are written by the service role only (2026-10-03)
+
+Branch `fix/subscriptions-self-write` (owner task: "Close self-service tier
+writes on subscriptions"). SQL + frontend + gates; no engine file.
+
+**What was open.** `supabase/schema.sql` created an INSERT and an UPDATE policy
+on a user's own `public.subscriptions` row ("subscriptions self insert" /
+"self update"), and Supabase's default privileges grant ALL on every public
+table to `anon` and `authenticated`. With the public anon key and the session
+the page already holds, a signed-in user could
+`PATCH /rest/v1/subscriptions?user_id=eq.<own id>` with
+`{"tier":"multi","status":"active"}` — a paid plan with no payment. Measured
+on a stack built from this repository: every sold tier, `status`, `plan`,
+`custom_limits`, `is_founding_member`, the period / trial / intro dates, the
+billed-extras tally and the Stripe ids were writable, and the row could be
+INSERTed when none existed; `create_workspace` then allowed the plan's
+workspaces. `frontend/lib/billing.ts` still exposed two browser writers of the
+row with no caller (`cancel()`, `reactivate()` — the second wrote
+`status: "active"`).
+
+**What closes it.** `supabase/schema_phase_subscriptions_write_lockdown.sql`.
+For every table on its one list — `subscriptions`, `user_usage`,
+`plan_chat_daily_usage`, `document_quota_ledger`, `founding_members`,
+`billing_events`, and `plan_assignment_audit` where it exists: row level
+security on; every policy that is not a SELECT policy dropped, whatever its
+name; everything revoked from `anon` and PUBLIC; the write privileges revoked
+from `authenticated`. `subscriptions` keeps exactly ONE policy (own row,
+SELECT, to authenticated). The file reads its own result back and raises —
+applying nothing — if a write privilege survives. Idempotent; safe on a
+repo-built database, on top of the hand-applied three-statement stopgap, on a
+database re-opened by hand under other names, and before or after
+`schema_phase_owner_plan.sql`. `schema.sql` no longer creates the two write
+policies; `cancel()` / `reactivate()` are deleted (Settings cancels through
+`POST /api/billing/cancel`, which asks Stripe; the webhook writes the row).
+
+**The rule.** An entitlement table — the plan row, a meter, the quota ledger,
+a seat, a billing log — is written by the SERVICE ROLE (or a SECURITY DEFINER
+function owned by the table owner), never by a browser session and never by
+an edge function through a direct table write. A new such table gets
+Supabase's default grants on the day it is created: add it to THE LIST in the
+migration (the gate and the static law read the list from that file) and
+re-run it.
+
+**The runbook is the migration's header** — read it before applying: the
+read-only pre-flight (policies, grants, row level security, and the views
+over a listed table), the read-only AUDIT of rows whose entitlement has no
+payment visible behind it (a list for a person, with its false positives —
+no email), the Dashboard "Reload schema cache" click (§14), the post-checks
+and a browser-console probe that must print `CLOSED`.
+
+> **⚠ Re-run the lockdown file after `supabase/schema.sql` from a checkout
+> older than 2026-10-03, after any logical restore, and in every fresh
+> environment** — the old `schema.sql` re-creates the two write policies and a
+> `create table` hands the default grants out again. The same discipline as
+> `schema_phase_security_hardening.sql` after `schema_phase5_usage_limits.sql`
+> (§16).
+
+**A view is not closed by a revoke on its table**, and the migration changes
+no view: a plain view runs with its owner's rights and gets ALL for `anon` /
+`authenticated` by default. The migration names every view over a listed
+table (a WARNING for one that can be written through). `founder_cohort_public`
+— read by the pricing page with the anon key and by `POST /api/checkout/start`
+— is created by NO file in this repository; pre-flight (d) says how to read
+its row before applying.
+
+**Gates** (plant log: `docs/engine_book/gates.md`):
+- `subscriptions-write-lockdown` — `scripts/check_subscriptions_write_lockdown.sh`,
+  on the LOCAL Supabase stack through real PostgREST with a real GoTrue
+  session, from four starting states; the attack is first shown to SUCCEED,
+  then every write refused with the row byte-identical, the reads, the service
+  role's writes, the signup row, the reserve / commit RPCs, the sibling
+  tables, the catalog laws. 276 cases without `schema_phase_owner_plan.sql`
+  (13 skipped — printed, never a pass), 293 with it. VACUOUS when no local
+  stack runs; refuses a non-loopback host. `--before <state>` / `--after
+  <state>` print the attack table.
+- `entitlement-write-laws` — `tests/engine/test_entitlement_write_laws.py`: no
+  browser or edge-function writer of a listed table, no committed SQL that
+  re-opens one, the runbook's lists equal THE LIST, no user-JWT engine client
+  on one.
+
+**Unknown, and the owner's to read:** whether production carried the two
+policies and whether the hole was used (pre-flight and audit), and what
+`founder_cohort_public` is there.
+
+**Found, not fixed here** (`gates.md`, same section): the workspace cap is
+passable WITHOUT touching `subscriptions` — a member may PATCH
+`organizations.archived_at`, and `archive_workspace` → `create_workspace` →
+`restore_workspace` does it through the product's own RPCs
+(`restore_workspace` never re-checks the cap); `get_plan_state` reads `tier`,
+else `plan`, and never `status` — the signup row this repository seeds
+(`tier` NULL, `plan` 'professional') resolves to the Multi allowance in the
+engine; `feat/owner-plan`'s `owner-plan-sql` case F4 needs
+`specs-durable/owner_plan_sql_after_lockdown.patch` once the lockdown is under
+it.
