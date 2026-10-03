@@ -58,6 +58,7 @@ import {
   fetchHeldRates,
   getHeldRates,
   getInitialRates,
+  preferHeld,
   ratesAsShown,
   ratesNeedAttempt,
   sameRates,
@@ -141,19 +142,18 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [rates, setRates] = useState<RatesPayload>(() => ratesAsShown(heldRef.current!, Date.now()));
   const [refreshing, setRefreshing] = useState(false);
 
-  /** Hold `next` (when given) and show what is held as it may be shown NOW.
-   *  The state object is replaced only when something a reader could see
-   *  changed, so a look at the clock re-renders nothing. */
+  /** Hold `next` (when given, and when it is better than what is held —
+   *  `preferHeld`) and show what is held as it may be shown NOW. The state
+   *  object is replaced only when something a reader could see changed, so a
+   *  look at the clock re-renders nothing. */
   const show = useCallback((next?: HeldRates) => {
-    // A tab never swaps what it holds for something a source answered
-    // EARLIER — with localStorage unavailable a failed attempt comes back as
-    // "nothing held" (the bundled fallback, answered never), and the rate on
-    // screen is still the better figure. It is marked stale by the clock.
-    // (Unless what it holds is stamped in the future — a clock set back —
-    // where "earlier" means nothing and the answer just received is taken.)
+    // What a tab holds changes only for something better: a current rate
+    // always; a stale answer never replaces a current rate, nor an older
+    // figure a newer one. (With localStorage unavailable a failed attempt
+    // comes back as "nothing held" — the bundled fallback — and the rate on
+    // screen, marked stale by the clock, is still the newer figure.)
     const now = Date.now();
-    const own = heldRef.current!;
-    if (next && (next.cached_at >= own.cached_at || own.cached_at > now)) heldRef.current = next;
+    if (next) heldRef.current = preferHeld(heldRef.current!, next, now);
     const shown = ratesAsShown(heldRef.current!, now);
     setRates((prev) => (sameRates(prev, shown) ? prev : shown));
   }, []);

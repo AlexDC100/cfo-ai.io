@@ -27,23 +27,33 @@
 //
 // THE CHOICE (`chooseRates`, law: frontend/lib/__tests__/fxRatesChoice.test.ts,
 // gate fx-browser):
-//   · a CURRENT payload is `source: "BNR"` and `stale: false`;
+//   · a CURRENT payload is `source: "BNR"`, `stale: false` AND published
+//     (`as_of`) at most `MAX_AGE_DAYS` before today, never after it — the
+//     sources' own freshness rule, re-checked here: a label is not trusted
+//     against the date it is printed beside;
 //   · the function is current: it is used and the engine is NOT asked;
 //   · the function is not current and the engine is: the engine's payload is
 //     used — unless the function's is a BNR rate with a strictly NEWER
 //     `as_of`, which is kept, marked stale (the newer publication wins);
-//   · the engine is unreachable or itself stale: the function's payload is
-//     kept — MARKED STALE, never presented as current;
-//   · the function does not answer: the engine's payload is used as it is
-//     served (marked stale unless current);
-//   · neither answers: the last payload this browser held, marked stale once
-//     it is past its day, else the bundled fallback, marked stale.
+//   · NOTHING is current: of the two answers the NEWER publication is kept
+//     (the function's on a tie) — MARKED STALE, never presented as current;
+//   · one source does not answer: the other's payload, marked stale unless
+//     current;
+//   · neither answers: what this browser holds (below).
+// Whatever is chosen, `chooseRates` marks it in ONE place: a payload that is
+// not current never leaves it without `stale: true`.
 //
-// THE BROWSER'S OWN COPY (localStorage `cfo:fx-rates:v1`) keeps whichever was
-// chosen. Only a CURRENT payload held for less than a day spares the request:
-// a held payload that is stale, or the fallback, or older than a day, never
-// suppresses the next attempt — every mount asks again until a current rate
-// is held. (That part was already so before 2026-10-03: the old check skipped
+// THE BROWSER'S OWN COPY (localStorage `cfo:fx-rates:v1`) changes only for
+// something BETTER (`preferHeld`): a current rate always replaces it; an
+// answer that is not current replaces it only when what is held is not
+// current either AND the answer was published later. So a stale answer never
+// replaces a current rate, nor an older figure a newer one — and with nothing
+// held, "what is held" is the bundled fallback (BNR's file of 2026-10-02),
+// which a source's two-month-old row does not displace.
+// Only a CURRENT payload held for less than a day spares the request: a held
+// payload that is stale, or the fallback, or older than a day, never
+// suppresses the next attempt — every look asks again until a current rate is
+// held. (That part was already so before 2026-10-03: the old check skipped
 // the request only for a held payload with `stale: false`. What it did not do
 // was ask anyone else, mark a day-old copy stale when the network failed, or
 // mark it stale on first paint.)
@@ -91,7 +101,17 @@ export const FALLBACK_PAYLOAD: RatesPayload = {
 
 const CACHE_KEY = "cfo:fx-rates:v1";
 const TTL_MS = 24 * 60 * 60 * 1000;   // 24 hours
-const REQUEST_TIMEOUT_MS = 8000;      // neither source may hang the other's turn
+// Each request has its OWN abandon: a function that hangs must not cost the
+// engine its turn, and an engine that hangs must not leave the attempt — and
+// with it every later one (the provider runs one at a time) — pending forever.
+const FUNCTION_TIMEOUT_MS = 8000;
+const ENGINE_TIMEOUT_MS = 8000;
+/** A rate published more than this many days ago is not a current rate,
+ *  whatever its label says. The sources' own limit (`_MAX_AGE_DAYS` in
+ *  fx_rates.py, `MAX_AGE_DAYS` in the function's bnr.ts): BNR's longest gap
+ *  between two files is a holiday bridge of five or six days. */
+export const MAX_AGE_DAYS = 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 import { SITE } from "@/config/site";
 
@@ -117,50 +137,81 @@ function engineEndpoint(): { url: string; headers: Record<string, string> } {
   return { url: `${API_URL}/api/fx-rates`, headers: { Accept: "application/json" } };
 }
 
-/** A payload that may be shown as the current rate. (A plain boolean, not a
- *  type guard: "not current" does not mean "not a payload".) */
-export function isCurrentBnrRate(p: RatesPayload | null | undefined): boolean {
-  return !!p && p.source === "BNR" && p.stale === false;
+/** The latest calendar date it can be in Romania at `nowMs` (UTC+3, the
+ *  summer offset) — the sources' own rule, so the three agree on "today". */
+export function todayInRomania(nowMs: number): string {
+  return new Date(nowMs + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** `as_of` as a real calendar date (YYYY-MM-DD) not after today, else "".
+ *  The key the publication dates are compared by: a date that is missing,
+ *  malformed or in the future ranks below every real one. */
+function publishedOn(p: RatesPayload, nowMs: number): string {
+  const s = typeof p.as_of === "string" ? p.as_of : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  const t = Date.parse(`${s}T00:00:00Z`);
+  if (Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== s) return "";
+  return s <= todayInRomania(nowMs) ? s : "";
+}
+
+/** Was this payload published at most MAX_AGE_DAYS before today (and not
+ *  after it)? */
+function publishedRecently(p: RatesPayload, nowMs: number): boolean {
+  const on = publishedOn(p, nowMs);
+  if (on === "") return false;
+  const age = Math.round((Date.parse(`${todayInRomania(nowMs)}T00:00:00Z`) - Date.parse(`${on}T00:00:00Z`)) / DAY_MS);
+  return age <= MAX_AGE_DAYS;
+}
+
+/** A payload that may be shown as the current rate: a BNR rate, labelled not
+ *  stale, published within MAX_AGE_DAYS. (A plain boolean, not a type guard:
+ *  "not current" does not mean "not a payload".) */
+export function isCurrentBnrRate(p: RatesPayload | null | undefined, nowMs: number = Date.now()): boolean {
+  return !!p && p.source === "BNR" && p.stale === false && publishedRecently(p, nowMs);
 }
 
 function asStale(p: RatesPayload): RatesPayload {
   return p.stale === true ? p : { ...p, stale: true };
 }
 
-/** The publication date as a comparable string ("" when absent). */
-function asOf(p: RatesPayload): string {
-  return typeof p.as_of === "string" ? p.as_of : "";
-}
-
-/** THE CHOICE between what the function answered and what the engine
- *  answered (null = did not answer). Pure. Returns null when neither did.
- *  A payload that is not current is ALWAYS returned with `stale: true`. */
-export function chooseRates(
+/** Which of the two answers — as served, not yet marked. */
+function pickRates(
   fromFunction: RatesPayload | null,
   fromEngine: RatesPayload | null,
+  nowMs: number,
 ): RatesPayload | null {
-  const fnCurrent = isCurrentBnrRate(fromFunction);
-  const engineCurrent = isCurrentBnrRate(fromEngine);
+  if (!fromFunction || !fromEngine) return fromFunction ?? fromEngine;
+  const fnCurrent = isCurrentBnrRate(fromFunction, nowMs);
+  const engineCurrent = isCurrentBnrRate(fromEngine, nowMs);
+  const fnOn = publishedOn(fromFunction, nowMs);
+  const engineOn = publishedOn(fromEngine, nowMs);
   if (fnCurrent && engineCurrent) {
     // Both current: the newer publication date wins, the function's on a tie.
-    return asOf(fromEngine) > asOf(fromFunction) ? fromEngine : fromFunction;
+    return engineOn > fnOn ? fromEngine : fromFunction;
   }
   if (fnCurrent) return fromFunction;
   if (engineCurrent) {
     // The engine holds a current rate and the function does not. The engine's
     // is used — unless the function's is a BNR rate published AFTER it, which
-    // is the better figure and is kept, marked stale.
-    if (fromFunction && fromFunction.source === "BNR" && asOf(fromFunction) > asOf(fromEngine)) {
-      return asStale(fromFunction);
-    }
-    return fromEngine;
+    // is the better figure and is kept (marked stale by `chooseRates`).
+    return fromFunction.source === "BNR" && fnOn > engineOn ? fromFunction : fromEngine;
   }
-  // Nothing current. Keep the function's answer when there is one — the
-  // engine being down or stale must not change what the app shows — and say
-  // what it is: stale.
-  if (fromFunction) return asStale(fromFunction);
-  if (fromEngine) return asStale(fromEngine);
-  return null;
+  // Nothing current: the newer publication, the function's on a tie.
+  return engineOn > fnOn ? fromEngine : fromFunction;
+}
+
+/** THE CHOICE between what the function answered and what the engine
+ *  answered (null = did not answer). Pure. Returns null when neither did.
+ *  THE ONE PLACE A CHOSEN PAYLOAD IS MARKED: whatever `pickRates` picks, a
+ *  payload that is not current leaves here with `stale: true`. */
+export function chooseRates(
+  fromFunction: RatesPayload | null,
+  fromEngine: RatesPayload | null,
+  nowMs: number = Date.now(),
+): RatesPayload | null {
+  const picked = pickRates(fromFunction, fromEngine, nowMs);
+  if (picked === null) return null;
+  return isCurrentBnrRate(picked, nowMs) ? picked : asStale(picked);
 }
 
 /** A payload and the moment (epoch ms) a source answered it to this browser.
@@ -217,7 +268,22 @@ function writeCache(rec: CacheRecord): void {
  *  stored less than a day ago (and not in the future — a clock set back). */
 function heldIsCurrent(rec: CacheRecord, nowMs: number): boolean {
   const age = nowMs - rec.cached_at;
-  return isCurrentBnrRate(rec.payload) && age >= 0 && age < TTL_MS;
+  return isCurrentBnrRate(rec.payload, nowMs) && age >= 0 && age < TTL_MS;
+}
+
+/** WHAT A BROWSER KEEPS when a source has answered `next` and it holds `own`.
+ *  What is held changes only for something better:
+ *    · `next` is a current rate: it is taken;
+ *    · it is not, and `own` still is: `own` is kept — a stale answer never
+ *      replaces a current rate;
+ *    · neither is current: the one PUBLISHED later, `own` on a tie — an older
+ *      figure never replaces a newer one. Both are shown marked stale.
+ *  Used on the localStorage copy (`fetchHeldRates`) and on the copy a mounted
+ *  tab holds in memory (stores/currency.tsx). */
+export function preferHeld(own: HeldRates, next: HeldRates, nowMs: number): HeldRates {
+  if (heldIsCurrent(next, nowMs)) return next;
+  if (heldIsCurrent(own, nowMs)) return own;
+  return publishedOn(next.payload, nowMs) > publishedOn(own.payload, nowMs) ? next : own;
 }
 
 /** What this browser holds — the record in localStorage, else the bundled
@@ -264,10 +330,11 @@ export function getInitialRates(): RatesPayload {
   return ratesAsShown(getHeldRates(), Date.now());
 }
 
-/** One GET. null on any failure: network, timeout, non-2xx, wrong shape. */
+/** One GET, abandoned after `timeoutMs`. null on any failure: network,
+ *  timeout, non-2xx, wrong shape. */
 async function ask(
   endpoint: { url: string; headers: Record<string, string> },
-  timeoutMs: number = REQUEST_TIMEOUT_MS,
+  timeoutMs: number,
 ): Promise<RatesPayload | null> {
   const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null;
@@ -300,21 +367,26 @@ export async function fetchHeldRates(opts: { forceRefresh?: boolean } = {}): Pro
   }
 
   const fn = functionEndpoint(opts.forceRefresh === true);
-  const fromFunction = fn ? await ask(fn) : null;
+  const fromFunction = fn ? await ask(fn, FUNCTION_TIMEOUT_MS) : null;
   // The second request happens only when the first did not settle it.
-  const fromEngine = isCurrentBnrRate(fromFunction) ? null : await ask(engineEndpoint());
+  const fromEngine = isCurrentBnrRate(fromFunction) ? null : await ask(engineEndpoint(), ENGINE_TIMEOUT_MS);
 
-  const chosen = chooseRates(fromFunction, fromEngine);
-  if (chosen) {
-    const answered: HeldRates = { payload: chosen, cached_at: Date.now() };
-    writeCache(answered);
-    return answered;
-  }
+  // What this browser holds NOW: its last record — read again, another tab
+  // may have stored one while the two requests were out — else the bundled
+  // fallback.
+  const own = readCache() ?? NOTHING_HELD;
+  const now = Date.now();
+  const chosen = chooseRates(fromFunction, fromEngine, now);
+  // Neither answered: what is held stands (past its day `ratesAsShown` marks
+  // it stale).
+  if (!chosen) return own;
 
-  // Neither answered. The last payload this browser held is better than the
-  // bundled constant — and past its day it is no longer a current rate
-  // (`ratesAsShown` marks it).
-  return cached ?? NOTHING_HELD;
+  const answered: HeldRates = { payload: chosen, cached_at: now };
+  const kept = preferHeld(own, answered, now);
+  // Only an answer that was TAKEN is stored — never the bundled fallback as
+  // if a source had answered it, never an older stale figure over a newer one.
+  if (kept === answered) writeCache(answered);
+  return kept;
 }
 
 /** `fetchHeldRates`, as the payload that may be shown now. Never throws;

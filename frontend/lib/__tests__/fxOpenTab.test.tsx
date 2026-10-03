@@ -82,13 +82,14 @@ const ENGINE_CURRENT: RatesPayload = {
 const FUNCTION_CURRENT: RatesPayload = { ...ENGINE_CURRENT, fetched_at: "2026-10-05T06:40:02.118Z" };
 
 /** A LATER publication — constructed for this law, not a BNR figure: what a
- *  source answers once BNR has published again. */
+ *  source answers once BNR has published again (dated the Monday the tab is
+ *  opened on, so it is a current rate at every moment of these tests). */
 const LATER: RatesPayload = {
   base: "EUR",
   rates: { EUR: 1, RON: 5.3512, USD: 1.1263 },
   source: "BNR",
-  as_of: "2026-10-06",
-  fetched_at: "2026-10-06T10:05:00.000Z",
+  as_of: "2026-10-05",
+  fetched_at: "2026-10-05T10:05:00.000Z",
   stale: false,
 };
 
@@ -208,7 +209,7 @@ describe("fx open tab · a rate on screen stops being current when its day ends"
     await fire("focus", "visibilitychange", "online");
 
     // the reviewer measured, here: 5.3447 / 2026-10-02 / stale false / 2 requests
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
     // one request at the end of each of the four days — the function answers
     // a current rate, so the engine is not asked — and none in between
     expect(asked.slice(2)).toEqual([FUNCTION_URL, FUNCTION_URL, FUNCTION_URL, FUNCTION_URL]);
@@ -234,7 +235,7 @@ describe("fx open tab · a rate on screen stops being current when its day ends"
       slow.answer(LATER);
       await vi.advanceTimersByTimeAsync(10);
     });
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
     expect(asked).toHaveLength(2);
   });
 
@@ -277,7 +278,7 @@ describe("fx open tab · a rate on screen stops being current when its day ends"
     replies.fn = LATER;
     await fire("focus");
     expect(asked).toEqual([FUNCTION_URL]);
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
   });
 });
 
@@ -310,7 +311,7 @@ describe("fx open tab · inside the held day nothing is asked", () => {
     hold(LATER, 0); // what another tab of this browser stored just now
 
     await pass(12 * HOUR);
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
     expect(asked).toEqual([FUNCTION_URL]);
   });
 });
@@ -321,7 +322,9 @@ describe("fx open tab · a failed attempt is tried again without a reload", () =
     const { asked, replies } = wire({ fn: FUNCTION_AS_DEPLOYED, engine: "hang" });
     open();
     await pass(8 * SECOND + 10);
-    expect(shown()).toEqual({ RON: 5.2489, as_of: "2026-08-05", source: "BNR", stale: true });
+    // the function's August row is older than the bundled fallback (BNR's
+    // file of 2 October): the fallback stays on screen, marked stale
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "fallback", stale: true });
     expect(asked).toEqual([FUNCTION_URL, ENGINE_URL]);
 
     replies.engine = ENGINE_CURRENT; // the engine has warmed up
@@ -409,7 +412,7 @@ describe("fx open tab · a failed attempt is tried again without a reload", () =
     setVisibility("visible");
     await fire("visibilitychange");
     expect(asked).toEqual([FUNCTION_URL, FUNCTION_URL]);
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
   });
 
   it("one attempt at a time: events while a request is in flight start no second one", async () => {
@@ -442,7 +445,7 @@ describe("fx open tab · what the tab holds", () => {
     const { asked, replies } = wire({ fn: LATER, engine: "network-error" });
     open();
     await pass(SECOND);
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
     expect(asked).toEqual([FUNCTION_URL]);
 
     await pass(23 * HOUR);
@@ -454,8 +457,43 @@ describe("fx open tab · what the tab holds", () => {
     // both sources were asked and neither answered; lib/rates has no copy to
     // fall back on and returns the bundled fallback — the tab keeps its own
     expect(asked.slice(1, 3)).toEqual([FUNCTION_URL, ENGINE_URL]);
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: true });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: true });
     expect(FALLBACK_PAYLOAD.rates.RON).not.toBe(5.3512);
+  });
+
+  it("a stale answer never replaces the newer rate on screen: past its day the tab's rate is marked stale and the function's August row does not take its place", async () => {
+    const { asked, replies } = wire({ fn: FUNCTION_CURRENT, engine: "network-error" });
+    open();
+    await pass(DAY - MINUTE);
+    replies.fn = FUNCTION_AS_DEPLOYED; // the function fell back to its old row
+    await pass(MINUTE);
+    expect(asked).toEqual([FUNCTION_URL, FUNCTION_URL, ENGINE_URL]);
+    // BNR's file of 2 October, marked stale — not 5.2489 of 5 August
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: true });
+    expect(JSON.parse(localStorage.getItem(CACHE_KEY)!).payload.as_of).toBe("2026-10-02");
+
+    // the same with localStorage unavailable: the tab's own copy is the judge
+    replies.engine = "network-error";
+    await pass(10 * MINUTE);
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: true });
+  });
+
+  it("a rate whose PUBLICATION is more than ten days old is not current, however recently a source answered it", async () => {
+    // a source that keeps answering Friday's file as current (its own check
+    // failing): the tab takes it on Monday — and not eleven days after Friday
+    const { asked } = wire({ fn: FUNCTION_CURRENT, engine: "network-error" });
+    open();
+    await pass(SECOND);
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: false });
+
+    await pass(7 * DAY); // Monday 12 October: ten days after the file
+    expect(shown().stale).toBe(false);
+    expect(asked).toHaveLength(1 + 7); // once at the end of each held day, the function alone
+
+    await pass(DAY); // Tuesday 13 October: eleven
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: true });
+    // the function's label is no longer believed, so the engine is asked too
+    expect(asked.slice(-2)).toEqual([FUNCTION_URL, ENGINE_URL]);
   });
 
   it("a clock set back does not strand the tab: a held record stamped in the future is shown stale and replaced by the next answer", async () => {
@@ -465,7 +503,7 @@ describe("fx open tab · what the tab holds", () => {
     expect(shown().stale).toBe(true); // first paint
     await pass(SECOND);
     expect(asked).toEqual([FUNCTION_URL]);
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
   });
 
   it("refresh() asks the function with ?refresh=true whatever is held, and the rate's day runs from that answer", async () => {
@@ -477,7 +515,7 @@ describe("fx open tab · what the tab holds", () => {
       await ctx.refresh();
     });
     expect(asked).toEqual([FUNCTION_URL, `${FUNCTION_URL}?refresh=true`]);
-    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-06", source: "BNR", stale: false });
+    expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
     expect(ctx.refreshing).toBe(false);
 
     await pass(DAY - MINUTE); // 24 h 59 min after mount, 23 h 59 min after the refresh
@@ -529,6 +567,14 @@ describe("fx open tab · the rule itself, read off a held record", () => {
     }
     // the held payload itself is never rewritten
     expect(ENGINE_CURRENT.stale).toBe(false);
+
+    // …and inside its day a record is current only while its PUBLICATION is
+    // at most ten days old: answered on 13 October, BNR's file of 2 October
+    // is eleven days old
+    const lateAnswer = { payload: ENGINE_CURRENT, cached_at: at + 8 * DAY };
+    expect(ratesAsShown({ payload: ENGINE_CURRENT, cached_at: at + 7 * DAY }, at + 7 * DAY + HOUR)).toBe(ENGINE_CURRENT);
+    expect(ratesAsShown(lateAnswer, at + 8 * DAY + HOUR)).toEqual({ ...ENGINE_CURRENT, stale: true });
+    expect(ratesNeedAttempt(lateAnswer, at + 8 * DAY + HOUR)).toBe(true);
   });
 
   it("nothing held is the bundled fallback, answered never: stale, and it spares no request; a record without a usable timestamp is the same", () => {
