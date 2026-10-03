@@ -959,15 +959,28 @@ def test_a_failed_regenerate_gives_the_reserved_unit_back(monkeypatch):
 
 
 def test_a_narrator_that_raises_is_500_and_gives_the_unit_back(monkeypatch):
-    """The provider returns a response the real stage_narrate cannot read
-    (`content` is not a list): stage_narrate RAISES, the route answers 500."""
+    """ANY exception out of the narrator is 500, the reserved unit goes back
+    and nothing is written.
+
+    The REAL stage_narrate, raising where it still can: while it builds the
+    prompt, before the provider is reached (a helper it calls raises). It
+    used to be made to raise with a provider response carrying no readable
+    text (`content=None`); that was a defect of the narrator itself and is
+    repaired — such a response is an `empty_reply` now (the served seam's
+    gate, and FAILURES above) — so it no longer drives this law."""
     with _world(monkeypatch, enforce=True) as w:
         w.store_briefing()
-        w.provider.returns(types.SimpleNamespace(content=None))
+        w.provider.replies(USABLE_REPLY)          # never reached
+
+        def _prompt_building_fails(*_a, **_k):
+            raise RuntimeError("the prompt could not be built")
+
+        monkeypatch.setattr(P, "_briefing_ratios", _prompt_building_fails)
         before = w.snapshot()
         resp = w.post(EXPLICIT, user=MEMBER)
         assert resp.status_code == 500, resp.text[:400]
-        assert w.events == ["meter:reserve_user_chat", "narrate", "provider", "meter:release_user_chat"]
+        # reserved, the narrator entered, NO provider call, released
+        assert w.events == ["meter:reserve_user_chat", "narrate", "meter:release_user_chat"]
         assert w.meter[1][1]["p_user_id"] == MEMBER
         assert w.writes() == [] and w.changed_tables(before) == []
         assert w.briefing_rows()[0]["body"] == GOOD_BODY
