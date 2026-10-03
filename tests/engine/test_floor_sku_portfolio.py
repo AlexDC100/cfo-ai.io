@@ -58,6 +58,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CFG = load_config(REPO_ROOT / "config.yaml")
 
 
+#: /run-daily is the engine bearer's (it fails closed without a configured
+#: token); every other route this file drives is public and ignores it.
+ENGINE_TOKEN = "floor-sku-engine-token"
+ENGINE_AUTH = {"Authorization": "Bearer %s" % ENGINE_TOKEN}
+
+
 @pytest.fixture
 def client(monkeypatch):
     # HERMETIC (2026-10-02): `create_app()` verifies the Supabase variables at
@@ -65,7 +71,7 @@ def client(monkeypatch):
     # no .env (green only where the variables, or a leaked switch, happened
     # to be set). Nothing they assert reads Supabase.
     monkeypatch.setenv("CFO_AI_SKIP_BOOT_VERIFY", "1")
-    os.environ.pop("ENGINE_API_TOKEN", None)
+    monkeypatch.setenv("ENGINE_API_TOKEN", ENGINE_TOKEN)
     return TestClient(create_app(config_path=REPO_ROOT / "config.yaml"))
 
 
@@ -150,9 +156,10 @@ def test_run_daily_route_serves_the_refusal(client):
     """The served route, end to end over the sqlite adapter."""
     app = client.app
     app.state.adapter.insert_categories(date(2025, 10, 31), [_cat("Lactate", 0.0, 30, 40)])
-    r = client.post("/run-daily", json={"run_date": "2026-05-04",
-                                        "snapshot_date": "2025-10-31",
-                                        "period_months": 10})
+    r = client.post("/run-daily", headers=ENGINE_AUTH,
+                    json={"run_date": "2026-05-04",
+                          "snapshot_date": "2025-10-31",
+                          "period_months": 10})
     assert r.status_code == 200, r.text
     es = r.json()["executive_summary"]
     assert es["real_margin_pct"] is None and es["roic_pct"] is None
