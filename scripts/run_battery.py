@@ -2612,6 +2612,46 @@ def _engine_gates() -> List[Gate]:
                        # one-EBITDA ruling (stage G1): shares over net turnover
                        "test_every_share_divides_net_turnover_never_total_operating_revenue",
                        "test_without_net_turnover_the_classification_refuses")),
+        # ENTITLEMENT TABLES ARE WRITTEN BY THE SERVICE ROLE ONLY (owner,
+        # 2026-10-03). supabase/schema.sql gave a signed-in user an INSERT and
+        # an UPDATE policy on their own subscriptions row and the default
+        # grants let them use it: a PATCH of {"tier":"multi","status":"active"}
+        # through PostgREST was a paid plan with no payment. Two gates:
+        #   subscriptions-write-lockdown
+        #       supabase/schema_phase_subscriptions_write_lockdown.sql on the
+        #       LOCAL Supabase stack, through real PostgREST with a real GoTrue
+        #       session, from FOUR starting states (the repository's catalog
+        #       before the fix — where the attack is first shown to SUCCEED —
+        #       the hand-applied stopgap, the migration's own result, and a
+        #       locked database re-opened by hand under other names): every
+        #       write refused with the row byte-identical, the reads, the
+        #       service role's upsert, the signup row, the reserve / commit
+        #       RPCs, the sibling tables, the catalog laws, the views — and
+        #       the same write through the GraphQL endpoint. Floor 275 = the
+        #       measured 281 on a stack without schema_phase_owner_plan.sql
+        #       (13 cases SKIPPED there — printed, counted apart, never a
+        #       pass; 298 with it and none skipped). VACUOUS — never green —
+        #       when the local stack is not running; refuses a non-loopback
+        #       database or API.
+        #   entitlement-write-laws
+        #       the source half the stack cannot see: no browser or
+        #       edge-function writer of a listed table, no committed SQL that
+        #       re-opens one, the runbook's lists, no user-JWT engine client
+        #       on one.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("subscriptions-write-lockdown",
+             ["bash", "scripts/check_subscriptions_write_lockdown.sh"],
+             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=275,
+             units="cases on the local stack", vacuous_ok=True,
+             canaries=("SUBSCRIPTIONS-WRITE-LOCKDOWN GATE",)),
+        Gate("entitlement-write-laws",
+             [PY, "-m", "pytest", "tests/engine/test_entitlement_write_laws.py", "-q"],
+             work_junit=True, floor=9, units="tests",
+             canaries=("test_the_scanner_sees_the_writer_this_law_exists_for",
+                       "test_no_browser_or_edge_function_code_writes_an_entitlement_table",
+                       "test_the_sql_scanner_sees_the_two_policies_this_law_exists_for",
+                       "test_no_committed_sql_reopens_an_entitlement_table",
+                       "test_no_user_jwt_client_in_the_engine_names_an_entitlement_table")),
     ]
 
 
