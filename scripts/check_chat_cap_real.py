@@ -208,15 +208,27 @@ def engine_matrix() -> list:
 
     rows = [None] + [{"tier": t, "plan": p} for t in TIERS for p in PLANS]
     out = []
+    reads = []
     real_admin = _plan_state._supabase.admin
     try:
         for row in rows:
-            _plan_state._supabase.admin = lambda row=row: _Admin(row)
+            admin = _Admin(row)
+            real_select = admin.client.select
+            admin.client.select = lambda table, *a, _s=real_select, **k: (reads.append(table), _s(table, *a, **k))[1]
+            _plan_state._supabase.admin = lambda admin=admin: admin
             state = _plan_state.get_plan_state("00000000-0000-4000-8000-000000000000")
             out.append({"row": row, "key": state.plan.key,
                         "daily": state.plan.chat.daily, "monthly": state.plan.chat.monthly})
     finally:
         _plan_state._supabase.admin = real_admin
+    # get_plan_state swallows a failed read and answers "trial": a matrix that
+    # is all trial, or a row the engine never read, is a broken run — not parity.
+    asked = sum(1 for t in reads if t == "subscriptions")
+    if asked != len(rows):
+        raise RuntimeError("the engine read the plan row %d times for %d rows — the stub is not where its read is" % (asked, len(rows)))
+    keys = sorted({m["key"] for m in out})
+    if len(keys) < 5:
+        raise RuntimeError("the engine resolved every row to %s — its plan read failed and degraded to trial" % keys)
     return out
 
 
@@ -287,6 +299,16 @@ def main() -> int:
             failed("A. the stack's %s is this repository's, body for body" % name,
                    "md5 on the stack: %s" % (got or "(no such function)"), "md5 in %s: %s" % (ATOMIC_SQL.name, want),
                    "the stack is shared: this gate does not re-apply the migration")
+    # …and the repository's own file hands them to service_role alone.
+    file_ok = all(
+        re.search(r"revoke all on function %s\([^)]*\)\s+from public, anon, authenticated;" % n, sql_text)
+        and re.search(r"grant execute on function %s\([^)]*\)\s+to service_role;" % n, sql_text)
+        and not re.search(r"grant\s+[^;]*on function %s\([^)]*\)\s+to\s+(?!service_role)" % n, sql_text)
+        for n in CHAT_FUNCTIONS)
+    if file_ok:
+        passed("A. %s revokes the three functions from public, anon and authenticated and grants them to service_role only" % ATOMIC_SQL.name)
+    else:
+        failed("A. %s revokes the three functions from public, anon and authenticated and grants them to service_role only" % ATOMIC_SQL.name)
     grants = psql("select string_agg(distinct routine_name || ':' || grantee, ' ' order by routine_name || ':' || grantee) "
                   "from information_schema.routine_privileges where routine_schema = 'public' "
                   "and routine_name in ('reserve_user_chat','commit_user_chat','release_user_chat') "
