@@ -23110,3 +23110,79 @@ the stack gate's to judge; a `create view` over a listed table (the stack
 gate's L4 and the migration's WARNING); an engine route that reaches a listed
 table with the caller's JWT through a helper handed the client outside a
 `with per_user(jwt)` block; anything applied to production by hand.
+
+---
+
+
+---
+
+## plan-meter-routes
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_plan_meter_routes.py -q` |
+| canary | `test_the_incident_a_user_cannot_release_their_own_reservation`, `test_the_operator_releases_and_commits_for_the_account_it_names`, `test_the_wall_answers_before_any_validation[/api/plan/release-document-reservation]`, `test_neither_route_reads_a_user_token_any_more` |
+| work count | junit tests, floor **33** (measured 33) |
+
+**INCIDENT** — found on 2026-10-03 by the adversarial review of the
+subscriptions write lockdown (`specs-durable/review_lockdown_2026-10-03.json`),
+on the real `_pricing_routes` router, the real `_usage_gate` functions and the
+real meter RPCs of a local stack: `POST /api/plan/release-document-reservation`
+took the CALLER's own bearer and released the caller's own reservation. An
+account on a one-document plan reserved, released with its own token, reserved
+again — four reservations in flight, four documents counted, cap 1.
+`POST /api/plan/commit-document-usage` moved the same meter the other way. No
+screen calls either route (grep over frontend, mobile, e2e, scripts); their own
+comment called them "admin/diagnostic". Not measured: a real document through
+the pipeline, and whether anyone did this in production.
+
+**LAW** — both routes answer only the engine bearer (`ENGINE_API_TOKEN`),
+refuse with 503 where it is not configured, and act on the account NAMED in the
+request (a uuid), never on an identity read from a token. A recorder stands
+where the meter RPC would be: without the operator bearer — no bearer, a user's
+token, a prefix of the operator token, the token plus a byte, another scheme,
+another header, the token in the query string — the answer is 401 AND the meter
+function is not called. The wall answers before any validation (an anonymous
+caller never gets a 422 describing the route). The operator's call moves the
+named account's meter once, with the `was_extra` it sent.
+
+**WHAT IT FAILS ON AFTER THE REPAIR (TC-11)** — a handler that resolves the
+account from a bearer; a route without the wall; an account id passed through
+unvalidated; the account as a required parameter (validation before the wall).
+
+Plants, each alone, then reverted (33 passed):
+```
+PLANT P1 the release route takes the caller's own token again (the incident)
+    RED -> ['13 failed, 20 passed in 1.17s']
+    FAILED test_without_the_operator_bearer_the_meter_does_not_move[a user's token-/api/plan/release-document-reservation
+    FAILED test_without_the_operator_bearer_the_meter_does_not_move[a prefix of the operator token-/api/plan/release-docu
+    FAILED test_without_the_operator_bearer_the_meter_does_not_move[the operator token plus a byte-/api/plan/release-docu
+    FAILED test_the_wall_answers_before_any_validation[/api/plan/release-document-reservation]
+    … and 9 more
+PLANT P2 the commit route loses its operator wall
+    RED -> ['12 failed, 21 passed in 1.21s']
+    FAILED test_without_the_operator_bearer_the_meter_does_not_move[no bearer-/api/plan/commit-document-usage]
+    FAILED test_without_the_operator_bearer_the_meter_does_not_move[a user's token-/api/plan/commit-document-usage]
+    FAILED test_without_the_operator_bearer_the_meter_does_not_move[a prefix of the operator token-/api/plan/commit-docum
+    FAILED test_without_the_operator_bearer_the_meter_does_not_move[the operator token plus a byte-/api/plan/commit-docum
+    … and 8 more
+PLANT P3 the account id is not validated
+    RED -> ['8 failed, 25 passed in 1.30s']
+    FAILED test_the_operator_must_name_an_account[no account-/api/plan/release-document-reservation]
+    FAILED test_the_operator_must_name_an_account[no account-/api/plan/commit-document-usage]
+    FAILED test_the_operator_must_name_an_account[empty-/api/plan/release-document-reservation]
+    FAILED test_the_operator_must_name_an_account[empty-/api/plan/commit-document-usage]
+    … and 4 more
+PLANT P4 the account is a required parameter again (validation answers before the wall)
+    RED -> ['1 failed, 32 passed in 1.15s']
+    FAILED test_the_wall_answers_before_any_validation[/api/plan/release-document-reservation]
+REVERTED: ['33 passed in 1.23s']
+```
+
+**Cannot see** — a NEW route that moves a meter with a user's token (the route
+census in `test_identity_wall.py` classifies every mutating route by hand; these
+two are now classified `operator`); the other entitlement bypasses the same
+review measured, which are not routes of this file: the workspace cap through
+`organizations.archived_at`, `restore_workspace` and `import_firm_client`, the
+Multi allowance a row with `tier` NULL resolves to, and the chat function's cap
+for a caller with no bearer.

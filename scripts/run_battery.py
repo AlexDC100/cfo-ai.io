@@ -1176,6 +1176,22 @@ def _engine_gates() -> List[Gate]:
                        "test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried",
                        "test_no_address_answering_the_feed_serves_the_fallback_marked_stale",
                        "test_an_implausible_feed_is_never_served")),
+        # ── plan-meter-routes (2026-10-03): a user cannot move their own document
+        # meter. POST /api/plan/release-document-reservation and
+        # /api/plan/commit-document-usage took the caller's own bearer: an
+        # account on a one-document plan released its own reservation and
+        # reserved again — four documents counted, cap 1 (measured on the real
+        # router and the real meter RPCs). Both are the operator's now: the
+        # engine bearer, fail closed, the account named in the request; without
+        # it the meter functions are not called. Measured 33.
+        # Plant log: gates.md "plan-meter-routes".
+        Gate("plan-meter-routes",
+             [PY, "-m", "pytest", "tests/engine/test_plan_meter_routes.py", "-q"],
+             work_junit=True, floor=33, units="tests",
+             canaries=("test_the_incident_a_user_cannot_release_their_own_reservation",
+                       "test_the_operator_releases_and_commits_for_the_account_it_names",
+                       "test_the_wall_answers_before_any_validation[/api/plan/release-document-reservation]",
+                       "test_neither_route_reads_a_user_token_any_more")),
 
         # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
         # Supabase client logs a WARNING and retries ONCE on a read timeout
