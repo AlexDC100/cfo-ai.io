@@ -3852,6 +3852,182 @@ the transcript above was taken.)
 **REVERT** — exit `0`: `8 passed`; no `# PLANT` marker left. Verdict:
 proven RED.
 
+## scheduled-mail-tenancy
+
+No scheduled mail reaches a person who is not entitled to it, carries
+another tenant's data, or goes out twice. The audit the owner asked for on
+2026-10-02, to be clean BEFORE the Firm Cockpit flag flips: every scheduled
+or cron-triggered route that queues or sends mail, read end to end. They all
+run under the SERVICE ROLE, where no row-level policy applies — the filter
+the code writes is the access control (the class of the 2026-10-02 tenancy
+hotfix: "first row by period" reads under the service role).
+
+What the code did until this gate (none of it reachable in production while
+`FIRM_COCKPIT_ENABLED` is unset and no scheduler calls the renewal cron):
+
+- **R1 — the renewal reminder went to the wrong person.**
+  `send_founder_renewal_reminders` chose its recipient as the FIRST
+  `memberships` row of the subscription's workspace ordered `role.asc`:
+  `'admin' < 'member' < 'owner'`, so the payer sorts last. The firm's
+  `import_firm_client` RPC (schema_phase_firm.sql) writes the responsible
+  accountant into a client workspace as `'admin'` — with the Cockpit on, a
+  client's renewal date and price went to the firm's accountant. Billing is
+  per user (CLAUDE.md §16): the recipient is `subscriptions.user_id`, else
+  the workspace's oldest OWNER, never anyone else.
+- **R2 — no idempotency.** The docstring claimed a "per-(sub, day) marker";
+  none existed. Every run queued another reminder.
+- **R3 — a cancelling subscription was told it renews.**
+  `cancel_at_period_end` was never read; the mail says "we'll charge the
+  card on file".
+- **R4 — an address-less row blocked the queue.** `_user_email(...) or ""`
+  was queued; the drain `continue`d past it forever, at the head of a
+  `limit=200 order=send_at.asc` read.
+- **F1 — another firm's request in this firm's digest.** The digest cron
+  read `firm_file_requests` by `client_org_id` alone. A client that moved
+  from firm X to firm Y carried X's open request (period, age, reminder
+  count) into every digest of Y — the row `firm_file_requests firm read`
+  (RLS, C3) hides from Y, and that the list route already pins.
+- **F2 — archived clients were mailed.** The scope was
+  `_firm.client_org_ids` (archived included, on purpose: it answers "whose
+  client is this"); the board leaves archived workspaces out (D10). A client
+  in its 30-day purge window stayed in the digest.
+- **F4 — an archived firm still mailed its members.**
+- **F5 — the digest day was claimed AFTER the e-mail was queued**, and an
+  unreadable `firm_digest_log` was read as "nothing sent" (`except: existing
+  = []`). Two overlapping runs queued two digests.
+- **F6 — the drains sent whatever was queued.** Neither drain re-decided
+  anything: a member removed between the cron and the drain still received
+  the firm's client list; a revoked request still mailed its dead link; a
+  subscription cancelled in between was still told it renews. The drains are
+  operator actions — hours or days after the cron.
+- **F7 — send, then mark.** Both drains called the provider and THEN wrote
+  `status = sent`; a failed write, or a second drain, delivered again.
+- **N1 — reminders for a request whose firm no longer serves the client**
+  (the link is already dead: `open_request_for` answers 410), and for an
+  archived client.
+- **N2 — the sender name was text the caller typed.** `firm_name` in the
+  body of `POST /api/firm/requests` was printed as who is asking: a member
+  of one firm could mail anyone in another firm's name.
+
+The repair. `_billing.renewal_recipient` / `renewal_still_due` /
+`_renewal_already_queued`; `_firm_requests.digest_scope` (member now, role
+holds `read` in the matrix, firm not archived, clients served now and
+unarchived), `request_is_served` (the era pin, applied to mail),
+`mail_refusal` (asked by the drain for every row, at send time),
+`sender_name` (the firm of record); the digest claims its day in
+`firm_digest_log` before it queues and releases the claim when the queue
+refuses the row; the nudge cron records the nudge before it queues;
+`SupabaseClient.update_returning` (PATCH with `Prefer:
+return=representation`) is the compare-and-swap both drains CLAIM a row
+with — queued → failed/"claimed by a drain; outcome unknown if this
+persists" — before the provider is called, so the worst case is a row that
+says so, never a second mail. `supabase/schema_phase_email_idempotency.sql`
+adds the dedupe index that closes two OVERLAPPING renewal runs (owner step;
+the engine works without it).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_scheduled_mail_renewals.py tests/engine/test_scheduled_mail_digest.py tests/engine/test_scheduled_mail_requests.py tests/engine/test_scheduled_mail_census.py tests/engine/test_supabase_update_returning.py -q` |
+| work count | junit-xml, floor **39** tests (measured 39: renewals 11, digest 15, requests 6, census 4, client 3) |
+| canary | `test_the_renewal_reminder_goes_to_the_subscriber_never_to_a_teammate`, `test_running_the_renewal_cron_twice_queues_one_reminder`, `test_each_member_is_mailed_their_own_firms_live_clients_and_nothing_else`, `test_a_request_another_firm_minted_never_reaches_this_firms_digest`, `test_an_archived_client_is_in_no_digest`, `test_a_member_removed_between_the_cron_and_the_drain_is_not_mailed`, `test_two_interleaved_runs_queue_one_digest`, `test_no_reminder_for_a_request_whose_firm_no_longer_serves_the_client`, `test_every_function_that_queues_or_sends_mail_is_classified`, `test_update_returning_sends_the_filter_and_asks_for_the_changed_rows` |
+
+**SCOPE.** The REAL `create_app()` (built with `FIRM_COCKPIT_ENABLED=1` —
+the audit must be clean before the flag is set) over the tenancy suite's
+two-firm world (`test_firm_tenancy.FirmWorld`: tables, policies and RPCs
+parsed from the migrations; Firm Alpha with five members, Firm Beta with
+two, a solo workspace), through the real routes: `POST
+/api/firm/digest/cron/run`, `/api/firm/requests/cron/nudge`,
+`/api/firm/email/drain`, `/api/billing/cron/renewal-reminders`,
+`/api/newsletter/drain-renewals`, plus `DELETE /api/firm/{id}/members/{id}`,
+`PUT /api/firm/digest/prefs`, `POST /api/firm/requests[/{id}/revoke]` for
+the state changes. The provider is a recorder: `RESEND_API_KEY` is deleted
+and `_email.send_email` / `send_batch` are replaced; nothing can leave the
+process. `audit_sent_digests` re-derives, from the world's rows and
+independently of the code under test, what each recipient reads today, and
+checks every sent digest's body, text and payload against it.
+
+REDS ON (TC-11): a recipient chosen by a membership row that is not the
+subscriber / an owner; a digest read of `firm_file_requests` without the
+firm; an archived workspace or an archived firm in a digest; a drain that
+sends without re-deciding entitlement; a send before the queue row is
+claimed; a digest queued before its day is claimed; a renewal queued twice
+for one renewal date; a sender name taken from the request body; a drain
+open to a non-operator; a function that queues or sends mail and is not on
+the census.
+
+CANNOT SEE: the real provider (never called); the database's own unique
+indexes — the double models policies, not indexes, so the two that matter
+are enforced from a declared copy (`UNIQUE_KEYS`), and the renewal queue's
+is switched OFF by default because production has not applied that migration
+(`test_running_the_renewal_cron_twice…` holds without it; only
+`test_two_interleaved_renewal_runs…` needs it); two schedulers racing
+beyond the interleavings planted (a nested run at the instant the first is
+about to queue); whether production's `subscriptions` table has the
+`is_founder` / `org_id` columns the renewal cron filters on — no migration
+in this repository declares them (CLAUDE.md §16 "Known drift"): if it does
+not, the cron answers 500 there and reminds nobody; digest items the firm
+SUPPRESSED on the board (the cron's report provider loads no suppressions —
+ticketed, not a tenancy defect).
+
+**GREEN** — exit `0`: `39 passed`.
+
+**RED (parent commit)** — the laws, on the code as it was (`72a29c72`),
+before any repair: `25 failed, 8 passed` (33 laws then; the 8 green were the
+positive controls, the removed-before-the-cron case and the census). Through
+the gate's own messages:
+
+```
+AssertionError: RENEWAL REMINDER TO THE WRONG PERSON — the subscriber is solo@example.test; the mail went to ['a.accountant@example.test'] (a.accountant is the firm's accountant, written into the client workspace as 'admin')
+AssertionError: RENEWAL REMINDER TO A NON-OWNER — nobody owns the workspace and ['a.accountant@example.test'] was mailed
+AssertionError: CROSS-FIRM REQUEST IN A DIGEST — firm B's digest carries the request firm A minted for 00000000-0000-0000-0000-0000000000cb (period 2024-02-29, id 00000000-0000-0000-0000-0000000003f6)
+AssertionError: ARCHIVED CLIENT IN A DIGEST — Client A2 was archived (purge window) and is still mailed
+AssertionError: STALE DIGEST SENT — queued before Client A2 was archived, delivered after: ['a.owner@example.test']
+AssertionError: REMOVED MEMBER MAILED — a.viewer left Firm Alpha after the cron and still received its client list
+AssertionError: ARCHIVED FIRM MAILED — Firm Beta is archived; its digest still went out: ['a.owner@example.test', 'b.owner@example.test']
+AssertionError: DOUBLE DIGEST — two overlapping cron runs queued 2 digests for one user and day
+AssertionError: FAIL-OPEN IDEMPOTENCY — the digest log could not be read and a digest was queued
+AssertionError: REMINDER FOR ANOTHER FIRM'S CLIENT — Client A2 is now Firm Beta's; Firm Alpha's request still mailed its contact
+AssertionError: SENDER NAME FROM THE REQUEST BODY — the mail claims to come from a firm the caller is not a member of
+AssertionError: STORED RECIPIENT TRUSTED — a row queued for the accountant was delivered to them
+```
+
+**PLANT / RED (plant) / REVERT** — twenty plants, each one repair turned
+back into its defect, the gate run, the file restored (`35`/`36 passed`
+after every revert; no plant marker left):
+
+| plant | file | RED |
+|---|---|---|
+| P1 recipient = first membership, `order=role.asc` | `_billing.py` | 4 — `…goes_to_the_subscriber_never_to_a_teammate`, `…legacy_workspace_keyed…oldest_owner`, `…no_owner_row_mails_nobody`, `…queued_for_the_wrong_person_is_corrected_at_the_drain` |
+| P2 the cron does not read the queue before writing | `_billing.py` | 1 — `test_running_the_renewal_cron_twice_queues_one_reminder` |
+| P3 `cancel_at_period_end` ignored | `_billing.py` | 2 — `…cancelling_subscription_is_not_told_it_renews`, `…cancelled_after_queueing_is_not_mailed` |
+| P4 the renewal drain trusts the stored address | `_newsletter.py` | 1 — `…queued_for_the_wrong_person_is_corrected_at_the_drain` |
+| P5 the renewal drain sends before claiming | `_newsletter.py` | 1 — `test_a_renewal_drain_whose_mark_sent_write_fails_does_not_send_again` |
+| P6 the digest reads requests without the firm | `_firm_requests.py` | 1 — `test_a_request_another_firm_minted_never_reaches_this_firms_digest` |
+| P7 both archive walls down (scope + provider) | `_firm_requests.py` | 2 — `test_an_archived_client_is_in_no_digest`, `test_a_client_archived_after_the_cron_ran_is_not_sent` |
+| P7a the scope's archive filter only | `_firm_requests.py` | 1 — `…archived_after_the_cron_ran_is_not_sent` (the provider's own skip kept the cron's digest clean: either wall alone) |
+| P7b the provider's archive skip only | `_firm_requests.py` | **0 — green.** The scope never hands the provider an archived id; the skip is the second wall and is only visible with the first one down (P7) |
+| P8 an archived firm still mails | `_firm_requests.py` | 1 — `test_an_archived_firm_mails_nobody` |
+| P9 the drain sends without `mail_refusal` | `_firm_requests.py` | 5 — removed member, opted out, archived after the cron, left workspace (personal digest), revoked request |
+| P10 the day is not claimed before the e-mail is queued | `_firm_requests.py` | 2 — `test_two_interleaved_runs_queue_one_digest`, `test_two_runs_and_two_drains_send_one_digest` |
+| P11 an unreadable digest log is read as empty | `_firm_requests.py` | 1 — `test_an_unreadable_digest_log_queues_nothing` |
+| P12 the firm drain sends before claiming | `_firm_requests.py` | 1 — `test_a_drain_whose_mark_sent_write_fails_does_not_send_again` |
+| P13 the nudge cron ignores `request_is_served` | `_firm_requests.py` | 2 — `…firm_no_longer_serves_the_client`, `test_no_reminder_for_an_archived_client` |
+| P14 the sender name from the request body | `_firm_requests.py` | 1 — `test_the_request_mail_names_the_firm_of_record_not_the_callers_text` |
+| P15 an unclassified function writes a mail queue | `_billing.py` | 1 — `test_every_function_that_queues_or_sends_mail_is_classified` |
+| P16 the firm drain open to any signed-in user | `_firm_requests.py` | 1 — `test_a_drain_refuses_everyone_but_the_operator_and_sends_nothing` |
+| P17 the nudge is queued before it is recorded | `_firm_requests.py` | 2 — `test_a_reminder_goes_to_the_requests_contact_once`, `test_two_interleaved_nudge_runs_queue_one_reminder` |
+| P18 a queue that refused the digest still records it as sent | `_firm_requests.py` | 1 — `test_a_digest_that_could_not_be_queued_is_not_recorded_as_sent` |
+| P19 a digest naming a workspace outside the scope is queued | `_firm_requests.py` | 1 — `test_a_provider_that_answers_with_another_firms_client_is_refused` |
+
+(P19's law was written AFTER its plant first came back green: with client
+names limited to the scope, a foreign board item was not mailed but became a
+"could not be shown" refusal stored in the digest payload — trimmed, not
+refused. The wall now refuses the whole digest on any row or raw item
+outside the scope, and the law was re-planted red.)
+
+**REVERT** — exit `0` after every plant; verdict: proven RED on nineteen,
+P7b recorded as the second wall it is.
+
 ## public-refresh-shield
 
 The public cache-BUST routes are shielded by a rate limiter plus an operator
@@ -19959,6 +20135,120 @@ plan gate reading the subscription of whoever `documents.uploaded_by` names,
 the journal `asof` chain keyed by content hash alone (unreachable while
 `ENGINE_JOURNAL_DIR` is unset), the firm digest cron and the founder
 renewal-reminder recipient (both behind flags / an operator bearer), and the
+unauthenticated `/api/cfo/decisions` demo store (closed by `public-demo-store`,
+below).
+
+## public-demo-store
+
+The shared SQLite store holds nothing a visitor can read back, and a
+visitor's request stores nothing another visitor can read. The store is
+`engine.db` — `sqlite:////app/data/engine.db` in the `Dockerfile` CMD, on the
+`backend_data` volume (`docker-compose.yml`), created by `create_app()`
+(`PostgresAdapter.create_all`, `src/engine/storage/postgres.py`). Six tables,
+no user or workspace column on any of them: `recommendations`, `session_log`,
+`chat_messages`, `daily_decisions`, `category_metrics`, `master_skus`. Only
+`server.py` and `cfo_ai.py` hold the adapter; no upload, pipeline stage,
+storefront ingest, test-mode session or script writes to it.
+
+MEASURED 2026-10-02 on the real `create_app()` (main `72a29c72`), no bearer:
+
+- `POST /api/cfo/today` with one SKU row and `persist_recommendations` left
+  at its default (`True`) wrote the row's id, real margin, volume and DIO
+  into `recommendations`, reconciled against EVERY stored row, and answered
+  `top_actions` from the table;
+- `GET /api/cfo/decisions` returned every stored row — a second client read
+  the first client's SKU back;
+- `POST /api/cfo/decisions/{id}/status` let that second client rewrite the
+  row's status and owner;
+- with `ENGINE_API_TOKEN` unset, `_make_auth_dependency` disabled its own
+  check: `GET /decisions/{run_date}` and `POST /run-daily` were open
+  (production sets the token, so this half was latent).
+
+The identity wall's census had all of it declared "public demo: computes
+from the request body" — true of four of the six `/api/cfo` POST routes and
+false of the two that touched the table. No screen of the current frontend
+calls `today`, `listDecisions` or `setDecisionStatus` (the wrappers in
+`frontend/lib/cfoApi.ts` have no call site), so the path was open to a
+direct caller, not driven by a signed-in customer's browser.
+
+The repair: the stored queue is the operator's. `GET /api/cfo/decisions` and
+`POST /api/cfo/decisions/{id}/status` call `require_operator` (503 with no
+token configured, 401 otherwise); `POST /api/cfo/today` persists only when
+`has_operator_bearer` and otherwise computes from the body and stores
+nothing; `_make_auth_dependency` answers 503 when the token is unset. The
+census reasons for `/api/cfo/today`, `/decisions/{rec_id}/status` and
+`/api/sessions/track` in `tests/engine/test_identity_wall.py` now say what
+the routes do.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_public_demo_store.py -q` |
+| work count | junit-xml, floor **9** tests (measured 9); the sweep floors its own subject (≥ 200 routes enumerated; measured 230 with every surface flag on, 160 in production's posture) |
+| canary | `test_no_route_returns_a_stored_row_without_the_operator_bearer`, `test_no_request_without_the_operator_bearer_changes_the_store`, `test_what_one_visitor_posts_never_comes_back_to_another`, `test_the_operator_still_reads_persists_and_updates_the_queue`, `test_the_queue_fails_closed_where_no_operator_token_is_configured`, `test_the_store_has_exactly_the_tables_this_gate_plants` |
+| operator tool | `scripts/check_public_store.py` — opens the file `mode=ro`, prints row counts, column names and date ranges, never a row; exit 3 when a table that should be empty is not |
+
+**SCOPE.** The real `create_app()` with every surface flag ON (firm cockpit,
+public markets, radar, legacy SKU AI — the widest route table the code can
+mount) over a real SQLite FILE. One customer-shaped row is planted in EVERY
+table through the store's own models, each carrying a marker no computation
+yields. Every route of the app's own route table is then called with no
+`Authorization` header (and, token unset, with the would-be operator bearer
+too), and the six body-computing demo routes again with a body that produces
+decisions (an empty body exercises nothing: measured, it writes no row on
+the pre-fix code either). Each table's rows are hashed through a second
+connection before and after every call. A socket tripwire of the gate's own
+refuses every non-loopback connect, so it does not depend on `-p netblock`.
+
+**GREEN** — exit `0`: `9 passed`.
+
+**PLANT** — thirteen, each applied ALONE by
+`specs-durable/public_demo_store/plants.py`, the touched files restored
+byte-exact after each (sha256 asserted):
+
+| plant | RED |
+|---|---|
+| P0 the pre-fix `cfo_ai.py` and `server.py` (main's files verbatim) | `5 failed, 4 passed` |
+| P1 `POST /today` persists the body's recommendations for any caller | `2 failed, 7 passed` — `…changes_the_store`, `…never_comes_back_to_another` |
+| P2 `GET /decisions` answers without the operator bearer | `3 failed, 6 passed` |
+| P3 `POST /decisions/{id}/status` answers without the operator bearer | `3 failed, 6 passed` |
+| P4 the legacy bearer check is disabled again when the token is unset | `1 failed, 8 passed` — `…fails_closed_where_no_operator_token_is_configured` |
+| P5 `GET /api/sessions` answers without the operator bearer | `2 failed, 7 passed` |
+| P6 any `Bearer` is accepted on the queue (a user bearer is enough) | `2 failed, 7 passed` |
+| P7 `/today` never persists, even for the operator | `1 failed, 8 passed` — the positive control |
+| P8 the queue reader is open where no token is configured | `1 failed, 8 passed` |
+| P9 a seventh table in the store, unplanted | `2 failed, 7 passed` — `…exactly_the_tables_this_gate_plants`, and the count tool's own table check |
+| P10 a NEW anonymous reader (`GET /api/cfo/queue-peek`) | `2 failed, 7 passed` |
+| P11 a NEW anonymous writer (`POST /api/cfo/products` stores what it classified) | `2 failed, 7 passed` |
+| P12 the count tool prints the rows it counted | `1 failed, 8 passed` — `…prints_counts_and_columns_and_never_a_row` |
+
+**RED** — every plant exits `1` (full output with the failing test names:
+`specs-durable/public_demo_store/plants.out`).
+
+**REVERT** — the four files restored byte-exact; exit `0`: `9 passed`.
+Verdict: proven RED, thirteen of thirteen.
+
+**After the repair it reds on:** any route of the real app that puts a stored
+row of `engine.db` in an answer to a caller without the operator bearer; any
+such request that changes a table other than `session_log` (the one declared
+anonymous write, by `POST /api/sessions/track`); a table added to the store
+without a plant here; a bearer other than the engine token being enough; the
+queue or the legacy bearer routes answering anything but 503 with no token
+configured; the walls refusing the operator; the count tool printing a stored value or
+writing to the file.
+
+**CANNOT SEE:** what production's `engine.db` holds today — the rows written
+before this repair stay in the file until the owner clears them, and are now
+readable only with the engine bearer; a row a route returns in a form that
+does not contain the planted string (a count, a hash, a figure rounded or
+re-derived — the sweep searches for the marker, the planted address and the
+planted figure's `repr`); a route that needs a valid body, path id or
+signed-in user to reach its read (the sweep sends `{}` and placeholder ids;
+only the six demo routes are driven with a real body); a reader outside the
+FastAPI route table (a script, a cron, `docker exec`); the other files on
+the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
+the journal) — each has its own gates; whether the operator bearer is held
+only by the operator.
+
 unauthenticated `/api/cfo/decisions` demo store.
 
 ---

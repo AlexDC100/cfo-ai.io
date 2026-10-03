@@ -1658,7 +1658,18 @@ class _Client(object):
         touched (the rest are silently left — PostgREST answers 204
         either way); a touched row whose new shape no WITH CHECK admits
         is a 42501 refusal."""
+        self._apply_update(table, patch, filters)
+
+    def update_returning(self, table, patch, filters):
+        """PATCH with `Prefer: return=representation`: the rows the PATCH
+        changed, as stored after it — the real client's compare-and-swap
+        primitive (`SupabaseClient.update_returning`). Same walls as
+        `update`; a row the filter or a policy left alone is not returned."""
+        return [copy.deepcopy(r) for r in self._apply_update(table, patch, filters)]
+
+    def _apply_update(self, table, patch, filters):  # type: (str, Dict[str, Any], Dict[str, str]) -> List[Dict[str, Any]]
         self._privilege(table, "update", patch.keys())
+        touched = []  # type: List[Dict[str, Any]]
         for row in self.world.rows(table):
             if not all(_match_filter(row, c, e) for c, e in filters.items()):
                 continue
@@ -1673,6 +1684,8 @@ class _Client(object):
                 if verdict == "refuse":
                     raise self._refusal(table)
             row.update(copy.deepcopy(patch))
+            touched.append(row)
+        return touched
 
     def delete(self, table, filters):
         if not self.service_role:

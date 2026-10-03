@@ -1257,8 +1257,12 @@ def test_d11_census_is_not_vacuous_on_a_planted_bare_read():
 FIRM_ID = "firm-x"
 FIRM_USER = "user-firm-owner"
 D11_CLIENTS = 1200
+#: `firms` is read by the digest cron's scope (an archived firm mails
+#: nobody — gate scheduled-mail-tenancy); columns are schema_phase_firm.sql §1.
 FIRM_MEMBERSHIP_COLUMNS = {"firm_memberships": ["firm_id", "user_id", "role", "created_at",
-                                                "updated_at"]}
+                                                "updated_at"],
+                           "firms": ["id", "name", "created_by", "archived_at", "created_at",
+                                     "updated_at"]}
 
 
 def _firm_book(n: int, cap: int) -> PostgrestDouble:
@@ -1266,6 +1270,7 @@ def _firm_book(n: int, cap: int) -> PostgrestDouble:
     per client; every list the crons and the brief read exceeds ``cap``."""
     double = PostgrestDouble(columns=FIRM_MEMBERSHIP_COLUMNS, max_rows=cap)
     double.add("firm_memberships", {"firm_id": FIRM_ID, "user_id": FIRM_USER, "role": "owner"})
+    double.add("firms", {"id": FIRM_ID, "name": "D11 Firm", "created_by": FIRM_USER})
     cols = firm_table_columns()["firm_file_requests"]
     for i in range(n):
         org = "org-%04d" % i

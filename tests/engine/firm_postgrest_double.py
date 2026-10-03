@@ -429,9 +429,21 @@ class PostgrestDouble(object):
         unknown = set(patch) - set(self.columns[table])
         if unknown:
             raise unknown_column(table, sorted(unknown)[0])
+        touched = []  # type: List[Dict[str, Any]]
         for row in self.rows(table):
             if all(match_filter(row, c, s) for c, s in filters.items()):
                 row.update(copy.deepcopy(patch))
+                touched.append(row)
+        self._touched = touched
+
+    def update_returning(self, table: str, patch: Dict[str, Any], *,
+                         filters: Dict[str, str]) -> List[Dict[str, Any]]:
+        """PATCH with ``Prefer: return=representation`` — the rows the
+        PATCH changed, as stored after it (the real client's
+        compare-and-swap primitive). Not capped: PostgREST returns every
+        row a write touched."""
+        self.update(table, patch, filters=filters)
+        return [copy.deepcopy(r) for r in self._touched]
 
     def delete(self, table: str, *, filters: Dict[str, str]) -> None:
         self.calls.append(("delete", table, dict(filters), ""))

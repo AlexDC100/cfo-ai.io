@@ -50,7 +50,8 @@ def _fake(**tables):
 def test_nudge_cron_queues_the_seven_day_reminder_once():
     fake = _fake(firm_file_requests=[_open_request()])
     out = FR.run_nudge_cron(date(2026, 9, 20), NOW, fake)
-    assert out == {"as_of": "2026-09-20", "open": 1, "reminders_queued": 1, "expired": 0}
+    assert out == {"as_of": "2026-09-20", "open": 1, "reminders_queued": 1, "expired": 0,
+                   "not_served": 0}
     queue = fake.tables["firm_email_queue"]
     assert len(queue) == 1 and queue[0]["kind"] == FR.EMAIL_KIND_REMINDER
     vars_ = queue[0]["payload"]["vars"]

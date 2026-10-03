@@ -1729,6 +1729,137 @@ report and alert bodies) are NOT converted — a separate ruling.
   (the list only shrinks). `GATE-WORK provenance-burndown open=N` prints
   every run; the count is reported weekly (`weekly` rows in the file).
 
+## 28. The shared SQLite store — what it may hold (2026-10-02)
+
+Owner ticket: "public demo routes — confirm the shared SQLite store holds no
+real user data." The store is `engine.db` (`sqlite:////app/data/engine.db`,
+`Dockerfile` CMD; the `backend_data` volume), opened by `create_app()` through
+`PostgresAdapter` (`src/engine/storage/postgres.py`). Six tables, **no user or
+workspace column on any of them**; only `server.py` and `cfo_ai.py` hold the
+adapter. Customer books never touch it — uploads, the pipeline, periods,
+chats and preferences are Supabase.
+
+**The rule: a table that cannot tell one customer's row from another's holds
+no customer's row, and is read only with the operator bearer.**
+
+| table | written by | read by | may hold |
+|---|---|---|---|
+| `recommendations` | `POST /api/cfo/today`, operator bearer only | `GET /api/cfo/decisions`, `POST /api/cfo/decisions/{id}/status`: operator bearer | the operator's own SKU queue (the legacy single-tenant engine) |
+| `daily_decisions` | `POST /run-daily`: engine bearer | `GET /decisions/{run_date}`: engine bearer | the same engine's daily output |
+| `category_metrics`, `master_skus` | no route (`insert_categories` has no caller outside tests; `master_skus` has no writer) | `/run-daily` | its inputs |
+| `chat_messages` | nothing (`insert_chat_message` has no caller) | nothing | nothing |
+| `session_log` | `POST /api/sessions/track`, **anonymous** | `GET /api/sessions`: operator bearer | a typed name, the address Caddy observed, the device string — personal data |
+
+What was wrong until this date: `POST /api/cfo/today` is public and persisted
+the BODY's recommendations by default, `GET /api/cfo/decisions` returned every
+row to anyone and `POST …/status` let anyone rewrite one — measured on the
+real app, one client read another's SKU back. No screen of the current
+frontend calls those three (the `cfoApi` wrappers have no call site), so it
+was open to a direct caller. Now: the six `/api/cfo` POST routes compute from
+the body and store nothing without the engine bearer; the queue and the two
+legacy bearer routes fail closed (503) where `ENGINE_API_TOKEN` is unset —
+an unset token used to DISABLE the legacy check.
+
+Gate `public-demo-store` (`tests/engine/test_public_demo_store.py`): a
+customer-shaped row planted in every table is returned by no route of the
+real app without the operator bearer; no such request changes any table but
+`session_log`; a seventh table reds until it is planted. **A new table in
+this store, or a new route handed the adapter, goes through that gate
+first — and anything that belongs to a customer goes to Supabase with
+`org_id`, never here.**
+
+The other SQLite files on the volume are separate stores with their own
+gates: `public_ro.db` (open filings; `funnel_events` takes an anonymous
+write of event kind, CUI, path, UTM and a salted IP hash, and has no public
+reader), `public_market.db` (provider feeds), and the registry name index
+(public names only, built read-only from `public_ro.db`).
+
+**Open, the owner's to decide:** (1) `session_log` still collects from any
+browser carrying the legacy `aicfo.user.v1` key (`App.tsx`
+`heartbeatIfIdentified`); `setUserName` and `fetchSessions` have no call
+site, so the roster it fed is dead — retire the heartbeat, the route and the
+rows together. (2) Rows written to `recommendations` before this deploy stay
+in the file. What production holds was NOT measured in this work (no probe
+was run). `docker exec cfo-ai-backend python3 /app/scripts/check_public_store.py`
+prints counts, column names and date ranges only — read-only, exit 3 when a
+table that should be empty is not — then clear the table.
+(3) `GET /api/canonical-categories` is public and serves DIO / CCC / DSO /
+DPO / stored real margin per category from the workbook the `Dockerfile` CMD
+names (`files/Trading_analysis_YTDOct'25_LV.xlsx`, described in `server.py`
+as "the largest real SKU dataset in this repo"). The file is not tracked in
+git; whether the production host carries it — and so whether the route
+serves a real company's category figures or an empty list — was not
+measured. Not in this store, not changed here.
+
+---
+
+## 27. Scheduled-mail audit before the Firm Cockpit flag (2026-10-03)
+
+Owner ticket 2026-10-02: "firm digest cron and renewal recipient audited
+before the Firm Cockpit flag flips." Branch `claude/admiring-benz-72166d`
+(from main 72a29c72). Engine only; nothing deployed, nothing sent, the flag
+untouched. Gate `scheduled-mail-tenancy` (39 tests, twenty plants:
+`docs/engine_book/gates.md`).
+
+**The rule.** Every cron and drain reads under the SERVICE ROLE: the filter
+the code writes is the access control. A mail path therefore decides three
+things, in this order, and decides them again AT SEND TIME (a drain is an
+operator action that runs hours or days after the cron):
+
+1. **Who** — a recipient is resolved from the record that owns the mail (the
+   subscriber; the opted-in user), never from "the first row" of a join.
+2. **What** — every workspace a body names is one the recipient reads today
+   (`_firm_requests.digest_scope`: member now, role holds `read`, firm not
+   archived, client served now and unarchived).
+3. **Once** — the cron CLAIMS before it queues (`firm_digest_log`'s unique
+   index; `reminders_sent`; the renewal queue read), and the drain claims
+   the row before the provider is called
+   (`SupabaseClient.update_returning`, PATCH + `Prefer:
+   return=representation`). The worst case is a row that says "claimed by a
+   drain; outcome unknown", never a second mail.
+
+**What was wrong** (all latent: the Cockpit is unmounted in production and
+no scheduler calls the renewal cron):
+
+- The renewal reminder went to the first `memberships` row ordered
+  `role.asc` — `'admin'` before `'owner'`. `import_firm_client` writes the
+  firm's responsible accountant into a client workspace as `'admin'`, so
+  with the Cockpit on the client's renewal date and price went to the
+  accountant. Now: `subscriptions.user_id`, else the oldest owner.
+- That cron had no idempotency marker (its docstring claimed one), mailed
+  subscriptions set to cancel, and queued address-less rows that blocked the
+  drain forever.
+- The firm digest read open requests by `client_org_id` alone (a previous
+  firm's request followed the client), computed archived clients, mailed
+  archived firms, and claimed its day after queueing.
+- Both drains sent whatever was queued (a removed member, a revoked request,
+  a cancelled subscription) and marked rows sent AFTER sending.
+- `firm_name` in the body of `POST /api/firm/requests` was printed as the
+  sender. It is ignored now; the name is `firms.name`.
+
+**Owner steps, none done here:**
+
+- `supabase/schema_phase_email_idempotency.sql` — the dedupe index for two
+  OVERLAPPING renewal runs (§14 two-step protocol; its pre-flight must
+  return zero rows). The engine works without it.
+- **Unverified:** no migration in this repository gives `subscriptions` the
+  `is_founder` / `org_id` columns the renewal cron filters on (§16 "Known
+  drift"). If production does not have them the cron answers 500 and reminds
+  nobody. One read-only `select column_name from information_schema.columns
+  where table_name = 'subscriptions'` settles it.
+- No scheduler calls any cron, and both drains take an operator's user JWT
+  (`PRICING_ADMIN_USER_IDS`), which a scheduler cannot hold: today mail is
+  queued and waits for a hand-run drain. Founding members under the tier
+  model (`is_founding_member`) are not selected by the renewal cron at all.
+- `firm_invite_email_queue` is written and never drained (the accept link is
+  in the API response) — invitations are not mailed.
+- The digest's report provider loads no suppressions: an item a member
+  dismissed on the board is still mailed. Not a tenancy defect; ticketed.
+
+**Never choose a recipient with `limit=1` over a join.** And a new function
+that queues or sends mail is red in `test_scheduled_mail_census.py` until it
+is classified with its recipient rule.
+
 ---
 
 # 📘 Appendix A — Full Financial Analysis Methodology
