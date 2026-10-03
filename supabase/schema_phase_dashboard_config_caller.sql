@@ -28,8 +28,11 @@
 -- WHAT THIS FILE DOES — restrict only, nothing deleted, no row touched:
 --   1. upsert_dashboard_config keeps its signature and its insert, and now
 --      REFUSES a p_user_id that is not the caller's (auth.uid()); the service
---      role may still name any user. EXECUTE is revoked from PUBLIC and anon
---      (authenticated and service_role keep it).
+--      role may still name any user. EXECUTE is revoked from PUBLIC and anon.
+--      authenticated and service_role KEEP what they had — no more: where
+--      one of them could call the function only through PUBLIC's grant, the
+--      same privilege is granted to it by name; where one of them could NOT
+--      call it before this file, it cannot after (nothing is widened).
 --      If the installed function does not return jsonb (a body nobody
 --      committed), the body is NOT replaced; EXECUTE is then revoked from
 --      authenticated as well, so only the service role can call it.
@@ -78,6 +81,8 @@ declare
   v_role     text;
   v_priv     text;
   v_left     jsonb := '[]'::jsonb;
+  v_auth_had boolean;
+  v_svc_had  boolean;
 begin
   perform set_config('lock_timeout', '5s', true);
   perform set_config('cfo_holes.result', '', false);   -- never answer with another file's result
@@ -96,6 +101,9 @@ begin
     v_skipped := v_skipped || to_jsonb('upsert_dashboard_config body NOT replaced: the installed function does not return jsonb'::text);
   else
     select md5(prosrc) into v_before from pg_proc where oid = v_fn;
+    -- What the two roles that keep the function could do BEFORE this file.
+    v_auth_had := has_function_privilege('authenticated', v_fn, 'execute');
+    v_svc_had  := has_function_privilege('service_role', v_fn, 'execute');
 
     create or replace function public.upsert_dashboard_config(
       p_user_id uuid,
@@ -142,10 +150,19 @@ $$;
       revoke all on function public.upsert_dashboard_config(uuid, jsonb) from public, anon;
       v_changed := v_changed || to_jsonb('upsert_dashboard_config: EXECUTE revoked from PUBLIC and anon'::text);
     end if;
-    if not has_function_privilege('authenticated', v_fn, 'execute')
-       or not has_function_privilege('service_role', v_fn, 'execute') then
-      grant execute on function public.upsert_dashboard_config(uuid, jsonb) to authenticated, service_role;
-      v_changed := v_changed || to_jsonb('upsert_dashboard_config: EXECUTE granted to authenticated and service_role (PUBLIC''s grant was the only one)'::text);
+    -- RESTORE, never widen: a role that could call the function only through
+    -- PUBLIC's grant gets the same privilege by name; a role that could not
+    -- call it before this file is left without it.
+    if v_auth_had and not has_function_privilege('authenticated', v_fn, 'execute') then
+      grant execute on function public.upsert_dashboard_config(uuid, jsonb) to authenticated;
+      v_changed := v_changed || to_jsonb('upsert_dashboard_config: EXECUTE kept for authenticated by name (it held it only through PUBLIC''s grant)'::text);
+    end if;
+    if v_svc_had and not has_function_privilege('service_role', v_fn, 'execute') then
+      grant execute on function public.upsert_dashboard_config(uuid, jsonb) to service_role;
+      v_changed := v_changed || to_jsonb('upsert_dashboard_config: EXECUTE kept for service_role by name (it held it only through PUBLIC''s grant)'::text);
+    end if;
+    if not v_auth_had then
+      v_skipped := v_skipped || to_jsonb('authenticated could not EXECUTE upsert_dashboard_config before this file and cannot after it (nothing is widened)'::text);
     end if;
   end if;
   -- Read back: a grant this role did not make is not removed by its revoke.

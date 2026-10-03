@@ -23,7 +23,14 @@
 #   RE-OPENED BY HAND  the original file re-run (it re-creates the function
 #          without the caller check), EXECUTE handed back to anon, the table
 #          privileges handed back, a permissive policy under another name —
-#          shown OPEN again (the attack lands), then closed by the migration.
+#          shown OPEN again (the attack lands), then closed by the migration;
+#   NOTHING IS WIDENED  where authenticated could NOT execute the function
+#          before the file (a database hardened by hand: the service role
+#          only), it cannot after it; where authenticated and the service
+#          role held EXECUTE only through PUBLIC's grant, they keep it by
+#          name and anon does not;
+#   AN EMPTY DATABASE  the report and the migration answer where neither the
+#          function nor the table exists.
 #
 # WHAT IT CANNOT SEE. PostgREST itself (the RPC is called as a SQL function
 # under `set local role` + request.jwt.claims — what PostgREST does, not
@@ -170,5 +177,35 @@ check_has "H6 … and says it replaced the body again" "$MIG_RESULT" "upsert_das
 report_says "H7 the report says hole_open: false" "false"
 attacks_refused "H8"
 legitimate_paths "H9"
+
+# ── NOTHING IS WIDENED ───────────────────────────────────────────────────
+echo "── NOTHING IS WIDENED — a database where authenticated could not call the function; one where PUBLIC's grant was the only one"
+holes_psql "$HOLES_DB" --single-transaction -f - < "$ORIGINAL" >/dev/null 2>&1          # the unchecked body again
+q "revoke all on function public.upsert_dashboard_config(uuid, jsonb) from public, anon, authenticated;" >/dev/null
+check "W1 the starting state: the unchecked body, executable by the service role only" "$(q "select has_function_privilege('authenticated', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text || '|' || has_function_privilege('service_role', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text;")" "false|true"
+apply_migration "$MIGRATION"
+check "W2 the migration applies (exit 0)" "$MIG_RC" "0"
+check_has "W3 … replaces the body" "$MIG_RESULT" "upsert_dashboard_config: body replaced"
+check "W4 … and authenticated STILL cannot execute it (a privilege it did not hold is not granted)" "$(q "select has_function_privilege('authenticated', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute');")" "f"
+out="$(sql_as authenticated "$ATTACKER" "$(rpc "$ATTACKER" '[{"id":"not-even-my-own"}]')")"
+check_has "W5 … measured: a signed-in user's call is refused at the door" "$out" "permission denied for function upsert_dashboard_config"
+check_has "W6 … and the result says so" "$MIG_RESULT" "authenticated could not EXECUTE upsert_dashboard_config before this file and cannot after it"
+out="$(sql_as service_role "" "$(rpc "$VICTIM" '[{"id":"service-rpc-hardened"}]')")"
+check "W7 the service role still calls it" "$(cards_of "$VICTIM")" '[{"id": "service-rpc-hardened"}]'
+report_says "W8 the report says hole_open: false" "false"
+holes_psql "$HOLES_DB" --single-transaction -f - < "$ORIGINAL" >/dev/null 2>&1
+q "revoke all on function public.upsert_dashboard_config(uuid, jsonb) from anon, authenticated, service_role;
+   grant execute on function public.upsert_dashboard_config(uuid, jsonb) to public;" >/dev/null
+check "K1 the starting state: PUBLIC's grant is the only one (anon, authenticated and the service role all execute through it)" "$(q "select has_function_privilege('anon', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text || '|' || (select count(*) from pg_proc p, aclexplode(p.proacl) a where p.oid = 'public.upsert_dashboard_config(uuid,jsonb)'::regprocedure and a.grantee in (select oid from pg_roles where rolname in ('anon', 'authenticated', 'service_role')));")" "true|0"
+report_says "K2 the report says hole_open: true" "true"
+apply_migration "$MIGRATION"
+check "K3 after the migration anon cannot execute it; authenticated and the service role still can — by name" "$(q "select has_function_privilege('anon', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text || '|' || has_function_privilege('authenticated', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text || '|' || has_function_privilege('service_role', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text;")" "false|true|true"
+check_has "K4 … and the result says what it kept" "$MIG_RESULT" "EXECUTE kept for authenticated by name"
+attacks_refused "K5"
+legitimate_paths "K6"
+
+# ── AN EMPTY DATABASE ────────────────────────────────────────────────────
+echo "── AN EMPTY DATABASE — neither the function nor the table"
+holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
 
 holes_finish
