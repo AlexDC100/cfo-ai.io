@@ -3701,7 +3701,8 @@ For every table on its one list — `subscriptions`, `user_usage`,
 `billing_events`, and `plan_assignment_audit` where it exists: row level
 security on; every policy that is not a SELECT policy dropped, whatever its
 name; everything revoked from `anon` and PUBLIC; the write privileges revoked
-from `authenticated`. `subscriptions` keeps exactly ONE policy (own row,
+from `authenticated` (MAINTAIN too on Postgres 17+, where the default grant
+carries it). `subscriptions` keeps exactly ONE policy (own row,
 SELECT, to authenticated). The file reads its own result back and raises —
 applying nothing — if a write privilege survives. Idempotent; safe on a
 repo-built database, on top of the hand-applied three-statement stopgap, on a
@@ -3743,21 +3744,23 @@ its row before applying.
 **Gates** (plant log: `docs/engine_book/gates.md`):
 - `subscriptions-write-lockdown` — `scripts/check_subscriptions_write_lockdown.sh`,
   on the LOCAL Supabase stack through real PostgREST with a real GoTrue
-  session, from four starting states; the attack is first shown to SUCCEED,
-  then every write refused with the row byte-identical, the reads, the service
-  role's writes, the signup row, the reserve / commit RPCs, the sibling
-  tables, the catalog laws. 276 cases without `schema_phase_owner_plan.sql`
-  (13 skipped — printed, never a pass), 293 with it. VACUOUS when no local
-  stack runs; refuses a non-loopback host. `--before <state>` / `--after
-  <state>` print the attack table.
+  session, from four starting states; the attack is first shown to SUCCEED
+  (through the REST API and through the GraphQL endpoint), then every write
+  refused with the row byte-identical, the reads, the service role's writes,
+  the signup row, the reserve / commit RPCs, the sibling tables, the catalog
+  laws. 281 cases without `schema_phase_owner_plan.sql` (13 skipped — printed,
+  never a pass), 298 with it. VACUOUS when no local stack runs; refuses a
+  non-loopback host. `--before <state>` / `--after <state>` print the attack
+  table.
 - `entitlement-write-laws` — `tests/engine/test_entitlement_write_laws.py`: no
   browser or edge-function writer of a listed table, no committed SQL that
   re-opens one, the runbook's lists equal THE LIST, no user-JWT engine client
   on one.
 
 **Unknown, and the owner's to read:** whether production carried the two
-policies and whether the hole was used (pre-flight and audit), and what
-`founder_cohort_public` is there.
+policies and whether the hole was used (pre-flight and audit), what
+`founder_cohort_public` is there, and production's Postgres major version
+(the file was run on 17.6 only; its MAINTAIN statements are version-guarded).
 
 **Found, not fixed here** (`gates.md`, same section): the workspace cap is
 passable WITHOUT touching `subscriptions` — a member may PATCH

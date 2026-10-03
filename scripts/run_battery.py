@@ -2455,12 +2455,13 @@ def _engine_gates() -> List[Gate]:
         #       locked database re-opened by hand under other names): every
         #       write refused with the row byte-identical, the reads, the
         #       service role's upsert, the signup row, the reserve / commit
-        #       RPCs, the sibling tables, the catalog laws, the views. Floor
-        #       270 = the measured 276 on a stack without
-        #       schema_phase_owner_plan.sql (13 cases SKIPPED there — printed,
-        #       counted apart, never a pass; 293 with it and none skipped).
-        #       VACUOUS — never green — when the local stack is not running;
-        #       refuses a non-loopback database or API.
+        #       RPCs, the sibling tables, the catalog laws, the views — and
+        #       the same write through the GraphQL endpoint. Floor 275 = the
+        #       measured 281 on a stack without schema_phase_owner_plan.sql
+        #       (13 cases SKIPPED there — printed, counted apart, never a
+        #       pass; 298 with it and none skipped). VACUOUS — never green —
+        #       when the local stack is not running; refuses a non-loopback
+        #       database or API.
         #   entitlement-write-laws
         #       the source half the stack cannot see: no browser or
         #       edge-function writer of a listed table, no committed SQL that
@@ -2469,7 +2470,7 @@ def _engine_gates() -> List[Gate]:
         # Plant log: docs/engine_book/gates.md.
         Gate("subscriptions-write-lockdown",
              ["bash", "scripts/check_subscriptions_write_lockdown.sh"],
-             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=270,
+             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=275,
              units="cases on the local stack", vacuous_ok=True,
              canaries=("SUBSCRIPTIONS-WRITE-LOCKDOWN GATE",)),
         Gate("entitlement-write-laws",
