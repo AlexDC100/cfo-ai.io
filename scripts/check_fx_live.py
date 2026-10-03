@@ -25,9 +25,14 @@ EXIT 0 only when ALL hold; otherwise 1, naming what failed:
 It prints the figures either way, so the operator reads the rate that is
 being served and its date, not only a verdict.
 
-What it cannot see: the Supabase Edge Function ``fx-rates`` (the browser's
-first source — probe it with the command in docs/engine_book/gates.md,
-"fx-browser"), and what a browser holding an old cached payload shows.
+What it cannot see: THE SERVING PROCESS. This script runs in its own process
+and neither reads nor warms the memo of the one answering requests — it is
+green while that one is still inside its failure cooldown, answering the
+fallback. ``scripts/check_fx_served.py`` is the reading of what is served
+(``GET /api/fx-rates`` of the running engine); a deploy runs both. Nor the
+Supabase Edge Function ``fx-rates`` (the browser's first source — probe it
+with the command in docs/engine_book/gates.md, "fx-browser"), nor what a
+browser holding an old cached payload shows.
 Gate: fx-feed (tests/engine/test_fx_bnr_feed.py drives ``main`` over a wired
 feed: healthy 0; dead, stale, frozen, future-dated 1).
 """
@@ -54,14 +59,16 @@ def _import_engine():
 
 
 def judge(payload: dict, today: _dt.date) -> List[str]:
-    """Every reason this payload is not a current BNR rate. Empty = pass."""
+    """Every reason this payload is not a current BNR rate. Empty = pass.
+    ONE definition, shared with scripts/check_fx_served.py."""
     problems: List[str] = []
     source = payload.get("source")
     if source != "BNR":
         problems.append("source is %r, not 'BNR' — the feed did not answer and "
                         "the bundled fallback is being served" % (source,))
     if payload.get("stale") is not False:
-        problems.append("stale is %r — the answer is not a rate accepted on this call"
+        problems.append("stale is %r — the answer is not a current BNR rate (the feed did "
+                        "not answer, or the rate is past its day or its date)"
                         % (payload.get("stale"),))
     as_of = payload.get("as_of")
     try:

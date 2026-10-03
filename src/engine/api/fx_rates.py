@@ -291,6 +291,33 @@ def _require_fresh(as_of: str, today: _dt.date) -> None:
                          "answers a file that stopped updating" % (as_of, age, _MAX_AGE_DAYS))
 
 
+def _published_fresh(as_of: Any, today: _dt.date) -> bool:
+    """``_require_fresh`` as a yes or no — False for anything that is not a
+    date at most ``_MAX_AGE_DAYS`` before ``today`` and not after it."""
+    try:
+        _require_fresh(str(as_of), today)
+    except Exception:  # noqa: BLE001 — not a date is not fresh
+        return False
+    return True
+
+
+def _memo_is_current(cached: Optional[Dict[str, Any]], cached_at: float, now: float) -> bool:
+    """Is the memoised payload a CURRENT rate right now: accepted less than
+    ``_TTL_SECONDS`` ago AND published within ``_MAX_AGE_DAYS``?
+
+    The one place the memo is called current (the memo hit). Until
+    2026-10-03 the label rested on the acceptance time alone, and the
+    freshness rule was applied only on the way IN: a file accepted on its
+    tenth day was still served ``stale: False`` 23 hours later, on its
+    eleventh. Now that hit is a miss: BNR is asked again, and while the
+    address still answers the frozen file the memo is served marked stale."""
+    return (
+        cached is not None
+        and (now - cached_at) < _TTL_SECONDS
+        and _published_fresh(cached.get("as_of"), _today_ro())
+    )
+
+
 def _read_address(url: str) -> Dict[str, Any]:
     """One address: fetch (bounded), parse. Raises on any failure."""
     req = urllib.request.Request(
@@ -335,7 +362,9 @@ def get_fx_rates(force_refresh: bool = False) -> Dict[str, Any]:
     """Return the current FX rates payload.
 
     Cache strategy:
-      - 24h TTL on the accepted BNR fetch — served with stale=False
+      - 24h TTL on the accepted BNR fetch — served with stale=False while its
+        publication date is still inside the freshness rule (re-checked on
+        every memo hit: `_memo_is_current`)
       - If the refetch fails AND an accepted payload is cached (however old),
         return it with stale=True
       - If nothing is cached at all, return the bundled fallback with stale=True
@@ -348,11 +377,7 @@ def get_fx_rates(force_refresh: bool = False) -> Dict[str, Any]:
     with _CACHE_LOCK:
         cached = _CACHE.get("payload")
         cached_at = _CACHE.get("fetched_at") or 0
-        if (
-            not force_refresh
-            and cached is not None
-            and (now - cached_at) < _TTL_SECONDS
-        ):
+        if not force_refresh and _memo_is_current(cached, cached_at, now):
             return {**cached, "fetched_at": _iso_from_epoch(cached_at), "stale": False}
 
     # Either cache miss or TTL elapsed; try BNR — unless a recent attempt
@@ -376,7 +401,10 @@ def get_fx_rates(force_refresh: bool = False) -> Dict[str, Any]:
             logger.warning("[fx_rates] BNR fetch failed (%s); falling back "
                            "and not retrying for %ss", e, _FAILURE_COOLDOWN_SECONDS)
 
-    # BNR failed. Return last-known cache if we have one (marked stale).
+    # BNR failed (or was not asked: the cooldown). Return last-known cache if
+    # we have one — ALWAYS marked stale here: this branch is reached only
+    # when the memo is not a current rate, or when a forced refresh did not
+    # get an answer (scripts/check_fx_live.py reads that as "not on this call").
     with _CACHE_LOCK:
         cached = _CACHE.get("payload")
         cached_at = _CACHE.get("fetched_at") or 0

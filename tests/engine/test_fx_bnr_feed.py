@@ -36,21 +36,34 @@ source are held by the gate ``fx-browser``).
   ``/api/health`` says ``fx_rates.ok: false`` whenever the engine serves
   anything but a current BNR rate, without turning the overall answer red;
   ``scripts/check_fx_live.py`` exits 0 only on a current BNR rate.
+  Round 3: the memo is called current only while its publication date still
+  passes the freshness rule (a file accepted on its tenth day is not current
+  on its eleventh); ``scripts/check_fx_served.py`` reads what the SERVING
+  process answers — the real app behind a loopback socket — and exits 0 only
+  on a current BNR rate, with a health line that shows what the deploy
+  lane's line cannot.
 
 What it cannot see: whether BNR moves the feed again (the fixture is a
 recording — ``scripts/check_fx_live.py`` inside the container is the live
-reading); the deployed Edge Function (its source is tested by ``fx-browser``,
-its deployment is the owner's step); what a browser shows.
+reading, ``scripts/check_fx_served.py`` the reading of the serving process);
+whether the VPS reaches ``curs.bnr.ro``; the deployed Edge Function (its
+source is tested by ``fx-browser``, its deployment is the owner's step);
+what a browser shows.
 Plant log: docs/engine_book/gates.md, "fx-feed".
 """
 
 from __future__ import annotations
 
+import ast
 import datetime as dt
+import http.server
 import importlib.util
+import json
 import os
 import re
+import threading
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -59,6 +72,11 @@ from fastapi.testclient import TestClient
 from engine.api import _health, fx_rates
 
 REPO = Path(__file__).resolve().parents[2]
+#: urllib's own urlopen, taken before any test replaces it. ``_Wire`` hands a
+#: LOOPBACK request to it (check_fx_served reads the app behind a local
+#: socket through the same urllib the engine's BNR fetch uses) and nothing
+#: else: an address this file did not wire is a KeyError, never a request.
+_REAL_URLOPEN = urllib.request.urlopen
 FIXTURE = Path(__file__).parent / "fixtures" / "fx" / "nbrfxrates_REAL_curs_bnr_ro.xml"
 REAL = FIXTURE.read_bytes()
 
@@ -135,6 +153,8 @@ class _Wire:
 
         def urlopen(req, timeout=None):
             url = getattr(req, "full_url", str(req))
+            if url.startswith("http://127.0.0.1:"):
+                return _REAL_URLOPEN(req, timeout=timeout)
             self.calls.append(url)
             self.timeouts.append(timeout)
             answer = self.answers[url]
@@ -478,6 +498,72 @@ def test_after_the_window_a_failed_refetch_serves_the_last_rate_marked_stale(mon
     assert late["fetched_at"] == first["fetched_at"], "fetched_at must stay the time of the LAST GOOD fetch"
 
 
+def test_a_file_accepted_on_its_tenth_day_is_not_served_as_current_on_its_eleventh(monkeypatch, _pinned):
+    """The freshness rule was applied on the way IN only: the memo's label
+    rested on its acceptance time, so a file accepted at ten days was served
+    ``stale: False`` for 24 more hours — at eleven."""
+    frozen = _dated("2026-09-23", eur=b"5.0001")     # ten days old on TODAY
+    wire = _Wire(monkeypatch, {NEW: frozen, OLD: frozen})
+    first = fx_rates.get_fx_rates()
+    assert first["stale"] is False and first["as_of"] == "2026-09-23"
+    assert wire.calls == [NEW, OLD]
+    # the control: twenty hours later ON THE SAME DATE the memo is a hit
+    _pinned["t"] = T0 + 20 * 3600
+    same_day = fx_rates.get_fx_rates()
+    assert same_day["stale"] is False and wire.calls == [NEW, OLD]
+    # the next calendar day — eleven days — inside the same 24 h window: the
+    # memo is no longer a current rate. BNR is asked; the address still
+    # answers the frozen file, which is now refused; the memo is served
+    # MARKED STALE with the time of its last good fetch.
+    monkeypatch.setattr(fx_rates, "_today_ro", lambda: TODAY + dt.timedelta(days=1))
+    late = fx_rates.get_fx_rates()
+    assert wire.calls == [NEW, OLD, NEW, OLD], "the memo was served without re-checking its date"
+    assert late["stale"] is True, "a rate eleven days old was served as current"
+    assert (late["source"], late["as_of"], late["rates"]["RON"]) == ("BNR", "2026-09-23", 5.0001)
+    assert late["fetched_at"] == first["fetched_at"]
+    # inside the failure cooldown: still stale, and no third round
+    again = fx_rates.get_fx_rates()
+    assert again["stale"] is True and wire.calls == [NEW, OLD, NEW, OLD]
+    # /api/health reads the same judgement
+    check = _health._check_fx_rates()
+    assert check["ok"] is False and check["stale"] is True and check["as_of"] == "2026-09-23"
+
+
+def test_a_memo_dated_after_today_is_not_current(monkeypatch, _pinned):
+    """A clock that moved back: the memo's date is now in the future."""
+    wire = _Wire(monkeypatch, {NEW: REAL, OLD: HTML_PAGE})
+    assert fx_rates.get_fx_rates()["stale"] is False
+    monkeypatch.setattr(fx_rates, "_today_ro", lambda: dt.date(2026, 10, 1))
+    wire.answers = {NEW: HTML_PAGE, OLD: HTML_PAGE}
+    got = fx_rates.get_fx_rates()
+    assert wire.calls == [NEW, OLD, NEW, OLD] and got["stale"] is True
+
+
+def test_what_an_xml_parser_does_not_see_is_not_read():
+    """The documents the function's regex reader was measured on, through
+    THIS parser — the reference the function's refusals are held against
+    (fx-browser: fxFunctionBnr.test.ts). A Cube inside a comment or a CDATA
+    section does not exist; a self-closed Cube is a Cube with no rates; an
+    attribute is its whole name."""
+    hidden = (b'<Cube date="2026-10-03"><Rate currency="EUR">9.9000</Rate>'
+              b'<Rate currency="USD">8.8000</Rate></Cube>')
+    for wrapped in (b"<!-- " + hidden + b" -->", b"<![CDATA[" + hidden + b"]]>"):
+        doc = REAL.replace(b"<Body>", b"<Body>" + wrapped)
+        assert doc != REAL
+        got = fx_rates._parse_bnr_xml(doc)
+        assert (got["as_of"], got["rates"]["RON"]) == ("2026-10-02", 5.3447)
+    newer = REAL.replace(b'<Cube date="2026-10-02">', b'<Cube date="2026-10-03"/><Cube date="2026-10-02">')
+    assert newer != REAL
+    with pytest.raises(ValueError, match="missing EUR rate"):
+        fx_rates._parse_bnr_xml(newer)
+    older = REAL.replace(b'<Cube date="2026-10-02">', b'<Cube date="2026-10-01"/><Cube date="2026-10-02">')
+    assert fx_rates._parse_bnr_xml(older)["as_of"] == "2026-10-02"
+    both = REAL.replace(b'<Cube date="2026-10-02">', b'<Cube pub-date="2026-10-03" date="2026-10-02">')
+    assert fx_rates._parse_bnr_xml(both)["as_of"] == "2026-10-02"
+    with pytest.raises(ValueError, match="no Cube with a date"):
+        fx_rates._parse_bnr_xml(REAL.replace(b'<Cube date="2026-10-02">', b'<Cube pub-date="2026-10-02">'))
+
+
 # ── the route: ?refresh=true is the operator's ──────────────────────────
 
 
@@ -635,3 +721,244 @@ def test_the_live_checks_own_judgement_holds_each_condition(payload, names):
     problems = mod.judge(payload, TODAY)
     assert len(problems) == 1 and names in problems[0], problems
     assert mod.judge({"source": "BNR", "stale": False, "as_of": "2026-09-23"}, TODAY) == []
+
+
+# ── scripts/check_fx_served.py: what the SERVING process answers ────────
+
+
+class _Served:
+    """The REAL app behind a loopback socket. Every GET the script makes
+    arrives here over HTTP and is answered by the app's own routes
+    (``TestClient``) — unless the test puts something else at that path."""
+
+    def __init__(self, app):
+        client = TestClient(app)
+        outer = self
+        self.asked = []          # (method, path) of every request that arrived
+        self.instead = {}        # path -> (status, body bytes, content type)
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def _answer(self, method):
+                outer.asked.append((method, self.path))
+                if self.path in outer.instead:
+                    status, body, ctype = outer.instead[self.path]
+                else:
+                    r = client.get(self.path)
+                    status, body = r.status_code, r.content
+                    ctype = r.headers.get("content-type", "application/json")
+                self.send_response(status)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):  # noqa: N802
+                self._answer("GET")
+
+            def do_POST(self):  # noqa: N802
+                self._answer("POST")
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.base = "http://127.0.0.1:%d" % self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+@pytest.fixture
+def served(app, monkeypatch):
+    """The app served on loopback, the database and Stripe checks answered
+    locally (``/api/health`` must not reach either from a test)."""
+    monkeypatch.delenv("ENGINE_API_TOKEN", raising=False)
+    monkeypatch.setattr(_health, "_check_db", lambda: {"ok": True, "latency_ms": 0.0})
+    monkeypatch.setattr(_health, "_check_stripe", lambda: {"ok": True, "latency_ms": 0.0})
+    _health.reset_health_cache()
+    s = _Served(app)
+    yield s
+    s.close()
+
+
+def _served_check(monkeypatch):
+    spec = importlib.util.spec_from_file_location("check_fx_served", REPO / "scripts" / "check_fx_served.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    monkeypatch.setattr(mod, "_today_ro", lambda: TODAY)
+    return mod
+
+
+def _health_lines(out: str):
+    return [line.strip() for line in out.splitlines() if "GET /api/health" in line]
+
+
+def test_the_served_check_passes_on_a_current_bnr_rate_and_asks_two_plain_gets(served, monkeypatch, capsys):
+    calls = _wire(monkeypatch, {NEW: REAL, OLD: HTML_PAGE})
+    assert _served_check(monkeypatch).main([served.base]) == 0
+    out = capsys.readouterr().out
+    # two GETs, no query string (?refresh=true is the operator's), nothing else
+    assert served.asked == [("GET", "/api/fx-rates"), ("GET", "/api/health")]
+    assert calls == [NEW, OLD], "the serving process asked BNR once (a cold process), not once per GET"
+    assert "FX-SERVED GREEN" in out and "BNR's file of 2026-10-02" in out
+    assert "source BNR  stale False  as_of 2026-10-02  RON per EUR 5.3447  RON per USD 4.7519" in out
+    # the health line carries what the lane's line lacks
+    (line,) = _health_lines(out)
+    assert line.startswith("GET /api/health    health ok True ")
+    assert line.endswith(" | HTTP 200 | fx_rates ok True source BNR stale False as_of 2026-10-02"), line
+
+
+def test_the_served_check_reds_while_the_serving_process_answers_the_fallback(served, monkeypatch, capsys):
+    """The state the deploy lane could not show: the engine cannot read BNR,
+    ``/api/health`` is 200 ``ok: true`` — the same words as a healthy deploy."""
+    _wire(monkeypatch, {NEW: HTML_PAGE, OLD: urllib.error.URLError("no route to curs.bnr.ro")})
+    mod = _served_check(monkeypatch)
+    assert mod.main([served.base]) == 1
+    out = capsys.readouterr().out
+    assert "FX-SERVED RED" in out and "source is 'fallback'" in out and "stale is True" in out
+    assert "THIS IS NOT A ROLLBACK" in out and "check_fx_live.py" in out
+    outage = _health_lines(out)[0]
+    assert "| HTTP 200 |" in outage and "fx_rates ok False source fallback stale True as_of 2026-10-02" in outage
+
+    # the healthy line, for the comparison the lane could not make
+    fx_rates.reset_fx_cache()
+    _health.reset_health_cache()
+    _wire(monkeypatch, {NEW: REAL, OLD: HTML_PAGE})
+    assert mod.main([served.base]) == 0
+    healthy = _health_lines(capsys.readouterr().out)[0]
+    lane_words = lambda line: line.split("|")[0].split("GET /api/health")[1].strip()  # noqa: E731
+    assert lane_words(outage) == lane_words(healthy), "the lane's own words are the same in both states"
+    assert lane_words(healthy).startswith("health ok True")
+    assert outage != healthy, "the line this check prints must tell the two states apart"
+
+
+def test_the_served_check_reds_on_a_last_known_rate(served, monkeypatch, capsys, _pinned):
+    wire = _Wire(monkeypatch, {NEW: REAL, OLD: HTML_PAGE})
+    mod = _served_check(monkeypatch)
+    assert mod.main([served.base]) == 0
+    capsys.readouterr()
+    wire.answers = {NEW: HTML_PAGE, OLD: HTML_PAGE}
+    _pinned["t"] = T0 + 25 * 3600
+    _health.reset_health_cache()
+    assert mod.main([served.base]) == 1
+    out = capsys.readouterr().out
+    assert "source BNR  stale True  as_of 2026-10-02" in out and "stale is True" in out
+    assert "fx_rates ok False source BNR stale True" in _health_lines(out)[0]
+
+
+def test_the_served_check_reads_the_serving_process_memo_not_bnr(served, monkeypatch, capsys, _pinned):
+    """What check_fx_live cannot see. The serving process failed its fetch and
+    is inside its five-minute cooldown; BNR is reachable again. The served
+    check does not force anything: it reds on what IS served, and greens
+    once the process has asked again."""
+    wire = _Wire(monkeypatch, {NEW: HTML_PAGE, OLD: HTML_PAGE})
+    mod = _served_check(monkeypatch)
+    assert mod.main([served.base]) == 1
+    assert wire.calls == [NEW, OLD]
+    wire.answers = {NEW: REAL, OLD: HTML_PAGE}          # BNR answers again
+    _pinned["t"] = T0 + 120
+    _health.reset_health_cache()
+    assert mod.main([served.base]) == 1, "inside the cooldown the process still serves the fallback"
+    assert wire.calls == [NEW, OLD], "the served check made the engine ask BNR — it must only read"
+    _pinned["t"] = T0 + 301
+    _health.reset_health_cache()
+    capsys.readouterr()
+    assert mod.main([served.base]) == 0
+    assert "FX-SERVED GREEN" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("body, names", [
+    ({"source": "BNR", "stale": False, "as_of": "2026-09-22",
+      "rates": {"EUR": 1, "RON": 5.0001, "USD": 1.1}}, "11 days old"),
+    ({"source": "BNR", "stale": False, "as_of": "2026-10-04",
+      "rates": {"EUR": 1, "RON": 5.3447, "USD": 1.12}}, "after today"),
+    ({"source": "BNR", "stale": False, "as_of": "2026-10-02", "rates": {"EUR": 1}}, "no usable RON / USD rate"),
+    ({"source": "BNR", "stale": False, "as_of": "2026-10-02",
+      "rates": {"EUR": 1, "RON": 0, "USD": 1.12}}, "no usable RON / USD rate"),
+    ({"detail": "Not Found"}, "source is None"),
+], ids=["frozen", "future", "no-rates", "zero-rate", "not-a-payload"])
+def test_the_served_check_judges_the_payload_it_is_handed(served, monkeypatch, capsys, body, names):
+    """A serving process that labels a frozen file current is not believed."""
+    _wire(monkeypatch, {NEW: REAL, OLD: HTML_PAGE})
+    served.instead["/api/fx-rates"] = (200, json.dumps(body).encode(), "application/json")
+    assert _served_check(monkeypatch).main([served.base]) == 1
+    out = capsys.readouterr().out
+    assert "FX-SERVED RED" in out and names in out
+
+
+@pytest.mark.parametrize("status, body, ctype", [
+    (200, b"<!doctype html><html><head><title>CFO AI</title></head><body></body></html>", "text/html"),
+    (502, b"Bad Gateway", "text/plain"),
+    (404, b'{"detail":"Not Found"}', "application/json"),
+], ids=["the-spa-page", "bad-gateway", "not-routed"])
+def test_the_served_check_reds_when_the_route_does_not_answer_a_payload(served, monkeypatch, capsys, status, body, ctype):
+    """`/api` not routed to the engine: the ingress answers the SPA's page
+    (200, HTML) — a 200 that is not the payload is a failure."""
+    _wire(monkeypatch, {NEW: REAL, OLD: HTML_PAGE})
+    served.instead["/api/fx-rates"] = (status, body, ctype)
+    assert _served_check(monkeypatch).main([served.base]) == 1
+    out = capsys.readouterr().out
+    assert "did not answer a payload (HTTP %d)" % status in out
+
+
+def test_the_served_check_reds_when_nothing_listens(monkeypatch, capsys):
+    """A base URL nothing answers at is a reading (RED), never a crash."""
+    _wire(monkeypatch, {})
+    probe = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.BaseHTTPRequestHandler)
+    base = "http://127.0.0.1:%d" % probe.server_address[1]
+    probe.server_close()                                   # the port is free again
+    assert _served_check(monkeypatch).main([base]) == 1
+    out = capsys.readouterr().out
+    assert "did not answer a payload (HTTP None)" in out and "health UNREADABLE" in out
+
+
+def test_the_served_check_verdict_is_the_payload_not_the_health_rollup(served, monkeypatch, capsys):
+    """The database down turns /api/health 503 — and says nothing about the
+    rate. The line shows it; the verdict stays the payload's."""
+    _wire(monkeypatch, {NEW: REAL, OLD: HTML_PAGE})
+    monkeypatch.setattr(_health, "_check_db", lambda: {"ok": False, "error": "down", "latency_ms": 0.0})
+    _health.reset_health_cache()
+    assert _served_check(monkeypatch).main([served.base]) == 0
+    line = _health_lines(capsys.readouterr().out)[0]
+    assert "health ok False" in line and "| HTTP 503 |" in line and "fx_rates ok True source BNR" in line
+
+
+def test_the_served_check_defaults_to_the_local_engine_and_refuses_a_non_url(monkeypatch, capsys):
+    mod = _served_check(monkeypatch)
+    assert mod.DEFAULT_BASE_URL == "http://localhost:8000"
+    asked = []
+    monkeypatch.setattr(mod, "_get", lambda url: (asked.append(url), (None, "not asked in this test"))[1])
+    assert mod.main([]) == 1
+    assert asked == ["http://localhost:8000/api/fx-rates", "http://localhost:8000/api/health"]
+    asked.clear()
+    assert mod.main(["http://127.0.0.1:8000/"]) == 1       # a trailing slash is not doubled
+    assert asked == ["http://127.0.0.1:8000/api/fx-rates", "http://127.0.0.1:8000/api/health"]
+    asked.clear()
+    for bad in (["localhost:8000"], ["ftp://x"], ["http://x/?refresh=true"], ["http://x", "http://y"]):
+        assert mod.main(bad) == 2, bad
+    assert asked == [], "a refused argument must not be asked"
+    capsys.readouterr()
+
+
+def test_the_served_check_imports_nothing_of_the_engine_and_only_reads():
+    """It must run where the engine is not installed (the operator's machine)
+    and can only GET: no engine import, no request body, no method but GET."""
+    src = (REPO / "scripts" / "check_fx_served.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imported.add((node.module or "").split(".")[0])
+    assert "engine" not in imported, imported
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+    requests = [c for c in calls if getattr(c.func, "attr", "") == "Request"]
+    assert len(requests) == 1
+    assert {k.arg for k in requests[0].keywords} == {"headers"}, "a Request with data= or method= is not a GET"
+    assert [getattr(c.func, "attr", "") for c in calls].count("urlopen") == 1
+    assert "refresh" not in "".join(
+        n.value for n in ast.walk(tree)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and "/api/" in n.value and "\n" not in n.value)
