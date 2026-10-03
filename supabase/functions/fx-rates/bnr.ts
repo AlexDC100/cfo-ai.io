@@ -119,17 +119,36 @@ export function fallbackPayload(nowIso: string): RatesPayload {
 // The expressions accept any namespace prefix and do not read `xmlns` at
 // all, so the namespace BNR writes (http://, https://, curs.bnr.ro) cannot
 // break them. No entity is ever expanded.
+//
+// WHAT A REGEX SEES THAT AN XML PARSER DOES NOT (measured, the same documents
+// through this file and through fx_rates.py, 2026-10-03): a Cube inside an
+// XML comment or a CDATA section was read as the rate (a commented-out
+// "2026-10-03 / 9.9000" was accepted — inside the plausible range); a
+// self-closed `<Cube date="…"/>` swallowed the NEXT Cube's rates under its
+// own date; `pub-date="…"` was read as `date`. BNR's file carries none of
+// these. So:
+//   · a body containing `<!--` or `<![CDATA[` is refused whole — this parser
+//     cannot tell what such a block hides, and the feed has neither;
+//   · an open tag ends at `>` and never runs through `/>`: a self-closed
+//     Cube is a Cube with no rates (it is refused if it is the newest, as
+//     the engine refuses it), a self-closed Rate carries no figure;
+//   · an attribute is matched by its whole name.
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DECLARATION = /<!\s*(?:DOCTYPE|ENTITY)/i;
+const HIDDEN_BLOCK = /<!--|<!\[CDATA\[/;
 /** A rate as the feed writes it: plain decimal digits. `Number()` alone would
  *  also read "0x10" and "1e1"; `parseFloat` would read "5,3447" as 5. */
 const DECIMAL = /^\d+(?:\.\d+)?$/;
-const CUBE = /<(?:[\w.-]+:)?Cube\b([^>]*)>([\s\S]*?)<\/(?:[\w.-]+:)?Cube>/g;
-const RATE = /<(?:[\w.-]+:)?Rate\b([^>]*)>([^<]*)<\/(?:[\w.-]+:)?Rate>/g;
+// The attributes of an open tag: anything up to `>`, never across `/>`.
+const ATTRS = String.raw`((?:[^>/]|/(?!>))*)`;
+const NAME = (local: string) => String.raw`(?:[\w.-]+:)?${local}`;
+const CUBE = new RegExp(String.raw`<${NAME("Cube")}\b${ATTRS}(?:/>|>([\s\S]*?)</${NAME("Cube")}>)`, "g");
+const RATE = new RegExp(String.raw`<${NAME("Rate")}\b${ATTRS}>([^<]*)</${NAME("Rate")}>`, "g");
 
 function attr(attrs: string, name: string): string | undefined {
-  const m = attrs.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
+  // The whole name: `pub-date="…"` is not `date`.
+  const m = attrs.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
   return m ? (m[1] ?? m[2]) : undefined;
 }
 
@@ -144,15 +163,19 @@ function isoDate(raw: string | undefined): string | null {
 }
 
 /** Parse the feed. Throws on anything that is not the feed: a body over
- *  64 KB, one declaring a DOCTYPE / ENTITY (a web page), no Cube with a date,
- *  no EUR / USD rate, a rate outside the plausible range. The clock is NOT
- *  read here — `requireFresh` judges the date. */
+ *  64 KB, one declaring a DOCTYPE / ENTITY (a web page), one carrying an XML
+ *  comment or a CDATA section, no Cube with a date, no EUR / USD rate, a rate
+ *  outside the plausible range. The clock is NOT read here — `requireFresh`
+ *  judges the date. */
 export function parseBnrXml(xml: string): ParsedRates {
   if (xml.length > MAX_BODY_BYTES) {
     throw new Error(`BNR body is ${xml.length} characters (over ${MAX_BODY_BYTES}) — not the feed`);
   }
   if (DECLARATION.test(xml)) {
     throw new Error("BNR body declares a DOCTYPE or an ENTITY — not the feed");
+  }
+  if (HIDDEN_BLOCK.test(xml)) {
+    throw new Error("BNR body carries an XML comment or a CDATA section — this reader does not see inside one; not read");
   }
 
   // More than one Cube (the ten-day file): the newest date is the rate.
@@ -162,7 +185,8 @@ export function parseBnrXml(xml: string): ParsedRates {
   for (let m = CUBE.exec(xml); m !== null; m = CUBE.exec(xml)) {
     cubes += 1;
     const asOf = isoDate(attr(m[1], "date"));
-    if (asOf && (chosen === null || asOf > chosen.asOf)) chosen = { asOf, inner: m[2] };
+    // m[2] is undefined for a self-closed Cube: a Cube with no rates.
+    if (asOf && (chosen === null || asOf > chosen.asOf)) chosen = { asOf, inner: m[2] ?? "" };
   }
   if (cubes === 0) throw new Error("BNR XML missing Cube");
   if (chosen === null) throw new Error("BNR XML carries no Cube with a date (YYYY-MM-DD)");
@@ -232,6 +256,16 @@ export function requireFresh(asOf: string, today: string): void {
       `BNR Cube is dated ${published} — ${age} days old (limit ${MAX_AGE_DAYS}): ` +
         "the address answers a file that stopped updating",
     );
+  }
+}
+
+/** `requireFresh`, as a yes or no. */
+export function publishedFresh(asOf: string, today: string): boolean {
+  try {
+    requireFresh(asOf, today);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -323,14 +357,33 @@ export async function fetchBnr(fetchFn: FeedFetch, now: Date): Promise<ParsedRat
 
 export type FetchDecision = "serve-cached" | "cooldown" | "fetch";
 
-/** One decision per request, from three timestamps (epoch ms, 0 = never):
+/** Is the cached file a CURRENT rate at `now` — accepted less than TTL_MS
+ *  ago AND published within MAX_AGE_DAYS, not after today?
  *
- *   serve-cached  an accepted file younger than TTL_MS is cached and the
- *                 caller did not force — it is served, not stale.
+ *  THE ONE DEFINITION every branch that calls a cached payload current goes
+ *  through (`fetchDecision`'s serve-cached, `payloadWithoutBnr`'s label).
+ *  Until 2026-10-03 the label rested on `fetched_at` alone, and the freshness
+ *  rule was applied only on the way IN: a row carrying `as_of 2026-08-05`
+ *  and a `fetched_at` one hour old was answered `source: BNR, stale: false`
+ *  with `cache-control: public, max-age=3600` (measured on index.ts under
+ *  Deno), and a file accepted on its tenth day was still current on its
+ *  eleventh. Not reachable through this file's own writer — it takes a row
+ *  touched by hand, another writer, or a clock — which is the reason to
+ *  check on the way out as well. */
+export function cachedIsCurrent(cached: { as_of: string } | null, fetchedAtMs: number, now: Date): boolean {
+  if (!cached) return false;
+  const nowMs = now.getTime();
+  return fetchedAtMs > 0 && nowMs - fetchedAtMs < TTL_MS && publishedFresh(cached.as_of, todayInRomania(now));
+}
+
+/** One decision per request:
+ *
+ *   serve-cached  the cached file is a current rate (`cachedCurrent`) and
+ *                 the caller did not force — it is served, not stale.
  *   cooldown      BNR was asked less than FAILURE_COOLDOWN_MS ago (the
  *                 attempt failed, or it succeeded and the caller forces
  *                 again) — it is NOT asked; the answer is what is cached,
- *                 fresh only if the cached file is still inside its TTL.
+ *                 current only if `cachedIsCurrent` says so.
  *   fetch         ask BNR.
  *
  *  `?refresh=true` skips the 24 h window, never the 5-minute one: the
@@ -338,34 +391,31 @@ export type FetchDecision = "serve-cached" | "cooldown" | "fetch";
  *  a tap anyone can open. */
 export function fetchDecision(at: {
   nowMs: number;
-  /** when the cached file was accepted */
+  /** is the cached file a current rate now (`cachedIsCurrent`) */
+  cachedCurrent: boolean;
+  /** when the cached file was accepted (epoch ms, 0 = nothing cached) */
   fetchedAtMs: number;
-  /** when BNR was last asked, successfully or not */
+  /** when BNR was last asked, successfully or not (epoch ms, 0 = never) */
   lastAttemptMs: number;
   forceRefresh: boolean;
 }): FetchDecision {
-  const cachedIsFresh = at.fetchedAtMs > 0 && at.nowMs - at.fetchedAtMs < TTL_MS;
-  if (cachedIsFresh && !at.forceRefresh) return "serve-cached";
+  if (at.cachedCurrent && !at.forceRefresh) return "serve-cached";
   const lastAsked = Math.max(at.lastAttemptMs, at.fetchedAtMs);
   if (lastAsked > 0 && at.nowMs - lastAsked < FAILURE_COOLDOWN_MS) return "cooldown";
   return "fetch";
 }
 
-/** Is a cached file still inside its 24 h window at `nowMs`? */
-export function cachedIsFresh(nowMs: number, fetchedAtMs: number): boolean {
-  return fetchedAtMs > 0 && nowMs - fetchedAtMs < TTL_MS;
-}
-
 /** What is served when BNR is not asked, or did not answer: the cached file
- *  — marked stale unless it is still inside its own 24 h window — else the
- *  bundled fallback, always stale. Never a stale rate presented as current. */
+ *  — marked stale unless it is still a current rate (`cachedIsCurrent`) —
+ *  else the bundled fallback, always stale. Never a stale rate presented as
+ *  current. */
 export function payloadWithoutBnr(
   cached: Omit<RatesPayload, "stale"> | null,
   fetchedAtMs: number,
   now: Date,
 ): RatesPayload {
   if (cached) {
-    return { ...cached, stale: !cachedIsFresh(now.getTime(), fetchedAtMs) };
+    return { ...cached, stale: !cachedIsCurrent(cached, fetchedAtMs, now) };
   }
   return fallbackPayload(now.toISOString());
 }
@@ -437,7 +487,9 @@ function usableRow(row: CacheRow | null): Omit<RatesPayload, "stale"> | null {
  *
  *   1. read the shared row (when it cannot be read, or this instance has
  *      accepted a newer file than it holds, the instance's own copy stands in);
- *   2. `fetchDecision` — serve it, hold the cooldown, or ask BNR;
+ *   2. `fetchDecision` — serve it (only while it is a current rate:
+ *      accepted inside the day AND published inside the ten), hold the
+ *      cooldown, or ask BNR;
  *   3. BNR answered an acceptable feed: store it, serve it, `stale: false`;
  *   4. BNR did not: remember the attempt (on the row when there is one — every
  *      instance sees it — and in this instance always), then serve what is
@@ -477,6 +529,7 @@ export async function resolveRates(deps: {
 
   const decision = fetchDecision({
     nowMs,
+    cachedCurrent: cachedIsCurrent(cached, fetchedAtMs, now),
     fetchedAtMs,
     lastAttemptMs: Math.max(rowAttemptMs, memory.lastAttemptMs),
     forceRefresh,

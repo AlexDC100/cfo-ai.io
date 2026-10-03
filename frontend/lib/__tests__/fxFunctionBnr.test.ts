@@ -28,6 +28,11 @@
 // answer is `source: BNR, stale: false`; while BNR does not answer, the last
 // accepted rate is served MARKED STALE, the rate is never overwritten, and
 // BNR is asked at most once per five minutes (it was: on every request).
+// A cached file is called current only while it was accepted inside the day
+// AND published inside the ten — on the way out as on the way in. What a
+// regex sees that an XML parser does not is refused: a body carrying a
+// comment or a CDATA section, a self-closed Cube that is the newest, an
+// attribute matched by the end of its name.
 // The three live copies of the bundled fallback are one figure.
 //
 // What it cannot see: the DEPLOYED function (its redeploy is a separate step
@@ -278,6 +283,48 @@ describe("fx function · the parser on BNR's own bytes", () => {
     expect(() => bnr.parseBnrXml(swap("<DataSet ", `${planted}<DataSet `))).toThrow(/DOCTYPE or an ENTITY/);
   });
 
+  it.each([
+    ["a newer Cube inside an XML comment", "<Body>", '<Body><!-- <Cube date="2026-10-03"><Rate currency="EUR">9.9000</Rate><Rate currency="USD">8.8000</Rate></Cube> -->'],
+    ["a newer Cube inside a CDATA section", "<Body>", '<Body><![CDATA[<Cube date="2026-10-03"><Rate currency="EUR">9.9000</Rate><Rate currency="USD">8.8000</Rate></Cube>]]>'],
+    ["a comment that hides nothing", "</DataSet>", "<!-- generated --></DataSet>"],
+  ])("a body carrying a comment or a CDATA section is refused whole: %s", (_name, old, planted) => {
+    // Measured before: the commented-out Cube was ACCEPTED — 2026-10-03,
+    // 9.9000 RON per EUR, inside the plausible range. An XML parser (the
+    // engine's) never sees it and reads the real Cube.
+    expect(() => bnr.parseBnrXml(swap(old, planted))).toThrow(/comment or a CDATA section/);
+  });
+
+  it("a self-closed Cube is a Cube with no rates: the newest one is refused, an older one is not the rate — it never takes the next Cube's figures", () => {
+    // Measured before: `<Cube date="2026-10-03"/>` ahead of the real Cube was
+    // read as "2026-10-03" carrying the rates of 2 October.
+    const newer = swap('<Cube date="2026-10-02">', '<Cube date="2026-10-03"/><Cube date="2026-10-02">');
+    expect(() => bnr.parseBnrXml(newer)).toThrow(/missing EUR rate/);
+    const spaced = swap('<Cube date="2026-10-02">', '<n:Cube date="2026-10-03" /><Cube date="2026-10-02">');
+    expect(() => bnr.parseBnrXml(spaced)).toThrow(/missing EUR rate/);
+
+    const older = bnr.parseBnrXml(swap('<Cube date="2026-10-02">', '<Cube date="2026-10-01"/><Cube date="2026-10-02">'));
+    expect([older.as_of, older.rates.RON]).toEqual(["2026-10-02", 5.3447]);
+    const after = bnr.parseBnrXml(swap("</Cube></Body>", '</Cube><Cube date="2026-10-01"/></Body>'));
+    expect([after.as_of, after.rates.RON]).toEqual(["2026-10-02", 5.3447]);
+
+    // a self-closed Rate carries no figure
+    expect(() => bnr.parseBnrXml(swap('<Rate currency="EUR">5.3447</Rate>', '<Rate currency="EUR"/>'))).toThrow(/missing EUR rate/);
+    // an attribute value may contain a slash
+    const slash = bnr.parseBnrXml(swap('<Cube date="2026-10-02">', '<Cube src="a/b" date="2026-10-02">'));
+    expect([slash.as_of, slash.rates.RON]).toEqual(["2026-10-02", 5.3447]);
+  });
+
+  it("an attribute is matched by its whole name: pub-date is not date, x-currency is not currency", () => {
+    const both = bnr.parseBnrXml(swap('<Cube date="2026-10-02">', '<Cube pub-date="2026-10-03" date="2026-10-02">'));
+    expect(both.as_of).toBe("2026-10-02");
+    expect(() => bnr.parseBnrXml(swap('<Cube date="2026-10-02">', '<Cube pub-date="2026-10-02">'))).toThrow(/no Cube with a date/);
+    const doc = swap('<Rate currency="EUR">5.3447</Rate>', '<Rate x-currency="EUR">5.0001</Rate><Rate currency="EUR">5.3447</Rate>');
+    expect(bnr.parseBnrXml(doc).rates.RON).toBe(5.3447);
+    // the first attribute of a tag, and one on a new line, are still read
+    const lines = bnr.parseBnrXml(swap('<Cube date="2026-10-02">', '<Cube\n  date="2026-10-02">'));
+    expect(lines.as_of).toBe("2026-10-02");
+  });
+
   it("a multiplier is divided out; a decimal comma, a hex or an exponent figure is not a rate", () => {
     const per100 = swap('<Rate currency="USD">4.7519</Rate>', '<Rate currency="USD" multiplier="100">475.19</Rate>');
     expect(bnr.parseBnrXml(per100).rates.USD).toBeCloseTo(5.3447 / 4.7519, 9);
@@ -430,22 +477,54 @@ describe("fx function · when BNR may be asked", () => {
   const H = 3_600_000;
   const MIN = 60_000;
   const t = NOW.getTime();
+  const AUGUST = Date.parse("2026-08-05T11:09:17.271Z");
 
   it.each([
-    ["an accepted file 23 h old, not forced", { fetchedAtMs: t - 23 * H, lastAttemptMs: 0, forceRefresh: false }, "serve-cached"],
-    ["an accepted file 25 h old, never retried", { fetchedAtMs: t - 25 * H, lastAttemptMs: 0, forceRefresh: false }, "fetch"],
-    ["the deployed row: accepted two months ago", { fetchedAtMs: Date.parse("2026-08-05T11:09:17.271Z"), lastAttemptMs: Date.parse("2026-08-05T11:09:17.271Z"), forceRefresh: false }, "fetch"],
-    ["a stale row, BNR asked 4 minutes ago and failed", { fetchedAtMs: t - 60 * 24 * H, lastAttemptMs: t - 4 * MIN, forceRefresh: false }, "cooldown"],
-    ["a stale row, BNR asked 6 minutes ago and failed", { fetchedAtMs: t - 60 * 24 * H, lastAttemptMs: t - 6 * MIN, forceRefresh: false }, "fetch"],
-    ["a stale row, forced, BNR asked 4 minutes ago", { fetchedAtMs: t - 60 * 24 * H, lastAttemptMs: t - 4 * MIN, forceRefresh: true }, "cooldown"],
-    ["a fresh file, forced, accepted 4 minutes ago", { fetchedAtMs: t - 4 * MIN, lastAttemptMs: 0, forceRefresh: true }, "cooldown"],
-    ["a fresh file, forced, accepted an hour ago", { fetchedAtMs: t - H, lastAttemptMs: 0, forceRefresh: true }, "fetch"],
-    ["nothing cached, never asked", { fetchedAtMs: 0, lastAttemptMs: 0, forceRefresh: false }, "fetch"],
-    ["nothing cached, asked a minute ago", { fetchedAtMs: 0, lastAttemptMs: t - MIN, forceRefresh: false }, "cooldown"],
+    ["an accepted file 23 h old, not forced", { asOf: "2026-10-02", fetchedAtMs: t - 23 * H, lastAttemptMs: 0, forceRefresh: false }, "serve-cached"],
+    ["an accepted file 25 h old, never retried", { asOf: "2026-10-02", fetchedAtMs: t - 25 * H, lastAttemptMs: 0, forceRefresh: false }, "fetch"],
+    ["the deployed row: accepted two months ago", { asOf: "2026-08-05", fetchedAtMs: AUGUST, lastAttemptMs: AUGUST, forceRefresh: false }, "fetch"],
+    ["a stale row, BNR asked 4 minutes ago and failed", { asOf: "2026-08-05", fetchedAtMs: t - 60 * 24 * H, lastAttemptMs: t - 4 * MIN, forceRefresh: false }, "cooldown"],
+    ["a stale row, BNR asked 6 minutes ago and failed", { asOf: "2026-08-05", fetchedAtMs: t - 60 * 24 * H, lastAttemptMs: t - 6 * MIN, forceRefresh: false }, "fetch"],
+    ["a stale row, forced, BNR asked 4 minutes ago", { asOf: "2026-08-05", fetchedAtMs: t - 60 * 24 * H, lastAttemptMs: t - 4 * MIN, forceRefresh: true }, "cooldown"],
+    ["a fresh file, forced, accepted 4 minutes ago", { asOf: "2026-10-02", fetchedAtMs: t - 4 * MIN, lastAttemptMs: 0, forceRefresh: true }, "cooldown"],
+    ["a fresh file, forced, accepted an hour ago", { asOf: "2026-10-02", fetchedAtMs: t - H, lastAttemptMs: 0, forceRefresh: true }, "fetch"],
+    ["nothing cached, never asked", { asOf: null, fetchedAtMs: 0, lastAttemptMs: 0, forceRefresh: false }, "fetch"],
+    ["nothing cached, asked a minute ago", { asOf: null, fetchedAtMs: 0, lastAttemptMs: t - MIN, forceRefresh: false }, "cooldown"],
+    // the publication date, on the way OUT: fetched_at alone no longer makes a file current
+    ["the August rate under a fetched_at one hour old (a row touched by hand)", { asOf: "2026-08-05", fetchedAtMs: t - H, lastAttemptMs: 0, forceRefresh: false }, "fetch"],
+    ["the same, stamped two minutes ago: BNR was just asked", { asOf: "2026-08-05", fetchedAtMs: t - 2 * MIN, lastAttemptMs: 0, forceRefresh: false }, "cooldown"],
+    ["a file eleven days old accepted an hour ago", { asOf: "2026-09-22", fetchedAtMs: t - H, lastAttemptMs: 0, forceRefresh: false }, "fetch"],
+    ["a file dated tomorrow accepted an hour ago", { asOf: "2026-10-04", fetchedAtMs: t - H, lastAttemptMs: 0, forceRefresh: false }, "fetch"],
   ])("%s", (_name, at, expected) => {
     expect(bnr.TTL_MS).toBe(24 * H);
     expect(bnr.FAILURE_COOLDOWN_MS).toBe(5 * MIN);
-    expect(bnr.fetchDecision({ nowMs: t, ...at })).toBe(expected);
+    const cachedCurrent = bnr.cachedIsCurrent(at.asOf === null ? null : { as_of: at.asOf }, at.fetchedAtMs, NOW);
+    expect(
+      bnr.fetchDecision({ nowMs: t, cachedCurrent, fetchedAtMs: at.fetchedAtMs, lastAttemptMs: at.lastAttemptMs, forceRefresh: at.forceRefresh }),
+    ).toBe(expected);
+  });
+
+  it.each([
+    ["BNR's file of 2 October, accepted an hour ago", "2026-10-02", 1, true],
+    ["the same file, accepted 23 h 59 min ago", "2026-10-02", 23 + 59 / 60, true],
+    ["the same file, accepted 24 h ago", "2026-10-02", 24, false],
+    ["a file exactly ten days old, accepted an hour ago", "2026-09-23", 1, true],
+    ["a file eleven days old, accepted an hour ago", "2026-09-22", 1, false],
+    ["the August rate, accepted an hour ago", "2026-08-05", 1, false],
+    ["a file dated tomorrow", "2026-10-04", 1, false],
+    ["a row whose date is not one", "soon", 1, false],
+  ])("a cached file is current only inside its day AND inside the ten: %s", (_name, asOf, hoursAgo, current) => {
+    expect(bnr.cachedIsCurrent({ as_of: asOf }, t - hoursAgo * H, NOW)).toBe(current);
+    // …and the label a served payload carries is the same judgement
+    const cached = { base: "EUR" as const, rates: { EUR: 1, RON: 5.3447, USD: 1.12 }, source: "BNR", as_of: asOf, fetched_at: new Date(t - hoursAgo * H).toISOString() };
+    expect(bnr.payloadWithoutBnr(cached, t - hoursAgo * H, NOW).stale).toBe(!current);
+  });
+
+  it("nothing cached is never current, and neither is a file with no acceptance time", () => {
+    expect(bnr.cachedIsCurrent(null, t - H, NOW)).toBe(false);
+    expect(bnr.cachedIsCurrent({ as_of: "2026-10-02" }, 0, NOW)).toBe(false);
+    expect(bnr.publishedFresh("2026-10-02", TODAY)).toBe(true);
+    expect(bnr.publishedFresh("2026-09-22", TODAY)).toBe(false);
   });
 });
 
@@ -556,6 +635,42 @@ describe("fx function · one request, on the row production holds", () => {
     expect(late.stale).toBe(true);
     expect([late.source, late.as_of, late.rates.RON]).toEqual(["BNR", "2026-10-02", 5.3447]);
     expect(late.fetched_at).toBe(first.fetched_at); // the time of the LAST GOOD fetch
+  });
+
+  it("a row touched by hand — the August rate under a fetched_at one hour old — is not served as current: BNR is asked, and until it answers the row is MARKED STALE", async () => {
+    // Measured on index.ts under Deno before this: 200, source BNR, stale
+    // false, RON 5.2489, cache-control public max-age=3600, no BNR request.
+    const hourAgo = new Date(NOW.getTime() - 3_600_000).toISOString();
+    const store = new Store({ ...DEPLOYED_ROW, fetched_at: hourAgo, updated_at: hourAgo });
+    const wire = new Wire({ [NEW]: HTML_PAGE, [OLD]: HTML_PAGE });
+    const got = await request(store, wire, bnr.newInstanceMemory(), NOW);
+    expect(wire.asked).toEqual([NEW, OLD]);
+    expect([got.stale, got.rates.RON, got.as_of]).toEqual([true, 5.2489, "2026-08-05"]);
+    // inside the cooldown it is still not current
+    const again = await request(store, wire, bnr.newInstanceMemory(), minutes(2));
+    expect([again.stale, wire.asked.length]).toEqual([true, 2]);
+    // BNR answers: the row is replaced
+    wire.answers = { [NEW]: REAL, [OLD]: HTML_PAGE };
+    const fixed = await request(store, wire, bnr.newInstanceMemory(), minutes(6));
+    expect([fixed.stale, fixed.as_of, fixed.rates.RON]).toEqual([false, "2026-10-02", 5.3447]);
+  });
+
+  it("a file accepted on its tenth day is not a current rate on its eleventh, whatever its fetched_at says", async () => {
+    const store = new Store(null);
+    const frozen = dated("2026-09-23", "5.0001"); // ten days old on 3 October
+    const wire = new Wire({ [NEW]: frozen, [OLD]: frozen });
+    const memory = bnr.newInstanceMemory();
+    const first = await request(store, wire, memory, NOW);
+    expect([first.stale, first.as_of, wire.asked.length]).toEqual([false, "2026-09-23", 2]);
+
+    // 20 hours later it is 4 October in Romania: eleven days. Still inside
+    // the 24 h window — and no longer served as current: BNR is asked, the
+    // address still answers the frozen file, which is now refused.
+    const late = await request(store, wire, memory, minutes(20 * 60));
+    expect(bnr.todayInRomania(minutes(20 * 60))).toBe("2026-10-04");
+    expect(wire.asked).toHaveLength(4);
+    expect([late.stale, late.as_of, late.rates.RON]).toEqual([true, "2026-09-23", 5.0001]);
+    expect(late.fetched_at).toBe(first.fetched_at);
   });
 
   it("a forced refresh inside the day: held for five minutes, then BNR is asked", async () => {
@@ -689,6 +804,29 @@ describe("fx function · the source the redeploy bundles", () => {
     expect(INDEX_TS.match(/if \(error\) throw new Error\(error\.message\);/g)).toHaveLength(3);
     expect(INDEX_TS).toMatch(/\.select\("base, rates, source, as_of, fetched_at, updated_at"\)/);
     expect(INDEX_TS).toMatch(/\.update\(\{ updated_at: atIso \}\)/);
+  });
+
+  it("the accepted file is stored with EVERY column the reader needs — fetched_at and updated_at both the moment it was accepted", () => {
+    // Deleting `fetched_at` from the upsert left both gates green: the row
+    // would keep fetched_at 2026-08-05 and the function would answer a
+    // current rate only on the request that fetched it.
+    const upsert = INDEX_TS.match(/\.upsert\(\s*\{([\s\S]*?)\},\s*\{ onConflict: "id" \},?\s*\)/);
+    expect(upsert).not.toBeNull();
+    const columns = upsert![1].split(",").map((line) => line.trim()).filter(Boolean);
+    expect(columns).toEqual([
+      'id: "current"',
+      "base: payload.base",
+      "rates: payload.rates",
+      "source: payload.source",
+      "as_of: payload.as_of",
+      "fetched_at: payload.fetched_at",
+      "updated_at: payload.fetched_at",
+    ]);
+    // the reader's select names the same columns (id is the filter)
+    const selected = INDEX_TS.match(/\.select\("([^"]+)"\)/)![1].split(", ");
+    expect(columns.map((c) => c.split(":")[0]).filter((c) => c !== "id")).toEqual(selected);
+    // one upsert, one update, one select — no fourth statement
+    expect(INDEX_TS.match(/\.(?:upsert|update|insert|delete|select)\(/g)).toEqual([".select(", ".upsert(", ".update("]);
   });
 
   it("a stale answer is never cached by the browser; a current one for an hour", () => {
