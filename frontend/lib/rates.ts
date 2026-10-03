@@ -49,7 +49,10 @@
 // current either AND the answer was published later. So a stale answer never
 // replaces a current rate, nor an older figure a newer one — and with nothing
 // held, "what is held" is the bundled fallback (BNR's file of 2026-10-02),
-// which a source's two-month-old row does not displace.
+// which a source's two-month-old row does not displace — and a STORED record
+// that is not current and older than the bundled fallback yields to it too
+// (`getHeldRates`), so two browsers handed the same answers show the same
+// figure whatever they stored before.
 // Only a CURRENT payload held for less than a day spares the request: a held
 // payload that is stale, or the fallback, or older than a day, never
 // suppresses the next attempt — every look asks again until a current rate is
@@ -287,9 +290,14 @@ export function preferHeld(own: HeldRates, next: HeldRates, nowMs: number): Held
 }
 
 /** What this browser holds — the record in localStorage, else the bundled
- *  fallback (`cached_at: 0`). Synchronous; never throws. */
-export function getHeldRates(): HeldRates {
-  return readCache() ?? NOTHING_HELD;
+ *  fallback (`cached_at: 0`). A stored record that is not current and was
+ *  published BEFORE the bundled fallback yields to it (`preferHeld`): the
+ *  bundle then carries a newer BNR file than the record does — every browser
+ *  that opened the app before 2026-10-03 holds the function's August row.
+ *  The record itself is left where it is. Synchronous; never throws. */
+export function getHeldRates(nowMs: number = Date.now()): HeldRates {
+  const stored = readCache();
+  return stored ? preferHeld(stored, NOTHING_HELD, nowMs) : NOTHING_HELD;
 }
 
 /** A held record AS IT MAY BE SHOWN at `nowMs`: the payload unchanged while
@@ -372,10 +380,10 @@ export async function fetchHeldRates(opts: { forceRefresh?: boolean } = {}): Pro
   const fromEngine = isCurrentBnrRate(fromFunction) ? null : await ask(engineEndpoint(), ENGINE_TIMEOUT_MS);
 
   // What this browser holds NOW: its last record — read again, another tab
-  // may have stored one while the two requests were out — else the bundled
-  // fallback.
-  const own = readCache() ?? NOTHING_HELD;
+  // may have stored one while the two requests were out — or the bundled
+  // fallback when nothing is stored, or when what is stored is older than it.
   const now = Date.now();
+  const own = getHeldRates(now);
   const chosen = chooseRates(fromFunction, fromEngine, now);
   // Neither answered: what is held stands (past its day `ratesAsShown` marks
   // it stale).

@@ -25,8 +25,9 @@
 //     rate is marked stale, whether or not anyone answers.
 //   · THE SOURCES ARE ASKED AGAIN whenever no current rate is held: on a
 //     timer (`TICK_MS`), when the tab becomes visible or gains focus, when
-//     the browser comes back online — one attempt at a time, never from a
-//     hidden tab. Inside the held day nothing is asked.
+//     the browser comes back online — one attempt at a time, and after the
+//     mount fetch never from a hidden tab (it asks the moment it is seen).
+//     Inside the held day nothing is asked.
 //   · NO REQUEST STORM. The timer, focus and visibility ask at most once per
 //     `RETRY_MS` (five minutes — see the constant for why five). `online`
 //     may ask once without waiting — a network that came back makes the last
@@ -93,8 +94,8 @@ export const TICK_MS = 60_000;
  *  sooner can only be answered the same thing — and one that has just come
  *  back is seen within one window. The cost while BOTH sources stay stale
  *  (two months, in 2026): at most 12 attempts — 24 GETs — per hour per
- *  VISIBLE tab, none from a hidden one. Before this the cost was one attempt
- *  per page load and the tab never healed. */
+ *  VISIBLE tab, and from a hidden one its mount fetch alone. Before this the
+ *  cost was one attempt per page load and the tab never healed. */
 export const RETRY_MS = 5 * 60_000;
 
 function readDisplayFromStorage(): Currency {
@@ -199,6 +200,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       attempt();
     };
 
+    // The mount fetch runs whatever the tab's visibility (as it always did:
+    // a tab opened in the background has its rate when it is first seen).
     attempt();
     const onTick = () => look(false);
     const onSeen = () => look(false);

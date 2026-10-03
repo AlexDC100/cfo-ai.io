@@ -20,8 +20,8 @@
 //     stale BEFORE anyone answers and stays stale until a source does;
 //   · the sources are asked again whenever no current rate is held — on a
 //     timer, when the window gains focus, when the tab becomes visible, when
-//     the browser comes back online — one attempt at a time, never from a
-//     hidden tab;
+//     the browser comes back online — one attempt at a time, and after the
+//     mount fetch never from a hidden tab;
 //   · no request storm: the timer, focus and visibility ask at most once per
 //     five minutes; `online` is let through once without waiting, and that
 //     pass is spent for five minutes — so never more than two attempts in any
@@ -431,6 +431,22 @@ describe("fx open tab · a failed attempt is tried again without a reload", () =
     expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: false });
   });
 
+  it("a tab opened in the background makes its mount fetch — one attempt — and then nothing until it is seen", async () => {
+    setVisibility("hidden");
+    const { asked, replies } = wire({ fn: "network-error", engine: "network-error" });
+    open();
+    await pass(HOUR);
+    await fire("focus", "online"); // events reach a hidden window too: they ask nothing
+    expect(asked).toEqual([FUNCTION_URL, ENGINE_URL]);
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "fallback", stale: true });
+
+    replies.fn = FUNCTION_CURRENT;
+    setVisibility("visible");
+    await fire("visibilitychange");
+    expect(asked).toEqual([FUNCTION_URL, ENGINE_URL, FUNCTION_URL]);
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: false });
+  });
+
   it("one attempt at a time: events while a request is in flight start no second one", async () => {
     const { asked } = wire({ fn: "hang", engine: "hang" });
     open();
@@ -475,6 +491,16 @@ describe("fx open tab · what the tab holds", () => {
     expect(asked.slice(1, 3)).toEqual([FUNCTION_URL, ENGINE_URL]);
     expect(shown()).toEqual({ RON: 5.3512, as_of: "2026-10-05", source: "BNR", stale: true });
     expect(FALLBACK_PAYLOAD.rates.RON).not.toBe(5.3512);
+  });
+
+  it("a browser that stored the August row before this release: first paint is the bundled file of 2 October, marked stale — never 5.2489 — and then the current rate", async () => {
+    hold(FUNCTION_AS_DEPLOYED, HOUR);
+    const { asked } = wire({ fn: FUNCTION_AS_DEPLOYED, engine: ENGINE_CURRENT });
+    open();
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "fallback", stale: true });
+    await pass(SECOND);
+    expect(asked).toEqual([FUNCTION_URL, ENGINE_URL]);
+    expect(shown()).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "BNR", stale: false });
   });
 
   it("a stale answer never replaces the newer rate on screen: past its day the tab's rate is marked stale and the function's August row does not take its place", async () => {

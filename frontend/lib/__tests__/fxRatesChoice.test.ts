@@ -224,21 +224,26 @@ describe("fx browser · the function is not current, so the engine is asked as w
     expect([got.rates.RON, got.stale]).toEqual([5.3447, true]);
 
     // a browser that already holds the August row (every browser that opened
-    // the app before this release) keeps it: 4.97 of May never replaces it
+    // the app before this release) is shown the same: 4.97 of May replaces
+    // nothing, and the stored record is left as it was
     hold(FUNCTION_AS_DEPLOYED, 5 * 60_000);
     wire({ fn: "network-error", engine: ENGINE_AS_DEPLOYED });
-    expect(await fetchRates()).toEqual(FUNCTION_AS_DEPLOYED);
+    expect(shown(await fetchRates())).toEqual(fallbackShown());
     expect(held()).toEqual(FUNCTION_AS_DEPLOYED);
   });
 
-  it("nothing is current: of two stale answers the NEWER publication is kept, marked stale — the engine's last-known rate of 1 October, not the function's row of 5 August", async () => {
+  it("nothing is current: of two stale answers the NEWER publication is kept, marked stale — the engine's last-known rate, not the function's row of 5 August", async () => {
+    // the choice itself: 1 October against 5 August
+    expect(chooseRates(FUNCTION_AS_DEPLOYED, ENGINE_LAST_KNOWN)).toEqual(ENGINE_LAST_KNOWN);
+    // through fetchRates, with a last-known rate published after the bundled fallback
+    const engineToday: RatesPayload = { ...ENGINE_LAST_KNOWN, as_of: "2026-10-03", rates: { EUR: 1, RON: 5.3611, USD: 1.1284 } };
     hold(FUNCTION_AS_DEPLOYED, 5 * 60_000); // what this browser held before the release
-    const asked = wire({ fn: FUNCTION_AS_DEPLOYED, engine: ENGINE_LAST_KNOWN });
+    const asked = wire({ fn: FUNCTION_AS_DEPLOYED, engine: engineToday });
     const got = await fetchRates();
     expect(asked).toEqual([FUNCTION_URL, ENGINE_URL]);
-    expect(got).toEqual(ENGINE_LAST_KNOWN);
-    expect([got.rates.RON, got.as_of, got.stale]).toEqual([5.3301, "2026-10-01", true]);
-    expect(held()).toEqual(ENGINE_LAST_KNOWN);
+    expect(got).toEqual(engineToday);
+    expect([got.rates.RON, got.as_of, got.stale]).toEqual([5.3611, "2026-10-03", true]);
+    expect(held()).toEqual(engineToday);
     // the other way round: the function's row is the newer one
     expect(chooseRates(FUNCTION_STALE_TODAY, ENGINE_LAST_KNOWN)).toEqual(FUNCTION_STALE_TODAY);
     // on the same date the function's is kept
@@ -249,12 +254,17 @@ describe("fx browser · the function is not current, so the engine is asked as w
   it("this release with the engine unable to read BNR: it answers its bundled fallback, the function its August row — BNR's file of 2 October is shown, marked stale", async () => {
     // the engine's fallback payload after this release: source fallback, as_of 2026-10-02
     const engineFallback: RatesPayload = { ...FALLBACK_PAYLOAD, fetched_at: "2026-10-03T16:59:00+00:00" };
-    hold(FUNCTION_AS_DEPLOYED, 5 * 60_000);
-    wire({ fn: FUNCTION_AS_DEPLOYED, engine: engineFallback });
-    const got = await fetchRates();
-    expect(got).toEqual(engineFallback);
-    expect(shown(got)).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "fallback", stale: true });
-    expect(held()).toEqual(engineFallback);
+    expect(chooseRates(FUNCTION_AS_DEPLOYED, engineFallback)).toEqual(engineFallback);
+    for (const before of [null, FUNCTION_AS_DEPLOYED]) {
+      // a new browser, and one that stored the August row before the release:
+      // the same figure on both
+      localStorage.clear();
+      if (before) hold(before, 5 * 60_000);
+      wire({ fn: FUNCTION_AS_DEPLOYED, engine: engineFallback });
+      const got = await fetchRates();
+      expect(shown(got)).toEqual({ RON: 5.3447, as_of: "2026-10-02", source: "fallback", stale: true });
+      expect(got.rates.RON).not.toBe(5.2489);
+    }
   });
 
   it("a function payload that omits `stale`, or says stale with any other word, is not trusted as current", async () => {
@@ -347,18 +357,22 @@ describe("fx browser · the function does not answer", () => {
   });
 
   it("the function is down and the engine is stale: the engine's payload as served — stale — unless what the browser holds is newer", async () => {
-    hold(FUNCTION_AS_DEPLOYED, 5 * 60_000);
-    wire({ fn: "network-error", engine: ENGINE_LAST_KNOWN });
+    const engineToday: RatesPayload = { ...ENGINE_LAST_KNOWN, as_of: "2026-10-03", rates: { EUR: 1, RON: 5.3611, USD: 1.1284 } };
+    wire({ fn: "network-error", engine: engineToday });
     const got = await fetchRates();
-    expect(got).toEqual(ENGINE_LAST_KNOWN);
+    expect(got).toEqual(engineToday);
     expect(got.stale).toBe(true);
+    expect(held()).toEqual(engineToday);
 
-    // nothing held: the bundled fallback (2 October) is newer than the
-    // engine's last-known rate (1 October)
-    localStorage.clear();
-    wire({ fn: "network-error", engine: ENGINE_LAST_KNOWN });
-    expect(shown(await fetchRates())).toEqual(fallbackShown());
-    expect(held()).toBeNull();
+    // a last-known rate of 1 October: the bundled fallback (2 October) is
+    // newer — with nothing held, and with the August row held
+    for (const before of [null, FUNCTION_AS_DEPLOYED]) {
+      localStorage.clear();
+      if (before) hold(before, 5 * 60_000);
+      wire({ fn: "network-error", engine: ENGINE_LAST_KNOWN });
+      expect(shown(await fetchRates())).toEqual(fallbackShown());
+      expect(held()).toEqual(before);
+    }
   });
 
   it("a function that never answers is abandoned after eight seconds and the engine is asked", async () => {
@@ -430,10 +444,16 @@ describe("fx browser · neither source answers", () => {
     expect(got).toEqual({ ...ENGINE_CURRENT, stale: true });
   });
 
-  it("a stale payload held: shown, still stale", async () => {
-    hold(FUNCTION_AS_DEPLOYED, 5 * 60_000);
+  it("a stale payload held: shown, still stale — unless the bundled fallback is the newer figure", async () => {
+    hold(FUNCTION_STALE_TODAY, 5 * 60_000);
     wire({ fn: "network-error", engine: "network-error" });
-    expect(await fetchRates()).toEqual(FUNCTION_AS_DEPLOYED);
+    expect(await fetchRates()).toEqual(FUNCTION_STALE_TODAY);
+
+    // the August row every pre-release browser holds: BNR's file of 2 October
+    // (bundled) is shown instead, and the stored record is not touched
+    hold(FUNCTION_AS_DEPLOYED, 5 * 60_000);
+    expect(shown(await fetchRates())).toEqual(fallbackShown());
+    expect(held()).toEqual(FUNCTION_AS_DEPLOYED);
   });
 
   it("a forced refresh that fails inside the held rate's day keeps it as it is", async () => {
@@ -510,8 +530,16 @@ describe("fx browser · what the browser holds", () => {
     hold(ENGINE_CURRENT, 30 * HOUR);
     expect(getInitialRates()).toEqual({ ...ENGINE_CURRENT, stale: true });
 
+    // a held stale record published after the bundled fallback is shown…
+    hold(FUNCTION_STALE_TODAY, 2 * HOUR);
+    expect(getInitialRates()).toEqual(FUNCTION_STALE_TODAY);
+    // …the August row (older than the bundle's file of 2 October) is not:
+    // first paint is already the newer figure, marked stale
     hold(FUNCTION_AS_DEPLOYED, 2 * HOUR);
-    expect(getInitialRates()).toEqual(FUNCTION_AS_DEPLOYED);
+    expect(getInitialRates()).toBe(FALLBACK_PAYLOAD);
+    // on the same date the stored record stays (a source answered it)
+    hold({ ...ENGINE_CURRENT, stale: true }, 2 * HOUR);
+    expect(getInitialRates()).toEqual({ ...ENGINE_CURRENT, stale: true });
 
     localStorage.setItem(CACHE_KEY, "{not json");
     expect(getInitialRates()).toBe(FALLBACK_PAYLOAD);
