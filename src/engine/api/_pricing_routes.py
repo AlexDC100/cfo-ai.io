@@ -40,10 +40,13 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Body, Header, HTTPException
+import uuid
+
+from fastapi import APIRouter, Body, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from . import _pricing_config, _plan_state, _supabase
+from ..public.refresh_shield import require_operator
 
 
 class ConfirmExtraDocRequest(BaseModel):
@@ -265,32 +268,54 @@ def build_router() -> APIRouter:
             },
         }
 
-    # ─── Idempotent commit/release endpoints (admin/diagnostic) ────
-    # Exposed for tests + retries — the orchestrator handles the
-    # normal commit/release lifecycle, but a stuck reservation
-    # (e.g., the daemon thread died before reaching the terminal
-    # state) can be cleaned up by an admin or the recover-stuck
-    # endpoint via these routes.
+    # ─── Commit / release of a document reservation — OPERATOR ONLY ────
+    #
+    # The orchestrator handles the normal commit/release lifecycle. These
+    # two routes exist for the case it cannot reach — a reservation left
+    # behind by a worker that died before the terminal state.
+    #
+    # Until 2026-10-03 both took the CALLER's own bearer and moved the
+    # caller's own meter. Measured against the real router and the real
+    # meter RPCs: a signed-in account on a one-document plan reserved,
+    # released its own reservation with its own token, reserved again —
+    # four documents in flight, four counted, cap 1. No screen calls
+    # either route (grep: frontend, mobile, e2e, scripts). A meter a user
+    # can move is not a meter, so they are what their comment always said
+    # they were — an operator's tool: the engine bearer (fail closed where
+    # it is not configured, like the crons) and the account NAMED by the
+    # operator, never taken from a token.
+    # Gate: plan-meter-routes (tests/engine/test_plan_meter_routes.py).
+
+    def _named_account(user_id: Optional[str]) -> str:
+        # Checked AFTER the wall: an anonymous caller is answered 401 whatever
+        # it sent, never a validation message.
+        try:
+            return str(uuid.UUID(str(user_id)))
+        except (ValueError, AttributeError, TypeError):
+            raise HTTPException(422, "user_id must be the account's uuid.")
+
     @router.post("/api/plan/commit-document-usage")
     def plan_commit_document_usage(
-        authorization: Optional[str] = Header(None),
+        request: Request,
+        user_id: Optional[str] = None,
         was_extra: bool = False,
     ) -> Dict[str, Any]:
         from . import _usage_gate as _ug
-        jwt = _require_jwt(authorization)
-        uid = _user_id_from_jwt(jwt)
+        require_operator(request, route="POST /api/plan/commit-document-usage")
+        uid = _named_account(user_id)
         _ug.commit_document(uid, was_extra=was_extra)
-        return {"ok": True, "scope": "user", "user_id": uid}
+        return {"ok": True, "scope": "operator", "user_id": uid}
 
     @router.post("/api/plan/release-document-reservation")
     def plan_release_document_reservation(
-        authorization: Optional[str] = Header(None),
+        request: Request,
+        user_id: Optional[str] = None,
         was_extra: bool = False,
     ) -> Dict[str, Any]:
         from . import _usage_gate as _ug
-        jwt = _require_jwt(authorization)
-        uid = _user_id_from_jwt(jwt)
+        require_operator(request, route="POST /api/plan/release-document-reservation")
+        uid = _named_account(user_id)
         _ug.release_document(uid, was_extra=was_extra)
-        return {"ok": True, "scope": "user", "user_id": uid}
+        return {"ok": True, "scope": "operator", "user_id": uid}
 
     return router
