@@ -28,7 +28,11 @@
 #   THE CENSUS  with the three revoke files applied, every table that is
 #          still open is one this repository has CLASSIFIED (a user's JWT
 #          writes it, or another file closes it); a table created without
-#          row level security that nobody classified is RED.
+#          row level security that nobody classified is RED; a hand-made
+#          VIEW an API role can write through is named by the report (and
+#          the write through it is shown to land, past the revoke);
+#   AN EMPTY DATABASE  the report and the migration answer where none of the
+#          listed tables exists.
 #
 # WHAT IT CANNOT SEE. PostgREST and pg_graphql themselves (a request is
 # reproduced as the SQL it is, in an `authenticator` session); a grant made
@@ -255,5 +259,19 @@ check "N6 it examined the whole schema" "$(q "select ($(jget "$REPORT" '{public_
 q "create table public.somebody_forgot_rls (id bigint primary key, note text);" >/dev/null
 run_report "$REPORT_SQL"
 check "N7 a NEW table created without row level security is named as unknown and open" "$(jget "$REPORT" '{rls_off_tables_not_known_to_this_repository}')" '["somebody_forgot_rls"]'
+check "N8 the repository defines no view an API role can write through" "$(jget "$REPORT" '{api_writable_views}')" "[]"
+# A hand-made view over a listed table: it writes AS ITS OWNER, past the revoke.
+q "create view public.handmade_company_view as select * from public.public_companies;" >/dev/null
+n0="$(rows public_companies)"
+v="$(attempt anon "" "insert into public.handmade_company_view (ticker, name) values ('VIEW1', 'Through a view')")"
+check "N9 measured: the anon key INSERTS into a revoked table through a hand-made view (default grants, not security_invoker)" "$v|$(rows public_companies)" "LANDED|$((n0 + 1))"
+run_report "$REPORT_SQL"
+check "N10 … and the report names that view" "$(jsql "$REPORT" "select string_agg((x ->> 'view') || ':' || (x ->> 'security_invoker'), ',') from jsonb_array_elements(:'j'::jsonb -> 'api_writable_views') x;")" "handmade_company_view:false"
+check "N11 … while hole_open stays about the listed tables (false)" "$(jget "$REPORT" '{hole_open}')" "false"
+q "drop view public.handmade_company_view; delete from public.public_companies where ticker = 'VIEW1';" >/dev/null
+
+# ── AN EMPTY DATABASE ────────────────────────────────────────────────────
+echo "── AN EMPTY DATABASE — none of the listed tables"
+holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
 
 holes_finish

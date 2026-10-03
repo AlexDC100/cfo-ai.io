@@ -216,4 +216,8 @@ check_has "H4 … and says what it revoked" "$(jget "$MIG_RESULT" '{revoked,stat
 report_says "H5 the report says hole_open: false" "false"
 refused_everywhere "H6"
 
+# ── AN EMPTY DATABASE ────────────────────────────────────────────────────
+echo "── AN EMPTY DATABASE — none of the listed tables"
+holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+
 holes_finish

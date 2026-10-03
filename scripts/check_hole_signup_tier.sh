@@ -169,4 +169,8 @@ holes_psql "$HOLES_DB" --single-transaction -f - < "$HOLES_SQL_DIR/schema_phase3
 apply_migration "$MIGRATION"
 report_says "U6 with the repository's function back, the migration closes it" "false"
 
+# ── AN EMPTY DATABASE ────────────────────────────────────────────────────
+echo "── AN EMPTY DATABASE — auth.users has no trigger and public.subscriptions does not exist"
+holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+
 holes_finish

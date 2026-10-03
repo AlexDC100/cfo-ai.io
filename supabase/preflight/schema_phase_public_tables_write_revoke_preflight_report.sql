@@ -24,6 +24,16 @@
 --                           security off, the anon key writes them. This
 --                           file does not guess who writes a table it has
 --                           never seen.
+--   api_writable_views  every VIEW in schema public that anon or
+--                     authenticated may INSERT into, UPDATE or DELETE from
+--                     and that Postgres will write through (auto-updatable,
+--                     or with an INSTEAD OF trigger). A view that is not
+--                     security_invoker writes its table AS THE VIEW'S OWNER —
+--                     past the table's row level security and past every
+--                     revoke in this file. The repository defines none; a
+--                     hand-made one is named here with its options. Expected:
+--                     []. NOT part of "hole_open" (the migration does not
+--                     touch a view) — read it.
 --
 -- The three lists below are held to the migration's list and to the
 -- classification in tests/engine/test_entitlement_hole_laws.py.
@@ -143,5 +153,23 @@ select jsonb_build_object(
               where not o.rls
                 and not exists (select 1 from listed l where l.name = o.name)
                 and not exists (select 1 from known k where k.name = o.name)),
+  'api_writable_views', (select coalesce(jsonb_agg(jsonb_build_object(
+                'view', v.relname,
+                'security_invoker', coalesce(v.reloptions::text ~ 'security_invoker=(true|on)', false),
+                'owner', pg_get_userbyid(v.relowner),
+                'api_write_privileges', to_jsonb(array(
+                    select r.rolname || ':' || pr
+                      from (values ('anon'), ('authenticated')) as r(rolname)
+                     cross join unnest(array['INSERT', 'UPDATE', 'DELETE']) as pr
+                     where has_table_privilege(r.rolname, v.oid, pr)
+                     order by 1))
+              ) order by v.relname), '[]'::jsonb)
+               from pg_class v
+              where v.relnamespace = to_regnamespace('public') and v.relkind = 'v'
+                and (pg_relation_is_updatable(v.oid, true) & 28) <> 0     -- 4 UPDATE, 8 INSERT, 16 DELETE
+                and exists (select 1
+                              from (values ('anon'), ('authenticated')) as r(rolname)
+                             cross join unnest(array['INSERT', 'UPDATE', 'DELETE']) as pr
+                             where has_table_privilege(r.rolname, v.oid, pr))),
   'public_tables_examined', (select count(*) from census)
 ) as report;
