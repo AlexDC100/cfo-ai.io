@@ -192,6 +192,26 @@ export function bearerOf(authorization: string | null | undefined): string | nul
   return token ? token : null;
 }
 
+/** What the auth server's answer to "who is this bearer?" MEANS.
+ *
+ *    a user id                     → verified
+ *    no user and no error          → nobody
+ *    the server's own "no" (a 4xx) → nobody — the caller is told to sign in
+ *    408 / 429                     → could not ask: "ask again", not "nobody".
+ *                                    A signed-in reader whose check was rate
+ *                                    limited is not told their session ended.
+ *    anything else (a network failure, a 5xx, an error with no status)
+ *                                  → could not ask
+ *
+ *  Never the token's own claims; "could not ask" is refused as well (503). */
+export function verdictOfAuthAnswer(userId: unknown, hadError: boolean, errorStatus: unknown): VerifyResult {
+  if (typeof userId === "string" && userId) return { kind: "verified", userId };
+  if (!hadError) return { kind: "unverified" };
+  const s = typeof errorStatus === "number" ? errorStatus : NaN;
+  if (s >= 400 && s < 500 && s !== 408 && s !== 429) return { kind: "unverified" };
+  return { kind: "unavailable" };
+}
+
 /** The request's own `language` field, if it carries one. */
 export function languageOf(body: unknown): Lang {
   const raw = isRecord(body) ? body.language : undefined;

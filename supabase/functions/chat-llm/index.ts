@@ -37,6 +37,7 @@ import {
   handleChat,
   readModelResponse,
   resolveUpstreamBase,
+  verdictOfAuthAnswer,
   type MeterArgs,
   type ModelInput,
   type ModelResult,
@@ -92,23 +93,18 @@ function json(body: unknown, status: number, cors: Record<string, string>): Resp
 // ── The real dependencies guard.ts is handed ────────────────────────────
 
 /** Who the bearer is, according to the auth server — never the token's own
- *  claims. A 4xx is the server saying "nobody"; anything else (a network
- *  failure, a 5xx) is "could not ask", which guard.ts refuses as well. */
+ *  claims. What its answer means is guard.verdictOfAuthAnswer: a 4xx is the
+ *  server saying "nobody"; a rate limit, a network failure or a 5xx is "could
+ *  not ask", which guard.ts refuses as well. */
 async function verifyUser(bearer: string): Promise<VerifyResult> {
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${bearer}` } },
     auth: SERVER_AUTH,
   });
   const { data, error } = await userClient.auth.getUser(bearer);
-  const id = data?.user?.id;
-  if (typeof id === "string" && id) return { kind: "verified", userId: id };
-  if (error) {
-    const status = (error as { status?: unknown }).status;
-    if (typeof status === "number" && status >= 400 && status < 500) return { kind: "unverified" };
-    console.error("[chat] auth.getUser could not be asked", error);
-    return { kind: "unavailable" };
-  }
-  return { kind: "unverified" };
+  const verdict = verdictOfAuthAnswer(data?.user?.id, Boolean(error), (error as { status?: unknown } | null)?.status);
+  if (verdict.kind === "unavailable") console.error("[chat] auth.getUser could not be asked", error);
+  return verdict;
 }
 
 /** The user's plan columns; null when there is no row. THROWS when the row

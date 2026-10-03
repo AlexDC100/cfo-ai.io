@@ -302,7 +302,7 @@ try {
     check("2.10 the refusal's sentence follows the request's language field", detail(ro.json).message, "Autentifică-te ca să folosești Ask CFO AI.");
     const bad = await ask(fn, null, "{not json");
     check("2.11 unauthenticated with an unreadable body: still 401, not 400", bad.status, 401);
-    check("2.12 across those eleven calls the recorder saw NO upstream request", seen.length - before, 0);
+    check("2.12 across those ten calls the recorder saw NO upstream request", seen.length - before, 0);
     check("2.13 …and nothing was metered for the user the forged and expired tokens named", await meter(trial), [null, null, null, null]);
   }
 

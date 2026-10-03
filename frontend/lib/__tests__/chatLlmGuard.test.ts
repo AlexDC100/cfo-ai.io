@@ -42,6 +42,7 @@ import {
   readModelResponse,
   readReserve,
   resolveUpstreamBase,
+  verdictOfAuthAnswer,
   type ChatDeps,
   type MeterArgs,
   type ModelInput,
@@ -240,6 +241,28 @@ describe("C1 — no verified user, no model call", () => {
     expect(bearerOf("bearer   abc  ")).toBe("abc");
     expect(bearerOf("BEARER abc")).toBe("abc");
     for (const none of [null, undefined, "", "Bearer", "Bearer    ", "abc", "Token abc"]) expect(bearerOf(none as string | null)).toBeNull();
+  });
+
+  it("what the auth server's answer MEANS: a user id is a user; its own 4xx is nobody; a rate limit, a 5xx, a network failure or an error with no status is 'could not ask' — never a yes, and never 'your session ended'", () => {
+    expect(verdictOfAuthAnswer(USER, false, undefined)).toEqual({ kind: "verified", userId: USER });
+    // No user, no error: nobody.
+    for (const id of [undefined, null, "", 0, {}, 42]) expect(verdictOfAuthAnswer(id, false, undefined), String(id)).toEqual({ kind: "unverified" });
+    // The server said no — the bearer is nobody (GoTrue answers 401 / 403 for a bad, expired or orphaned token).
+    for (const status of [400, 401, 403, 404, 422]) expect(verdictOfAuthAnswer(undefined, true, status), String(status)).toEqual({ kind: "unverified" });
+    // The server could not be asked, or said "ask again": NOT nobody.
+    for (const status of [408, 429, 500, 502, 503, 504, 0, 399, 600, NaN, undefined, null, "403", "429"]) {
+      expect(verdictOfAuthAnswer(undefined, true, status), String(status)).toEqual({ kind: "unavailable" });
+    }
+  });
+
+  it("…and each verdict's refusal: nobody → 401 sign_in_required; could not ask → 503 auth_unavailable; neither reaches the plan row, the meter or the model", async () => {
+    for (const [status, want, code] of [[403, 401, "sign_in_required"], [429, 503, "auth_unavailable"], [503, 503, "auth_unavailable"]] as const) {
+      const w = world({ verifyUser: async () => verdictOfAuthAnswer(undefined, true, status) });
+      const r = await ask(w);
+      expect([r.status, bodyOf(r).error], String(status)).toEqual([want, code]);
+      expect(w.calls, String(status)).toEqual(["verify"]);
+      expect(w.upstream.length).toBe(0);
+    }
   });
 });
 

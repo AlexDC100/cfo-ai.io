@@ -47,10 +47,17 @@ WHAT IT RUNS
      reach; and the user at the cap trying to move their own counter through
      PostgREST.
 
-LOCAL ONLY. The API is CHAT_CAP_API_URL (default http://127.0.0.1:54321) and
-the database is the container CHAT_CAP_DB_CONTAINER (default
-supabase_db_cfo-ai-test). A host that is not a loopback address is REFUSED
-(exit 2) before anything is opened: this gate creates users.
+LOCAL ONLY, AND ONE STACK. The API is CHAT_CAP_API_URL (default
+http://127.0.0.1:54321) and the database is the container
+CHAT_CAP_DB_CONTAINER (default supabase_db_cfo-ai-test). A host that is not a
+loopback address is REFUSED (exit 2) before anything is opened: this gate
+creates users. So is an API that is not the gateway of the stack that
+container belongs to (supabase_kong_<project>, or
+CHAT_CAP_GATEWAY_CONTAINER): users created through one stack's API and
+"removed" through another stack's database would stay where they were made
+while the gate reported none left. Both refusals are cases of the gate
+itself (W): it runs this file against a non-loopback name and against a
+loopback port that is not the gateway, and expects exit 2 from each.
 
 VACUOUS, never green, when the local stack or Deno is not there: it prints
 `GATE-WORK chat-cap-real units=0` and exits 0; scripts/run_battery.py reports
@@ -91,6 +98,9 @@ ATOMIC_SQL = REPO / "supabase" / "schema_phase_pricing_v3_atomic.sql"
 PREFLIGHT = REPO / "supabase" / "preflight" / "chat_cap_always_preflight_report.sql"
 API_URL = os.environ.get("CHAT_CAP_API_URL", "http://127.0.0.1:54321").rstrip("/")
 CONTAINER = os.environ.get("CHAT_CAP_DB_CONTAINER", "supabase_db_cfo-ai-test")
+GATEWAY = os.environ.get("CHAT_CAP_GATEWAY_CONTAINER") or (
+    "supabase_kong_" + CONTAINER[len("supabase_db_"):] if CONTAINER.startswith("supabase_db_") else "")
+SELFTEST = bool(os.environ.get("CHAT_CAP_SELFTEST"))
 DOMAIN = "chat-gate.invalid"
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 CHAT_FUNCTIONS = ("reserve_user_chat", "commit_user_chat", "release_user_chat")
@@ -325,6 +335,28 @@ def main() -> int:
         bind = line.rsplit(":", 1)[0].strip("[]")
         if bind not in ("127.0.0.1", "0.0.0.0", "::", "::1"):
             refuse("the container '%s' publishes its database on '%s' — not a local stack" % (CONTAINER, bind))
+    db_port = ports.stdout.strip().splitlines()[0].rsplit(":", 1)[1].strip()
+
+    # ── one stack: the API is the gateway of the stack this database belongs to ──
+    if not GATEWAY:
+        refuse("'%s' is not a supabase_db_<project> container, so its gateway cannot be named: "
+               "set CHAT_CAP_GATEWAY_CONTAINER" % CONTAINER)
+    try:
+        gw = subprocess.run(["docker", "port", GATEWAY, "8000/tcp"], capture_output=True, text=True, timeout=20)
+    except Exception:  # noqa: BLE001
+        gw = None
+    if gw is None or gw.returncode != 0 or not gw.stdout.strip():
+        vacuous("the gateway container '%s' is not running" % GATEWAY)
+    published = sorted({line.rsplit(":", 1)[1].strip() for line in gw.stdout.strip().splitlines()})
+    if str(port) not in published:
+        refuse("CHAT_CAP_API_URL names port %s, but the gateway of the stack whose database is '%s' publishes %s. "
+               "This gate creates users through the API and removes them through that database — one stack, not two."
+               % (port, CONTAINER, ", ".join(published)))
+    if SELFTEST:
+        # A child run of W below: everything that refuses is above this line.
+        print("SELFTEST — '%s' was NOT refused" % API_URL)
+        print("GATE-WORK %s units=0" % GATE)
+        return 0
     try:
         have = psql("select to_regclass('public.subscriptions') is not null and "
                     "to_regclass('public.user_usage') is not null and "
@@ -343,6 +375,25 @@ def main() -> int:
             failed("the file exists — %s" % f.relative_to(REPO))
             print("GATE-WORK %s units=%d" % (GATE, units))
             return 1
+
+    # ── W. the wrapper refuses what it must (this file, run as a child) ──
+    for label, url, needle in (
+        ("W. this gate REFUSES an API that is not a loopback address (exit 2, before anything is opened)",
+         "http://stack.%s:%s" % (DOMAIN, port), "loopback"),
+        ("W. this gate REFUSES a loopback API that is not this stack's gateway (exit 2, before a user is created)",
+         "http://127.0.0.1:%s" % db_port, "one stack, not two"),
+    ):
+        try:
+            child = subprocess.run([sys.executable, str(Path(__file__).resolve())],
+                                   env=dict(os.environ, CHAT_CAP_API_URL=url, CHAT_CAP_SELFTEST="1"),
+                                   capture_output=True, text=True, timeout=60)
+            if child.returncode == 2 and "REFUSED" in child.stdout and needle in child.stdout:
+                passed(label)
+            else:
+                failed(label, "exit %s for CHAT_CAP_API_URL=%s" % (child.returncode, url),
+                       *[ln for ln in child.stdout.strip().splitlines()[-3:]])
+        except Exception as e:  # noqa: BLE001
+            failed(label, "%s: %s" % (type(e).__name__, e))
 
     # ── A. the SQL on the stack is this repository's ──
     sql_text = ATOMIC_SQL.read_text(encoding="utf-8")
