@@ -136,6 +136,11 @@ WRITES: Dict[str, Callable[[SB.SupabaseClient], Any]] = {
     "insert": lambda c: c.insert("documents", {"id": SECRET_ID}),
     "upsert": lambda c: c.upsert("metrics", [{"id": 1}], on_conflict="id"),
     "update": lambda c: c.update("documents", {"status": "failed"}, filters={"id": "eq.x"}),
+    # The compare-and-swap PATCH the mail drains claim a row with (gate
+    # scheduled-mail-tenancy): a claim that timed out may have landed, and
+    # replaying it would answer [] to the caller that DID win the row.
+    "update_returning": lambda c: c.update_returning(
+        "firm_email_queue", {"status": "failed"}, filters={"id": "eq.x", "status": "eq.queued"}),
     "delete": lambda c: c.delete("documents", filters={"id": "eq.x"}),
     "rpc": lambda c: c.rpc("create_workspace", {"p_name": "X"}),
     "signed_url": lambda c: c.signed_url("documents", "%s/uploads/a.pdf" % ORG, org_id=ORG),

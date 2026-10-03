@@ -94,6 +94,14 @@ class FakeAdmin(object):
             if all(self._match(r, k, v) for k, v in filters.items()):
                 r.update(copy.deepcopy(patch))
 
+    def update_returning(self, table: str, patch: Dict[str, Any], *,
+                         filters: Dict[str, str]) -> List[Dict[str, Any]]:
+        """PATCH … Prefer: return=representation — the rows it changed."""
+        touched = [r for r in self.tables.get(table, [])
+                   if all(self._match(r, k, v) for k, v in filters.items())]
+        self.update(table, patch, filters=filters)
+        return [copy.deepcopy(r) for r in touched]
+
     def upsert(self, table: str, rows: Any, *, on_conflict: str,
                returning: bool = False) -> List[Dict[str, Any]]:
         body = rows if isinstance(rows, list) else [rows]
