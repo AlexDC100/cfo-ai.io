@@ -5,7 +5,7 @@
     python3 scripts/check_public_store.py --db path/to/engine.db
 
 Owner ticket 2026-10-02 ("confirm the shared SQLite store holds no real user
-data"; CLAUDE.md §27). Opens ``engine.db`` READ-ONLY (``mode=ro``: it cannot
+data"; CLAUDE.md §28). Opens ``engine.db`` READ-ONLY (``mode=ro``: it cannot
 create the file, a table or a journal) and prints, per table, the row count,
 the column names and the date range of its rows — never a row, a name, an
 address, a SKU or a figure. The file is not copied anywhere.
