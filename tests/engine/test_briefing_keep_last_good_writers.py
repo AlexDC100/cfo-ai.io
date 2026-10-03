@@ -2403,68 +2403,173 @@ def test_a_same_month_reupload_that_stored_no_recommendations_keeps_the_months_a
 # ══════════════════════════════════════════════════════════════════════
 # W6 — the re-run a USER starts: the Docs panel's "Re-run analysis"
 # ══════════════════════════════════════════════════════════════════════
+#
+# POST /api/pipeline/retry RESETS before it re-runs (it deletes the period
+# the document is pinned to; production's foreign keys cascade the briefing
+# and the recommendations away) and the run files the document afresh.
+# Measured on d3c955a7: with the provider refusing, the reader was served
+# `briefing.body: null, unavailable: true` and no recommendations.
+#
+# RULED 2026-10-03: the re-run must not cost the reader the last good
+# briefing or the recommendations. THE RESET STAYS AS IT WAS; what it takes
+# is CARRIED across it (`_carry_before_rerun_reset`) and put back by
+# `stage_persist_narrative` when the run's narration brings nothing.
+#
+# (A first repair made the re-run go in place. Independent review measured
+# three wrong states of it — a failed re-run left a FAILED document over a
+# served period, a failure after persist served new statements beside old
+# metrics, a re-filed document kept two periods — and it was withdrawn.
+# `test_the_reset_is_what_it_always_was` and
+# `test_a_docs_panel_rerun_whose_run_fails_leaves_no_failed_document_over_a_period`
+# are the laws that keep it withdrawn.)
+
+#: Production's foreign keys: rows that go with their period (ON DELETE
+#: CASCADE — schema_phase3.sql, schema_phase_notes_period_scope.sql).
+_PERIOD_CHILD_TABLES = ("statement_line_items", "calculated_metrics", "briefings",
+                        "recommendations", "valuations", "alerts")
+
+
+def _cascade_period_deletes(gw, monkeypatch) -> None:
+    """The `gw` double models no foreign key, and the re-run's reset RELIES
+    on production's cascade: without it the old period's briefing and
+    recommendations would survive here as orphans and nothing below would
+    prove that they were CARRIED. Call it before `_Spy` (the child deletes
+    are the database's, not the engine's)."""
+    real = gw.db.delete
+
+    def delete(table: str, *args: Any, **kwargs: Any) -> Any:
+        gone = []  # type: List[str]
+        if table == "financial_periods":
+            gone = [str(r["id"]) for r in gw.db.select("financial_periods",
+                                                       filters=kwargs.get("filters") or {})]
+        out = real(table, *args, **kwargs)
+        for period_id in gone:
+            for child in _PERIOD_CHILD_TABLES:
+                real(child, filters={"period_id": "eq.%s" % period_id})
+        return out
+
+    monkeypatch.setattr(gw.db, "delete", delete)
+
+
+#: What a user set on a recommendation — what a reset used to cost them.
+WORKED = {"status": "in_review", "owner": "CFO", "due_date": "2026-11-15"}
+#: The columns of a recommendation that must come through a re-run untouched.
+_REC_COLUMNS = ("id", "org_id", "title", "explanation", "urgency", "status", "owner", "due_date",
+                "target_type", "expected_cash_impact_kron", "source_alert_id")
+
+
+def _work_a_recommendation(gw) -> str:
+    """A user works the first recommendation (through the database, as the
+    product's own update does). Returns its title."""
+    rec = sorted(gw.db.rows("recommendations"), key=lambda r: r["title"])[0]
+    gw.db.update("recommendations", dict(WORKED), filters={"id": "eq.%s" % rec["id"]})
+    (now,) = [r for r in gw.db.rows("recommendations") if r["id"] == rec["id"]]
+    assert dict((k, now[k]) for k in WORKED) == WORKED, now
+    return rec["title"]
+
+
+def _rec_view(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return sorted((dict((k, r.get(k)) for k in _REC_COLUMNS) for r in rows), key=lambda r: r["title"])
+
+
+def _rerun_world(app, gw, monkeypatch, second: Any) -> Dict[str, Any]:
+    """Agras's December analysed with a narration that worked, one
+    recommendation worked by a user, the database cascading as production
+    does, and the provider scripted for the re-run."""
+    monkeypatch.setattr(P, "_RERUN_CARRY", {})
+    _cascade_period_deletes(gw, monkeypatch)
+    outcomes = [_reply(BODY_A, TITLES_A)] + (second if isinstance(second, list) else [second])
+    _script_the_provider(monkeypatch, outcomes)
+    first = _first_analysis(app, gw)
+    worked_title = _work_a_recommendation(gw)
+    return dict(first, worked_title=worked_title,
+                recommendations=copy.deepcopy(gw.db.rows("recommendations")))
+
+
+def _post_retry(app, first: Dict[str, Any]):
+    return V._http(app).post("/api/pipeline/retry", headers=V._headers(V.USER, first["org_id"]),
+                             json={"document_id": first["doc"]["id"]})
 
 
 def _docs_panel_rerun(app, gw, first: Dict[str, Any]) -> Dict[str, Any]:
-    """What `DocsPanel.tsx` does for an analysed document: the REAL POST
+    """What `DocsPanel.tsx` does for a document: the REAL POST
     /api/pipeline/retry, then the run it queued."""
-    doc_id = first["doc"]["id"]
-    r = V._http(app).post("/api/pipeline/retry", headers=V._headers(V.USER, first["org_id"]),
-                          json={"document_id": doc_id})
+    r = _post_retry(app, first)
     assert r.status_code == 202 and r.json()["status"] == "queued", (r.status_code, r.text[:400])
-    return V.run_analysis(gw, doc_id)
+    return V.run_analysis(gw, first["doc"]["id"])
 
 
-def test_a_docs_panel_rerun_whose_narration_fails_still_serves_the_last_good_briefing(app, gw, monkeypatch):
-    """Measured on d3c955a7: GET /api/period served `briefing.body: null,
-    unavailable: true` and no recommendations.
+def _assert_nothing_under(gw, period_id: str) -> None:
+    for table in _PERIOD_CHILD_TABLES + ("financial_periods",):
+        key = "id" if table == "financial_periods" else "period_id"
+        left = [r for r in gw.db.rows(table) if str(r.get(key)) == str(period_id)]
+        assert left == [], "%s still holds rows of the reset period %s: %r" % (table, period_id, left[:2])
 
-    W6 through the entry a USER has: "a failed re-run narration keeps the
-    briefing and the recommendations" (the gate sentence). The test above
-    re-runs the document on its SAME period row, which is what keep-last-
-    good protects. POST /api/pipeline/retry did not get that far:
-    `_retry_rerun` DELETED the document's `financial_periods` row before
-    the run (production's foreign keys cascade the briefing and the
-    recommendations away with it), the run minted a NEW period, the
-    narration failed, and `stage_persist_narrative` found nothing to keep —
-    so the reader was served the sentinel as "unavailable" where the last
-    good briefing stood. Keep-last-good never engaged on the one re-run a
-    user can start (production today: the provider refuses every call).
 
-    RULED 2026-10-03: the re-run "must not destroy the last good briefing
-    before the run". A period that holds a usable briefing is no longer
-    reset before its re-run: the run goes in place."""
-    monkeypatch.setattr(P, "_RERUN_PRIOR_PERIODS", {})
-    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), RuntimeError(PROVIDER_ERROR_TEXT)])
-    first = _first_analysis(app, gw)
+@pytest.mark.parametrize("migration", _MIGRATION_STATES)
+def test_a_docs_panel_rerun_whose_narration_fails_still_serves_the_last_good_briefing(
+        app, gw, monkeypatch, migration):
+    """THE LAW (the gate sentence, through the entry a USER has): "a failed
+    re-run narration keeps the briefing and the recommendations". Both
+    states of the stale migration: deploy day is the NOT-applied one."""
+    applied = migration == "stale_migration_applied"
+    if not applied:
+        _before_the_stale_migration(gw)
+    first = _rerun_world(app, gw, monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
 
     rerun = _docs_panel_rerun(app, gw, first)
 
     assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
     _assert_every_run_reached_the_provider(2)
-    assert rerun["period_id"], "the re-run document is pinned to no period"
+    # The reset happened, as it always did: the document is filed under a
+    # period of its own, a NEW row, and nothing is left of the old one.
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == rerun["period_id"] != first["period_id"], period
+    assert period["source_document_id"] == first["doc"]["id"]
+    _assert_nothing_under(gw, first["period_id"])
+    # WHAT THE READER IS SERVED: the last good briefing and recommendations.
     body = _served_period(app, first["org_id"], rerun["period_id"])
     briefing = body["briefing"] or {}
-    assert briefing.get("body") == BODY_A, (
+    assert briefing.get("body") == BODY_A and briefing.get("unavailable") is False, (
         "after a Docs-panel re-run whose narration failed the reader is served %r — the last good "
         "briefing is gone" % (body["briefing"],))
     assert sorted(r["title"] for r in body["recommendations"]) == TITLES_A, body["recommendations"]
-    # THE STORED ROWS: one period — the month's own —, its briefing whole
-    # (marked stale with the run's code), its recommendations exactly.
-    (period,) = gw.db.rows("financial_periods")
-    assert period["id"] == first["period_id"] == rerun["period_id"], period
+    # THE STORED ROWS. One briefing, on the new period: the prose, the
+    # language, the model and the definition stamp it had — not this run's.
     (kept,) = gw.db.rows("briefings")
-    assert _sans_marker(kept) == _sans_marker(first["briefings"][0]) and \
-        kept["stale_reason"] == "provider_error", kept
-    assert gw.db.rows("recommendations") == first["recommendations"]
-    assert briefing["stale"] == {"since": kept["stale_since"], "reason": "provider_error"}
+    was = first["briefings"][0]
+    assert kept["period_id"] == rerun["period_id"] and kept["org_id"] == first["org_id"]
+    for column in ("body", "language", "model", "ebitda_definition"):
+        assert kept[column] == was[column], (column, kept[column], was[column])
+    # The recommendations as they were — the one a user worked included,
+    # with its status, owner and due date — re-keyed to the new period.
+    now = gw.db.rows("recommendations")
+    assert _rec_view(now) == _rec_view(first["recommendations"]), now
+    assert all(r["period_id"] == rerun["period_id"] and r["target_id"] == rerun["period_id"] for r in now)
+    (worked,) = [r for r in now if r["title"] == first["worked_title"]]
+    assert dict((k, worked[k]) for k in WORKED) == WORKED, worked
+    # The run's own alerts, on the new period: the same rules fired (a key
+    # that names its period names the new one).
+    alerts = gw.db.rows("alerts")
+    assert alerts and all(a["period_id"] == rerun["period_id"] for a in alerts), alerts
+    assert sorted(a["alert_key"].replace(rerun["period_id"], first["period_id"]) for a in alerts) == \
+        first["alert_keys"]
+    if applied:
+        assert kept["stale_reason"] == "provider_error" and _is_a_timestamp(kept["stale_since"]), kept
+        assert briefing["stale"] == {"since": kept["stale_since"], "reason": "provider_error"}
+    else:
+        # OBSERVED, by D7's design: before the migration nothing durable
+        # says the kept briefing is the previous run's. Apply the migration
+        # BEFORE the backend is switched (gates.md).
+        assert briefing["stale"] is None
+    assert P._RERUN_CARRY == {}, "the carry outlived the run that restored it"
 
 
 def test_a_docs_panel_rerun_whose_narration_works_serves_the_new_briefing(app, gw, monkeypatch):
     """POSITIVE CONTROL of the law above, through the same route: a re-run
-    whose narration WORKED serves the new briefing and recommendations."""
-    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), _reply(BODY_B, TITLES_B)])
-    first = _first_analysis(app, gw)
+    whose narration WORKED serves the NEW briefing and recommendations —
+    nothing carried is put back beside them, and the carry is dropped."""
+    first = _rerun_world(app, gw, monkeypatch, _reply(BODY_B, TITLES_B))
 
     rerun = _docs_panel_rerun(app, gw, first)
 
@@ -2474,288 +2579,490 @@ def test_a_docs_panel_rerun_whose_narration_works_serves_the_new_briefing(app, g
     assert body["briefing"]["body"] == BODY_B and body["briefing"]["unavailable"] is False, body["briefing"]
     assert body["briefing"]["stale"] is None
     assert sorted(r["title"] for r in body["recommendations"]) == TITLES_B
+    assert [b["body"] for b in gw.db.rows("briefings")] == [BODY_B]
+    assert sorted(r["title"] for r in gw.db.rows("recommendations")) == TITLES_B
+    assert P._RERUN_CARRY == {}
 
 
-def _post_retry(app, first: Dict[str, Any]) -> None:
-    r = V._http(app).post("/api/pipeline/retry", headers=V._headers(V.USER, first["org_id"]),
-                          json={"document_id": first["doc"]["id"]})
-    assert r.status_code == 202 and r.json()["status"] == "queued", (r.status_code, r.text[:400])
-
-
-def test_a_docs_panel_rerun_of_a_period_holding_a_usable_briefing_wipes_nothing_before_the_run(
-        app, gw, monkeypatch):
-    """The ruling's own words: the re-run "must not destroy the last good
-    briefing BEFORE THE RUN". Between POST /api/pipeline/retry and the run
-    it queued — a window that lasts as long as the queue, or forever when
-    the process restarts — nothing of the month is gone: no delete at all
-    is issued, the document stays pinned to its period, and the month is
-    served exactly as it was. (Measured on d3c955a7: the period row was
-    deleted by the route itself.)"""
-    monkeypatch.setattr(P, "_RERUN_PRIOR_PERIODS", {})
-    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A)])
-    first = _first_analysis(app, gw)
-    periods_before = copy.deepcopy(gw.db.rows("financial_periods"))
-    served_before = _served_period(app, first["org_id"], first["period_id"])
+def test_the_reset_is_what_it_always_was_and_the_carry_is_taken_before_it(app, gw, monkeypatch):
+    """Between POST /api/pipeline/retry and the run: the period IS reset —
+    one delete of `financial_periods`, the document and its tenant in the
+    filter, the document unpinned and queued — exactly what production
+    ran before; and what the reset took is held for the document, read
+    BEFORE the delete with the tenant in every filter. (An in-place re-run
+    — no delete here — is the withdrawn design.)"""
+    first = _rerun_world(app, gw, monkeypatch, [])
     spy = _Spy(gw.db, monkeypatch)
+    reads = []  # type: List[Tuple[str, Dict[str, str]]]
+    real_select = gw.db.select
 
-    _post_retry(app, first)
+    def select(table: str, *args: Any, **kwargs: Any) -> Any:
+        if table in ("briefings", "recommendations"):
+            reads.append((table, dict(kwargs.get("filters") or {})))
+        return real_select(table, *args, **kwargs)
 
-    assert [w for w in spy.writes if w["op"] == "delete"] == [], \
-        "the re-run route deleted before the run: %r" % [w for w in spy.writes if w["op"] == "delete"]
-    assert gw.db.rows("financial_periods") == periods_before
-    assert V._rows_under(gw, first["period_id"]) == first["rows"], "the month's rows changed before the run"
+    monkeypatch.setattr(gw.db, "select", select)
+
+    r = _post_retry(app, first)
+
+    assert r.status_code == 202, r.text[:300]
+    deletes = [(w["table"], w["filters"]) for w in spy.writes if w["op"] == "delete"]
+    assert ("financial_periods", {"id": "eq.%s" % first["period_id"],
+                                  "org_id": "eq.%s" % first["org_id"]}) in deletes, deletes
+    assert gw.db.rows("financial_periods") == []
     (doc,) = gw.docs(id=first["doc"]["id"])
-    assert doc["status"] == "queued" and doc["period_id"] == first["period_id"] and doc["error"] is None, doc
-    served = _served_period(app, first["org_id"], first["period_id"])
-    assert served["briefing"] == served_before["briefing"] and served["briefing"]["body"] == BODY_A
-    assert served["recommendations"] == served_before["recommendations"]
-    assert served["alerts"] == served_before["alerts"] and served["line_items"] == served_before["line_items"]
+    assert doc["status"] == "queued" and doc["period_id"] is None and doc["error"] is None, doc
+    _assert_nothing_under(gw, first["period_id"])
+    # THE CARRY: read with the period AND the tenant, before the delete.
+    tenant = {"period_id": "eq.%s" % first["period_id"], "org_id": "eq.%s" % first["org_id"]}
+    assert ("briefings", tenant) in reads and ("recommendations", tenant) in reads, reads
+    assert all(f == tenant for _t, f in reads), reads
+    carry = P._RERUN_CARRY[first["doc"]["id"]]
+    assert carry["org_id"] == first["org_id"]
+    assert carry["briefing"]["body"] == BODY_A
+    assert _rec_view(carry["recommendations"]) == _rec_view(first["recommendations"])
 
 
-def test_a_docs_panel_rerun_whose_run_fails_leaves_the_month_serving_what_it_served(app, gw, monkeypatch):
-    """A re-run that FAILS (not its narration — the run: here the compute
-    stage raises) costs the month nothing: its briefing, recommendations
-    and alerts are the rows they were, and the reader is served the last
-    analysis. Measured on d3c955a7: the route had deleted the period, the
-    failed run's fresh period was rolled back, and the month was GONE."""
-    monkeypatch.setattr(P, "_RERUN_PRIOR_PERIODS", {})
-    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A)])
-    first = _first_analysis(app, gw)
+def test_a_docs_panel_rerun_whose_run_fails_leaves_no_failed_document_over_a_period(app, gw, monkeypatch):
+    """A re-run whose RUN fails (here the compute stage raises) ends as it
+    always did: the document failed and NO period — never a failed document
+    over a served month, the state G4 forbids (`empty_live_periods`) and the
+    withdrawn in-place design produced. The carry is NOT lost with it: the
+    document's NEXT re-run, with the provider still refusing, serves the
+    last good briefing and the recommendations again."""
+    from engine.workspaces.migration_plan import empty_live_periods
+
+    first = _rerun_world(app, gw, monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
+    real_compute = P.stage_compute
 
     def _boom(*a: Any, **kw: Any) -> Any:
         raise RuntimeError("compute failed")
 
     monkeypatch.setattr(P, "stage_compute", _boom)
 
-    rerun = _docs_panel_rerun(app, gw, first)
+    failed = _docs_panel_rerun(app, gw, first)
 
-    assert rerun["status"] == "failed", (rerun["status"], rerun.get("error"))
-    (period,) = gw.db.rows("financial_periods")
-    assert period["id"] == first["period_id"] and period["source_document_id"] == first["doc"]["id"], period
-    after = V._rows_under(gw, period["id"])
-    for table in ("briefings", "recommendations", "alerts", "calculated_metrics", "valuations"):
-        assert after[table] == first["rows"][table], "the failed re-run changed the month's %s" % table
-    body = _served_period(app, first["org_id"], period["id"])
-    assert body["briefing"]["body"] == BODY_A and body["briefing"]["stale"] is None, body["briefing"]
-    assert sorted(r["title"] for r in body["recommendations"]) == TITLES_A
-    assert sorted(a["alert_key"] for a in body["alerts"]) == first["alert_keys"]
-    served = V._served(app, first["org_id"], period["id"])
-    for key in ("source_document", "revenue", "line_items", "metrics"):
-        assert served[key] == first["served"][key], (key, served[key], first["served"][key])
+    assert failed["status"] == "failed", (failed["status"], failed.get("error"))
+    assert gw.db.rows("financial_periods") == [], gw.db.rows("financial_periods")
+    assert empty_live_periods(gw.db.tables) == []
+    assert gw.db.rows("briefings") == [] and gw.db.rows("recommendations") == []
+    held = P._RERUN_CARRY.get(first["doc"]["id"]) or {}
+    assert (held.get("briefing") or {}).get("body") == BODY_A, \
+        "a re-run that failed before it narrated lost the carry: %r" % (held,)
+
+    monkeypatch.setattr(P, "stage_compute", real_compute)
+    again = _docs_panel_rerun(app, gw, first)
+
+    assert again["status"] == "analyzed", (again["status"], again.get("error"))
+    _assert_every_run_reached_the_provider(2)       # the first analysis and this one
+    body = _served_period(app, first["org_id"], again["period_id"])
+    assert body["briefing"]["body"] == BODY_A, body["briefing"]
+    assert _rec_view(gw.db.rows("recommendations")) == _rec_view(first["recommendations"])
+    assert P._RERUN_CARRY == {}
 
 
-def test_a_docs_panel_rerun_of_a_period_without_a_usable_briefing_is_reset_as_before(app, gw, monkeypatch):
-    """POSITIVE CONTROL of "nothing is wiped": the keep is for a period
-    that HOLDS a last good briefing. One whose briefing is a failure text
-    has nothing of the kind to protect and is reset before its re-run, as
-    it always was (a blanket "never reset" passes the tests above — and
-    would turn the AI lane's re-run, whose periods never hold a briefing,
-    into a cache hit that extracts nothing). The recovery still works: the
-    re-run's narration is served."""
-    monkeypatch.setattr(P, "_RERUN_PRIOR_PERIODS", {})
-    _script_the_provider(monkeypatch, [RuntimeError(PROVIDER_ERROR_TEXT), _reply(BODY_B, TITLES_B)])
-    first = V._analysed_month(app, gw, V.agras_workbook())
-    period_id, org_id, doc_id = first["period"]["id"], first["doc"]["org_id"], first["doc"]["id"]
+def test_a_period_whose_briefing_is_a_failure_text_keeps_its_recommendations_across_a_rerun(
+        app, gw, monkeypatch):
+    """The state the pre-repair regenerate left in PRODUCTION (measured
+    read-only 2026-10-03: 7 of 11 briefings are the sentinel): the briefing
+    is a failure text, the recommendations are intact — and worked. The
+    carry is not decided on the briefing alone: the recommendations travel
+    across the reset whatever the briefing row holds (review, blocker)."""
+    first = _rerun_world(app, gw, monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
     (stored,) = gw.db.rows("briefings")
-    assert stored["body"] == "[NARRATIVE_UNAVAILABLE]" and stored["period_id"] == period_id, stored
+    stored["body"] = "[NARRATIVE_UNAVAILABLE]"
 
-    _post_retry(app, dict(first, org_id=org_id))
-
-    assert gw.db.rows("financial_periods") == [], \
-        "a period holding no usable briefing was not reset before its re-run"
-    (doc,) = gw.docs(id=doc_id)
-    assert doc["status"] == "queued" and doc["period_id"] is None, doc
-    assert P._RERUN_PRIOR_PERIODS == {}, "a reset period was recorded for retirement"
-
-    rerun = V.run_analysis(gw, doc_id)
+    rerun = _docs_panel_rerun(app, gw, first)
 
     assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
     _assert_every_run_reached_the_provider(2)
-    (period,) = gw.db.rows("financial_periods")
-    assert period["id"] == rerun["period_id"] != period_id
-    body = _served_period(app, org_id, rerun["period_id"])
-    assert body["briefing"]["body"] == BODY_B and body["briefing"]["unavailable"] is False
-    assert sorted(r["title"] for r in body["recommendations"]) == TITLES_B
+    body = _served_period(app, first["org_id"], rerun["period_id"])
+    assert body["briefing"]["body"] is None and body["briefing"]["unavailable"] is True, body["briefing"]
+    assert [b["body"] for b in gw.db.rows("briefings")] == ["[NARRATIVE_UNAVAILABLE]"]
+    now = gw.db.rows("recommendations")
+    assert _rec_view(now) == _rec_view(first["recommendations"]), (
+        "the re-run cost the period its recommendations: %r" % now)
+    assert all(r["period_id"] == rerun["period_id"] for r in now)
+    assert P._RERUN_CARRY == {}
 
 
 @pytest.mark.parametrize("second_narration", ["narration_works", "narration_fails"])
 def test_a_docs_panel_rerun_that_files_the_document_under_another_month(app, gw, monkeypatch, second_narration):
-    """WHAT THE RESET WAS STILL GOOD FOR. A re-run can file the document
-    under ANOTHER month than its earlier run did (a period detection since
-    corrected). The reset left no row behind for the old month; an in-place
-    re-run would leave it — a second month serving the same file under the
-    wrong date. So the old row is retired, but only once the run has
-    SUCCEEDED — and never while it is the only home of the last good
-    briefing: when the re-run's narration failed, it stays (decided by the
-    repair; nothing good is deleted because a model call failed)."""
-    monkeypatch.setattr(P, "_RERUN_PRIOR_PERIODS", {})
+    """A re-run can file the document under ANOTHER month than its earlier
+    run did (a period detection since corrected). ONE period afterwards, in
+    both cases — the document's, under the month the re-run detected; never
+    a second month serving the same file (what the withdrawn in-place
+    design left when the narration failed)."""
     outcome = _reply(BODY_B, TITLES_B) if second_narration == "narration_works" \
         else RuntimeError(PROVIDER_ERROR_TEXT)
-    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), outcome])
-    first = _first_analysis(app, gw)
+    first = _rerun_world(app, gw, monkeypatch, outcome)
     # Database state: the earlier run had filed the book under December 2024.
     (old,) = gw.db.rows("financial_periods")
     old["period_start"] = old["period_end"] = "2024-12-31"
-    spy = _Spy(gw.db, monkeypatch)
 
     rerun = _docs_panel_rerun(app, gw, first)
 
     assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
     _assert_every_run_reached_the_provider(2)
-    # FLOOR: the re-run did file the document under a period of its own.
-    assert rerun["period_id"] and rerun["period_id"] != first["period_id"], rerun["period_id"]
-    period_ids = sorted(p["id"] for p in gw.db.rows("financial_periods"))
-    period_deletes = _writes(spy, "financial_periods", "delete")
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == rerun["period_id"] != first["period_id"] and \
+        str(period["period_end"]).startswith("2025-12"), period
+    body = _served_period(app, first["org_id"], rerun["period_id"])
     if second_narration == "narration_works":
-        assert period_ids == [rerun["period_id"]], \
-            "the document's superseded filing was left behind: %r" % period_ids
-        # ONE delete, after the run: the old row, the tenant and the
-        # document in its filter.
-        assert [d["filters"] for d in period_deletes] == [{
-            "id": "eq.%s" % first["period_id"], "org_id": "eq.%s" % first["org_id"],
-            "source_document_id": "eq.%s" % first["doc"]["id"]}], period_deletes
-        body = _served_period(app, first["org_id"], rerun["period_id"])
         assert body["briefing"]["body"] == BODY_B
         assert sorted(r["title"] for r in body["recommendations"]) == TITLES_B
     else:
-        assert period_ids == sorted([first["period_id"], rerun["period_id"]]), period_ids
-        assert period_deletes == [], period_deletes
-        assert [b["body"] for b in gw.db.rows("briefings") if b["period_id"] == first["period_id"]] == [BODY_A]
-        assert [r for r in gw.db.rows("recommendations") if r["period_id"] == first["period_id"]] == \
-            first["recommendations"]
-        body = _served_period(app, first["org_id"], rerun["period_id"])
-        assert body["briefing"]["body"] is None and body["briefing"]["unavailable"] is True, body["briefing"]
+        assert body["briefing"]["body"] == BODY_A and body["briefing"]["unavailable"] is False
+        assert _rec_view(gw.db.rows("recommendations")) == _rec_view(first["recommendations"])
 
 
-# ── the two decisions of the re-run, at their own seam ──────────────────
+def test_a_period_that_cannot_be_read_refuses_the_rerun_and_resets_nothing(app, gw, monkeypatch):
+    """The reset never runs blind: when the period's briefing or
+    recommendations cannot be read, POST /api/pipeline/retry is refused
+    (503 `rerun_unavailable`), nothing is deleted, the month is served as
+    it was — and the claim is given back: the same re-run works a moment
+    later."""
+    first = _rerun_world(app, gw, monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
+    served_before = _served_period(app, first["org_id"], first["period_id"])
+    spy = _Spy(gw.db, monkeypatch)
+    real_select = gw.db.select
+    down = {"on": True}
+
+    def select(table: str, *args: Any, **kwargs: Any) -> Any:
+        if down["on"] and table == "recommendations":
+            raise httpx.ReadTimeout("The read operation timed out")
+        return real_select(table, *args, **kwargs)
+
+    monkeypatch.setattr(gw.db, "select", select)
+
+    r = _post_retry(app, first)
+
+    assert r.status_code == 503 and r.json() == {"detail": {"code": "rerun_unavailable"}}, (r.status_code, r.text[:300])
+    assert [w for w in spy.writes if w["op"] == "delete"] == [], \
+        "a refused re-run deleted: %r" % [w for w in spy.writes if w["op"] == "delete"]
+    assert [p["id"] for p in gw.db.rows("financial_periods")] == [first["period_id"]]
+    down["on"] = False
+    assert _served_period(app, first["org_id"], first["period_id"])["briefing"] == served_before["briefing"]
+    assert P._RERUN_CARRY == {}
+    # POSITIVE CONTROL: the claim was given back — the re-run is accepted now.
+    again = _docs_panel_rerun(app, gw, first)
+    assert again["status"] == "analyzed", (again["status"], again.get("error"))
+    assert _served_period(app, first["org_id"], again["period_id"])["briefing"]["body"] == BODY_A
+
+
+# ── the carry, at its own seam ─────────────────────────────────────────
 
 NEW_PID = "b1ef0000-0000-4000-8000-0000000000ef"
 
 
-def _holds_world(body: Optional[str], *, org: str = ORG) -> RecordingDouble:
-    double = RecordingDouble()
+def _carry_world(body: Optional[str], *, org: str = ORG, recommendations: int = 0) -> RecordingDouble:
+    double = RecordingDouble(every_table=True)
     double.add("financial_periods", {"id": PID, "org_id": org, "currency": "RON",
                                      "period_start": "2025-01-01", "period_end": "2025-12-31"})
     if body is not None:
         double.add("briefings", {"id": "briefing-of-the-period", "period_id": PID, "org_id": org,
                                  "body": body, "language": "ro", "model": "the-model-of-the-stored-write"})
+    for i in range(recommendations):
+        double.add("recommendations", {"id": "rec-%d" % i, "org_id": org, "period_id": PID,
+                                       "target_type": "dataset", "target_id": PID,
+                                       "title": "Recommendation %d" % i, "status": "new"})
     return double
 
 
-#: id -> (the stored world, the document the route authorized, is the
-#: period kept — i.e. NOT reset before the re-run?)
-_HOLDS_A_LAST_GOOD_BRIEFING = {
-    "a_usable_briefing": (dict(body=GOOD_BODY), {"period_id": PID, "org_id": ORG}, True),
-    "the_sentinel": (dict(body="[NARRATIVE_UNAVAILABLE]"), {"period_id": PID, "org_id": ORG}, False),
-    "an_operator_sentence": (dict(body="Set ANTHROPIC_API_KEY on the backend to enable AI narrative."),
-                             {"period_id": PID, "org_id": ORG}, False),
-    "no_briefing_row": (dict(body=None), {"period_id": PID, "org_id": ORG}, False),
-    "a_document_pinned_to_no_period": (dict(body=GOOD_BODY), {"period_id": None, "org_id": ORG}, False),
+#: id -> (the stored world, the document the route authorized,
+#:        the carried briefing body or None, how many recommendations carried)
+_CARRIES = {
+    "a_usable_briefing_and_two_recommendations":
+        (dict(body=GOOD_BODY, recommendations=2), {"period_id": PID, "org_id": ORG}, GOOD_BODY, 2),
+    "a_usable_briefing_and_no_recommendations":
+        (dict(body=GOOD_BODY), {"period_id": PID, "org_id": ORG}, GOOD_BODY, 0),
+    "the_sentinel_and_two_recommendations":
+        (dict(body="[NARRATIVE_UNAVAILABLE]", recommendations=2), {"period_id": PID, "org_id": ORG}, None, 2),
+    "the_sentinel_alone": (dict(body="[NARRATIVE_UNAVAILABLE]"), {"period_id": PID, "org_id": ORG}, None, 0),
+    "an_operator_sentence_alone": (dict(body="Set ANTHROPIC_API_KEY on the backend to enable AI narrative."),
+                                   {"period_id": PID, "org_id": ORG}, None, 0),
+    "no_briefing_row": (dict(body=None), {"period_id": PID, "org_id": ORG}, None, 0),
+    "a_document_pinned_to_no_period":
+        (dict(body=GOOD_BODY, recommendations=2), {"period_id": None, "org_id": ORG}, None, 0),
     # `documents.period_id` is browser-written: a row of ORG carrying a
-    # period of ANOTHER tenant that holds a usable briefing.
-    "another_tenants_period": (dict(body=GOOD_BODY, org=OTHER_ORG), {"period_id": PID, "org_id": ORG}, False),
-    "a_document_without_a_tenant": (dict(body=GOOD_BODY), {"period_id": PID, "org_id": ""}, False),
-}  # type: Dict[str, Tuple[Dict[str, Any], Dict[str, Any], bool]]
+    # period of ANOTHER tenant that holds a usable briefing and recommendations.
+    "another_tenants_period":
+        (dict(body=GOOD_BODY, org=OTHER_ORG, recommendations=2), {"period_id": PID, "org_id": ORG}, None, 0),
+    "a_document_without_a_tenant":
+        (dict(body=GOOD_BODY, recommendations=2), {"period_id": PID, "org_id": ""}, None, 0),
+}  # type: Dict[str, Tuple[Dict[str, Any], Dict[str, Any], Optional[str], int]]
 
 
-@pytest.mark.parametrize("what", sorted(_HOLDS_A_LAST_GOOD_BRIEFING))
-def test_the_rerun_keeps_a_period_only_for_a_usable_briefing_of_the_documents_own_tenant(what):
-    world, doc, expected = _HOLDS_A_LAST_GOOD_BRIEFING[what]
-    double = _holds_world(**world)
+@pytest.mark.parametrize("what", sorted(_CARRIES))
+def test_the_carry_holds_only_what_the_documents_own_tenant_would_lose(what, monkeypatch):
+    world, doc, body, recs = _CARRIES[what]
+    monkeypatch.setattr(P, "_RERUN_CARRY", {})
+    double = _carry_world(**world)
     with RA.installed(double):
-        assert P._period_holds_a_last_good_briefing(dict(doc, id=DOC_ID)) is expected, what
+        P._carry_before_rerun_reset(dict(doc, id=DOC_ID))
     assert double.writes == [], "the look wrote: %r" % double.writes
-    # Every read it made names the document's own tenant (service role).
-    for _op, _table, filters, _columns in double.selects("briefings"):
-        assert filters == {"period_id": "eq.%s" % PID, "org_id": "eq.%s" % ORG}, filters
-    if expected:
-        assert double.selects("briefings"), "the briefing was never read"
+    # Every read it made names the period AND the document's own tenant.
+    for table in ("briefings", "recommendations"):
+        for _op, _table, filters, _columns in double.selects(table):
+            assert filters == {"period_id": "eq.%s" % PID, "org_id": "eq.%s" % ORG}, (table, filters)
+    carry = P._RERUN_CARRY.get(DOC_ID)
+    if body is None and recs == 0:
+        assert carry is None, carry
+        return
+    assert carry["org_id"] == ORG
+    assert (carry["briefing"] or {}).get("body") == body, carry["briefing"]
+    assert len(carry["recommendations"]) == recs
+    # It is handed back to the tenant it was read in, and to no other.
+    assert P._rerun_carry_of(DOC_ID, ORG) is carry
+    assert P._rerun_carry_of(DOC_ID, OTHER_ORG) is None
+    assert P._rerun_carry_of("another-document", ORG) is None
 
 
-def test_an_unreadable_briefing_is_not_a_reason_to_reset_the_month():
-    """A transient read failure must not be why a month is wiped: the look
-    answers "keep" when it cannot read."""
+def test_a_period_with_nothing_to_carry_leaves_an_earlier_carry_in_place(monkeypatch):
+    """A re-run that failed before it could narrate left no period: the
+    document's next retry finds nothing to read — and must not replace
+    what the first one carried with nothing."""
+    earlier = {"org_id": ORG, "briefing": {"body": GOOD_BODY, "language": "ro"}, "recommendations": [{"id": "r"}]}
+    monkeypatch.setattr(P, "_RERUN_CARRY", {DOC_ID: earlier})
+    double = _carry_world(None)
+    with RA.installed(double):
+        P._carry_before_rerun_reset({"id": DOC_ID, "period_id": PID, "org_id": ORG})
+        P._carry_before_rerun_reset({"id": DOC_ID, "period_id": None, "org_id": ORG})
+    assert P._RERUN_CARRY == {DOC_ID: earlier}
+
+
+def test_an_unreadable_period_raises_out_of_the_carry_and_holds_nothing(monkeypatch):
     class _Unreadable(RecordingDouble):
         def select(self, table: str, **kwargs: Any) -> Any:
             if table == "briefings":
                 raise httpx.ReadTimeout("The read operation timed out")
             return super(_Unreadable, self).select(table, **kwargs)
 
-    double = _Unreadable()
+    monkeypatch.setattr(P, "_RERUN_CARRY", {})
+    double = _Unreadable(every_table=True)
     with RA.installed(double):
-        assert P._period_holds_a_last_good_briefing({"id": DOC_ID, "period_id": PID, "org_id": ORG}) is True
+        with pytest.raises(httpx.ReadTimeout):
+            P._carry_before_rerun_reset({"id": DOC_ID, "period_id": PID, "org_id": ORG})
+    assert P._RERUN_CARRY == {}
 
 
-def _retire_world(*, prior_source: str = DOC_ID, prior_org: str = ORG, prior_body: Optional[str] = GOOD_BODY,
-                  another_document_pinned: bool = False) -> RecordingDouble:
-    """The document's previous period (PID) and the one its re-run filed it
-    under (NEW_PID), beside another tenant's."""
+def test_carried_recommendations_are_put_back_only_on_a_period_that_holds_none(monkeypatch):
+    carry = {"org_id": ORG, "briefing": None, "recommendations": [
+        {"id": "rec-0", "org_id": ORG, "period_id": PID, "target_type": "dataset", "target_id": PID,
+         "title": "About the period", "status": "in_review", "owner": "CFO", "due_date": "2026-11-15"},
+        {"id": "rec-1", "org_id": ORG, "period_id": PID, "target_type": "sku", "target_id": "SKU-17",
+         "title": "About a SKU", "status": "new"}]}
     double = RecordingDouble(every_table=True)
-    double.add("financial_periods", {"id": PID, "org_id": prior_org, "currency": "RON",
-                                     "source_document_id": prior_source,
-                                     "period_start": "2024-12-31", "period_end": "2024-12-31"})
     double.add("financial_periods", {"id": NEW_PID, "org_id": ORG, "currency": "RON",
-                                     "source_document_id": DOC_ID,
-                                     "period_start": "2025-12-31", "period_end": "2025-12-31"})
-    double.add("financial_periods", {"id": OTHER_PID, "org_id": OTHER_ORG, "currency": "RON",
-                                     "period_start": "2025-12-31", "period_end": "2025-12-31"})
-    double.add("documents", {"id": DOC_ID, "org_id": ORG, "status": "analyzed", "period_id": NEW_PID,
-                             "deleted_at": None})
-    if another_document_pinned:
-        double.add("documents", {"id": FIRST_DOC_ID, "org_id": ORG, "status": "analyzed",
-                                 "period_id": PID, "deleted_at": None})
-    if prior_body is not None:
-        double.add("briefings", {"id": "briefing-of-the-old-period", "period_id": PID, "org_id": prior_org,
-                                 "body": prior_body, "language": "ro", "model": "the-model-of-the-stored-write"})
-    return double
-
-
-#: id -> (the world, what `_retry_rerun` recorded, the period the run filed
-#: the document under, the run's narration code, is the old row removed?)
-_RETIREMENTS = {
-    "its_own_superseded_filing": (dict(), PID, NEW_PID, None, True),
-    "its_own_superseded_filing_holding_a_failure_text_after_a_failed_narration": (
-        dict(prior_body="[NARRATIVE_UNAVAILABLE]"), PID, NEW_PID, "provider_error", True),
-    "the_only_home_of_the_last_good_briefing": (dict(), PID, NEW_PID, "provider_error", False),
-    "the_run_filed_it_where_it_was": (dict(), PID, PID, None, False),
-    "no_rerun_was_recorded": (dict(), None, NEW_PID, None, False),
-    "another_documents_month": (dict(prior_source=FIRST_DOC_ID), PID, NEW_PID, None, False),
-    "a_period_another_document_is_pinned_to": (dict(another_document_pinned=True), PID, NEW_PID, None, False),
-    "another_tenants_period": (dict(prior_org=OTHER_ORG), PID, NEW_PID, None, False),
-}  # type: Dict[str, Tuple[Dict[str, Any], Optional[str], str, Optional[str], bool]]
-
-
-@pytest.mark.parametrize("case", sorted(_RETIREMENTS))
-def test_only_the_documents_own_superseded_filing_is_retired_after_a_rerun(monkeypatch, case):
-    """`_retire_prior_period_of_rerun` deletes a period — under the service
-    role, where the filter IS the access control. It removes exactly one
-    thing: the period THIS document sourced before its re-run filed it
-    elsewhere. Never another document's month, a period another document is
-    pinned to, another tenant's period, the period the run just filed the
-    document under, or the only home of a last good briefing."""
-    world, recorded, final, code, removed = _RETIREMENTS[case]
-    monkeypatch.setattr(P, "_RERUN_PRIOR_PERIODS", {})
-    double = _retire_world(**world)
-    periods_before = copy.deepcopy(double.rows("financial_periods"))
-    if recorded is not None:
-        P._record_rerun_prior_period(DOC_ID, recorded)
-
+                                     "period_start": "2025-01-01", "period_end": "2025-12-31"})
     with RA.installed(double):
-        answer = P._retire_prior_period_of_rerun({"id": DOC_ID, "org_id": ORG}, final,
-                                                 narration_unavailable=code)
+        with P._supabase.admin() as client:
+            assert P._restore_carried_recommendations(client, carry, ORG, NEW_PID) == 2
+            # a second call finds the period holding them: nothing is duplicated
+            assert P._restore_carried_recommendations(client, carry, ORG, NEW_PID) == 0
+            assert P._restore_carried_recommendations(client, None, ORG, NEW_PID) == 0
+    rows = sorted(double.rows("recommendations"), key=lambda r: r["id"])
+    assert [(r["id"], r["period_id"], r["target_id"], r["org_id"]) for r in rows] == [
+        ("rec-0", NEW_PID, NEW_PID, ORG),          # about the period: re-pointed at the period it is on now
+        ("rec-1", NEW_PID, "SKU-17", ORG)]         # about a SKU: its target is its own
+    assert (rows[0]["status"], rows[0]["owner"], rows[0]["due_date"]) == ("in_review", "CFO", "2026-11-15")
+    # the read that guards against duplicates names the period and the tenant
+    assert all(f == {"period_id": "eq.%s" % NEW_PID, "org_id": "eq.%s" % ORG}
+               for _op, _t, f, _c in double.selects("recommendations"))
 
-    deletes = [w for w in double.writes if w["op"] == "delete"]
-    if removed:
-        assert answer == PID, answer
-        assert [(d["table"], d["filters"]) for d in deletes] == [("financial_periods", {
-            "id": "eq.%s" % PID, "org_id": "eq.%s" % ORG, "source_document_id": "eq.%s" % DOC_ID})], deletes
-        assert sorted(p["id"] for p in double.rows("financial_periods")) == sorted([NEW_PID, OTHER_PID])
+
+# ══════════════════════════════════════════════════════════════════════
+# The findings of the independent review of 2026-10-03, as laws
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _month_alert(alert_id: str, period_id: str, key: str, *, org: str = ORG) -> Dict[str, Any]:
+    return {"id": alert_id, "org_id": org, "period_id": period_id, "alert_key": key,
+            "severity": "high", "category": "liquidity", "title": key, "body": "…",
+            "document_id": FIRST_DOC_ID if period_id == PID else DOC_ID}
+
+
+def test_a_takeover_whose_staged_period_is_gone_touches_nothing_of_the_month():
+    """Measured by the review (experiment X4): the staged row deleted
+    during the run (DELETE /api/period, a purge) — the takeover still
+    deleted the month's line items, metrics and alerts, moved none,
+    archived the month's document and re-pointed the row: an EMPTY month,
+    status analysed. Now: no write at all, and the run fails saying so."""
+    double = _takeover_world(staged_body=GOOD_BODY, staged_recommendations=True)
+    double.add("alerts", _month_alert("alert-of-the-month", PID, "cash_ratio_low"))
+    super(RecordingDouble, double).delete("financial_periods", filters={"id": "eq.%s" % STAGED_PID})
+    before = dict((t, copy.deepcopy(double.rows(t)))
+                  for t in ("financial_periods", "documents", "briefings", "recommendations", "alerts"))
+    assert double.writes == []
+
+    with pytest.raises(P.StagedPeriodGone) as refused:
+        _take_over(double)
+
+    assert "the month was not replaced" in str(refused.value)
+    assert double.writes == [], "the takeover wrote although its staged period was gone: %r" % double.writes
+    for table, rows in before.items():
+        assert double.rows(table) == rows, "%s changed" % table
+    # POSITIVE CONTROL: with the staged row there the same call takes the month over.
+    whole = _takeover_world(staged_body=GOOD_BODY, staged_recommendations=True)
+    assert _take_over(whole) == PID
+    _assert_the_takeover_happened(whole)
+
+
+@pytest.mark.parametrize("keep_alerts", [True, False], ids=["the_runs_alerts_were_not_written", "the_runs_alerts_were_written"])
+def test_a_takeover_keeps_the_months_alerts_when_the_run_wrote_none(keep_alerts):
+    """"A takeover must not delete anything that was good": a run whose
+    alerts write RAISED has none to move — the month's alerts were deleted
+    and replaced by nothing (review, experiment X1: 4 -> 0), which reads as
+    "nothing to flag". Told so (`keep_alerts`), the takeover keeps the
+    month's. Positive control: alerts the run DID write replace them."""
+    double = _takeover_world(staged_body=GOOD_BODY, staged_recommendations=True)
+    double.add("alerts", _month_alert("alert-of-the-month-1", PID, "cash_ratio_low"))
+    double.add("alerts", _month_alert("alert-of-the-month-2", PID, "leverage_high"))
+    double.add("alerts", _month_alert("alert-of-the-other-tenant", OTHER_PID, "theirs", org=OTHER_ORG))
+    if not keep_alerts:
+        double.add("alerts", _month_alert("alert-of-the-staged-run", STAGED_PID, "margin_thin"))
+    foreign_before = [a for a in copy.deepcopy(double.rows("alerts")) if a["org_id"] == OTHER_ORG]
+
+    assert _take_over(double, keep_alerts=keep_alerts) == PID
+    _assert_the_takeover_happened(double)
+
+    month = sorted(a["alert_key"] for a in double.rows("alerts") if a["period_id"] == PID)
+    if keep_alerts:
+        assert month == ["cash_ratio_low", "leverage_high"], month
+        # every delete on alerts names the STAGED id and the tenant
+        assert [d["filters"] for d in _writes(double, "alerts", "delete")] == [
+            {"period_id": "eq.%s" % STAGED_PID, "org_id": "eq.%s" % ORG}]
     else:
-        assert answer is None, answer
-        assert double.writes == [], "%s: the retirement wrote: %r" % (case, double.writes)
-        assert double.rows("financial_periods") == periods_before
-    # The record is consumed either way; every read named the tenant.
-    assert P._RERUN_PRIOR_PERIODS == {}
-    for table in ("financial_periods", "documents", "briefings"):
-        for _op, _table, filters, _columns in double.selects(table):
-            assert filters.get("org_id") == "eq.%s" % ORG, (table, filters)
+        assert month == ["margin_thin"], month
+    assert not [a for a in double.rows("alerts") if a["period_id"] == STAGED_PID]
+    assert [a for a in double.rows("alerts") if a["org_id"] == OTHER_ORG] == foreign_before
+
+
+def test_the_takeovers_staged_only_work_comes_before_anything_touches_the_month():
+    """The takeover is a sequence, not a transaction. What it deletes under
+    the STAGED id is deleted first: a failure there leaves the month whole
+    (review, experiment X6: a timeout on the staged recommendations delete
+    came AFTER the month's line items, metrics and alerts had been replaced
+    — a mixed month under a failed run)."""
+    double = _takeover_world(staged_body="[NARRATIVE_UNAVAILABLE]", staged_recommendations=True)
+    double.add("alerts", _month_alert("alert-of-the-month", PID, "cash_ratio_low"))
+    assert _take_over(double, narration_unavailable="provider_error", keep_alerts=True) == PID
+    writes = [w for w in double.writes]
+    names_month = [i for i, w in enumerate(writes)
+                   if any("eq.%s" % PID == v for v in (w["filters"] or {}).values())
+                   or (isinstance(w["payload"], dict) and w["payload"].get("period_id") == PID)]
+    staged_only = [i for i, w in enumerate(writes)
+                   if w["op"] == "delete" and w["table"] in ("briefings", "recommendations", "alerts")
+                   and w["filters"] == {"period_id": "eq.%s" % STAGED_PID, "org_id": "eq.%s" % ORG}]
+    assert len(staged_only) == 3 and names_month, (staged_only, names_month)
+    assert max(staged_only) < min(names_month), \
+        "a staged-only delete came after a write that touches the month: %r" % [
+            (w["op"], w["table"], w["filters"]) for w in writes]
+
+    # … and when one of them FAILS, the month is exactly what it was.
+    class _StagedDeleteTimesOut(RecordingDouble):
+        def delete(self, table: str, *, filters: Dict[str, str]) -> None:
+            if table == "recommendations" and filters.get("period_id") == "eq.%s" % STAGED_PID:
+                self._attempt("delete", table, filters=filters)["refused"] = True
+                raise httpx.ReadTimeout("The read operation timed out")
+            return super(_StagedDeleteTimesOut, self).delete(table, filters=filters)
+
+    failing = _StagedDeleteTimesOut(every_table=True)
+    source = _takeover_world(staged_body="[NARRATIVE_UNAVAILABLE]", staged_recommendations=True)
+    for table in ("financial_periods", "documents", "briefings", "recommendations"):
+        for row in source.rows(table):
+            failing.add(table, copy.deepcopy(row))
+    failing.add("alerts", _month_alert("alert-of-the-month", PID, "cash_ratio_low"))
+    month_before = dict((t, copy.deepcopy([r for r in failing.rows(t) if r.get("period_id") == PID
+                                           or (t == "financial_periods" and r["id"] == PID)
+                                           or t == "documents"]))
+                        for t in ("financial_periods", "documents", "briefings", "recommendations", "alerts"))
+    with pytest.raises(httpx.ReadTimeout):
+        _take_over(failing, narration_unavailable="provider_error", keep_alerts=True)
+    for table, rows in month_before.items():
+        now = [r for r in failing.rows(table) if r.get("period_id") == PID
+               or (table == "financial_periods" and r["id"] == PID) or table == "documents"]
+        assert now == rows, "the month's %s changed although the takeover failed on staged-only work" % table
+
+
+def _refuse_staged_alert_writes(gw, monkeypatch, served_period_id: str) -> List[Any]:
+    """The DATABASE refuses (a transient PostgREST timeout) every alerts
+    upsert that is not under the month's own period id — i.e. the staged
+    run's. Returns the refused payloads."""
+    refused = []  # type: List[Any]
+    real = gw.db.upsert
+
+    def upsert(table: str, rows: Any, *args: Any, **kwargs: Any) -> Any:
+        body = rows if isinstance(rows, list) else [rows]
+        if table == "alerts" and any(str(r.get("period_id")) != str(served_period_id) for r in body):
+            refused.append(copy.deepcopy(rows))
+            raise httpx.ReadTimeout("The read operation timed out")
+        return real(table, rows, *args, **kwargs)
+
+    monkeypatch.setattr(gw.db, "upsert", upsert)
+    return refused
+
+
+def test_a_same_month_reupload_whose_alerts_write_fails_takes_the_runs_recommendations_and_keeps_the_months_alerts(
+        app, gw, monkeypatch):
+    """Measured by the review through the real orchestrator (experiment
+    X1): the staged run's narration WORKED, its briefing and its
+    recommendations were stored — and the alerts write after them timed
+    out. The orchestrator read "the narrative write raised" as "the run
+    stored no recommendations": the takeover deleted the run's own good
+    recommendation, kept the month's old ones beside the NEW briefing, and
+    left the month with no alerts (4 -> 0). The takeover is told what the
+    run STORED (`stored`), not whether it raised."""
+    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), _reply(BODY_B, TITLES_B)])
+    first = _first_analysis(app, gw)
+    alerts_before = copy.deepcopy(gw.db.rows("alerts"))
+    refused = _refuse_staged_alert_writes(gw, monkeypatch, first["period_id"])
+    spy = _Spy(gw.db, monkeypatch)
+
+    replaced = _reupload(app, gw, first["org_id"])
+
+    assert replaced["status"] == "analyzed", (replaced["status"], replaced.get("error"))
+    _assert_every_run_reached_the_provider(2)
+    assert len(refused) == 1, "the staged run never tried to write its alerts"
+    body = _served_period(app, first["org_id"], first["period_id"])
+    assert body["briefing"]["body"] == BODY_B, body["briefing"]
+    # The run's OWN recommendations — stored before the alerts write raised.
+    assert sorted(r["title"] for r in body["recommendations"]) == TITLES_B, body["recommendations"]
+    assert sorted(r["title"] for r in gw.db.rows("recommendations")) == TITLES_B
+    # The month's alerts are kept, not replaced by none.
+    assert gw.db.rows("alerts") == alerts_before, "the month lost its alerts: %r" % gw.db.rows("alerts")
+    _assert_nothing_is_left_under(gw, _staged_period_ids(spy, first["period_id"]), "alerts write failed")
+
+
+#: The second run's reply -> what the period's recommendations are afterwards.
+_REPLIES_AND_THE_RECOMMENDATIONS_AFTER = {
+    # A usable reply that does not say `recommendations` at all, or says
+    # null: UNREADABLE — the period's worked recommendations stay (review:
+    # the narrator coerced both to [] and the writer deleted them, 2 -> 0).
+    "the_key_is_absent": (lambda: json.dumps({"briefing": BODY_B}, ensure_ascii=False), TITLES_A),
+    "the_value_is_null": (lambda: json.dumps({"briefing": BODY_B, "recommendations": None},
+                                             ensure_ascii=False), TITLES_A),
+    # POSITIVE CONTROLS: a real list IS the narration's word.
+    "an_empty_list": (lambda: json.dumps({"briefing": BODY_B, "recommendations": []},
+                                         ensure_ascii=False), []),
+    "a_list_of_one": (lambda: _reply(BODY_B, TITLES_B), TITLES_B),
+}  # type: Dict[str, Tuple[Callable[[], str], List[str]]]
+
+
+@pytest.mark.parametrize("reply", sorted(_REPLIES_AND_THE_RECOMMENDATIONS_AFTER))
+def test_a_usable_reply_replaces_the_recommendations_only_when_it_carries_a_list(app, gw, monkeypatch, reply):
+    """Through the REAL narrator and the REAL writer, on the same period."""
+    second, titles_after = _REPLIES_AND_THE_RECOMMENDATIONS_AFTER[reply]
+    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), second()])
+    first = _first_analysis(app, gw)
+
+    rerun = V.run_analysis(gw, first["doc"]["id"])  # the same document, again
+
+    assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
+    _assert_every_run_reached_the_provider(2)
+    body = _served_period(app, first["org_id"], first["period_id"])
+    assert body["briefing"]["body"] == BODY_B, body["briefing"]      # the briefing IS the new one
+    assert sorted(r["title"] for r in gw.db.rows("recommendations")) == titles_after, (
+        "%s: recommendations after the re-run: %r" % (reply, gw.db.rows("recommendations")))
+    if titles_after == TITLES_A:
+        assert gw.db.rows("recommendations") == first["recommendations"]

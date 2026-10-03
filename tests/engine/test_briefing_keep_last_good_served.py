@@ -803,7 +803,55 @@ def test_a_usable_reply_carries_no_unavailable_key(reply, body, monkeypatch):
     assert len(provider.calls) == 1
     assert "unavailable" not in out, out
     assert out["briefing"] == body
-    assert isinstance(out["recommendations"], list)
+    # A reply that says `"recommendations": []` hands on that empty list; one
+    # that carries NO such key hands on None — unreadable — never an empty
+    # list (the test below states every shape).
+    if '"recommendations"' in reply:
+        assert out["recommendations"] == []
+    else:
+        assert out["recommendations"] is None
+
+
+#: What the reply holds under `recommendations` -> what the narrator hands on.
+#: Only a real list is the narration's word on what to recommend. Until
+#: 2026-10-03 every other shape was coerced to [] — which the writer reads as
+#: "recommends nothing: replace the period's" — so a usable reply that merely
+#: omitted the key deleted the period's worked recommendations (review,
+#: measured through the real narrator and the real writer: 2 -> 0).
+_REC = {"severity": "high", "title": "Build a liquidity buffer", "rationale": "Cash is thin.",
+        "actions": ["Agree a committed facility"], "estimated_ron_impact": None}
+RECOMMENDATION_SHAPES = [
+    ("key_absent", None, "ABSENT"),
+    ("null", None, None),
+    ("empty_string", None, ""),
+    ("a_string", None, "none"),
+    ("an_empty_object", None, {}),
+    ("an_object", None, {"items": []}),
+    ("zero", None, 0),
+    ("false", None, False),
+    ("an_empty_list", [], []),
+    ("a_list_of_one", [_REC], [_REC]),
+]
+
+
+@pytest.mark.parametrize("handed_on,in_reply", [c[1:] for c in RECOMMENDATION_SHAPES],
+                         ids=[c[0] for c in RECOMMENDATION_SHAPES])
+def test_a_usable_replys_recommendations_are_handed_on_as_a_list_or_not_at_all(
+        handed_on, in_reply, monkeypatch):
+    reply = {"briefing": GOOD}
+    if in_reply != "ABSENT":
+        reply["recommendations"] = in_reply
+    _install_provider(monkeypatch, json.dumps(reply))
+    out = _narrate()
+    assert "unavailable" not in out, out
+    assert out["briefing"] == GOOD
+    if handed_on is None:
+        assert out["recommendations"] is None, out["recommendations"]
+        # … which the writer's judge reads as UNREADABLE (it replaces nothing)
+        assert P._recommendation_rows(out, "org", "period") is None
+    else:
+        assert out["recommendations"] == handed_on
+        assert isinstance(P._recommendation_rows(out, "org", "period"), list)
 
 
 def test_the_recommendations_of_a_usable_reply_pass_through(monkeypatch):
