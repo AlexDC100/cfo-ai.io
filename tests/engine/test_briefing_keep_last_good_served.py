@@ -33,7 +33,10 @@ the persist / takeover seam are gated by its two siblings):
       list, and never raises — not for a reply of any shape, not for an SDK
       that cannot be imported, not for a provider client that cannot be
       constructed, not for a response that carries no readable text; a
-      usable reply carries NO code.
+      usable reply carries NO code. The same on the SKU call shape (the
+      pipeline's `scope == "sku"` branch: `stage_map` then the narrator's
+      non-statement prompt), where what it returns is unusable to the
+      predicate of S2 — the handle the SKU writer's guard needs.
   S2  `narration_unavailable_code` decides on that code; an unknown code is a
       provider error; a code-less result is usable only if its body is prose.
   S3  `stored_briefing_failure_code` recognises every failure text a writer
@@ -62,6 +65,11 @@ the persist / takeover seam are gated by its two siblings):
       marker the database refused (the migration not applied) answers false;
       a good write answers false. (SPEC D6a's literal `stale: true` in every
       ok:false answer is superseded by the ruling.)
+      WHAT THE NARRATOR USED TO RAISE ON IS A FAILED NARRATION LIKE ANY
+      OTHER at the route: 200 `ok: false` with the neutral code, the kept
+      body handed back, the reserved message given back to the caller's own
+      meter and never committed, nothing written but the marker — never the
+      500 those provider states answered before R2 was repaired.
   S6  census: no `upsert("briefings", …)` payload names a stale column, and
       the two column names appear nowhere in src/engine outside the two
       marker writers and the reader; every update / delete AND every select
@@ -76,9 +84,9 @@ the persist / takeover seam are gated by its two siblings):
       the verifier.
 
 MEASURED RED AGAINST THE CODE at d3c955a7 — four defects in src/ this file
-found in the hotfix's own code, REPAIRED on 2026-10-03 in the commit that
-carries this revision of the file (the tests were never weakened, skipped
-or xfailed; each still reds on its defect):
+found in the hotfix's own code, REPAIRED on 2026-10-03 in commit 4828ab7c
+(the tests were never weakened, skipped or xfailed; each still reds on its
+defect):
   R1  the text predicate's provider regex was searched ANYWHERE in the body
       (pipeline.py `_PROVIDER_ERROR_TEXT_RX` … `.search`): finance prose
       that says "credit balance is too low" was a "provider_error" — a
@@ -125,6 +133,40 @@ allows only the two marker writers and the reader; the reader's own
     [before_the_migration | a_stored_failure_text | a_stored_reply_fragment |
      nothing_stored]
 
+WHAT R2 CHANGES OUTSIDE THIS SEAM (independent review of 4828ab7c,
+2026-10-03 — three findings, none a change to this seam's source; recorded
+here so the merge cannot lose them):
+  · THE ROUTE. A response with nothing readable in it, and a client that
+    cannot be constructed, no longer leave the narrator as an exception: the
+    route answers 200 `ok: false` and gives the unit back (pinned in S5
+    through the real route, with the meter on). The route seam's
+    `test_a_narrator_that_raises_is_500_and_gives_the_unit_back` drove its
+    500 with `content=None` — that input IS R2 — and is red on this seam's
+    repair until it makes the narrator raise through something R2 does not
+    absorb. The 500 + release + no-write law for such an exception stays
+    with the route seam's gate.
+  · THE SKU WRITER. Before R2 those two failures failed a SKU run BEFORE
+    `_persist_sku_analysis`, so a usable `sku_analyses.briefing` survived
+    them by accident; they now reach that writer as a failure dict, and it
+    stores `narrative.get("briefing")` with no predicate. Owner ruling (f)
+    ("a failed narration never replaces a usable sku_analyses.briefing") is
+    the WRITERS seam's repair and gate: THIS SEAM'S REPAIR MUST NOT SHIP
+    WITHOUT IT. What this file pins for it: on the SKU call shape the
+    narrator returns, for every failure, a dict `narration_unavailable_code`
+    names unusable (S1).
+  · THE REST OF THE PERIOD READ. GET /api/period still reads
+    `calculated_metrics`, `recommendations`, `alerts` and `valuations` by
+    `period_id` alone under the caller's RLS — the shape R4 had. MEASURED
+    2026-10-03 in this file's world (the reader a member of both
+    workspaces, a throwaway probe outside the repository): a
+    `recommendations`, an `alerts` and a `calculated_metrics` row carrying
+    ANOTHER workspace's org on this period are each served in the payload
+    (`valuations` not probed). The coordinator's reading (g) of the owner's
+    sentence ("the period read without workspace is a tenant boundary bug
+    and can't ship") covers the briefing row, which is what this gate
+    tests; the four other reads are the open remainder of that sentence,
+    reported for a ticket / the owner's call, not gated here.
+
 WHAT RUNS HERE. The real `create_app()` (the object `python -m engine serve`
 runs) with every wall on the request path, real ES256 bearers, the real
 `stage_narrate`, the real `stage_persist_narrative`, the real regenerate
@@ -144,6 +186,8 @@ REDS ON, with the defect repaired (TC-11):
     deeper than the parser follows included), an SDK that cannot be
     imported, a client that cannot be built, or a response with nothing
     readable in it; a reader of the response that drops text it CAN read;
+    any of it on the SKU call shape, or a failure there that the predicate
+    of S2 would pass as usable;
   · the predicate deciding on body text when a code is present, or passing
     an unknown code through as a reason;
   · a stored failure text the text predicate no longer recognises (it would
@@ -162,6 +206,8 @@ REDS ON, with the defect repaired (TC-11):
     handed back as "the briefing that was kept" or marked stale; any of it
     depending on the migration having been applied; an answered `stale`
     that is not what GET /api/period serves immediately after the call;
+    a provider state R2 absorbs answered 500 by the route again, its
+    reserved message committed or left held, or SDK text in the answer;
   · a stale column inside a briefing upsert payload, or named anywhere
     outside the two marker writers and the reader; an update / delete on
     `briefings` without `org_id`; a writer storing provider text, an operator
@@ -179,8 +225,16 @@ makes the reader a member of BOTH workspaces); GET /api/period's re-check
 of the row's own org AFTER the filtered read (the double honours filters,
 so dropping the re-check alone changes nothing here — measured; dropping
 the filter, or both, is red); the route's OTHER period-keyed reads
-(`calculated_metrics`, `recommendations`, `alerts` by `period_id` alone —
-the same shape as R4, outside this gate); the `language in ('en','ro')`
+(`calculated_metrics`, `recommendations`, `alerts`, `valuations` by
+`period_id` alone — the same shape as R4, outside this gate: see WHAT R2
+CHANGES OUTSIDE THIS SEAM); what the SKU WRITER stores
+(`_persist_sku_analysis`, `sku_analyses.briefing` — ruling (f), the writers
+seam's gate; this file drives the narrator on the SKU call shape and never
+that writer);
+an exception out of the narrator that R2 does NOT absorb (its prompt is
+built before the provider is reached, outside any try — the route's 500
+for it is the route seam's law); the meter's own RPCs in Postgres (the S5
+meter test records `_usage_gate._rpc`); the `language in ('en','ro')`
 check constraint and `unique (period_id)` (the double enforces neither);
 rows ALREADY overwritten in production before the fix (one row per period,
 no history — there is no last good text to keep); a reply fragment stored
@@ -761,6 +815,148 @@ def test_the_recommendations_of_a_usable_reply_pass_through(monkeypatch):
     out = _narrate()
     assert "unavailable" not in out
     assert out["recommendations"] == [rec]
+
+
+# ── R2, as an arrangement the SKU call shape and the route can both meet ───
+
+def _install_unbuildable_client(monkeypatch) -> List[List[str]]:
+    """The SDK imports and its client cannot be CONSTRUCTED (what the httpx
+    `proxies` removal did to every deployed SDK of its day). Returns the
+    record of construction attempts — the proof the branch ran."""
+    built: List[List[str]] = []
+
+    class _Unbuildable:
+        def __init__(self, **kwargs: Any) -> None:
+            built.append(sorted(kwargs))
+            raise TypeError("Client.__init__() got an unexpected keyword argument 'proxies'")
+
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=_Unbuildable))
+    return built
+
+
+#: The provider states `stage_narrate` RAISED on before R2 was repaired:
+#: (id, the response the provider returns — or None for a client that cannot
+#: be constructed —, the code, the text beside it). Until the repair each of
+#: them left the narrator as an exception: the pipeline failed the run (on
+#: the SKU branch BEFORE its writer was reached) and the regenerate route
+#: answered 500.
+R2_STATES = [
+    ("a_client_that_cannot_be_constructed", None, "provider_error", SENTINEL),
+    ("a_response_whose_content_is_null", lambda: _response(None), "empty_reply", EMPTY_REPLY_SENTENCE),
+    ("a_text_block_whose_text_is_null",
+     lambda: _response([types.SimpleNamespace(type="text", text=None)]), "empty_reply", EMPTY_REPLY_SENTENCE),
+]
+
+
+def _arrange_r2(monkeypatch, response: Any) -> Any:
+    """Install one state of R2_STATES; returns a callable answering how many
+    times the provider was REACHED (constructed, for the client that cannot
+    be built; called, for a response) — 0 means the path under test did not
+    run."""
+    if response is None:
+        _install_provider(monkeypatch, "{}")
+        built = _install_unbuildable_client(monkeypatch)
+        return lambda: len(built)
+    provider = _install_provider(monkeypatch, response())
+    return lambda: len(provider.calls)
+
+
+# ── the SKU call shape (the pipeline's `scope == "sku"` branch) ───────────
+#
+# Review of 2026-10-03: R2 changed what reaches the SKU writer. A client
+# that could not be constructed, or a response with nothing readable in it,
+# used to RAISE out of the narrator — the SKU run failed before
+# `_persist_sku_analysis` and the stored `sku_analyses.briefing` survived by
+# accident. Both now come back as a failure dict, and that writer stores
+# `narrative.get("briefing")` with no predicate (owner ruling (f): "a failed
+# narration never replaces a usable sku_analyses.briefing" — the WRITERS
+# seam's repair and gate). What THIS seam owes that repair is pinned here:
+# on the SKU call shape too the narrator never raises, and what it returns
+# is unusable to the predicate every writer decides on — so one guard on
+# `narration_unavailable_code` at the SKU writer covers every failure.
+
+SKU_DOC = {"org_id": ORG, "id": "doc-sku-b21f", "original_filename": "vanzari_2025.xlsx",
+           "detected_language": "en"}
+#: A parsed SALES document: no accounts, so the narrator takes its
+#: non-statement prompt — the mode no other test of this file runs.
+SKU_PARSED = {
+    "detected_type": "sales_analysis",
+    "period_label": "FY2025",
+    "summary": {"row_count": 2, "headline_total": 1200.0,
+                "top_records": [{"sku": "A-100", "revenue": 700.0}]},
+    "skus": [{"sku": "A-100", "revenue": 700.0}, {"sku": "B-200", "revenue": 500.0}],
+}
+#: How each narrator prompt begins — written out here, so a test can tell
+#: WHICH mode ran from what the provider was sent.
+NON_STATEMENT_PROMPT_HEAD = "You are a senior CFO advisor reviewing a business document."
+STATEMENT_PROMPT_HEAD = "You are a senior CFO advising the management team of a European SME."
+
+
+def _narrate_sku() -> Dict[str, Any]:
+    """The SKU branch's own two calls, both REAL and in its own shape
+    (pipeline.py, `if scope == "sku":`): `stage_map` over the parsed sales
+    document, then `stage_narrate` with no metrics and `period_id="-"`."""
+    parsed = copy.deepcopy(SKU_PARSED)
+    assembled = P.stage_map(dict(SKU_DOC), parsed, "generic")
+    return P.stage_narrate(dict(SKU_DOC), assembled, [], {"industry_key": "generic"},
+                           period_id="-", parsed=parsed)
+
+
+def test_the_sku_call_shape_runs_the_non_statement_prompt_and_a_usable_reply_is_usable(monkeypatch):
+    """The positive control of the two SKU tables below: `_narrate_sku` runs
+    the narrator in the mode the SKU branch runs it in (not the statement
+    mode every other test here uses), and in that mode a good reply is a
+    briefing — no code, usable to the predicate."""
+    provider = _install_provider(monkeypatch, json.dumps({"briefing": GOOD, "recommendations": []}))
+    out = _narrate_sku()
+    assert len(provider.calls) == 1
+    assert provider.calls[0]["system"].startswith(NON_STATEMENT_PROMPT_HEAD), provider.calls[0]["system"][:80]
+    assert "unavailable" not in out, out
+    assert out["briefing"] == GOOD
+    assert P.narration_unavailable_code(out) is None
+    # …and the head tells the two modes apart: the statement book of this
+    # file is narrated under the OTHER prompt.
+    _narrate()
+    assert len(provider.calls) == 2
+    assert provider.calls[1]["system"].startswith(STATEMENT_PROMPT_HEAD), provider.calls[1]["system"][:80]
+
+
+@pytest.mark.parametrize("branch", sorted(BRANCHES))
+def test_on_the_sku_call_shape_every_failure_branch_returns_its_code_beside_its_text(branch, monkeypatch):
+    """S1 on the mode the SKU writer is fed from. Measured before the hotfix
+    through that writer: the operator sentence, or the first 500 characters
+    of a raw reply, stored as `sku_analyses.briefing` — the narrator handed
+    them over with nothing a program could read."""
+    kwargs, code, text = BRANCHES[branch]
+    _install_provider(monkeypatch, **kwargs)
+    out = _narrate_sku()
+    assert out.get("unavailable") == code, out
+    assert out["briefing"] == text, out["briefing"]
+    assert out["recommendations"] == [] and isinstance(out["recommendations"], list), out
+    assert P.narration_unavailable_code(out) == code
+
+
+@pytest.mark.parametrize("response,code,text", [c[1:] for c in R2_STATES], ids=[c[0] for c in R2_STATES])
+def test_on_the_sku_call_shape_what_the_narrator_used_to_raise_on_is_a_coded_failure(
+        response, code, text, monkeypatch):
+    """R2 on the SKU call shape — the two failures that now REACH the SKU
+    writer (they used to fail the run before it). Never an exception; the
+    code beside the neutral text; and BOTH predicates name the result
+    unusable — the structured code, and the text itself (so even a writer
+    that only looked at the body could not take it for a briefing)."""
+    reached = _arrange_r2(monkeypatch, response)
+    try:
+        out = _narrate_sku()
+    except Exception as exc:  # noqa: BLE001 — the law is "never raises"
+        pytest.fail("stage_narrate RAISED %s(%s) on the SKU call shape" % (type(exc).__name__, exc))
+    assert reached() == 1, "the provider was never reached: the branch under test did not run"
+    assert out.get("unavailable") == code, out
+    assert out["briefing"] == text
+    assert out["recommendations"] == []
+    assert P.narration_unavailable_code(out) == code
+    assert P.stored_briefing_failure_code(out["briefing"]) == code
+    # No provider or SDK text in anything a writer stores.
+    assert "proxies" not in out["briefing"] and "TypeError" not in out["briefing"]
 
 
 def _function(tree: ast.AST, name: str) -> ast.FunctionDef:
@@ -1508,6 +1704,94 @@ def test_the_answered_stale_is_what_get_period_serves_immediately_after(
     # the columns at all.
     rows = _briefing_rows(double)
     assert bool(rows and rows[0].get("stale_since")) is stale, rows
+
+
+def _meter_on(monkeypatch) -> List[Tuple[str, Dict[str, Any]]]:
+    """Enforcement ON, with the ONE function of the real usage gate that
+    talks to the meter recorded. Like the real `_rpc` it answers a dict and
+    never raises. Call it AFTER `_install_provider` (which switches
+    enforcement off and makes any RPC a test failure). Returns the RPCs in
+    the order the route made them.
+
+    The plan is the real `_plan_state.get_plan_state`'s answer for a caller
+    with no readable subscription (this double declares no `subscriptions`
+    table): the trial plan, its documented fallback. The caps sent to the
+    meter are the route seam's law and are not asserted here — only WHICH
+    RPCs were made, in which order, and for whom."""
+    seen: List[Tuple[str, Dict[str, Any]]] = []
+    answers = {"reserve_user_chat": {"kind": "allowed", "daily_used": 1, "monthly_used": 1},
+               "commit_user_chat": {"ok": True}, "release_user_chat": {"ok": True}}
+
+    def _recorded_rpc(name: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        seen.append((name, dict(payload)))
+        return answers.get(name)
+
+    monkeypatch.setenv("USAGE_LIMITS_ENABLED", "true")
+    monkeypatch.setattr(_usage_gate, "_rpc", _recorded_rpc)
+    return seen
+
+
+@pytest.mark.parametrize("response,code", [(c[1], c[2]) for c in R2_STATES], ids=[c[0] for c in R2_STATES])
+def test_what_the_narrator_used_to_raise_on_is_an_ok_false_answer_of_the_real_route_never_a_500(
+        response, code, monkeypatch):
+    """R2 AS THE ROUTE MEETS IT (review 2026-10-03). Measured before the
+    repair, for each of these provider states: the exception left
+    `stage_narrate`, the route answered 500 "Briefing regeneration failed:
+    TypeError" where SPEC D6a says 200 `ok: false`, and the page was told
+    nothing about the briefing that had been kept.
+
+    With the narrator returning its code: the SAME answer as any other
+    failed narration — 200 `ok: false` with the neutral code, the kept body
+    handed back, the kept row marked (so `stale: true` here is the stored
+    state, and what GET /api/period serves next), nothing else written — and
+    the reserved message GIVEN BACK, never committed, on the caller's own
+    meter. (The route's 500 for an exception the narrator does NOT absorb is
+    the route seam's law and stays with its gate; it can no longer be driven
+    with these responses.)"""
+    double = _world(briefing=_usable_row())
+    reached = _arrange_r2(monkeypatch, response)
+    meter = _meter_on(monkeypatch)
+    before = _store(double)
+    assert before["briefings"][0]["body"] == GOOD
+
+    resp = _regenerate(double, {"intent": "user"})
+    assert reached() == 1, "the provider was never reached: the path under test did not run"
+    assert resp.status_code == 200, resp.text[:400]
+    answer = resp.json()
+    assert answer["ok"] is False and answer["regenerated"] is False, answer
+    assert answer["reason"] == code
+    assert answer["briefing"] == GOOD and answer["briefing_length"] == 93
+    assert answer["stale"] is True
+    # No SDK text reaches the caller.
+    assert "proxies" not in resp.text and "TypeError" not in resp.text
+
+    # The unit: reserved, then released — the verified caller's, both times.
+    assert [name for name, _payload in meter] == ["reserve_user_chat", "release_user_chat"], meter
+    assert [payload["p_user_id"] for _name, payload in meter] == [USER, USER]
+
+    # THE WHOLE STORE: nothing but the two marker columns of the one row.
+    assert _without_marker(_store(double)) == _without_marker(before)
+    row = _briefing_rows(double)[0]
+    assert row["body"] == GOOD and row["stale_reason"] == code
+    assert isinstance(row["stale_since"], str) and row["stale_since"], row
+    served = _served(double)
+    assert served["body"] == GOOD and served["unavailable"] is False
+    assert served["stale"] == {"since": row["stale_since"], "reason": code}
+
+
+def test_the_same_metered_route_commits_the_unit_when_the_narration_is_usable(monkeypatch):
+    """The positive control of the test above: a recorder that named every
+    settlement a release — or a world in which no narration can succeed —
+    would pass it."""
+    double = _world(briefing=_usable_row())
+    provider = _install_provider(monkeypatch, _GOOD_REPLY)
+    meter = _meter_on(monkeypatch)
+    resp = _regenerate(double, {"intent": "user"})
+    assert resp.status_code == 200 and resp.json()["ok"] is True, resp.text[:400]
+    assert len(provider.calls) == 1
+    assert [name for name, _payload in meter] == ["reserve_user_chat", "commit_user_chat"], meter
+    assert [payload["p_user_id"] for _name, payload in meter] == [USER, USER]
+    assert _briefing_rows(double)[0]["body"] == FRESH_RO
 
 
 # ══ S6 — census: what the writers may send ════════════════════════════════
