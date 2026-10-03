@@ -315,9 +315,9 @@ def main() -> int:
                   "and grantee in ('anon','authenticated','PUBLIC','service_role');")
     want_grants = " ".join(sorted("%s:service_role" % n for n in CHAT_FUNCTIONS))
     if grants == want_grants:
-        passed("A. the three functions are executable by service_role and by no API role a browser holds")
+        passed("A. CONTROL (the stack's catalog): the three functions are executable by service_role and by no API role a browser holds")
     else:
-        failed("A. the three functions are executable by service_role and by no API role a browser holds",
+        failed("A. CONTROL (the stack's catalog): the three functions are executable by service_role and by no API role a browser holds",
                "got:  %s" % grants, "want: %s" % want_grants)
 
     # ── B. the engine's resolution, executed ──

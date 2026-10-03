@@ -366,7 +366,7 @@ try {
   {
     const d = await newUser("default-row");
     const row = await planRow(d);
-    check("8.1 a brand-new signup's row, as the trigger wrote it: tier NULL, plan 'professional'", [row?.tier ?? null, row?.plan], [null, "professional"]);
+    check("8.1 CONTROL (the stack's signup trigger): a brand-new signup's row is tier NULL, plan 'professional'", [row?.tier ?? null, row?.plan], [null, "professional"]);
     await seed(d, 39, 39);
     const before = seen.length;
     const a = await ask(fn, d.token);
@@ -427,10 +427,13 @@ try {
     before = seen.length;
     mark = fnLog.length;
     const b = await ask(noPlan, u.token);
-    check("10.3 the plan row cannot be read: 503 metering_unavailable — and it is the PLAN READ that refused: the meter was never asked on the trial caps",
-      [b.status, b.json.error, loggedSince(mark, "the subscriptions row could not be read — refusing"), loggedSince(mark, "reserve_user_chat")],
-      [503, "metering_unavailable", 1, 0]);
-    check("10.4 …no upstream request, nothing metered", [seen.length - before, await meter(u)], [0, [null, null, null, null]]);
+    // ONE case: with a key the gateway rejects, the meter is unreachable too,
+    // so "nothing upstream, nothing metered" could not fail on its own here.
+    // What tells "refused at the plan read" from "read as trial, then refused
+    // by the meter" is the function's log.
+    check("10.3 the plan row cannot be read: 503 metering_unavailable — and it is the PLAN READ that refused: the meter was never asked on the trial caps; nothing upstream, nothing metered",
+      [b.status, b.json.error, loggedSince(mark, "the subscriptions row could not be read — refusing"), loggedSince(mark, "reserve_user_chat"), seen.length - before, await meter(u)],
+      [503, "metering_unavailable", 1, 0, 0, [null, null, null, null]]);
     await noPlan.stop();
 
     // (c) the auth server cannot be reached (a closed loopback port).
