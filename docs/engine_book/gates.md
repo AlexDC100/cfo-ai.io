@@ -20311,9 +20311,11 @@ the HTTP status are computed in `_health._build_body` from the DATABASE check
 alone (`critical_ok = checks["db"]["ok"]`; 503 when false). Stripe is already a
 warning: its `ok: false` changes neither. FX is made a warning of the same
 kind — `checks.fx_rates.ok` goes false, `ok` and the status do not move. Read
-before choosing: the deploy lane prints `d['ok']` and `d['mode']` and stops on a
-red `ok`; an uptime monitor polls the status; `tests/engine/test_launch_survival.py`
-replaces the three checks and asserts the memo, not the rollup. A BNR outage
+before choosing: `scripts/deploy.sh` waits for `"ok": true` and exits 1 ("Deploy
+RED") without it, and the deploy lane prints `d['ok']` and `d['mode']`; the
+uptime monitor the endpoint exists for polls the status (503 = drain);
+`tests/engine/test_launch_survival.py` replaces the three checks and asserts
+the memo and the operator fields, not the rollup. A BNR outage
 that turned `ok` red would fail every deploy made during the outage and page
 for a dependency whose loss leaves every surface rendering (in RON, and in
 EUR/USD at a rate marked stale). The signal for a human is `checks.fx_rates`
@@ -20605,6 +20607,33 @@ accepted: {"base":"EUR","rates":{"EUR":1,"RON":5.3447,"USD":1.124750099960016},"
   asked: https://curs.bnr.ro/nbrfxrates.xml -> 200 text/xml
   asked: https://www.bnr.ro/nbrfxrates.xml -> 200 text/html; charset=UTF-8 (redirected to https://www.bnr.ro/)
 ```
+
+**The BUILT bundle in a real browser** (`npm run build` with
+`VITE_SUPABASE_URL=https://test.supabase.co`, `VITE_API_URL=""` as production
+builds it; headless Chromium; every request answered by the script, none
+leaving the machine — `specs-durable/fx_feed_round2/browser_check.mjs`). What
+the page asked on mount and what it then holds in `cfo:fx-rates:v1`:
+```
+OK  1. production today + this release: function stale (August row), engine current -> the engine's rate, as current
+      asked ["function","engine"] | the browser now holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+OK  2. the same, in a browser that already holds the August payload (every browser that opened the app before)
+      asked ["function","engine"] | the browser now holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+OK  3. after the function's redeploy: function current -> no second request
+      asked ["function"] | the browser now holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+OK  4. function stale, engine unreachable -> the August rate kept, still marked stale
+      asked ["function","engine"] | the browser now holds {"RON":5.2489,"as_of":"2026-08-05","source":"BNR","stale":true}
+OK  5. function stale, engine itself stale (production's engine as it was: 4.97) -> the August rate kept, stale, never 4.97
+      asked ["function","engine"] | the browser now holds {"RON":5.2489,"as_of":"2026-08-05","source":"BNR","stale":true}
+OK  6. function down, engine current -> the engine's rate
+      asked ["function","engine"] | the browser now holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+OK  7. both down, nothing held -> nothing is stored (the bundled fallback is shown, stale)
+      asked ["function","engine"] | the browser now holds null
+OK  8. a current rate held for two hours -> no request at all
+      asked [] | the browser now holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
+BROWSER CHECK GREEN — 8 of 8 scenarios, the built bundle in headless Chromium
+```
+The engine is asked at the page's own origin (`/api/fx-rates`): production
+builds with `VITE_API_URL=""`, so the second request needs no CORS.
 
 **REDEPLOY** — the function goes live only by this command (the Supabase CLI
 must be signed in; the project ref is the one in
