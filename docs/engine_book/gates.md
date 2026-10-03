@@ -20442,7 +20442,7 @@ engine merges and echoes on `GET /config` and never reads.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/fxRatesChoice.test.ts frontend/lib/__tests__/fxFunctionBnr.test.ts frontend/lib/__tests__/fxOpenTab.test.tsx --reporter=verbose` |
-| work count | `Tests N passed`, floor **150** (measured 154: 37 browser choice + 97 function + 20 open tab; 105 before round 3) |
+| work count | `Tests N passed`, floor **150** (measured 156: 37 browser choice + 97 function + 22 open tab; 105 before round 3) |
 | canary | `production on 2026-10-03, with this release: the function's August row is stale, the engine has BNR's file of 2 October — the engine's rate is shown, as current`; `a current function payload is used and costs no second request — the engine may be stopped`; `the engine is unreachable and the function's row is newer than anything held: it is kept, MARKED STALE, and the next call asks both again`; `a held payload that is not a current BNR rate never spares the next attempt`; `whatever the two sources answer, nothing but a current BNR rate is ever returned with stale false`; `the real feed parses to the figures BNR published`; `the deployed row + BNR at its new address: the feed is fetched, the fresh row stored, the answer BNR and not stale`; `a stale row does not refetch BNR on every request: once per five minutes, whichever instance asks`; `the engine's, the function's and the browser's fallback are equal, and say the same date`; `index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic`; round 3: `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October`, `past its day the rate on screen is marked stale BEFORE anyone answers, and stays stale until a source does`, `no request storm: an hour of \`online\`, focus and visibility events every two seconds`, `a hidden tab asks nothing`, `a function payload LABELLED current but published two months ago`, `a function payload newer than the engine's current rate that does NOT say it is stale is still returned marked stale`, `an ENGINE that never answers is abandoned after eight seconds of its own`, `what the browser holds changes only for something better`, `a row touched by hand — the August rate under a fetched_at one hour old — is not served as current`, `a body carrying a comment or a CDATA section is refused whole`, `a self-closed Cube is a Cube with no rates`, `the accepted file is stored with EVERY column the reader needs` |
 | round 3 | the open tab; "current" re-checked against the date; what round 3 CHANGED in the statements below (three of the browser's, marked ‡): **"fx-feed / fx-browser — round 3", at the end of this file** |
 
@@ -20752,8 +20752,10 @@ the test, the clock moved by hand):
   answers and stays stale until a source does;
 - the sources are asked again whenever no current rate is held — on a timer
   (a look every minute), on `focus`, `visibilitychange` and `online` — one
-  attempt at a time, never from a hidden tab; inside the held day nothing is
-  asked and nothing re-renders (the context object is the same object);
+  attempt at a time, and after the mount fetch never from a hidden tab (a
+  tab opened in the background makes that one attempt, then asks the moment
+  it is seen); inside the held day nothing is asked and nothing re-renders
+  (the context object is the same object);
 - a tab that slept (the clock jumps, no timer fires) learns of it from its
   first event; a failed mount fetch is tried again five minutes later; a
   clock set back does not strand the tab; another tab's answer is taken
@@ -20772,8 +20774,10 @@ source that could not read BNR does not try again sooner, so a browser asking
 sooner can only be answered the same thing — and a source that has just come
 back is seen within one window. The cost while both sources stay stale (two
 months, in 2026) is bounded at 12 attempts — 24 GETs — per hour per VISIBLE
-tab, none from a hidden one; before this it was one attempt per page load and
-the tab never healed. A broken browser clock (more than a day wrong) costs the
+tab, and from a hidden one its mount fetch alone; before this it was one
+attempt per page load and the tab never healed. The bound is per mounted
+provider (one, at the App root); `refresh()` — which nothing in the app calls
+— is not spaced. A broken browser clock (more than a day wrong) costs the
 same bound and shows the stale mark.
 
 *"Current" is one definition in the three readers, re-checked wherever a
@@ -20808,7 +20812,11 @@ date):
   stale figures the later-published one, the held one on a tie. With nothing
   held, "what is held" is the bundled fallback (BNR's file of 2026-10-02) —
   which a source's two-month-old row does not displace, and which is never
-  written to the browser's copy;
+  written to the browser's copy. A STORED record that is not current and
+  older than the bundled fallback yields to it as well (`getHeldRates`): a
+  browser that stored the August row before the release paints BNR's file
+  of 2 October from its first frame, and two browsers handed the same
+  answers show the same figure whatever they stored before;
 - each request is abandoned after eight seconds of its own; with both
   hanging the attempt ends at sixteen.
 
@@ -20850,7 +20858,7 @@ rate is not current; that is the other check's job. A deploy runs both.
 after each (sha256 asserted). Round 2's seventy were replayed on the round-3
 code first (the snippets round 3 rewrote are restated on the new text; B9 is
 gone with the rule it planted against — R5 and R6 hold the new rule from both
-sides), then round 3's own fifty-one.
+sides), then round 3's own fifty-three.
 
 Round 3's plants, engine (`fx-feed`):
 
@@ -20875,60 +20883,62 @@ Round 3's plants, browser, open tab and function (`fx-browser`):
 
 | plant | RED |
 |---|---|
-| R1 a payload is called current on its label alone — the date is not re-checked (round 2) | `5 failed, 149 passed` — `a function payload LABELLED current but published two months ago — a row touched by hand — is not current: …` and 4 more |
-| R2 a publication date after today is taken as a date | `3 failed, 151 passed` — `is a current BNR rate: source BNR, stale exactly false, and published within ten days — never after today` and 2 more |
-| R3 the browser's age limit raised from 10 days to 400 | `4 failed, 150 passed` — `a function payload LABELLED current but published two months ago — a row touched by hand — is not current: …` and 3 more |
-| R4 the choice returns what was picked UNMARKED (the review's evasion, generalised) | `3 failed, 151 passed` — `a function payload newer than the engine's current rate that does NOT say it is stale is still returned mar…` and 2 more |
-| R5 nothing current: the function's answer is always kept (round 2's rule — the older figure) | `3 failed, 151 passed` — `nothing is current: of two stale answers the NEWER publication is kept, marked stale — the engine's last-kn…` and 2 more |
-| R6 nothing current: the engine's answer is always kept | `3 failed, 151 passed` — `the engine is itself stale — production's engine as it was, serving 4.97 as of May: never 4.97, never shown…` and 2 more |
-| R7 the ENGINE request is never abandoned (the review's evasion: only the function's hang was tested) | `3 failed, 151 passed` — `the mount fetch failed — the function stale, the engine slower than eight seconds: five minutes later the t…` and 2 more |
-| R8 the FUNCTION request is never abandoned | `3 failed, 151 passed` — `one attempt at a time: events while a request is in flight start no second one` and 2 more |
-| R9 a stale answer replaces a CURRENT rate the browser holds | `2 failed, 152 passed` — `a forced refresh answered only by STALE sources inside the held rate's day keeps the current rate — a stale…` and 1 more |
-| R10 an older stale answer replaces a newer figure the browser holds (round 2: the August row over yesterday's rate) | `8 failed, 146 passed` — `production on 2026-10-03 with the engine unreachable: the function's August row is OLDER than the bundled f…` and 7 more |
-| R11 on the same publication date the answer replaces what is held | `1 failed, 153 passed` — `what the browser holds changes only for something better` |
-| R12 a current answer does not replace what is held | `24 failed, 130 passed` — `production on 2026-10-03, with this release: the function's August row is stale, the engine has BNR's file …` and 23 more |
-| R13 a held record's timestamp is taken as it is stored (not a number: never 'answered never') | `1 failed, 153 passed` — `nothing held is the bundled fallback, answered never: stale, and it spares no request; a record without a u…` |
-| T0 the provider as it was before round 3: one fetch at mount, nothing after (ce129b97) | `14 failed, 140 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 13 more |
-| T1 no timer: an open tab never looks at the clock by itself | `10 failed, 144 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 9 more |
-| T2 focus and visibilitychange are not listened to | `3 failed, 151 passed` — `a window that regains focus after the rate's day ended is marked and asks at once — not at the next look` and 2 more |
-| T3 `online` is not listened to | `2 failed, 152 passed` — `focus and visibility events inside the five minutes do not multiply the attempts; `online` is let through o…` and 1 more |
-| T4 a look does not derive what is shown: a rate past its day stays 'current' until a source answers | `2 failed, 152 passed` — `past its day the rate on screen is marked stale BEFORE anyone answers, and stays stale until a source does` and 1 more |
-| T5 no spacing: the sources are asked at every look (a request storm) | `4 failed, 150 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 3 more |
-| T6 `online` asks every time it fires (the pass is never spent) | `2 failed, 152 passed` — `focus and visibility events inside the five minutes do not multiply the attempts; `online` is let through o…` and 1 more |
-| T7 a hidden tab asks | `1 failed, 153 passed` — `a hidden tab asks nothing — its rate is still marked stale when the day ends — and it asks the moment it be…` |
-| T8 a second attempt starts while one is in flight | `1 failed, 153 passed` — `one attempt at a time: events while a request is in flight start no second one` |
-| T9 unmounting leaves the timer running | `1 failed, 153 passed` — `unmounting stops everything: no look, no listener, no request — and an answer that arrives afterwards chang…` |
-| T10 unmounting leaves the focus listener | `7 failed, 147 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 6 more |
-| T11 a tab swaps the rate it holds for whatever comes back (a failed attempt: the bundled fallback) | `1 failed, 153 passed` — `localStorage unavailable (private mode): nothing is asked inside the day, the tab's own copy is marked stal…` |
-| T12 the retry spacing shortened to one second | `4 failed, 150 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 3 more |
-| T13 a look marks the rate stale and never asks | `14 failed, 140 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 13 more |
-| T14 the spacing counts only the mount attempt (lastAttemptAt never moves) | `2 failed, 152 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 1 more |
-| M1 a cached file is called current on fetched_at alone (round 2: the August rate under a fresh fetched_at was served stale:false) | `10 failed, 144 passed` — `the August rate under a fetched_at one hour old (a row touched by hand)` and 9 more |
-| M2 a body carrying a comment or a CDATA section is parsed (round 2: a commented-out Cube was accepted) | `3 failed, 151 passed` — `a body carrying a comment or a CDATA section is refused whole: a newer Cube inside an XML comment` and 2 more |
-| M3 a CDATA section is not refused (comments only) | `1 failed, 153 passed` — `a body carrying a comment or a CDATA section is refused whole: a newer Cube inside a CDATA section` |
-| M4 the open tag runs through '/>' (round 2: a self-closed Cube took the next Cube's rates) | `1 failed, 153 passed` — `a self-closed Cube is a Cube with no rates: the newest one is refused, an older one is not the rate — it ne…` |
-| M5 an attribute is matched by the end of its name (round 2: pub-date read as date) | `1 failed, 153 passed` — `an attribute is matched by its whole name: pub-date is not date, x-currency is not currency` |
-| M6 a self-closed Cube is not a Cube (the newest one is skipped, not refused) | `1 failed, 153 passed` — `a self-closed Cube is a Cube with no rates: the newest one is refused, an older one is not the rate — it ne…` |
-| M7 index.ts stores the accepted file without fetched_at (the review's evasion: both gates stayed green) | `1 failed, 153 passed` — `the accepted file is stored with EVERY column the reader needs — fetched_at and updated_at both the moment …` |
-| M8 index.ts stores the accepted file without stamping updated_at | `1 failed, 153 passed` — `the accepted file is stored with EVERY column the reader needs — fetched_at and updated_at both the moment …` |
-| M9 index.ts stamps a failed attempt on fetched_at as well (the stale rate becomes 'accepted now') | `1 failed, 153 passed` — `index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic` |
+| R1 a payload is called current on its label alone — the date is not re-checked (round 2) | `5 failed, 151 passed` — `a function payload LABELLED current but published two months ago — a row touched by hand — is not current: …` and 4 more |
+| R2 a publication date after today is taken as a date | `3 failed, 153 passed` — `is a current BNR rate: source BNR, stale exactly false, and published within ten days — never after today` and 2 more |
+| R3 the browser's age limit raised from 10 days to 400 | `4 failed, 152 passed` — `a function payload LABELLED current but published two months ago — a row touched by hand — is not current: …` and 3 more |
+| R4 the choice returns what was picked UNMARKED (the review's evasion, generalised) | `3 failed, 153 passed` — `a function payload newer than the engine's current rate that does NOT say it is stale is still returned mar…` and 2 more |
+| R5 nothing current: the function's answer is always kept (round 2's rule — the older figure) | `3 failed, 153 passed` — `nothing is current: of two stale answers the NEWER publication is kept, marked stale — the engine's last-kn…` and 2 more |
+| R6 nothing current: the engine's answer is always kept | `3 failed, 153 passed` — `the engine is itself stale — production's engine as it was, serving 4.97 as of May: never 4.97, never shown…` and 2 more |
+| R7 the ENGINE request is never abandoned (the review's evasion: only the function's hang was tested) | `3 failed, 153 passed` — `the mount fetch failed — the function stale, the engine slower than eight seconds: five minutes later the t…` and 2 more |
+| R8 the FUNCTION request is never abandoned | `3 failed, 153 passed` — `one attempt at a time: events while a request is in flight start no second one` and 2 more |
+| R9 a stale answer replaces a CURRENT rate the browser holds | `2 failed, 154 passed` — `a forced refresh answered only by STALE sources inside the held rate's day keeps the current rate — a stale…` and 1 more |
+| R10 an older stale answer replaces a newer figure the browser holds (round 2: the August row over yesterday's rate) | `13 failed, 143 passed` — `production on 2026-10-03 with the engine unreachable: the function's August row is OLDER than the bundled f…` and 12 more |
+| R11 on the same publication date the answer replaces what is held | `7 failed, 149 passed` — `a current rate held for 25 hours: it is shown — marked stale, it is no longer today's` and 6 more |
+| R12 a current answer does not replace what is held | `26 failed, 130 passed` — `production on 2026-10-03, with this release: the function's August row is stale, the engine has BNR's file …` and 25 more |
+| R14 a stored stale record older than the bundled fallback is shown instead of it (two browsers handed the same answers show different figures) | `5 failed, 151 passed` — `the engine is itself stale — production's engine as it was, serving 4.97 as of May: never 4.97, never shown…` and 4 more |
+| R13 a held record's timestamp is taken as it is stored (not a number: never 'answered never') | `1 failed, 155 passed` — `nothing held is the bundled fallback, answered never: stale, and it spares no request; a record without a u…` |
+| T0 the provider as it was before round 3: one fetch at mount, nothing after (ce129b97) | `15 failed, 141 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 14 more |
+| T1 no timer: an open tab never looks at the clock by itself | `10 failed, 146 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 9 more |
+| T2 focus and visibilitychange are not listened to | `4 failed, 152 passed` — `a window that regains focus after the rate's day ended is marked and asks at once — not at the next look` and 3 more |
+| T3 `online` is not listened to | `2 failed, 154 passed` — `focus and visibility events inside the five minutes do not multiply the attempts; `online` is let through o…` and 1 more |
+| T4 a look does not derive what is shown: a rate past its day stays 'current' until a source answers | `2 failed, 154 passed` — `past its day the rate on screen is marked stale BEFORE anyone answers, and stays stale until a source does` and 1 more |
+| T5 no spacing: the sources are asked at every look (a request storm) | `4 failed, 152 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 3 more |
+| T6 `online` asks every time it fires (the pass is never spent) | `2 failed, 154 passed` — `focus and visibility events inside the five minutes do not multiply the attempts; `online` is let through o…` and 1 more |
+| T7 a hidden tab asks | `2 failed, 154 passed` — `a hidden tab asks nothing — its rate is still marked stale when the day ends — and it asks the moment it be…` and 1 more |
+| T8 a second attempt starts while one is in flight | `1 failed, 155 passed` — `one attempt at a time: events while a request is in flight start no second one` |
+| T9 unmounting leaves the timer running | `1 failed, 155 passed` — `unmounting stops everything: no look, no listener, no request — and an answer that arrives afterwards chang…` |
+| T10 unmounting leaves the focus listener | `7 failed, 149 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 6 more |
+| T11 a tab swaps the rate it holds for whatever comes back (a failed attempt: the bundled fallback) | `1 failed, 155 passed` — `localStorage unavailable (private mode): nothing is asked inside the day, the tab's own copy is marked stal…` |
+| T12 the retry spacing shortened to one second | `4 failed, 152 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 3 more |
+| T13 a look marks the rate stale and never asks | `15 failed, 141 passed` — `a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October: when that rate's day end…` and 14 more |
+| T15 a tab opened in the background makes no mount fetch (the mount goes through the hidden-tab rule) | `1 failed, 155 passed` — `a tab opened in the background makes its mount fetch — one attempt — and then nothing until it is seen` |
+| T14 the spacing counts only the mount attempt (lastAttemptAt never moves) | `2 failed, 154 passed` — `the sources stop answering: the rate stays on screen, marked stale, and is asked for once per five minutes …` and 1 more |
+| M1 a cached file is called current on fetched_at alone (round 2: the August rate under a fresh fetched_at was served stale:false) | `10 failed, 146 passed` — `the August rate under a fetched_at one hour old (a row touched by hand)` and 9 more |
+| M2 a body carrying a comment or a CDATA section is parsed (round 2: a commented-out Cube was accepted) | `3 failed, 153 passed` — `a body carrying a comment or a CDATA section is refused whole: a newer Cube inside an XML comment` and 2 more |
+| M3 a CDATA section is not refused (comments only) | `1 failed, 155 passed` — `a body carrying a comment or a CDATA section is refused whole: a newer Cube inside a CDATA section` |
+| M4 the open tag runs through '/>' (round 2: a self-closed Cube took the next Cube's rates) | `1 failed, 155 passed` — `a self-closed Cube is a Cube with no rates: the newest one is refused, an older one is not the rate — it ne…` |
+| M5 an attribute is matched by the end of its name (round 2: pub-date read as date) | `1 failed, 155 passed` — `an attribute is matched by its whole name: pub-date is not date, x-currency is not currency` |
+| M6 a self-closed Cube is not a Cube (the newest one is skipped, not refused) | `1 failed, 155 passed` — `a self-closed Cube is a Cube with no rates: the newest one is refused, an older one is not the rate — it ne…` |
+| M7 index.ts stores the accepted file without fetched_at (the review's evasion: both gates stayed green) | `1 failed, 155 passed` — `the accepted file is stored with EVERY column the reader needs — fetched_at and updated_at both the moment …` |
+| M8 index.ts stores the accepted file without stamping updated_at | `1 failed, 155 passed` — `the accepted file is stored with EVERY column the reader needs — fetched_at and updated_at both the moment …` |
+| M9 index.ts stamps a failed attempt on fetched_at as well (the stale rate becomes 'accepted now') | `1 failed, 155 passed` — `index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic` |
 
 Round 2's plants replayed — failing tests per plant, all RED: engine
-P1 36, P2 3, P3 18, P4 5, P5 16, P6 19, E1 1, E2 6, E3 2, E4 7, E5 12, E6 4, E7 5, F1 4, F2 2, F3 2, F4 13, F5 2, F6 1, F7 2, F8 1, F9 1, F10 4, F11 4, F12 1, F13 1, F14 4, F15 5, F16 2, F17 1, F18 2, F19 5; browser and function B0 52, B1 9, B2 17, B3 31, B4 8, B5 3, B6 14, B7 19, B8 13, B10 2, B11 26, B12 4, B13 12, B14 2, B15 8, N1 30, N2 9, N3 14, N4 5, N5 5, N6 7, N7 6, N8 4, N9 1, N10 1, N11 5, N12 1, N13 2, N14 4, N15 1, N16 1, N17 2, N18 2, N19 1, N20 1, N21 1, N22 1.
+P1 36, P2 3, P3 18, P4 5, P5 16, P6 19, E1 1, E2 6, E3 2, E4 7, E5 12, E6 4, E7 5, F1 4, F2 2, F3 2, F4 13, F5 2, F6 1, F7 2, F8 1, F9 1, F10 4, F11 4, F12 1, F13 1, F14 4, F15 5, F16 2, F17 1, F18 2, F19 5; browser and function B0 55, B1 10, B2 18, B3 33, B4 8, B5 3, B6 17, B7 19, B8 13, B10 2, B11 28, B12 4, B13 13, B14 3, B15 10, N1 30, N2 9, N3 14, N4 5, N5 5, N6 7, N7 6, N8 4, N9 1, N10 1, N11 5, N12 1, N13 2, N14 4, N15 1, N16 1, N17 2, N18 2, N19 1, N20 1, N21 1, N22 1.
 
-**RED** — every plant exits `1`: 46 of 46 on `fx-feed`, 74 of
-74 on `fx-browser` (full output with every failing test name:
+**RED** — every plant exits `1`: 46 of 46 on `fx-feed`, 76 of
+76 on `fx-browser` (full output with every failing test name:
 `specs-durable/fx_feed_round3/plants_engine.out`, `plants_browser.out`).
 
-**REVERT** — every file restored byte-exact; exit `0`: `84 passed in 1.42s` (the 83 of
-`fx-feed` and the census test) and `Test Files  3 passed (3)', 'Tests  154 passed (154)`. Through the battery's own
+**REVERT** — every file restored byte-exact; exit `0`: `84 passed` (the 83 of
+`fx-feed` and the census test) and `Tests 156 passed (156)`. Through the battery's own
 functions (`specs-durable/fx_feed_round3/run_two_gates.py`):
 ```
 the battery lists 145 gates
 PASS fx-feed     exit 0 | examined 83 tests | floor 80 | canaries 28, missing 0
-PASS fx-browser  exit 0 | examined 154 browser-choice, open-tab and function-reader tests | floor 150 | canaries 22, missing 0
+PASS fx-browser  exit 0 | examined 156 browser-choice, open-tab and function-reader tests | floor 150 | canaries 22, missing 0
 ```
-Verdict: proven RED, one hundred and twenty of one hundred and twenty.
+Verdict: proven RED, one hundred and twenty-two of one hundred and twenty-two.
 
 **The BUILT bundle in a real browser on a held clock** (`npm run build` with
 `VITE_SUPABASE_URL=https://test.supabase.co`, `VITE_API_URL=""`; headless
@@ -20954,18 +20964,22 @@ OK  3. a suspended tab (the mobile shell's WebView): the clock jumps 25 hours an
       ok  the tab becomes visible: asked ["function","function"] | holds {"RON":5.3512,"as_of":"2026-10-05","source":"BNR","stale":false}
 OK  4. function stale (the August row), engine unreachable, nothing held -> nothing is stored: the bundled fallback (BNR's file of 2 October) stays, stale
       ok  at mount: asked ["function","engine"] | holds null
-OK  5. this release with the engine unable to read BNR: it answers its bundled fallback; a browser holding the August row takes the newer figure, marked stale
-      ok  at mount: asked ["function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"fallback","stale":true}
-OK  6. a browser holding the August row; the engine as production's was (4.97 as of May): the older figure never replaces it
+OK  5. nothing current, the engine's stale answer is the newer publication: a browser holding the August row takes it, marked stale
+      ok  at mount: asked ["function","engine"] | holds {"RON":5.3611,"as_of":"2026-10-05","source":"BNR","stale":true}
+OK  5b. this release with the engine unable to read BNR: it answers its bundled fallback (2 October) — nothing is stored over the browser's own bundled copy of the same file; the August row is not shown (vitest holds what is shown)
+      ok  at mount: asked ["function","engine"] | holds null
+OK  6. a browser holding the August row; the engine as production's was (4.97 as of May): the older figure is never stored
       ok  at mount: asked ["function","engine"] | holds {"RON":5.2489,"as_of":"2026-08-05","source":"BNR","stale":true}
 OK  7. a function row LABELLED current but published two months ago (touched by hand): not believed — the engine is asked
       ok  at mount: asked ["function","engine"] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
 OK  8. a current rate held for two hours -> no request at all
       ok  at mount: asked [] | holds {"RON":5.3447,"as_of":"2026-10-02","source":"BNR","stale":false}
-BROWSER CHECK GREEN — 8 of 8 scenarios, the built bundle in headless Chromium on a held clock
+BROWSER CHECK GREEN — 9 of 9 scenarios, the built bundle in headless Chromium on a held clock
 ```
-Scenarios 4 and 5 of round 2's run ended on the August row; they end on BNR's
-file of 2 October now (finding 6).
+Scenario 4 of round 2's run stored the August row; nothing is stored now and
+BNR's file of 2 October (bundled) stays on screen (finding 6). The script
+reads what the page ASKED and what it STORED; what is SHOWN where nothing is
+stored (4, 5b, 6) is held by the vitest laws.
 
 **The function's REAL `index.ts` under Deno, round 3's four cases** (2.7.14;
 supabase-js mapped to an in-memory row, `Deno.serve` captured, `fetch`
@@ -21033,13 +21047,15 @@ the ten days.
 **After the repair it reds on (TC-11):** a provider that asks once at mount;
 a look that does not re-derive what is shown, or does not ask; a timer, a
 focus / visibility listener or an `online` listener removed; an attempt per
-look, or per `online`; a hidden tab asking; two attempts at once; a timer or
+look, or per `online`; a hidden tab asking, or a tab opened hidden skipping
+its mount fetch; two attempts at once; a timer or
 a listener left behind by an unmount; a tab swapping its rate for whatever
 comes back; a payload called current on its label alone, in the browser, the
 function or the engine's memo; a future date taken as a date; the age limit
 raised; a chosen payload leaving unmarked; the older of two stale answers
 kept; a stale answer replacing a current rate, or an older figure a newer
-one; either request without its own abandon; the function parsing a body
+one; a stored record older than the bundled fallback shown instead of it;
+either request without its own abandon; the function parsing a body
 with a comment or a CDATA section, running an open tag through `/>`, or
 matching an attribute by the end of its name; `index.ts` storing the accepted
 file without `fetched_at` or `updated_at`, or stamping a failure on

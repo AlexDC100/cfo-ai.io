@@ -1144,8 +1144,8 @@ def _engine_gates() -> List[Gate]:
         #                with the three copies of the bundled fallback held
         #                equal. Round 3: "current" re-checks the publication
         #                date in all three; what a browser holds changes only
-        #                for something better. Measured 154 (37 choice + 97
-        #                function + 20 open tab; 105 before round 3), floor 150.
+        #                for something better. Measured 156 (37 choice + 97
+        #                function + 22 open tab; 105 before round 3), floor 150.
         # Plant logs: gates.md "fx-feed", "fx-browser", "fx — round 3".
         Gate("fx-feed",
              [PY, "-m", "pytest", "tests/engine/test_fx_bnr_feed.py", "-q"],

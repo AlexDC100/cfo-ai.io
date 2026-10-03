@@ -3846,8 +3846,8 @@ fallbacks are one figure (BNR's file of 2026-10-02), held equal by the gate.
   is marked stale AT READ TIME, and the sources are asked again without a
   reload — at most once per five minutes (the failure cooldown of both
   sources), `online` let through once; never more than two attempts in any
-  five minutes; nothing from a hidden tab; nothing at all inside the held
-  day. Before this a tab left open for four days showed Monday's rate as
+  five minutes; after its mount fetch nothing from a hidden tab; nothing at
+  all inside the held day. Before this a tab left open for four days showed Monday's rate as
   current on Friday.
 
 **After every backend switch — two read-only checks, both required** (§14):
