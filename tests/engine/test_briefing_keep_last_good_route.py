@@ -22,12 +22,21 @@ real `stage_narrate`, a provider client that raises, the agras book):
   · every persisted regenerate stamped `language: 'en'`, whatever language
     the prose was in.
 
-THE LAW (hotfix2 SPEC D5, D6a, D7, D9, D11), through the REAL route:
+OWNER RULINGS (2026-10-03, verbatim — the law where the SPEC is silent or
+says otherwise):
+  · "Regenerate inputs: refuse unsupported language or unknown currency
+    before the meter. Never charge for a request that can't be served."
+  · "Failed non-RON regenerate: make the answer truthful. Mark the stored
+    briefing stale and answer stale: true, or leave it unmarked and answer
+    stale: false. Never report a state that isn't stored."
+
+THE LAW (hotfix2 SPEC D5, D6a, D7, D9, D11, and the rulings above), through
+the REAL route:
 
   R1  a failed explicit regenerate over a usable stored briefing leaves the
       stored row byte-identical (the stale marker columns aside), attempts no
       upsert, does not touch `financial_periods.updated_at`, and answers 200
-      `{ok: false, regenerated: false, reason, stale: true, briefing: <the
+      `{ok: false, regenerated: false, reason, stale: <R13>, briefing: <the
       stored body>, briefing_length}`;
   R2  every failure the real `stage_narrate` can produce carries ITS neutral
       code beside its text (D5), the route answers that code — and never the
@@ -37,13 +46,16 @@ THE LAW (hotfix2 SPEC D5, D6a, D7, D9, D11), through the REAL route:
   R4  an explicit call reserves the CALLER's chat unit BEFORE the model, then
       commits on a usable narration and releases on anything else; a spent
       allowance is 429 `briefing_regen_cap_reached`; a meter that cannot be
-      reached refuses the call (fails closed) and is answered 503
-      `metering_unavailable` — never as an allowance the caller has spent;
+      reached — or whose answer names no kind the gate knows — refuses the
+      call (fails closed) and is answered 503 `metering_unavailable`, never
+      as an allowance the caller has spent, and whatever the meter may have
+      reserved is given back (one best-effort release);
   R5  the walls answer before the meter, on both shapes;
   R6  a usable narration is persisted only in RON, with its TRUE language
       (clamped to 'en' / 'ro'), today's EBITDA definition and the model id
-      the narrator was called with, and clears the stale marker; a converted
-      one is narrated on CONVERTED figures and never stored;
+      the narrator was called with, and clears the stale marker right after
+      the upsert (before the period touch); a converted one is narrated on
+      CONVERTED figures and never stored;
   R7  the stale marker is a SEPARATE update filtered by period AND tenant,
       never part of an upsert — so the route is correct before
       supabase/schema_phase_briefing_stale.sql is applied;
@@ -52,7 +64,21 @@ THE LAW (hotfix2 SPEC D5, D6a, D7, D9, D11), through the REAL route:
   R9  a stored briefing written under a previous EBITDA definition is never
       handed back as "the briefing that was kept";
   R10 every service-role read / update of `briefings` names the tenant;
-  R11 a failure with nothing usable stored writes nothing and marks nothing.
+  R11 a failure with nothing usable stored writes nothing and marks nothing;
+  R12 the INPUTS of an explicit call are refused AFTER the walls and BEFORE
+      the meter (ruling 2026-10-03): a `language` that is not one of the
+      narrator's nine (first two letters, any case) is 422
+      `{code: "unsupported_language"}`; a `currency` that is not absent /
+      RON and that the engine has no positive, finite rate for is 422
+      `{code: "unsupported_currency"}`; a conversion with no usable rate
+      payload (or no rate for the period's own currency) is 503
+      `{code: "fx_unavailable"}` — each with zero meter RPCs, zero narrator
+      calls, zero writes; the bodiless shape validates nothing;
+  R13 `stale`, in EVERY answer of the route (the legacy one included), is a
+      boolean that is true if and only if the stored briefing row carries
+      the marker when the call returns (ruling 2026-10-03): a failed
+      converted regenerate, a failure with nothing usable stored and a
+      marker the database rejected all answer the row's own state.
 
 WHAT RUNS HERE. The real pipeline router (`build_router`) over the agras
 corpus book carried through the production write seam, real ES256 bearers,
@@ -69,19 +95,37 @@ only the HTTP client under it. The BNR rates are a literal payload in the
 real shape (EUR base). Every expected string, code and count is written out
 in this file — none is taken from `pipeline`.
 
-RED AGAINST THE CODE at d3c955a7 (each asserts the SPEC and is REPORTED, not
-weakened — a red here is the code's, not the gate's):
+WAS RED AGAINST THE CODE at d3c955a7 — REPAIRED 2026-10-03 (branch
+repair/briefing-route; the tests were not weakened, the code was changed):
   · test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_spent_allowance
-    — `_usage_gate.reserve_chat` reads a dead RPC as `monthly_cap_reached`:
-    the route answers 429 "cap reached", 0 used, with a link to /pricing; its
-    503 branch is reached only when the gate cannot PARSE an answer;
+    — `_usage_gate.reserve_chat` read a dead RPC as `monthly_cap_reached`:
+    the route answered 429 "cap reached", 0 used, with a link to /pricing;
   · test_a_unit_the_meter_granted_is_given_back_when_the_gate_cannot_read_the_answer
-    — on that 503 branch a unit Postgres did reserve is never released;
+    — on the 503 branch a unit Postgres did reserve was never released;
   · test_a_briefing_that_was_written_is_never_left_marked_stale_when_the_period_touch_fails
-    — the `financial_periods` touch sits between the upsert and the marker
-    clear: when it raises the new prose stays served as stale.
+    — the `financial_periods` touch sat between the upsert and the marker
+    clear: when it raised the new prose stayed served as stale.
+MEASURED with this file run against the source of 45b681bc in a scratch copy
+(nothing planted): 104 of its items red there for the law (the three above,
+R12 and R13), every one green on the repaired code.
+
+REWRITTEN TO THE RULINGS (each pinned SPEC-literal or observed behaviour):
+  · test_before_the_migration_a_failure_still_answers_and_touches_nothing —
+    asserted `stale: true` with nothing marked; now `false` (R13);
+  · test_a_failed_converted_regenerate_marks_nothing_and_answers_the_rows_own_state
+    (was …_marks_nothing_stale) — left `stale` unasserted; now R13;
+  · test_a_language_the_narrator_has_no_instruction_for_is_422_before_the_meter
+    (was …_is_never_stamped_as_what_it_was_not) — accepted "narrated
+    truthfully OR refused"; now the refusal alone (R12).
 
 REDS ON, with the defect repaired (TC-11):
+  · an unsupported language, an unknown currency or unusable rates reaching
+    the meter, the narrator or a write; a refusal answered before the wall;
+    a converted briefing narrated on figures that were not converted;
+  · `stale` in any answer that is not the stored row's state — true with
+    nothing marked, false over a marked row, or absent;
+  · an outage answered as a cap, or leaving a reservation held; the marker
+    clear moved after the period touch;
   · an upsert, a delete or an `updated_at` touch on a failed narration; a
     failure text in the answer or in the stored row; `ok: true` on a failure;
   · a failure branch of `stage_narrate` losing its code, or two branches
@@ -116,13 +160,16 @@ does is not proven by this file. A COMMIT the meter did not acknowledge
 (`commit_user_chat` failing on the wire): `commit_chat` returns nothing
 either way, the reservation stays held — which the cap arithmetic counts
 exactly like a consumed unit — and no reaper exists; a worker replaced
-mid-narration runs no `finally`. WHERE THE SPEC IS SILENT this file asserts
-neither answer: whether an unsupported `language` or a `currency` the engine
-has no rate for should be refused (today both are narrated and charged — the
-second on unconverted figures the prompt calls "pre-converted"), and what
-`stale` a FAILED converted regenerate answers (today `true`, with nothing
-marked). `briefings.period_id` is UNIQUE, so "this workspace's row AND
-another workspace's row on one period" is not a state the table can hold.
+mid-narration runs no `finally`. A RELEASE the meter did not acknowledge
+(the best-effort give-back of R4 during an outage that is still on).
+A period whose OWN currency is not RON asked for `currency: "RON"`: the
+route's persist rule and its "needs rates" rule are both keyed on RON, so
+that request fetches no rates (not driven here; the book of this file is in
+RON). A persisted regenerate in de / fr / es / it / pt / nl / pl is stamped
+'en' (the column allows only 'en' / 'ro' — SPEC D9 "clamped", pinned by
+test_the_persisted_language_is_the_true_one_clamped_to_the_column, not ruled
+on). `briefings.period_id` is UNIQUE, so "this workspace's row AND another
+workspace's row on one period" is not a state the table can hold.
 
 PLANT LOG: docs/engine_book/gates.md "briefing-keep-last-good" — to be
 written with the gate's registration in scripts/run_battery.py (neither
@@ -419,6 +466,10 @@ class _World:
         self.failing_selects: set = set()      # … whose read it refuses
         self.provider = _Provider(self)
         self.transport = _MeterTransport(self)
+        #: What `fx_rates.get_fx_rates()` does: ("payload", <what it
+        #: returns>) or ("raise", exc). Each call is counted.
+        self.fx_behaviour: Tuple[str, Any] = ("payload", FX_PAYLOAD)
+        self.fx_calls = 0
 
     # ── the database, as the test seeds and reads it ───────────────────
     def may_read(self, caller: Optional[str], period_row: Dict[str, Any]) -> bool:
@@ -582,9 +633,18 @@ def _world(monkeypatch, *, migration_applied: bool = True, enforce: bool = False
             monkeypatch.setattr(_usage_gate, "_rpc", rpc)
 
         # A converted (non-RON) regenerate fetches the BNR rates: never the
-        # network here — the literal payload, in the real function's shape.
+        # network here — the literal payload, in the real function's shape
+        # (or whatever a test of unusable rates tells it to do instead).
         from engine.api import fx_rates as _fx
-        monkeypatch.setattr(_fx, "get_fx_rates", lambda *a, **k: copy.deepcopy(FX_PAYLOAD))
+
+        def get_fx_rates(*_a: Any, **_k: Any) -> Any:
+            w.fx_calls += 1
+            kind, value = w.fx_behaviour
+            if kind == "raise":
+                raise value
+            return copy.deepcopy(value)
+
+        monkeypatch.setattr(_fx, "get_fx_rates", get_fx_rates)
         yield w
 
 
@@ -781,10 +841,13 @@ def test_the_failure_codes_are_all_reached_and_distinct():
 
 # ══ R3 — the legacy shape is inert ═════════════════════════════════════════
 
-LEGACY_QUERIES = ["", "?currency=RON&language=ro", "?currency=EUR&language=ro", "?language=en"]
+LEGACY_QUERIES = ["", "?currency=RON&language=ro", "?currency=EUR&language=ro", "?language=en",
+                  # What the explicit shape REFUSES (422) is ignored here like
+                  # every other query parameter: the inert shape validates nothing.
+                  "?currency=ZZZ&language=zh"]
 
 
-@pytest.mark.parametrize("query", LEGACY_QUERIES, ids=["bare", "ron_ro", "eur_ro", "en"])
+@pytest.mark.parametrize("query", LEGACY_QUERIES, ids=["bare", "ron_ro", "eur_ro", "en", "unsupported_values"])
 def test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing(query, monkeypatch):
     """What every bundle deployed before the ruling fires from an effect.
     Enforcement is ON, so a meter call would be recorded; the provider would
@@ -792,6 +855,8 @@ def test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing(query,
     with _world(monkeypatch, enforce=True) as w:
         w.store_briefing()
         w.provider.raises(PROVIDER_DOWN)
+        # The rates would be unusable too: the inert shape never asks for them.
+        w.fx_behaviour = ("raise", RuntimeError("BNR unreachable"))
         before = w.snapshot()
         resp = w.post(query=query, user=MEMBER)
         assert resp.status_code == 200, resp.text[:400]
@@ -802,8 +867,9 @@ def test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing(query,
         assert answer["briefing"] == GOOD_BODY
         assert answer["briefing_length"] == 134
         assert answer["currency"] == "RON"          # the query parameters are ignored
+        assert answer["stale"] is False             # the stored row carries no marker
         assert w.narrate_calls == [] and w.provider.calls == []
-        assert w.meter == []
+        assert w.meter == [] and w.fx_calls == 0
         assert [o for o in w.ops if o.table in ("subscriptions", "user_usage")] == [], \
             "the legacy shape consulted the plan"
         assert w.writes() == []
@@ -843,6 +909,7 @@ def test_the_bodiless_shape_answers_null_when_nothing_usable_is_stored(stored, m
         assert (answer["ok"], answer["regenerated"], answer["legacy"]) == (True, False, True)
         assert answer["briefing"] is None
         assert answer["briefing_length"] == 0
+        assert answer["stale"] is False
         assert w.narrate_calls == [] and w.provider.calls == [] and w.meter == []
         assert w.writes() == [] and w.changed_tables(before) == []
 
@@ -972,9 +1039,9 @@ def test_a_unit_the_meter_granted_is_given_back_when_the_gate_cannot_read_the_an
     route answers 503 and that unit must go back. (A held reservation counts
     against both caps, and nothing reaps chat reservations.)
 
-    RED AGAINST THE CODE at d3c955a7: `reserved` is never assigned when
-    `reserve_chat` raises, so the `finally` that releases is never entered —
-    the meter saw `reserve_user_chat` and nothing else."""
+    WAS RED at d3c955a7 (repaired 2026-10-03): `reserved` was never assigned
+    when `reserve_chat` raised, so the `finally` that releases was never
+    entered — the meter saw `reserve_user_chat` and nothing else."""
     with _world(monkeypatch, enforce=True) as w:
         w.store_briefing()
         w.provider.replies(USABLE_REPLY)
@@ -1013,15 +1080,41 @@ def _the_meter_and_the_plan_reads_are_down(w):
     w.failing_selects.update({"subscriptions", "user_usage", "plan_chat_daily_usage"})
 
 
+def _the_rpc_answers_an_object_with_no_kind(w):
+    """An answer that says neither `allowed` nor which cap: nothing the gate
+    can act on. (Counters alone are not a cap claim.)"""
+    w.rpc_answers["reserve_user_chat"] = {"daily_used": 0, "monthly_used": 0}
+
+
+def _the_rpc_answers_an_empty_object(w):
+    w.rpc_answers["reserve_user_chat"] = {}
+
+
+def _the_rpc_answers_a_kind_the_gate_does_not_know(w):
+    """Not `allowed`, not one of the two caps: never read as either."""
+    w.rpc_answers["reserve_user_chat"] = {"kind": "blocked", "daily_used": 0, "monthly_used": 0}
+
+
+def _the_rpc_endpoint_answers_200_with_a_body_that_is_no_object(w):
+    """The REAL `_rpc`; HTTP 200 whose JSON body is a bare string (a proxy's
+    page, a function that returns text): `_rpc` reads it as no answer."""
+    w.rpc_answers["reserve_user_chat"] = "upstream ok"
+
+
 #: (the outage, whether `_usage_gate._rpc` is left REAL)
 DEAD_METERS = [
     (_rpc_answers_nothing, False),
     (_the_connection_is_refused, True),
     (_the_rpc_endpoint_answers_503, True),
     (_the_meter_and_the_plan_reads_are_down, False),
+    (_the_rpc_answers_an_object_with_no_kind, False),
+    (_the_rpc_answers_an_empty_object, False),
+    (_the_rpc_answers_a_kind_the_gate_does_not_know, False),
+    (_the_rpc_endpoint_answers_200_with_a_body_that_is_no_object, True),
 ]
 _DEAD_IDS = ["rpc_answers_nothing", "real_rpc_connection_refused", "real_rpc_http_503",
-             "meter_and_plan_reads_down"]
+             "meter_and_plan_reads_down", "rpc_answers_no_kind", "rpc_answers_empty_object",
+             "rpc_answers_unknown_kind", "real_rpc_200_not_an_object"]
 
 
 @pytest.mark.parametrize("outage,real_rpc", DEAD_METERS, ids=_DEAD_IDS)
@@ -1059,10 +1152,13 @@ def test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_sp
     test_a_spent_allowance_is_429_with_the_callers_counts_and_no_model_call:
     a real `monthly_cap_reached` answer of the RPC IS the 429.
 
-    RED AGAINST THE CODE at d3c955a7: `_usage_gate.reserve_chat` does
-    `_rpc(...) or {}` then `body.get("kind", "monthly_cap_reached")`, so a
-    dead RPC is a reached cap; the route's 503 branch needs `reserve_chat`
-    to RAISE, which an outage never makes it do."""
+    WAS RED at d3c955a7 (repaired 2026-10-03): `_usage_gate.reserve_chat`
+    did `_rpc(...) or {}` then `body.get("kind", "monthly_cap_reached")`, so
+    a dead RPC was a reached cap; the route's 503 branch needed
+    `reserve_chat` to RAISE, which an outage never made it do. The gate now
+    answers `metering_unavailable` for an answer that is absent or names no
+    kind it knows, and the route refuses on anything but `allowed` /
+    `disabled`."""
     with _world(monkeypatch, enforce=True, real_rpc=real_rpc) as w:
         w.store_briefing()
         w.provider.replies(USABLE_REPLY)
@@ -1073,6 +1169,31 @@ def test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_sp
         assert resp.json() == {"detail": {"code": "metering_unavailable"}}
         assert "briefing_regen_cap_reached" not in resp.text and "/pricing" not in resp.text
         assert "trial" not in resp.text
+
+
+@pytest.mark.parametrize("outage,real_rpc", DEAD_METERS, ids=_DEAD_IDS)
+def test_an_unreachable_meter_gives_back_whatever_it_may_have_reserved(outage, real_rpc, monkeypatch):
+    """An answer the gate cannot use does not prove that nothing was
+    reserved: the RPC can have granted the unit and its reply been lost (a
+    read timeout, a proxy's 5xx after Postgres committed). Nothing reaps chat
+    reservations and a held one counts against both caps, so the route gives
+    back, best-effort, whatever the meter MAY hold before it refuses: one
+    `release_user_chat` for the CALLER, after the one reservation attempt —
+    and never a commit. (Owner ruling 2026-10-03: "never charge for a request
+    that can't be served." Positive control: a real cap answer — nothing was
+    reserved, the RPC said so — releases nothing:
+    test_a_spent_allowance_is_429_with_the_callers_counts_and_no_model_call
+    pins the meter at exactly `reserve_user_chat`.)"""
+    with _world(monkeypatch, enforce=True, real_rpc=real_rpc) as w:
+        w.store_briefing()
+        w.provider.replies(USABLE_REPLY)
+        outage(w)
+        resp = w.post(EXPLICIT, user=MEMBER)
+        assert resp.status_code == 503, (resp.status_code, resp.text[:400])
+        assert w.meter_names() == ["reserve_user_chat", "release_user_chat"], w.meter_names()
+        assert w.meter[1][1]["p_user_id"] == MEMBER
+        if real_rpc:
+            assert w.transport.posts == ["reserve_user_chat", "release_user_chat"]
 
 
 def test_the_real_rpc_over_a_live_wire_reserves_and_commits(monkeypatch):
@@ -1282,30 +1403,271 @@ def test_the_persisted_language_is_the_true_one_clamped_to_the_column(asked, doc
         assert resp.json()["persisted"] is True
 
 
-def test_a_language_the_narrator_has_no_instruction_for_is_never_stamped_as_what_it_was_not(monkeypatch):
-    """`language: "zh"` over a Romanian book. SPEC D9 does not say whether an
-    unsupported language is REFUSED (today it is narrated in the document's
-    language, stored and charged — reported as a silence, pinned nowhere).
-    What D9 does fix is the TRUE language: if the route narrates and writes,
-    the stamp and the answer are the language the narrator was told — never
-    the code that was asked for, never a constant; and if it refuses, it
-    narrates, charges and writes nothing."""
+# ══ R12 — the inputs are refused BEFORE the meter (owner ruling 2026-10-03) ═
+#
+# "Regenerate inputs: refuse unsupported language or unknown currency before
+# the meter. Never charge for a request that can't be served."
+
+def _refused_before_the_meter(w, before, resp, status: int, code: str) -> None:
+    """One refusal of R12: the exact status and neutral code, and NOTHING
+    else happened — no meter RPC (not even a reservation attempt), no
+    narrator call, no provider call, not one write."""
+    assert resp.status_code == status, (resp.status_code, resp.text[:300])
+    assert resp.json() == {"detail": {"code": code}}
+    assert w.meter == [] and w.transport.posts == [], w.meter
+    assert w.narrate_calls == [] and w.provider.calls == []
+    assert w.writes() == [] and w.changed_tables(before) == []
+    assert [o for o in w.ops if o.table in ("subscriptions", "user_usage")] == [], \
+        "a refused input consulted the plan"
+
+
+#: Codes the narrator has no instruction for (its nine: en ro de fr es it pt
+#: nl pl — matched on the first two letters, any case). `""` is not "absent":
+#: only a missing key / null is.
+UNSUPPORTED_LANGUAGES = ["zh", "xx", "ZH", "zh-CN", "klingon", "", "r", " ro", "e n", "ja"]
+
+
+@pytest.mark.parametrize("language", UNSUPPORTED_LANGUAGES,
+                         ids=["zh", "xx", "ZH_uppercase", "zh_CN", "klingon", "empty_string",
+                              "one_letter", "leading_space", "inner_space", "ja"])
+def test_a_language_the_narrator_has_no_instruction_for_is_422_before_the_meter(language, monkeypatch):
+    """REWRITTEN to the ruling (it asserted "narrated truthfully OR refused").
+    MEASURED before the repair: `language: "zh"` over a Romanian book was
+    narrated in Romanian, written over the workspace's shared briefing and
+    charged one message — only the answer's `language` said so."""
     with _world(monkeypatch, enforce=True) as w:
         w.store_briefing(language="en")
         w.store_source_document("ro")
         w.provider.replies(USABLE_REPLY)
         before = w.snapshot()
-        resp = w.post({"intent": "user", "language": "zh", "currency": "RON"}, user=MEMBER)
-        if resp.status_code == 200 and resp.json().get("regenerated"):
-            assert "Răspunde în limba română." in w.provider.calls[0]["system"]
-            assert w.briefing_rows()[0]["language"] == "ro"
-            assert resp.json()["language"] == "ro"
-            assert w.briefing_rows()[0]["body"] == NEW_BODY
-        else:
-            assert 400 <= resp.status_code < 500, (resp.status_code, resp.text[:300])
-            assert w.narrate_calls == [] and w.provider.calls == []
-            assert "commit_user_chat" not in w.meter_names()
-            assert w.writes() == [] and w.changed_tables(before) == []
+        resp = w.post({"intent": "user", "language": language, "currency": "RON"}, user=MEMBER)
+        _refused_before_the_meter(w, before, resp, 422, "unsupported_language")
+        assert w.briefing_rows()[0] == before["briefings"][0]
+
+        # POSITIVE CONTROL, same world, same caller: a supported language
+        # DOES reach the meter and the model and is written.
+        resp = w.post({"intent": "user", "language": "ro", "currency": "RON"}, user=MEMBER)
+        assert resp.status_code == 200 and resp.json()["regenerated"] is True, resp.text[:300]
+        assert w.events == ["meter:reserve_user_chat", "narrate", "provider", "meter:commit_user_chat"]
+        assert w.briefing_rows()[0]["body"] == NEW_BODY
+
+
+#: The nine, each in a form the first-two-letters rule accepts.
+SUPPORTED_LANGUAGES = [("en", "en"), ("ro", "ro"), ("de", "de"), ("fr", "fr"), ("es", "es"), ("it", "it"),
+                       ("pt", "pt"), ("nl", "nl"), ("pl", "pl"), ("RO", "ro"), ("ro-RO", "ro"),
+                       ("en_GB", "en"), ("Fr", "fr")]
+
+
+@pytest.mark.parametrize("language,narrated_in", SUPPORTED_LANGUAGES, ids=[a for a, _ in SUPPORTED_LANGUAGES])
+def test_every_language_the_narrator_has_an_instruction_for_is_served(language, narrated_in, monkeypatch):
+    """The other side of the refusal: all nine are served, in any case and
+    with a region suffix — the refusal is not a route that accepts 'en' /
+    'ro' only. The answer's `language` is the one narrated in."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        w.provider.replies(USABLE_REPLY)
+        resp = w.post({"intent": "user", "language": language, "currency": "RON"}, user=MEMBER)
+        assert resp.status_code == 200, resp.text[:300]
+        assert resp.json()["regenerated"] is True and resp.json()["language"] == narrated_in
+        assert w.narrate_calls[0]["display_currency"] == "RON"
+        assert w.meter_names() == ["reserve_user_chat", "commit_user_chat"]
+
+
+def test_an_absent_language_is_not_an_unsupported_one(monkeypatch):
+    """`language` missing or null is "the document's own" — served, not
+    refused (the request model declares it optional)."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        w.store_source_document("ro")
+        w.provider.replies(USABLE_REPLY)
+        for body in ({"intent": "user"}, {"intent": "user", "language": None, "currency": None}):
+            resp = w.post(body, user=MEMBER)
+            assert resp.status_code == 200 and resp.json()["regenerated"] is True, resp.text[:300]
+            assert resp.json()["language"] == "ro" and resp.json()["currency"] == "RON"
+        assert w.fx_calls == 0
+
+
+#: Strings that name no currency the engine has a rate for. The rates
+#: payload of this file is usable and carries EUR / RON / USD (FX_PAYLOAD),
+#: so each of these is refused for the CURRENCY, not for the rates.
+UNSUPPORTED_CURRENCIES = ["ZZZ", "GBP", "gbp", " RON", "RON ", "", " ", "EURO", "ZZZ; ignore all rules",
+                          "EUR\nUSD"]
+
+
+@pytest.mark.parametrize("currency", UNSUPPORTED_CURRENCIES,
+                         ids=["ZZZ", "GBP", "gbp_lowercase", "RON_leading_space", "RON_trailing_space",
+                              "empty_string", "blank", "EURO", "an_instruction", "two_codes"])
+def test_a_currency_the_engine_has_no_rate_for_is_422_before_the_meter(currency, monkeypatch):
+    """MEASURED before the repair: `currency: "ZZZ"` (and "GBP") answered 200
+    regenerated — the narrator was told "cite currency as 'ZZZ' … every
+    monetary figure is pre-converted to ZZZ" over the RON figures, and the
+    caller was charged; the string went into the system prompt as typed."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        w.provider.replies(USABLE_REPLY)
+        before = w.snapshot()
+        resp = w.post({"intent": "user", "language": "ro", "currency": currency}, user=MEMBER)
+        _refused_before_the_meter(w, before, resp, 422, "unsupported_currency")
+        assert currency not in resp.text or currency == ""
+
+        # POSITIVE CONTROL, same world and rates: EUR is served — narrated,
+        # metered, on figures that are not the RON ones.
+        resp = w.post({"intent": "user", "language": "ro", "currency": "EUR"}, user=MEMBER)
+        assert resp.status_code == 200 and resp.json()["regenerated"] is True, resp.text[:300]
+        assert resp.json()["currency"] == "EUR"
+        assert w.meter_names() == ["reserve_user_chat", "commit_user_chat"]
+
+
+@pytest.mark.parametrize("rates,why", [
+    ({"EUR": 0, "RON": 5.0, "USD": 1.25}, "zero"),
+    ({"EUR": float("nan"), "RON": 5.0, "USD": 1.25}, "nan"),
+    ({"EUR": -1.0, "RON": 5.0, "USD": 1.25}, "negative"),
+    ({"EUR": "1.0", "RON": 5.0, "USD": 1.25}, "a_string"),
+    ({"EUR": None, "RON": 5.0, "USD": 1.25}, "null"),
+    ({"EUR": True, "RON": 5.0, "USD": 1.25}, "a_boolean"),
+    ({"EUR": float("inf"), "RON": 5.0, "USD": 1.25}, "infinite"),
+    ({"RON": 5.0, "USD": 1.25}, "missing"),
+], ids=lambda v: v if isinstance(v, str) else None)
+def test_a_rate_that_is_not_a_positive_number_is_no_rate(rates, why, monkeypatch):
+    """"A currency the engine has a rate for": a rate is a positive, finite
+    number. A zero, a NaN, a string or a missing key for the display currency
+    is NO rate for it — refused as the currency, before the meter (it would
+    convert to zeros, to garbage, or not at all). USD, whose rate is good in
+    the same payload, is still served."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        w.provider.replies(USABLE_REPLY)
+        w.fx_behaviour = ("payload", {"base": "EUR", "rates": rates, "source": "BNR"})
+        before = w.snapshot()
+        resp = w.post({"intent": "user", "language": "ro", "currency": "EUR"}, user=MEMBER)
+        _refused_before_the_meter(w, before, resp, 422, "unsupported_currency")
+        resp = w.post({"intent": "user", "language": "ro", "currency": "USD"}, user=MEMBER)
+        assert resp.status_code == 200 and resp.json()["currency"] == "USD", resp.text[:300]
+
+
+#: Rates the conversion cannot be served from. The real `get_fx_rates` never
+#: raises (cache, then a bundled fallback) — the first is the route's own
+#: guard; the rest are payloads with nothing usable in them, and one that
+#: lacks the rate of the period's OWN currency (RON), without which nothing
+#: can be converted FROM it.
+def _fx_raises(w):
+    w.fx_behaviour = ("raise", RuntimeError("BNR unreachable and no cache"))
+
+
+def _fx_returns(payload):
+    def set_it(w):
+        w.fx_behaviour = ("payload", payload)
+    return set_it
+
+
+UNUSABLE_RATES = [
+    (_fx_raises, "raises"),
+    (_fx_returns(None), "none"),
+    (_fx_returns({}), "empty_payload"),
+    (_fx_returns({"base": "EUR", "rates": None}), "rates_null"),
+    (_fx_returns({"base": "EUR", "rates": {}}), "rates_empty"),
+    (_fx_returns({"base": "EUR", "rates": [1.0, 5.0]}), "rates_a_list"),
+    (_fx_returns("rates unavailable"), "a_string"),
+    (_fx_returns({"base": "EUR", "rates": {"EUR": "1.0", "RON": "5.0", "USD": "1.25"}}), "rates_are_strings"),
+    (_fx_returns({"base": "EUR", "rates": {"EUR": 0, "RON": 0, "USD": 0}}), "rates_are_zero"),
+    # The shape this file's own double once had: no RON key — every
+    # "converted" figure was then the unconverted RON one.
+    (_fx_returns({"base": "EUR", "rates": {"EUR": 1.0, "USD": 1.25}}), "no_rate_for_the_periods_own_currency"),
+    (_fx_returns({"base": "EUR", "rates": {"EUR": 1.0, "RON": 0.0, "USD": 1.25}}), "the_periods_own_rate_is_zero"),
+]
+
+
+@pytest.mark.parametrize("unusable", [u for u, _ in UNUSABLE_RATES], ids=[i for _, i in UNUSABLE_RATES])
+def test_a_conversion_with_no_usable_rates_is_503_before_the_meter(unusable, monkeypatch):
+    """"A converted briefing is never narrated in RON figures labelled as
+    another currency." MEASURED before the repair (hunters, real route): with
+    the rates unavailable the route logged "falling back to source currency"
+    and still told the narrator the display currency — turnover
+    110,798,309.14 (the RON figure) under "pre-converted to EUR", 200
+    regenerated, one message charged."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        w.provider.replies(USABLE_REPLY)
+        unusable(w)
+        before = w.snapshot()
+        resp = w.post({"intent": "user", "language": "ro", "currency": "EUR"}, user=MEMBER)
+        _refused_before_the_meter(w, before, resp, 503, "fx_unavailable")
+        assert w.fx_calls == 1, "the rates were never asked for: the refusal is not about them"
+
+        # POSITIVE CONTROL 1, same world and the same unusable rates: RON
+        # needs no rate — it is served, and the rates are not even fetched.
+        resp = w.post({"intent": "user", "language": "ro", "currency": "RON"}, user=MEMBER)
+        assert resp.status_code == 200 and resp.json()["persisted"] is True, resp.text[:300]
+        assert w.fx_calls == 1
+        # POSITIVE CONTROL 2: with the rates back, the same EUR request is served.
+        w.fx_behaviour = ("payload", FX_PAYLOAD)
+        resp = w.post({"intent": "user", "language": "ro", "currency": "EUR"}, user=MEMBER)
+        assert resp.status_code == 200 and resp.json()["currency"] == "EUR", resp.text[:300]
+
+
+def test_the_language_is_refused_before_the_rates_are_asked_for(monkeypatch):
+    """Both inputs bad: the language answers first, and the rates (a call
+    that can block on BNR) are never fetched for a request already refused."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        _fx_raises(w)
+        before = w.snapshot()
+        resp = w.post({"intent": "user", "language": "zh", "currency": "ZZZ"}, user=MEMBER)
+        _refused_before_the_meter(w, before, resp, 422, "unsupported_language")
+        assert w.fx_calls == 0
+
+
+#: (a body the route refuses, what a MEMBER is answered in a world whose
+#: rates are unusable). With no usable rates the route cannot tell whether
+#: "ZZZ" is a currency it has a rate for: that one is the rates' refusal.
+BAD_INPUTS = [
+    ({"intent": "user", "language": "zh", "currency": "RON"}, (422, "unsupported_language"), "language"),
+    ({"intent": "user", "language": "ro", "currency": "ZZZ"}, (503, "fx_unavailable"), "currency"),
+    ({"intent": "user", "language": "ro", "currency": "EUR"}, (503, "fx_unavailable"), "rates"),
+]
+
+
+@pytest.mark.parametrize("body,member_is_answered", [(b, a) for b, a, _ in BAD_INPUTS],
+                         ids=[i for _, _, i in BAD_INPUTS])
+@pytest.mark.parametrize("who,status", [("nobody", 401), ("stranger", 404), ("firm_viewer", 403)])
+def test_the_wall_answers_before_an_input_is_refused(who, status, body, member_is_answered, monkeypatch):
+    """R12 is "AFTER the walls": someone who may not write this period is
+    told 401 / 404 / 403 — never which of their inputs the route would have
+    refused, and the rates are not fetched for them."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        w.provider.replies(USABLE_REPLY)
+        _fx_raises(w)
+        if who == "firm_viewer":
+            w.firm_readers.add(FIRM_VIEWER)
+        user = {"nobody": None, "stranger": STRANGER, "firm_viewer": FIRM_VIEWER}[who]
+        before = w.snapshot()
+        resp = w.post(body, user=user)
+        assert resp.status_code == status, (resp.status_code, resp.text[:300])
+        assert "unsupported_" not in resp.text and "fx_unavailable" not in resp.text
+        assert w.fx_calls == 0 and w.meter == []
+        assert w.narrate_calls == [] and w.provider.calls == []
+        assert w.writes() == [] and w.changed_tables(before) == []
+
+        # POSITIVE CONTROL: the same body from a member IS refused for its input.
+        resp = w.post(body, user=MEMBER)
+        assert (resp.status_code, resp.json()) == (
+            member_is_answered[0], {"detail": {"code": member_is_answered[1]}}), resp.text[:300]
+
+
+def test_a_refused_input_is_refused_whatever_the_meter_would_have_said(monkeypatch):
+    """Before the meter means BEFORE: with the allowance spent, and with the
+    meter dead, the answer is still the input's refusal — the caller is told
+    what they can fix, and the meter is not touched at all."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        before = w.snapshot()
+        for answer in ({"kind": "monthly_cap_reached", "daily_used": 3, "monthly_used": 200}, None):
+            w.rpc_answers["reserve_user_chat"] = answer
+            resp = w.post({"intent": "user", "language": "zh"}, user=MEMBER)
+            _refused_before_the_meter(w, before, resp, 422, "unsupported_language")
+            resp = w.post({"intent": "user", "currency": "ZZZ"}, user=MEMBER)
+            _refused_before_the_meter(w, before, resp, 422, "unsupported_currency")
 
 
 @pytest.mark.parametrize("currency,code,ron_to_display", [("EUR", "EUR", 0.2), ("usd", "USD", 0.25)],
@@ -1321,6 +1683,10 @@ def test_a_converted_regenerate_is_returned_and_never_stored(currency, code, ron
         assert (answer["ok"], answer["regenerated"], answer["persisted"]) == (True, True, False)
         assert answer["briefing"] == NEW_BODY
         assert answer["currency"] == code
+        # `stale` is what is STORED (ruling 2026-10-03): this narration was
+        # not written, so the stored RON briefing still carries the marker
+        # it carried before — and GET /api/period goes on serving it stale.
+        assert answer["stale"] is True
         # The narrator was told the display currency (the real stage_narrate).
         assert w.narrate_calls[0]["display_currency"] == code
         assert "cite currency as '%s'" % code in w.provider.calls[0]["system"]
@@ -1350,6 +1716,7 @@ def test_a_converted_regenerate_is_metered_like_any_other(monkeypatch):
         w.provider.replies(USABLE_REPLY)
         resp = w.post({"intent": "user", "language": "ro", "currency": "EUR"}, user=MEMBER)
         assert resp.status_code == 200 and resp.json()["persisted"] is False, resp.text[:400]
+        assert resp.json()["stale"] is False        # the stored row carries no marker
         assert w.events == ["meter:reserve_user_chat", "narrate", "provider", "meter:commit_user_chat"]
         del w.events[:], w.meter[:]
         w.provider.raises(PROVIDER_DOWN)
@@ -1358,11 +1725,25 @@ def test_a_converted_regenerate_is_metered_like_any_other(monkeypatch):
         assert w.events == ["meter:reserve_user_chat", "narrate", "provider", "meter:release_user_chat"]
 
 
-def test_a_failed_converted_regenerate_marks_nothing_stale(monkeypatch):
+#: (the marker the stored row carries BEFORE the call, the `stale` answered)
+STORED_MARKERS = [
+    (dict(stale_since=None, stale_reason=None), False),
+    (dict(stale_since="2026-09-30T10:00:00+00:00", stale_reason="no_api_key"), True),
+]
+
+
+@pytest.mark.parametrize("marker,answered_stale", STORED_MARKERS, ids=["row_not_marked", "row_already_marked"])
+def test_a_failed_converted_regenerate_marks_nothing_and_answers_the_rows_own_state(
+        marker, answered_stale, monkeypatch):
     """A converted briefing is never stored, so its failure says nothing
-    about the stored one: no marker."""
+    about the stored one: no marker is written — and `stale` in the answer
+    is the stored row's OWN state (owner ruling 2026-10-03: "Failed non-RON
+    regenerate: make the answer truthful … Never report a state that isn't
+    stored"). REWRITTEN to the ruling: the route answered `stale: true` here
+    (SPEC D6a's literal shape) with nothing marked, and the card showed a
+    current RON briefing as stale for the session."""
     with _world(monkeypatch) as w:
-        w.store_briefing()
+        w.store_briefing(**marker)
         w.provider.raises(PROVIDER_DOWN)
         before = w.snapshot()
         resp = w.post({"intent": "user", "language": "ro", "currency": "EUR"})
@@ -1373,11 +1754,10 @@ def test_a_failed_converted_regenerate_marks_nothing_stale(monkeypatch):
         assert len(w.provider.calls) == 1
         assert w.writes() == []
         assert w.changed_tables(before) == []
-        assert w.briefing_rows()[0] == before["briefings"][0]
-        assert w.briefing_rows()[0]["stale_since"] is None and w.briefing_rows()[0]["stale_reason"] is None
-        # (What `stale` this answer carries is not asserted: SPEC D6a writes
-        # `stale: true` for every failure, the stored briefing is NOT stale
-        # here — a silence reported to the owner, pinned neither way.)
+        row = w.briefing_rows()[0]
+        assert row == before["briefings"][0]
+        assert (row["stale_since"], row["stale_reason"]) == (marker["stale_since"], marker["stale_reason"])
+        assert answer["stale"] is answered_stale
 
 
 def test_a_briefing_that_was_written_is_never_left_marked_stale_when_the_period_touch_fails(monkeypatch):
@@ -1389,10 +1769,10 @@ def test_a_briefing_that_was_written_is_never_left_marked_stale_when_the_period_
     row untouched, or the new prose WITHOUT the marker — never fresh prose
     that GET /api/period goes on serving as stale.
 
-    RED AGAINST THE CODE at d3c955a7: the touch sits between the upsert and
-    `_clear_briefing_stale`, so its exception skips the clear — the row
-    holds the new body with `stale_since` / `stale_reason` still set (the
-    upsert merges: it does not reset columns it does not name)."""
+    WAS RED at d3c955a7 (repaired 2026-10-03): the touch sat between the
+    upsert and `_clear_briefing_stale`, so its exception skipped the clear —
+    the row held the new body with `stale_since` / `stale_reason` still set
+    (the upsert merges: it does not reset columns it does not name)."""
     with _world(monkeypatch) as w:
         w.store_briefing(stale_since="2026-09-30T10:00:00+00:00", stale_reason="provider_error")
         w.provider.replies(USABLE_REPLY)
@@ -1407,6 +1787,112 @@ def test_a_briefing_that_was_written_is_never_left_marked_stale_when_the_period_
             assert (row["stale_since"], row["stale_reason"]) == (None, None), row
         else:
             assert row == before["briefings"][0]
+
+
+def test_the_marker_is_cleared_right_after_the_upsert_and_before_the_period_touch(monkeypatch):
+    """HOW the law above holds (ruling 2026-10-03, as read by the
+    coordinator: "a persisted success clears the marker IMMEDIATELY after
+    the upsert (before the period touch)"): the three writes of a persisted
+    regenerate, in this order and nothing between them."""
+    with _world(monkeypatch) as w:
+        w.store_briefing(stale_since="2026-09-30T10:00:00+00:00", stale_reason="provider_error")
+        w.provider.replies(USABLE_REPLY)
+        resp = w.post(EXPLICIT)
+        assert resp.status_code == 200 and resp.json()["persisted"] is True, resp.text[:400]
+        assert [(o.op, o.table) for o in w.writes()] == [
+            ("upsert", "briefings"), ("update", "briefings"), ("update", "financial_periods")], w.writes()
+        assert w.writes()[1].payload == {"stale_since": None, "stale_reason": None}
+
+
+# ══ R13 — `stale` in every answer is what is STORED (ruling 2026-10-03) ═════
+#
+# "Failed non-RON regenerate: make the answer truthful. Mark the stored
+# briefing stale and answer stale: true, or leave it unmarked and answer
+# stale: false. Never report a state that isn't stored." — read as: `stale`
+# is a boolean, true IF AND ONLY IF the stored briefing row carries the
+# marker (`stale_since`) when the call returns, which is what GET /api/period
+# serves next.
+
+def _row_is_marked(w) -> bool:
+    rows = [r for r in w.briefing_rows() if r["period_id"] == w.pid and r["org_id"] == w.org]
+    return bool(rows and rows[0].get("stale_since"))
+
+
+def _good(w, mp):
+    w.provider.replies(USABLE_REPLY)
+
+
+def _down(w, mp):
+    w.provider.raises(PROVIDER_DOWN)
+
+
+_MARKED = dict(stale_since="2026-09-30T10:00:00+00:00", stale_reason="no_api_key")
+_UNMARKED = dict(stale_since=None, stale_reason=None)
+_RON = {"intent": "user", "language": "ro", "currency": "RON"}
+_EUR = {"intent": "user", "language": "ro", "currency": "EUR"}
+
+#: (id, the stored row or None, the provider, the body or None for the legacy
+#:  shape, tables whose UPDATE the database refuses, `ok` answered, `stale`
+#:  answered). The last column is stated here, case by case — and each case
+#:  then checks it against the row the call left behind.
+STALE_CASES = [
+    # a failure that marks the kept row
+    ("ron_failure_marks_the_row", _UNMARKED, _down, _RON, (), False, True),
+    ("ron_failure_over_a_marked_row", _MARKED, _down, _RON, (), False, True),
+    # a failure whose marker the database refused: the row is as it was
+    ("ron_failure_marker_refused_row_unmarked", _UNMARKED, _down, _RON, ("briefings",), False, False),
+    ("ron_failure_marker_refused_row_marked", _MARKED, _down, _RON, ("briefings",), False, True),
+    # a failure that marks nothing: a converted narration is never stored
+    ("eur_failure_row_unmarked", _UNMARKED, _down, _EUR, (), False, False),
+    ("eur_failure_row_marked", _MARKED, _down, _EUR, (), False, True),
+    # a failure with no row at all
+    ("ron_failure_no_row", None, _down, _RON, (), False, False),
+    ("eur_failure_no_row", None, _down, _EUR, (), False, False),
+    # a persisted success clears the marker
+    ("ron_success_clears_the_marker", _MARKED, _good, _RON, (), True, False),
+    ("ron_success_row_unmarked", _UNMARKED, _good, _RON, (), True, False),
+    ("ron_success_no_row", None, _good, _RON, (), True, False),
+    # … unless the database refused the clear: the new prose IS still marked
+    ("ron_success_clear_refused_row_marked", _MARKED, _good, _RON, ("briefings",), True, True),
+    ("ron_success_clear_refused_row_unmarked", _UNMARKED, _good, _RON, ("briefings",), True, False),
+    # a converted success writes nothing: the row's own state
+    ("eur_success_row_marked", _MARKED, _good, _EUR, (), True, True),
+    ("eur_success_row_unmarked", _UNMARKED, _good, _EUR, (), True, False),
+    # the inert legacy shape
+    ("legacy_row_marked", _MARKED, _down, None, (), True, True),
+    ("legacy_row_unmarked", _UNMARKED, _down, None, (), True, False),
+    ("legacy_no_row", None, _down, None, (), True, False),
+]
+
+
+@pytest.mark.parametrize("stored,provider,body,refused_updates,ok,stale",
+                         [c[1:] for c in STALE_CASES], ids=[c[0] for c in STALE_CASES])
+def test_stale_in_every_answer_is_what_the_stored_row_holds(stored, provider, body, refused_updates, ok,
+                                                           stale, monkeypatch):
+    with _world(monkeypatch) as w:
+        if stored is not None:
+            w.store_briefing(**stored)
+        provider(w, monkeypatch)
+        w.failing_updates.update(refused_updates)
+        resp = w.post(body) if body is not None else w.post(query="?currency=RON&language=ro")
+        assert resp.status_code == 200, resp.text[:400]
+        answer = resp.json()
+        assert answer["ok"] is ok
+        # A boolean, never null / a string / absent — in EVERY answer.
+        assert answer["stale"] is stale, answer
+        # … and it IS the stored row's state after the call.
+        assert _row_is_marked(w) is stale, w.briefing_rows()
+
+
+def test_a_failure_over_a_stored_failure_text_answers_not_stale(monkeypatch):
+    """"A failure with nothing usable stored answers false": the row is a
+    failure text, nothing is marked (R11), and the answer says so."""
+    with _world(monkeypatch) as w:
+        w.store_briefing("[NARRATIVE_UNAVAILABLE]")
+        w.provider.raises(PROVIDER_DOWN)
+        answer = w.post(EXPLICIT).json()
+        assert (answer["ok"], answer["briefing"], answer["stale"]) == (False, None, False)
+        assert _row_is_marked(w) is False
 
 
 # ══ R7 — the stale marker ══════════════════════════════════════════════════
@@ -1448,7 +1934,13 @@ def test_stale_since_is_the_first_failure_and_a_later_one_only_updates_the_reaso
 def test_before_the_migration_a_failure_still_answers_and_touches_nothing(monkeypatch):
     """The database BEFORE schema_phase_briefing_stale.sql: the marker update
     is rejected (PGRST204) — the route still answers 200 `ok: false` with the
-    kept briefing, and not one byte of the database moved."""
+    kept briefing, and not one byte of the database moved.
+
+    REWRITTEN to the owner's ruling of 2026-10-03 ("never report a state
+    that isn't stored"): this asserted `stale: true` (SPEC D6a / D7 "stale
+    is then carried by the regenerate response"). Nothing is marked here —
+    the row has no marker column to hold one, and GET /api/period serves it
+    as current — so the answer says `stale: false`."""
     with _world(monkeypatch, migration_applied=False) as w:
         w.store_briefing()
         w.provider.raises(PROVIDER_DOWN)
@@ -1462,11 +1954,15 @@ def test_before_the_migration_a_failure_still_answers_and_touches_nothing(monkey
         assert resp.status_code == 200, resp.text[:400]
         answer = resp.json()
         assert (answer["ok"], answer["regenerated"], answer["reason"], answer["stale"]) == \
-            (False, False, "provider_error", True)
+            (False, False, "provider_error", False)
         assert answer["briefing"] == GOOD_BODY
         assert w.changed_tables(before) == []
         assert w.briefing_rows()[0] == before["briefings"][0]
         assert [o for o in w.writes() if o.op in ("upsert", "insert", "delete")] == []
+        # The marker WAS attempted (and rejected): `stale: false` is the
+        # rejected update, not a route that stopped marking.
+        attempts = w.writes("briefings")
+        assert [o.op for o in attempts] == ["update"] and "stale_reason" in attempts[0].payload, attempts
 
 
 def test_before_the_migration_a_good_regenerate_is_still_written(monkeypatch):
@@ -1710,6 +2206,8 @@ def test_a_failure_with_nothing_usable_stored_writes_nothing_and_marks_nothing(s
         assert (answer["ok"], answer["regenerated"], answer["reason"]) == (False, False, "provider_error")
         assert answer["briefing"] is None
         assert answer["briefing_length"] == 0
+        # Nothing is marked, so nothing is reported stale (ruling 2026-10-03).
+        assert answer["stale"] is False
         # Nothing written: no sentinel row created, no marker on a row that
         # is itself a failure text, no `updated_at` touch.
         assert w.writes() == [], w.writes()
@@ -1757,8 +2255,10 @@ def _is_a_partial_run(request) -> bool:
 
 def test_zz_scope(request, capsys):
     """The work this file did, printed for the battery (`work_rx` on
-    GATE-WORK). The floors bite on a whole run of the file — measured 135
-    requests through the real route; `briefings_calls` is the census of R10
+    GATE-WORK). The floors bite on a whole run of the file — measured 300
+    requests through the real route (135 before R12 / R13 were gated;
+    the floor is the one proposed with the gate's registration);
+    `briefings_calls` is the census of R10
     (3 reads + 2 updates + 1 upsert, the least that test itself accepts). A
     file that silently stopped driving the route is a red, not a pass."""
     with capsys.disabled():

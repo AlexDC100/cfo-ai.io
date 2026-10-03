@@ -3295,13 +3295,18 @@ def _kept_briefing_body(row: Optional[Dict[str, Any]]) -> Optional[str]:
 
 
 def _mark_briefing_stale(admin_client: Any, row: Optional[Dict[str, Any]],
-                         period_id: str, org_id: Any, reason: str) -> None:
+                         period_id: str, org_id: Any, reason: str) -> bool:
     """The kept row is marked stale: a SEPARATE, best-effort service-role
     update filtered by period AND tenant — never part of a briefing upsert
     (an upsert naming a column PostgREST does not know is rejected whole,
     and every briefing write would then depend on
     supabase/schema_phase_briefing_stale.sql having been applied).
-    `stale_since` is the FIRST failure since the last good write."""
+    `stale_since` is the FIRST failure since the last good write.
+
+    Returns whether the marker was STORED (the update was accepted): a
+    caller that reports `stale` reports what the row holds, never what it
+    asked for (owner ruling 2026-10-03: "never report a state that isn't
+    stored")."""
     patch: Dict[str, Any] = {"stale_reason": reason}
     if not (row or {}).get("stale_since"):
         patch["stale_since"] = _now_iso()
@@ -3314,11 +3319,14 @@ def _mark_briefing_stale(admin_client: Any, row: Optional[Dict[str, Any]],
         logger.warning("[briefing] stale marker not written for period %s (%s) — "
                        "is supabase/schema_phase_briefing_stale.sql applied?",
                        period_id, type(exc).__name__)
+        return False
+    return True
 
 
-def _clear_briefing_stale(admin_client: Any, period_id: str, org_id: Any) -> None:
+def _clear_briefing_stale(admin_client: Any, period_id: str, org_id: Any) -> bool:
     """A successful write clears the marker — the same separate, best-effort
-    update (see `_mark_briefing_stale`)."""
+    update (see `_mark_briefing_stale`). Returns whether the clear was
+    STORED (the update was accepted)."""
     try:
         admin_client.update(
             "briefings", {"stale_since": None, "stale_reason": None},
@@ -3328,6 +3336,8 @@ def _clear_briefing_stale(admin_client: Any, period_id: str, org_id: Any) -> Non
         logger.info("[briefing] stale marker not cleared for period %s (%s) — "
                     "is supabase/schema_phase_briefing_stale.sql applied?",
                     period_id, type(exc).__name__)
+        return False
+    return True
 
 
 def served_briefing(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -8315,8 +8325,17 @@ class RegenerateBriefingBody(_Strict):
 
     intent: Literal["user"]
     # The language to narrate in — the reader's UI language.
+    # Absent (null), or a language the narrator has an instruction for
+    # (`NARRATION_LANGUAGES`, first two letters, any case). Anything else
+    # is refused by the route AFTER the walls and BEFORE the meter: 422
+    # `unsupported_language` (owner ruling 2026-10-03: "never charge for a
+    # request that can't be served"). Checked in the handler, not here: a
+    # validator on this model would answer before the 401 / 403 / 404.
     language: Optional[str] = None
     # The display currency to narrate in; only RON is persisted.
+    # Absent (null) / RON, or a currency the engine has a rate for — else
+    # 422 `unsupported_currency`; 503 `fx_unavailable` when no usable rate
+    # payload is to be had. Same seam, same order.
     currency: Optional[str] = None
 
 
@@ -11335,17 +11354,36 @@ def build_router() -> APIRouter:
         currency?}) — in this order:
           1. the walls, exactly as before (401; 404 not visible; 403 not a
              member of the period's org);
-          2. the meter: one Ask-CFO-AI message of the verified CALLER
+          2. the inputs (owner ruling 2026-10-03: "refuse unsupported
+             language or unknown currency before the meter. Never charge
+             for a request that can't be served"): a `language` the
+             narrator has no instruction for is 422 `unsupported_language`;
+             a `currency` the engine has no rate for is 422
+             `unsupported_currency`; a conversion with no usable rate
+             payload is 503 `fx_unavailable` — each with no meter call, no
+             model call and no write;
+          3. the meter: one Ask-CFO-AI message of the verified CALLER
              (`_usage_gate.reserve_chat`); a spent allowance is 429
-             `briefing_regen_cap_reached` with the caller's own counts;
-          3. the model (`stage_narrate`).
+             `briefing_regen_cap_reached` with the caller's own counts; a
+             meter that gave no usable answer is 503 `metering_unavailable`
+             (never a cap claim), and whatever it may have reserved is
+             given back;
+          4. the model (`stage_narrate`).
         A usable narration is committed against the meter, written when the
         display currency is RON (a converted briefing is returned, never
-        stored) with its TRUE language, and clears the stale marker. An
-        unusable one writes NOTHING — no upsert, no `updated_at` touch —
-        releases the meter, marks the kept row stale and answers 200 `{ok:
-        false, regenerated: false, reason: <code>, stale: true, briefing:
-        <the stored usable body or null>}`.
+        stored) with its TRUE language, and clears the stale marker right
+        after the upsert. An unusable one writes NOTHING — no upsert, no
+        `updated_at` touch — releases the meter, marks the kept row stale
+        and answers 200 `{ok: false, regenerated: false, reason: <code>,
+        stale: <bool>, briefing: <the stored usable body or null>}`.
+
+        `stale`, IN EVERY ANSWER, IS WHAT IS STORED (owner ruling
+        2026-10-03: "never report a state that isn't stored"): true if and
+        only if the stored briefing row carries the stale marker when the
+        call returns — what GET /api/period serves next. A failed converted
+        regenerate marks nothing and answers the row's own state; a marker
+        the database rejected (the stale migration not applied) answers
+        false; a failure with no row stored answers false.
 
         Recommendations and alerts are not touched (they have their own
         generation paths).
@@ -11360,6 +11398,11 @@ def build_router() -> APIRouter:
         with _supabase.admin() as admin_client:
             stored_row = _stored_briefing_row(admin_client, period_id, org_id)
         kept_body = _kept_briefing_body(stored_row)
+        # Whether the stored row is served as stale — read through the ONE
+        # reader (`served_briefing`, what GET /api/period answers), so this
+        # route never holds a second definition of "stale". Every answer
+        # below reports the row's state AFTER the call, starting from this.
+        row_is_stale = (served_briefing(stored_row) or {}).get("stale") is not None
 
         if body is None:
             # THE LEGACY SHAPE IS INERT. Once the route is metered, a tab
@@ -11373,15 +11416,84 @@ def build_router() -> APIRouter:
                 "briefing": kept_body,
                 "briefing_length": len(kept_body or ""),
                 "currency": "RON",
+                "stale": row_is_stale,
             }
+
+        # ── the inputs: refused BEFORE the meter (ruling 2026-10-03) ─────
+        # A request that cannot be served is never charged: no meter call,
+        # no model call, no write. Neutral codes; the page renders its own
+        # sentence.
+        language = body.language
+        if language is not None and language.lower()[:2] not in NARRATION_LANGUAGES:
+            # MEASURED before the repair: `language: "zh"` was narrated in
+            # the document's language, written over the workspace's shared
+            # briefing and charged.
+            raise HTTPException(422, {"code": "unsupported_language"})
+
+        # `null` is "the stored currency"; a string is taken as typed
+        # (upper-cased, not trimmed): "" and " RON" name no currency.
+        display_currency = None if body.currency is None else body.currency.upper()
+        fx_rates_map: Optional[Dict[str, float]] = None
+        if display_currency is not None and display_currency != "RON":
+            # A CONVERTED briefing is narrated on converted figures or not
+            # at all. MEASURED before the repair: with no usable rates —
+            # or a currency the payload does not carry ("ZZZ") — the
+            # narrator was handed the RON figures under a prompt calling
+            # them "pre-converted to EUR", and the caller was charged.
+            fx_payload: Any = None
+            try:
+                from .fx_rates import get_fx_rates as _get_fx_rates
+                fx_payload = _get_fx_rates()
+            except Exception:  # noqa: BLE001 — no rates: refuse below
+                logger.warning(
+                    "[/api/period/{id}/briefing/regenerate] fx_rates fetch failed"
+                )
+            raw_rates = fx_payload.get("rates") if isinstance(fx_payload, dict) else None
+            # Only a positive, finite number is a rate (0 / NaN / a string
+            # would convert to garbage or not at all).
+            usable_rates = {
+                str(code): float(rate)
+                for code, rate in (raw_rates.items() if isinstance(raw_rates, dict) else ())
+                if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                and 0 < rate < float("inf")
+            }
+            if not usable_rates:
+                raise HTTPException(503, {"code": "fx_unavailable"})
+            if display_currency not in usable_rates:
+                raise HTTPException(422, {"code": "unsupported_currency"})
+            # The figures are converted FROM the period's own currency (the
+            # one `stage_narrate` reads off the statements): without a rate
+            # for it the conversion cannot be served either.
+            source_currency = str(period.get("currency") or "RON").upper()
+            if source_currency not in usable_rates:
+                raise HTTPException(503, {"code": "fx_unavailable"})
+            fx_rates_map = usable_rates
 
         # ── the meter: the verified caller's chat unit ───────────────────
         from . import _usage_gate as _ug
         caller_id = _user_id_from_jwt(jwt)
+
+        def _give_back_what_the_meter_may_hold() -> None:
+            # The gate could not hand over a usable answer. A reservation
+            # can still have LANDED (the RPC granted it and the reply was
+            # lost, or was unreadable), nothing reaps chat reservations and
+            # a held one counts against both caps — so it is given back,
+            # best-effort. When nothing was held the release RPC floors at
+            # zero; at worst it frees, for the length of that call, the
+            # hold of another message of the SAME caller that is in flight
+            # (whose commit still counts it) — against a unit lost for the
+            # day and the month.
+            try:
+                _ug.release_chat(caller_id)
+            except Exception:  # noqa: BLE001 — the refusal below stands
+                logger.exception(
+                    "[/api/period/{id}/briefing/regenerate] release after an unreadable meter failed")
+
         try:
             decision = _ug.reserve_chat(caller_id)
         except Exception as exc:  # noqa: BLE001 — unreachable meter: fail closed
             logger.exception("[/api/period/{id}/briefing/regenerate] meter unreachable")
+            _give_back_what_the_meter_may_hold()
             raise HTTPException(
                 503, {"code": "metering_unavailable"}) from exc
         if decision.kind in ("daily_cap_reached", "monthly_cap_reached"):
@@ -11400,6 +11512,16 @@ def build_router() -> APIRouter:
                     "upgrade_url": "/pricing",
                 },
             )
+        if decision.kind not in ("allowed", "disabled"):
+            # `metering_unavailable` — the meter answered nothing usable —
+            # or a kind this route does not know: FAIL CLOSED, and never as
+            # an allowance the caller has spent (no counts, no plan name,
+            # no /pricing link: the caller has spent nothing).
+            logger.error(
+                "[/api/period/{id}/briefing/regenerate] meter unavailable (%s) — refused",
+                decision.kind)
+            _give_back_what_the_meter_may_hold()
+            raise HTTPException(503, {"code": "metering_unavailable"})
         # `allowed` holds one reserved message; `disabled` (enforcement off,
         # or an operator-exempt caller) holds nothing to settle.
         reserved = decision.kind == "allowed"
@@ -11452,9 +11574,9 @@ def build_router() -> APIRouter:
                 # switched EN↔RO can pull the briefing into the language
                 # they read the app in — stage_narrate reads
                 # doc["detected_language"], so override it here rather than
-                # threading a new parameter through.
-                language = body.language
-                if language and language.lower()[:2] in NARRATION_LANGUAGES:
+                # threading a new parameter through. (An unsupported
+                # code was refused above, before the meter.)
+                if language is not None:
                     doc = {**doc, "detected_language": language.lower()[:2]}
                 # F2.8 fix: stage_narrate reads from `assembled["statements"]
                 # .assembled_pl` etc., not the bucket-only shape that
@@ -11485,21 +11607,12 @@ def build_router() -> APIRouter:
                         assembled.get("statements"), org=org,
                         line_items=assembled.get("lineItems") or line_items)
 
-                # FX rates for currency conversion. Skip the fetch when the
-                # caller wants the period's native currency (the no-op case).
-                display_currency = (body.currency or "").upper() or None
-                fx_payload: Optional[Dict[str, Any]] = None
-                if display_currency and display_currency not in ("", "RON"):
-                    try:
-                        from .fx_rates import get_fx_rates as _get_fx_rates
-                        fx_payload = _get_fx_rates()
-                    except Exception:  # noqa: BLE001
-                        logger.warning(
-                            "[/api/period/{id}/briefing/regenerate] fx_rates fetch failed; "
-                            "falling back to source currency"
-                        )
-                fx_rates_map = (fx_payload or {}).get("rates") if fx_payload else None
-
+                # FX rates for currency conversion: `fx_rates_map` was
+                # fetched and CHECKED before the meter (a rate for the
+                # display currency and for the period's own), and is None
+                # when the caller wants RON (the no-op case). There is no
+                # "falling back to source currency" any more: that fallback
+                # narrated RON figures under another currency's name.
                 try:
                     narrative = stage_narrate(
                         doc, assembled, metrics, org, period_id,
@@ -11536,13 +11649,18 @@ def build_router() -> APIRouter:
                         "[/api/period/{id}/briefing/regenerate] narration unavailable (%s) "
                         "for period %s — the stored briefing is kept", unavailable, period_id)
                     if should_persist and _is_usable_stored_briefing(stored_row):
-                        _mark_briefing_stale(admin_client, stored_row, period_id, org_id,
-                                             str(unavailable))
+                        # `stale` below is what the row HOLDS: true once the
+                        # marker is stored; when the database rejected it
+                        # (the stale migration not applied) the row is as it
+                        # was.
+                        if _mark_briefing_stale(admin_client, stored_row, period_id, org_id,
+                                                str(unavailable)):
+                            row_is_stale = True
                     return {
                         "ok": False,
                         "regenerated": False,
                         "reason": unavailable,
-                        "stale": True,
+                        "stale": row_is_stale,
                         "period_id": period_id,
                         "briefing": kept_body,
                         "briefing_length": len(kept_body or ""),
@@ -11570,14 +11688,20 @@ def build_router() -> APIRouter:
                         on_conflict="period_id",
                         returning=False,
                     )
+                    # A good write: the row is current again. A separate
+                    # best-effort update — never in the upsert payload —
+                    # and IMMEDIATELY after the upsert, before anything
+                    # else can raise: the period touch used to sit between
+                    # the two, and when it failed the NEW prose stayed
+                    # served as stale (the upsert merges; it does not reset
+                    # the marker columns).
+                    if _clear_briefing_stale(admin_client, period_id, org_id):
+                        row_is_stale = False
                     admin_client.update(
                         "financial_periods",
                         {"updated_at": _now_iso()},
                         filters={"id": f"eq.{period_id}"},
                     )
-                    # A good write: the row is current again. A separate
-                    # best-effort update — never in the upsert payload.
-                    _clear_briefing_stale(admin_client, period_id, org_id)
 
             if reserved:
                 _ug.commit_chat(caller_id)
@@ -11591,7 +11715,10 @@ def build_router() -> APIRouter:
                 "briefing": narrated_body,
                 "language": narration_language(doc),
                 "currency": display_currency or "RON",
-                "stale": False,
+                # What the stored row holds now: false after a persisted
+                # write cleared the marker; a converted (never stored)
+                # narration leaves the row — and its marker — as it was.
+                "stale": row_is_stale,
             }
         finally:
             # An unusable narration, a refused read, any exception: the

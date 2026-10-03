@@ -347,6 +347,10 @@ export interface RegenerateBriefingResponse {
   legacy?: boolean;
   /** A neutral code on failure (provider_error, no_api_key, …). */
   reason?: string | null;
+  /** What the STORED briefing row holds when the call returns (owner ruling
+   *  2026-10-03): true only when it carries the stale marker — never "a
+   *  failure happened". A failed conversion marks nothing and answers
+   *  false. Absent from an engine that predates the ruling. */
   stale?: boolean;
   briefing?: string | null;
   briefing_length?: number;

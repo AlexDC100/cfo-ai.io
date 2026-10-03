@@ -203,7 +203,11 @@ class NonRoReserveDecision:
 
 
 ChatReserveKind = Literal[
-    "allowed", "daily_cap_reached", "monthly_cap_reached", "disabled"
+    "allowed", "daily_cap_reached", "monthly_cap_reached", "disabled",
+    # The meter gave no answer the gate can act on (unreachable, an HTTP
+    # error, a body with no `kind`). NOT a cap: the caller has spent
+    # nothing. Still a refusal — only `allowed` / `disabled` may proceed.
+    "metering_unavailable",
 ]
 
 
@@ -903,6 +907,19 @@ def reserve_chat(user_id: str) -> ChatReserveDecision:
     The RPC `reserve_user_chat` locks both the monthly and daily rows
     (FOR UPDATE) before deciding, so concurrent calls serialize on the
     lock — gap C atomicity holds across the two-counter dual-cap check.
+
+    AN OUTAGE IS NOT A CAP (2026-10-03). `_rpc` answers None for every
+    failure of the wire — a refused connection, a timeout, an HTTP 4xx /
+    5xx, a body that is not JSON — and until this date `_rpc(...) or {}`
+    then `body.get("kind", "monthly_cap_reached")` read all of them as a
+    reached monthly cap: a caller who had spent NOTHING was told the
+    allowance was gone ("0 of 200"), sent to /pricing, and named the TRIAL
+    plan when the plan reads were down too. An answer that is absent, or
+    carries no `kind` this gate knows, is now `metering_unavailable`:
+    still a REFUSAL (fail closed — only `allowed` and `disabled` may
+    proceed to the model), never a cap claim. A reservation can have
+    landed while its reply was lost, so the caller gives the unit back
+    best-effort (`release_chat`) before refusing.
     """
     if not enforced_for(user_id):
         return ChatReserveDecision(
@@ -921,9 +938,29 @@ def reserve_chat(user_id: str) -> ChatReserveDecision:
         "p_day":         _today().isoformat(),
         "p_daily_cap":   plan.chat.daily,
         "p_monthly_cap": plan.chat.monthly,
-    }) or {}
+    })
 
-    kind = body.get("kind", "monthly_cap_reached")
+    kind = body.get("kind") if isinstance(body, dict) else None
+
+    if kind not in ("allowed", "daily_cap_reached", "monthly_cap_reached"):
+        # FAIL CLOSED, and say what happened — not what did not.
+        logger.error(
+            "[usage-gate] reserve_user_chat gave no usable answer (%s) — "
+            "refusing the message rather than serving it unmetered. user=%s",
+            "no response" if body is None else "kind=%r" % (kind,), user_id,
+        )
+        return ChatReserveDecision(
+            kind="metering_unavailable",
+            plan_key=plan.key,
+            daily_used=0,
+            daily_cap=plan.chat.daily,
+            monthly_used=0,
+            monthly_cap=plan.chat.monthly,
+            message=(
+                "We couldn't check your Ask CFO AI allowance just now. "
+                "Nothing was charged — try again in a few minutes."
+            ),
+        )
 
     if kind == "allowed":
         return ChatReserveDecision(
