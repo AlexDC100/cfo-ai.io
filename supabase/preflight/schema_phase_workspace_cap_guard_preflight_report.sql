@@ -12,12 +12,15 @@
 --                      PATCHes it back.
 --   restore_uncapped   authenticated may execute restore_workspace(uuid),
 --                      create_workspace enforces a cap, and the guard is not in
---                      place: archive → create → restore.
+--                      place: archive → create → restore. The same verdict
+--                      covers two requests at once (archive → create ∥ create;
+--                      restore ∥ restore): the per-user lock is the guard's.
 --   guard_in_place     the trigger organizations_guard_write exists on
---                      public.organizations, BEFORE UPDATE FOR EACH ROW, enabled
---                      (origin), and runs _organizations_guard_write() with
---                      exactly the body the migration installs
---                      (md5 'd6252111e919f0d1678d4303b992d8a0' —
+--                      public.organizations, BEFORE INSERT OR UPDATE FOR EACH
+--                      ROW, enabled (origin), and runs
+--                      _organizations_guard_write() with exactly the body the
+--                      migration installs
+--                      (md5 'b93ee1df602e2f6c2eebb425fa1b97e7' —
 --                      tests/engine/test_entitlement_hole_laws.py holds the two
 --                      files to each other).
 --
@@ -49,15 +52,15 @@ has_archive as (
 ),
 guard as (
   select coalesce((
-    select t.tgenabled = 'O' and t.tgtype = 19
-           and md5(p.prosrc) = 'd6252111e919f0d1678d4303b992d8a0'
+    select t.tgenabled = 'O' and t.tgtype = 23
+           and md5(p.prosrc) = 'b93ee1df602e2f6c2eebb425fa1b97e7'
       from org
       join pg_trigger t on t.tgrelid = org.oid and t.tgname = 'organizations_guard_write' and not t.tgisinternal
       join pg_proc p on p.oid = t.tgfoid), false) as in_place,
     (select jsonb_build_object(
               'enabled', case t.tgenabled when 'O' then 'origin (enabled)' when 'D' then 'DISABLED'
                                           when 'R' then 'replica only' else 'always' end,
-              'before_update_for_each_row', t.tgtype = 19,
+              'before_insert_or_update_for_each_row', t.tgtype = 23,
               'function', t.tgfoid::regprocedure::text,
               'function_md5', md5(p.prosrc))
        from org

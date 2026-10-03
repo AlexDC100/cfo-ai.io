@@ -247,7 +247,13 @@ holes_connect() {
 
 # ── the scratch database ─────────────────────────────────────────────────
 HOLES_DB=""
+HOLES_EMPTY_DB=""
 holes_cleanup() {
+  if [ -n "$HOLES_EMPTY_DB" ]; then
+    holes_psql "$HOLES_ADMIN_DB" -c "drop database if exists $HOLES_EMPTY_DB with (force)" >/dev/null 2>&1 \
+      || echo "WARNING could not drop scratch database $HOLES_EMPTY_DB — drop it by hand"
+    HOLES_EMPTY_DB=""
+  fi
   [ -n "$HOLES_DB" ] || return 0
   if [ "${ENTITLEMENT_HOLES_KEEP_DB:-}" = "1" ]; then
     echo "KEPT scratch database $HOLES_DB (ENTITLEMENT_HOLES_KEEP_DB=1) — drop it yourself"
@@ -391,6 +397,31 @@ write_verdict() { # output of `with x as (<write> returning 1) select count(*) f
     *[!0-9]*|"") echo "unreadable: $1" ;;
     *) echo "LANDED" ;;
   esac
+}
+
+# A DATABASE THAT HOLDS NONE OF THE OBJECTS (the bootstrap only — the roles,
+# auth.users, nothing of this repository). Production's schema is not this
+# repository's: a report or a migration that assumes a table, a column or a
+# function raises there, and through the Management API a raise is all the
+# coordinator gets. Three cases per file pair: the report answers one row
+# with "hole_open": false; the migration applies; it changes nothing.
+holes_on_an_empty_database() { # tag report-file migration-file
+  local tag="$1" report="$2" migration="$3" keep="$HOLES_DB"
+  HOLES_EMPTY_DB="${keep}_empty"
+  if ! holes_psql "$HOLES_ADMIN_DB" -c "create database $HOLES_EMPTY_DB template template0" >/dev/null 2>&1 \
+     || ! holes_psql "$HOLES_EMPTY_DB" --single-transaction -f - < "$HOLES_BOOTSTRAP" >/dev/null 2>&1; then
+    fail "$tag an empty scratch database could be built" "create database / bootstrap failed"
+    return
+  fi
+  HOLES_DB="$HOLES_EMPTY_DB"
+  run_report "$report"
+  check "$tag the report answers where NONE of the objects exist: one row, hole_open false" "$REPORT_RC|$(jget "$REPORT" '{hole_open}')" "0|false"
+  apply_migration "$migration"
+  check "$tag the migration applies there (exit 0)" "$MIG_RC" "0"
+  [ "$MIG_RC" = 0 ] || echo "     | $MIG_OUT"
+  check "$tag … and changes nothing" "$(jget "$MIG_RESULT" '{changed_count}')" "0"
+  HOLES_DB="$keep"
+  holes_psql "$HOLES_ADMIN_DB" -c "drop database if exists $HOLES_EMPTY_DB with (force)" >/dev/null 2>&1 && HOLES_EMPTY_DB=""
 }
 
 holes_finish() {

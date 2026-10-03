@@ -21,6 +21,12 @@
 --        (only where schema_phase_firm.sql is applied). NOT changed by this
 --        file — whether a firm's clients count against the importer's cap is
 --        the owner's ruling.
+--   (iv) two requests at once (measured 2026-10-03, finishing this file):
+--        create_workspace counts, then inserts, with no lock — so
+--        archive_workspace → create_workspace ∥ create_workspace gave 2 live
+--        workspaces on a 1-workspace plan (N in parallel give N). A cap
+--        asked of create_workspace on a restore has the same race:
+--        restore_workspace ∥ restore_workspace.
 --
 -- THE FIX — one trigger on public.organizations, restrict only. No function
 -- this repository defines is replaced: create_workspace, restore_workspace
@@ -28,7 +34,7 @@
 -- md5(prosrc) of each before and after and refuses to commit a difference),
 -- so NO CAP NUMBER and no tier → cap mapping is touched or copied.
 --
---   organizations_guard_write  BEFORE UPDATE … FOR EACH ROW
+--   organizations_guard_write  BEFORE INSERT OR UPDATE … FOR EACH ROW
 --     1. a statement that runs AS `anon` or `authenticated` — a PATCH from a
 --        browser session — may not change archived_at, purge_after, firm_id
 --        or cui (42501). The workspace functions (archive_workspace,
@@ -51,6 +57,18 @@
 --        installed — this repository's, or feat/owner-plan's with its
 --        unlimited branch — is the cap on a restore too. The service role
 --        and a session with no JWT (the SQL editor) are not asked.
+--     3. ONE AT A TIME PER USER. Before it asks, the trigger takes a
+--        transaction-scoped advisory lock keyed on the caller, and it asks
+--        the same question when a signed-in user's request INSERTS a live
+--        workspace that is not a firm's client (create_workspace's own
+--        insert). The second of two simultaneous requests waits for the
+--        first to commit, then asks create_workspace — which now counts the
+--        first one's workspace and refuses. That closes (iv) for a create
+--        and for a restore, without one byte of create_workspace changing.
+--        A firm's client (firm_id set — import_firm_client) is not asked:
+--        path (iii) is exactly as it was. An insert made from inside
+--        another trigger (the signup trigger's first workspace; the probe's
+--        own insert) is not asked either.
 --
 -- WHY A TRIGGER AND NOT A NEW restore_workspace BODY. (a) production's
 -- function bodies are not known to be this repository's; replacing one would
@@ -62,12 +80,20 @@
 --
 -- WHAT IT LEAVES. Path (iii) above. A user who is ALREADY over their cap
 -- keeps every workspace they have (no row is read for change, none is
--- written); they cannot restore another until they are under it. A workspace
--- restored by the service role or from the SQL editor is not capped.
--- INSERT / DELETE / TRUNCATE on organizations (no policy admits the first two;
--- no API verb reaches the third). The other columns no user-JWT path writes
--- and nothing reads for an entitlement (default_currency, caen_code_source,
--- caen_code_confirmed_at) stay writable by a member.
+-- written); they cannot restore or create another until they are under it.
+-- A workspace restored or created by the service role or from the SQL editor
+-- is not capped. A direct INSERT / DELETE / TRUNCATE on organizations (no
+-- policy admits the first two; no API verb reaches the third). The other
+-- columns no user-JWT path writes and nothing reads for an entitlement
+-- (default_currency, caen_code_source, caen_code_confirmed_at) stay writable
+-- by a member. A database whose create_workspace enforces no cap (the
+-- schema_phase_multi_workspace.sql body) has no cap to hold anything to: the
+-- direct writes are refused, a restore is not.
+--
+-- WHAT A USER SEES. A restore refused at the cap answers create_workspace's
+-- message through restore_workspace; the workspace screens show their
+-- generic "couldn't restore" (frontend/lib/org.ts reads the message only on
+-- a create). A sentence for it is a frontend change, not this file's.
 --
 -- ── HOW IT IS APPLIED ────────────────────────────────────────────────────
 --   0. PREFLIGHT (read-only, one row):
@@ -138,37 +164,53 @@ begin
     set search_path = public
     as $$
 declare
-  v_new jsonb := to_jsonb(new);
-  v_old jsonb := to_jsonb(old);
-  v_col text;
+  v_new    jsonb := to_jsonb(new);
+  v_old    jsonb;
+  v_col    text;
+  v_asked  boolean := false;
 begin
-  -- 1. A browser session writes the lifecycle and firm columns only through
-  --    the workspace functions.
-  if current_user in ('anon', 'authenticated') then
-    foreach v_col in array array['archived_at', 'purge_after', 'firm_id', 'cui'] loop
-      if (v_new -> v_col) is distinct from (v_old -> v_col) then
-        raise exception 'organizations.% is not writable directly: use the workspace functions (archive_workspace, restore_workspace, purge_workspace, the firm functions).', v_col
-          using errcode = '42501';
-      end if;
-    end loop;
+  if tg_op = 'UPDATE' then
+    v_old := to_jsonb(old);
+
+    -- 1. A browser session writes the lifecycle and firm columns only through
+    --    the workspace functions.
+    if current_user in ('anon', 'authenticated') then
+      foreach v_col in array array['archived_at', 'purge_after', 'firm_id', 'cui'] loop
+        if (v_new -> v_col) is distinct from (v_old -> v_col) then
+          raise exception 'organizations.% is not writable directly: use the workspace functions (archive_workspace, restore_workspace, purge_workspace, the firm functions).', v_col
+            using errcode = '42501';
+        end if;
+      end loop;
+    end if;
+
+    -- 2. Back from the archive.
+    v_asked := old.archived_at is not null and new.archived_at is null;
+
+  elsif tg_op = 'INSERT' then
+    -- 3. A new live workspace that is not a firm's client, inserted by the
+    --    request itself (trigger depth 1) — create_workspace's own insert.
+    --    Deeper inserts are the signup trigger's and the probe's below.
+    v_asked := new.archived_at is null
+               and coalesce(v_new ->> 'firm_id', '') = ''
+               and pg_trigger_depth() = 1;
   end if;
 
-  -- 2. Back from the archive under a signed-in user's request: the plan's
-  --    workspace cap, asked of create_workspace itself. The probe workspace
-  --    never exists outside the sub-transaction; create_workspace's own
-  --    refusal (workspace_cap_reached: …) passes through unchanged.
-  if old.archived_at is not null and new.archived_at is null then
-    if auth.uid() is not null
-       and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
-       and to_regprocedure('public.create_workspace(text,text,text)') is not null then
-      begin
-        perform public.create_workspace('workspace cap probe (rolled back)');
-        raise exception 'workspace cap probe passed' using errcode = 'ZC001';
-      exception
-        when sqlstate 'ZC001' then
-          null;
-      end;
-    end if;
+  -- Under a signed-in user's request: the plan's workspace cap, asked of
+  -- create_workspace itself, one request at a time per user. The probe
+  -- workspace never exists outside the sub-transaction; create_workspace's
+  -- own refusal (workspace_cap_reached: …) passes through unchanged.
+  if v_asked
+     and auth.uid() is not null
+     and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and to_regprocedure('public.create_workspace(text,text,text)') is not null then
+    perform pg_advisory_xact_lock(hashtextextended('cfo-ai workspace cap ' || auth.uid()::text, 0));
+    begin
+      perform public.create_workspace('workspace cap probe (rolled back)');
+      raise exception 'workspace cap probe passed' using errcode = 'ZC001';
+    exception
+      when sqlstate 'ZC001' then
+        null;
+    end;
   end if;
 
   return new;
@@ -191,17 +233,18 @@ $$;
      where t.tgrelid = v_org and t.tgname = 'organizations_guard_write' and not t.tgisinternal;
     if not found then
       create trigger organizations_guard_write
-        before update on public.organizations
+        before insert or update on public.organizations
         for each row execute function public._organizations_guard_write();
-      v_changed := v_changed || to_jsonb('trigger organizations_guard_write created (BEFORE UPDATE, FOR EACH ROW) on public.organizations'::text);
+      v_changed := v_changed || to_jsonb('trigger organizations_guard_write created (BEFORE INSERT OR UPDATE, FOR EACH ROW) on public.organizations'::text);
     elsif v_trigger.tgfoid <> 'public._organizations_guard_write()'::regprocedure
-          or v_trigger.tgtype <> 19 then
-      -- The name is taken by something that is not this guard.
+          or v_trigger.tgtype <> 23 then
+      -- The name is taken by something that is not this guard (23 = ROW,
+      -- BEFORE, INSERT, UPDATE).
       drop trigger organizations_guard_write on public.organizations;
       create trigger organizations_guard_write
-        before update on public.organizations
+        before insert or update on public.organizations
         for each row execute function public._organizations_guard_write();
-      v_changed := v_changed || to_jsonb('trigger organizations_guard_write re-created (it existed with another function or another event)'::text);
+      v_changed := v_changed || to_jsonb('trigger organizations_guard_write re-created (it existed with another function or other events)'::text);
     elsif v_trigger.tgenabled <> 'O' then
       alter table public.organizations enable trigger organizations_guard_write;
       v_changed := v_changed || to_jsonb(format('trigger organizations_guard_write enabled (it was %s)',

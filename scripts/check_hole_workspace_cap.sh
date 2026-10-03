@@ -6,13 +6,17 @@
 # organizations.archived_at on their own workspace, create_workspace, PATCH it
 # back; (ii) archive_workspace, create_workspace, restore_workspace (which
 # never re-checked the cap). purge_after, firm_id and cui were writable by a
-# member the same way — firm_id to ANOTHER tenant's firm.
+# member the same way — firm_id to ANOTHER tenant's firm. And (iv), measured
+# while finishing the fix: create_workspace counts and then inserts with no
+# lock, so archive_workspace followed by TWO create_workspace calls at once
+# gave 2 live workspaces — and a cap asked on a restore had the same race.
 #
 # What it proves, one PASS/FAIL line per case, in a scratch database built
 # from this repository's SQL (scripts/entitlement_holes/lib.sh):
-#   OPEN   on the fresh schema the report says "hole_open": true and both
-#          paths LAND (2 live workspaces on a 1-workspace plan), and a member
-#          attaches their workspace to another user's firm;
+#   OPEN   on the fresh schema the report says "hole_open": true and the
+#          paths LAND (2 live workspaces on a 1-workspace plan — by a direct
+#          write, by archive / create / restore, and by two creates at once),
+#          and a member attaches their workspace to another user's firm;
 #   RUN 1  the migration applies as one batch; create_workspace,
 #          restore_workspace and archive_workspace are BYTE-IDENTICAL before
 #          and after (the cap numbers are not this file's to touch); the
@@ -24,13 +28,21 @@
 #          firm functions, the service role's un-archive (the workspace
 #          migration's rollback), the SQL editor, a paid plan's restore;
 #          the user who was ALREADY over the cap keeps every workspace;
-#          the cap probe leaves no workspace behind;
+#          the cap probe leaves no workspace behind; TWO REQUESTS AT ONCE
+#          (create ∥ create, restore ∥ restore, in two real sessions) leave
+#          exactly one live workspace and the second is refused with
+#          create_workspace's message;
 #   RUN 2  a second run changes nothing and says so; still closed;
 #   OLD FILES RE-RUN  schema_phase_multi_workspace.sql and
 #          schema_phase_archive_hold_guard.sql (they re-create
 #          restore_workspace) do NOT re-open it — the cap is on the table;
 #   RE-OPENED BY HAND  the trigger disabled; then dropped and its function
-#          gutted — shown OPEN again each time, then closed by the migration.
+#          gutted — shown OPEN again each time, then closed by the migration;
+#   PRODUCTION'S SHAPE  organizations WITHOUT firm_id / cui and without the
+#          firm functions (schema_phase_firm.sql was never applied there):
+#          the migration installs the same guard and it holds;
+#   AN EMPTY DATABASE  the report and the migration answer where none of the
+#          objects exist.
 #
 # Path (iii) — create_firm → import_firm_client ×N → detach — is NOT closed
 # (the owner's ruling). The gate prints what it measures there as a NOTE,
@@ -42,7 +54,11 @@
 # installed — here, this repository's); a NEW SECURITY DEFINER function that
 # un-archives for a service-role caller on a user's behalf (the service role
 # is not asked for a cap); a superuser or the table's owner disabling the
-# trigger (the preflight report is what sees that, and the last block here).
+# trigger (the preflight report is what sees that, and the last block here);
+# a request that runs at an isolation level above READ COMMITTED (the second
+# of two simultaneous requests would count from its own, older snapshot —
+# PostgREST runs READ COMMITTED and gives a caller no way to change it);
+# more than two requests at once (two are exercised; the lock is per user).
 #
 # LOCAL ONLY, never by default: see scripts/entitlement_holes/lib.sh.
 #   ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:postgres@127.0.0.1:<port>/<db> \
@@ -70,8 +86,11 @@ U_I="$(uid a 01)";  U_II="$(uid a 02)"; U_FIRMOWNER="$(uid a 03)"
 U_C1="$(uid b 01)"; U_C2="$(uid b 02)"; U_C3="$(uid b 03)"; U_PRO="$(uid b 04)"; U_SVC="$(uid b 05)"
 U_R1="$(uid c 01)"; U_R2="$(uid c 02)"; U_H1="$(uid d 01)"; U_H2="$(uid d 02)"; U_H3="$(uid d 03)"
 U_III="$(uid e 01)"
+U_RACE_OPEN="$(uid f 01)"; U_RACE_A="$(uid f 02)"; U_RACE_B="$(uid f 03)"; U_RACE_PRO="$(uid f 04)"
+U_NF1="$(uid f 05)"; U_NF2="$(uid f 06)"; U_NF3="$(uid f 07)"
 n=0
-for u in "$U_I" "$U_II" "$U_FIRMOWNER" "$U_C1" "$U_C2" "$U_C3" "$U_PRO" "$U_SVC" "$U_R1" "$U_R2" "$U_H1" "$U_H2" "$U_H3" "$U_III"; do
+for u in "$U_I" "$U_II" "$U_FIRMOWNER" "$U_C1" "$U_C2" "$U_C3" "$U_PRO" "$U_SVC" "$U_R1" "$U_R2" "$U_H1" "$U_H2" "$U_H3" "$U_III" \
+         "$U_RACE_OPEN" "$U_RACE_A" "$U_RACE_B" "$U_RACE_PRO" "$U_NF1" "$U_NF2" "$U_NF3"; do
   n=$((n + 1)); new_user "$u" "h1-user-$n"
 done
 
@@ -101,6 +120,56 @@ attack_ii() { # user → archive (RPC), create, restore (RPC)
   sql_as authenticated "$u" "select archive_workspace('$org');" >/dev/null
   sql_as authenticated "$u" "select create_workspace('second, behind an archived first');" >/dev/null
   ATTACK_OUT="$(sql_as authenticated "$u" "select restore_workspace('$org');")"
+}
+
+# Path (iv): TWO REQUESTS AT ONCE, in two real sessions. The first runs its
+# call and then holds its transaction open (pg_sleep) — the way a slow
+# request does; the second starts once the first is seen sleeping, so the
+# first has made its write and has not committed. Sets RACE_FIRST / RACE_SECOND.
+wait_for_the_first_request() { # → 0 once a session of this database is in pg_sleep
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
+    [ "$(q "select count(*) from pg_stat_activity where datname = current_database() and state = 'active' and pid <> pg_backend_pid() and query like '%pg_sleep(%';")" = "0" ] || return 0
+    sleep 0.2
+  done
+  return 1
+}
+two_at_once() { # user first-statement second-statement
+  local u="$1" f; f="$(mktemp "${TMPDIR:-/tmp}/holes_race.XXXXXX")"
+  ( sql_as authenticated "$u" "$2 select pg_sleep(1.5);" > "$f" 2>&1 ) &
+  local pid=$!
+  wait_for_the_first_request || echo "     | the first request was never seen holding its transaction open"
+  RACE_SECOND="$(sql_as authenticated "$u" "$3")"
+  wait "$pid"
+  RACE_FIRST="$(cat "$f")"; rm -f "$f"
+}
+race_create() { # user (0 live workspaces) → archive is the caller's job
+  two_at_once "$1" "select create_workspace('at once, one');" "select create_workspace('at once, two');"
+}
+race_restore() { # user org-a org-b (both archived)
+  two_at_once "$1" "select restore_workspace('$2');" "select restore_workspace('$3');"
+}
+archive_all() { # user → every live workspace archived through the RPC
+  local o
+  for o in $(q "select m.org_id from memberships m join organizations o on o.id = m.org_id where m.user_id = '$1' and o.archived_at is null;"); do
+    sql_as authenticated "$1" "select archive_workspace('$o');" >/dev/null
+  done
+}
+races_closed() { # tag user-for-create user-for-restore
+  local tag="$1" ua="$2" ub="$3" a b
+  archive_all "$ua"
+  race_create "$ua"
+  check "$tag (iv) create ∥ create on a 1-workspace plan: exactly 1 live workspace" "$(live "$ua")" "1"
+  check_has "$tag (iv) … the second request is refused with create_workspace's own message" "$RACE_SECOND" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
+  check_lacks "$tag (iv) … and the first was served" "$RACE_FIRST" "ERROR"
+  a="$(first_org "$ub")"
+  sql_as authenticated "$ub" "select archive_workspace('$a');" >/dev/null
+  b="$(sql_as authenticated "$ub" "select create_workspace('the second, to be archived');")"
+  sql_as authenticated "$ub" "select archive_workspace('$b');" >/dev/null
+  race_restore "$ub" "$a" "$b"
+  check "$tag (iv) restore ∥ restore on a 1-workspace plan: exactly 1 live workspace" "$(live "$ub")" "1"
+  check_has "$tag (iv) … the second restore is refused with create_workspace's own message" "$RACE_SECOND" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
+  check "$tag (iv) the cap probe left no workspace behind" "$(q "select count(*) from organizations where name like 'workspace cap probe%';")" "0"
 }
 
 closed_checks() { # tag user-for-(i) user-for-(ii)
@@ -146,6 +215,9 @@ ORG_I="$(first_org "$U_I")"
 sql_as authenticated "$U_I" "update organizations set firm_id = '$FIRM', cui = 'RO12345678' where id = '$ORG_I';" >/dev/null
 check "O5 OPEN: a member attaches their workspace to ANOTHER tenant's firm with a direct write" "$(q "select firm_id::text || '|' || cui from organizations where id = '$ORG_I';")" "$FIRM|RO12345678"
 q "update organizations set firm_id = null, cui = null where id = '$ORG_I';" >/dev/null
+archive_all "$U_RACE_OPEN"
+race_create "$U_RACE_OPEN"
+check "O6 OPEN (iv): archive, then create ∥ create = 2 live workspaces on a 1-workspace plan (no direct write, no restore)" "$(live "$U_RACE_OPEN")" "2"
 
 # ── RUN 1 ────────────────────────────────────────────────────────────────
 echo "── RUN 1 — the migration, one batch"
@@ -209,6 +281,20 @@ check "C15 … and still renames them" "$out" "still mine"
 check "C16 the report counts them, and names nobody" "$(run_report "$REPORT_SQL"; jget "$REPORT" '{users_over_their_cap}')" "$(q "select count(*) from (select m.user_id from memberships m join organizations o on o.id = m.org_id left join subscriptions s on s.user_id = m.user_id where o.archived_at is null group by m.user_id, s.tier having count(*) > case lower(coalesce(s.tier, '')) when 'pro' then 5 else 1 end) x;")"
 check_lacks "C16b … (no user id in the report)" "$REPORT" "$U_I"
 check "C17 the cap probe left no workspace behind" "$(q "select count(*) from organizations where name like 'workspace cap probe%';")" "0"
+out="$(sql_as authenticated "$U_C3" "select create_workspace('one too many');")"
+check_has "C18 create_workspace at the cap answers its own message, once (the insert-side check does not change what a refusal says)" "$out" "workspace_cap_reached: your trial plan allows 1 workspace(s). Upgrade to add more."
+races_closed "C19" "$U_RACE_A" "$U_RACE_B"
+# A paid plan's LAST slot (tier pro: 5): four live, two creates at once — one is served.
+q "update subscriptions set tier = 'pro' where user_id = '$U_RACE_PRO';" >/dev/null
+sql_as authenticated "$U_RACE_PRO" "select create_workspace('pro 2'); select create_workspace('pro 3'); select create_workspace('pro 4');" >/dev/null
+check "C20 a paid plan creates up to its cap as before (tier pro: 4 live)" "$(live "$U_RACE_PRO")" "4"
+race_create "$U_RACE_PRO"
+check "C21 (iv) the last slot of a 5-workspace plan, two creates at once: 5 live, not 6" "$(live "$U_RACE_PRO")" "5"
+check_has "C21b … the second is refused with the plan's own cap in the message" "$RACE_SECOND" "workspace_cap_reached: your pro plan allows 5 workspace(s)"
+U_AFTER="$(uid f 08)"; new_user "$U_AFTER" h1-signup-after-the-guard
+check "C22 a signup AFTER the guard still gets its first workspace (the signup trigger's insert is not asked)" "$(live "$U_AFTER")" "1"
+out="$(sql_as authenticated "$U_AFTER" "select create_workspace('a second one');")"
+check_has "C22b … and that account's second workspace is refused at the cap" "$out" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
 
 # ── RUN 2 ────────────────────────────────────────────────────────────────
 echo "── RUN 2 — the same file again (statement by statement)"
@@ -254,9 +340,52 @@ check_has "H10 a direct write of archived_at is refused again" "$out" "not writa
 check "H11 the workspace functions are still byte-identical to the start" "$(fn_md5)" "$MD5_BEFORE"
 
 # ── path (iii): measured, NOT closed ─────────────────────────────────────
+# (measured BEFORE the firm schema is dropped below)
 FIRM3="$(sql_as authenticated "$U_III" "select create_firm('A firm of one');")"
 sql_as authenticated "$U_III" "select import_firm_client('$FIRM3', 'Client One SRL', 'RO90000001', null, null, null, null, '{}'::jsonb);
 select import_firm_client('$FIRM3', 'Client Two SRL', 'RO90000002', null, null, null, null, '{}'::jsonb);" >/dev/null 2>&1
 echo "NOTE path (iii), NOT closed by this migration (the owner's ruling): a trial user who creates a firm and imports 2 clients holds $(live "$U_III") live workspaces (cap 1). Neither a pass nor a fail."
+check "P0 path (iii) is exactly as it was: the firm functions are not asked for a cap (3 live — the user's own and two clients)" "$(live "$U_III")" "3"
+
+# ── PRODUCTION'S SHAPE: no firm schema ───────────────────────────────────
+echo "── PRODUCTION'S SHAPE — organizations without firm_id / cui, no firm functions (schema_phase_firm.sql never applied)"
+q "drop trigger organizations_guard_write on public.organizations;
+   drop function public._organizations_guard_write();
+   alter table public.organizations drop column firm_id cascade;
+   alter table public.organizations drop column cui cascade;
+   drop function if exists public.create_firm(text) cascade;
+   drop function if exists public.import_firm_client(uuid, text, text, text, text, text, uuid, jsonb) cascade;
+   drop function if exists public.detach_workspace_from_firm(uuid) cascade;
+   drop function if exists public.attach_workspace_to_firm(uuid, uuid) cascade;" >/dev/null
+check "P1 the scratch database now has production's shape: no firm_id, no cui, no create_firm" "$(q "select (select count(*) from pg_attribute where attrelid = 'public.organizations'::regclass and attname in ('firm_id', 'cui') and not attisdropped) || '|' || (to_regproc('public.create_firm') is null)::text;")" "0|true"
+report_says "P2 there the report says hole_open: true" "true"
+check "P2b … and that the firm functions do not exist" "$(jget "$REPORT" '{firm_path_iii,create_firm_exists}')|$(jget "$REPORT" '{organizations,guarded_columns_present}')" 'false|["archived_at", "purge_after"]'
+apply_migration "$MIGRATION"
+check "P3 the migration applies there (exit 0)" "$MIG_RC" "0"
+[ "$MIG_RC" = 0 ] || echo "     | $MIG_OUT"
+report_says "P4 the report says hole_open: false" "false"
+check "P4b … guard_in_place" "$(jget "$REPORT" '{guard_in_place}')" "true"
+ORG_NF="$(first_org "$U_NF1")"
+out="$(sql_as authenticated "$U_NF1" "update organizations set archived_at = now() where id = '$ORG_NF';")"
+check_has "P5 a direct write of archived_at is refused" "$out" "organizations.archived_at is not writable directly"
+out="$(sql_as authenticated "$U_NF1" "update organizations set purge_after = now() where id = '$ORG_NF';")"
+check_has "P6 … of purge_after" "$out" "organizations.purge_after is not writable directly"
+out="$(sql_as authenticated "$U_NF1" "update organizations set name = 'Renamed without a firm schema', caen_code = '4711' where id = '$ORG_NF' returning name;")"
+check "P7 a rename with the user's JWT still lands" "$out" "Renamed without a firm schema"
+attack_ii "$U_NF2"
+check_has "P8 archive → create → restore is refused at the cap" "$ATTACK_OUT" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
+check "P8b … 1 live workspace" "$(live "$U_NF2")" "1"
+archive_all "$U_NF3"
+race_create "$U_NF3"
+check "P9 (iv) create ∥ create: exactly 1 live workspace" "$(live "$U_NF3")" "1"
+ORG_NF_ARCH="$(q "select m.org_id from memberships m join organizations o on o.id = m.org_id where m.user_id = '$U_NF2' and o.archived_at is not null limit 1;")"
+archive_all "$U_NF2"
+out="$(sql_as authenticated "$U_NF2" "select restore_workspace('$ORG_NF_ARCH');")"
+check "P10 a restore under the cap is allowed" "$(live "$U_NF2")" "1"
+check "P11 the workspace functions are still byte-identical to the start" "$(fn_md5)" "$MD5_BEFORE"
+
+# ── AN EMPTY DATABASE ────────────────────────────────────────────────────
+echo "── AN EMPTY DATABASE — none of the objects"
+holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
 
 holes_finish
