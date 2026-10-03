@@ -29,6 +29,8 @@
 #          only), it cannot after it; where authenticated and the service
 #          role held EXECUTE only through PUBLIC's grant, they keep it by
 #          name and anon does not;
+#   A BODY IT DOES NOT KNOW  a function edited by hand is left byte for
+#          byte and closed at the door (the service role only);
 #   AN EMPTY DATABASE  the report and the migration answer where neither the
 #          function nor the table exists.
 #
@@ -203,6 +205,32 @@ check "K3 after the migration anon cannot execute it; authenticated and the serv
 check_has "K4 … and the result says what it kept" "$MIG_RESULT" "EXECUTE kept for authenticated by name"
 attacks_refused "K5"
 legitimate_paths "K6"
+
+# ── A BODY IT DOES NOT KNOW ──────────────────────────────────────────────
+echo "── A BODY IT DOES NOT KNOW — a function edited by hand is not replaced; it is closed at the door"
+q "create or replace function public.upsert_dashboard_config(p_user_id uuid, p_cards jsonb) returns jsonb
+   language plpgsql security definer set search_path = public as \$f\$
+   begin
+     -- hand-made: keeps a copy of what it wrote
+     insert into dashboard_configs (user_id, cards, updated_at) values (p_user_id, p_cards, now())
+     on conflict (user_id) do update set cards = excluded.cards, updated_at = now();
+     return jsonb_build_object('written_for', p_user_id);
+   end \$f\$;
+   grant execute on function public.upsert_dashboard_config(uuid, jsonb) to anon, authenticated, service_role;" >/dev/null
+MD5_HAND="$(q "select md5(prosrc) from pg_proc where oid = 'public.upsert_dashboard_config(uuid,jsonb)'::regprocedure;")"
+report_says "U1 with a hand-made body callable by anon the report says hole_open: true" "true"
+check_has "U1b … and that the migration will NOT replace it" "$(jget "$REPORT" '{function,migration_will}')" "NOT replace the body"
+apply_migration "$MIGRATION"
+check "U2 the migration applies (exit 0)" "$MIG_RC" "0"
+check "U3 … and the hand-made body is byte-identical" "$(q "select md5(prosrc) from pg_proc where oid = 'public.upsert_dashboard_config(uuid,jsonb)'::regprocedure;")" "$MD5_HAND"
+check_has "U4 … the result names it as not replaced" "$(jget "$MIG_RESULT" '{skipped}')" "upsert_dashboard_config body NOT replaced: the installed function is not the repository's (md5 $MD5_HAND"
+check "U5 … and only the service role can call it now" "$(q "select has_function_privilege('anon', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text || '|' || has_function_privilege('authenticated', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text || '|' || has_function_privilege('service_role', 'public.upsert_dashboard_config(uuid,jsonb)', 'execute')::text;")" "false|false|true"
+engine_put "$VICTIM" '[{"id":"victims-own"}]' >/dev/null
+out="$(sql_as authenticated "$ATTACKER" "$(rpc "$VICTIM" '[{"planted":"through-the-hand-made-body"}]')")"
+check_has "U6 a signed-in user's call for ANOTHER user is refused at the door" "$out" "permission denied for function upsert_dashboard_config"
+check "U7 … and the victim's row is untouched" "$(cards_of "$VICTIM")" '[{"id": "victims-own"}]'
+report_says "U8 the report says hole_open: false" "false"
+holes_psql "$HOLES_DB" --single-transaction -f - < "$ORIGINAL" >/dev/null 2>&1          # the repository's body back
 
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — neither the function nor the table"

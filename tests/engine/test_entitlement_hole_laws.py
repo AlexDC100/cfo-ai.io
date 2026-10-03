@@ -476,6 +476,12 @@ def test_each_report_recognises_exactly_the_body_its_migration_installs():
         "the dashboard report tests a body md5 that is not the migration's (%s) / the original's (%s): after the "
         "migration it would keep saying hole_open: true — or say false over an unchecked body" % (h2_new, h2_old))
     assert "fn.body_md5 <> '%s'" % h2_new in h2_report, "function_open must be decided by the migration's body"
+    h2_migration = read(migration("schema_phase_dashboard_config_caller"))
+    assert re.findall(r"c_(original|checked)\s+constant\s+text\s*:=\s*'([0-9a-f]{32})'", h2_migration) == \
+        [("original", h2_old), ("checked", h2_new)], (
+        "the dashboard migration replaces a body only where its md5 is one of two literals — they must be the "
+        "repository's original (%s) and its own (%s), or it replaces nothing (or a body nobody read)" % (h2_old, h2_new))
+    assert "md5(prosrc) not in (c_original, c_checked)" in h2_migration, "the unknown-body rule is gone"
 
     # H1 — the guard
     h1 = md5(function_body(migration("schema_phase_workspace_cap_guard"), "_organizations_guard_write"))
@@ -969,11 +975,13 @@ def test_no_other_committed_sql_reopens_a_hole():
 @pytest.mark.parametrize("stem", sorted(KNOWN_ORIGINALS))
 def test_each_migration_warns_about_the_files_that_re_open_it(stem):
     header = read(migration(stem)).split("do $migration$")[0]
+    # the warning itself: the `-- ⚠` line and the indented lines under it
+    m = re.search(r"(?m)^-- ⚠.*(?:\n--[ \t]+\S.*)*", header)
+    assert m, "%s.sql has no ⚠ re-run warning" % stem
     for original in sorted(KNOWN_ORIGINALS[stem]):
-        assert original in header, (
-            "%s.sql does not tell the operator to re-run it after supabase/%s (which re-creates what it closes)"
-            % (stem, original))
-    assert "⚠" in header
+        assert original in m.group(0), (
+            "%s.sql's ⚠ warning does not tell the operator to run it again after supabase/%s (which "
+            "re-creates what it closes):\n%s" % (stem, original, m.group(0)))
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -1040,14 +1048,16 @@ def test_each_gate_is_vacuous_unless_it_is_told_which_database(script, gate):
     assert "PASS %s" % gate not in out, "a vacuous run printed a PASS line"
 
 
+#: `.invalid` never resolves (RFC 2606): were a gate ever to accept one of
+#: these, its connection attempt goes nowhere.
 NOT_LOCAL = [
-    "postgresql://postgres:x@db.example.com:5432/postgres",
+    "postgresql://postgres:x@db.holes-gate.invalid:5432/postgres",
     "postgresql://postgres:x@10.0.0.5:5432/postgres",
-    "postgresql://postgres:x@127.0.0.1:5432/postgres?host=db.example.com",
-    "postgresql://postgres:x@127.0.0.1,db.example.com:5432/postgres",
+    "postgresql://postgres:x@127.0.0.1:5432/postgres?host=db.holes-gate.invalid",
+    "postgresql://postgres:x@127.0.0.1,db.holes-gate.invalid:5432/postgres",
     "postgresql://postgres:x@127.0.0.1:5432/post%67res",
-    "postgresql://postgres:x@localhost@db.example.com:5432/postgres",
-    "host=db.example.com dbname=postgres user=postgres",
+    "postgresql://postgres:x@localhost@db.holes-gate.invalid:5432/postgres",
+    "host=db.holes-gate.invalid dbname=postgres user=postgres",
     "postgresql://127.0.0.1:5432/postgres",
 ]
 

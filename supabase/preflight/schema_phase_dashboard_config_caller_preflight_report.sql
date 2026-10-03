@@ -92,6 +92,10 @@ select jsonb_build_object(
       'body_md5', fn.body_md5,
       'body_checks_the_caller', fn.body_md5 = 'e44e90445fd49871e00e4d3451bc9738',
       'body_is_the_repository_original', fn.body_md5 = 'ea2c5ab53ed8b7ee97994e05a8b48a10',
+      'migration_will', case
+          when fn.body_md5 = 'e44e90445fd49871e00e4d3451bc9738' then 'leave the body (it already checks the caller)'
+          when fn.body_md5 = 'ea2c5ab53ed8b7ee97994e05a8b48a10' and fn.returns = 'jsonb' then 'replace the body with the caller-checked one'
+          else 'NOT replace the body (not one this repository committed): EXECUTE goes from PUBLIC, anon and authenticated — the service role only' end,
       'anon_can_execute', fn.anon_x,
       'public_can_execute', fn.public_x,
       'authenticated_can_execute', fn.authenticated_x,

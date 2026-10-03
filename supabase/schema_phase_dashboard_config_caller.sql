@@ -33,9 +33,13 @@
 --      one of them could call the function only through PUBLIC's grant, the
 --      same privilege is granted to it by name; where one of them could NOT
 --      call it before this file, it cannot after (nothing is widened).
---      If the installed function does not return jsonb (a body nobody
---      committed), the body is NOT replaced; EXECUTE is then revoked from
---      authenticated as well, so only the service role can call it.
+--      A BODY THIS REPOSITORY NEVER COMMITTED IS NOT REPLACED. The body is
+--      replaced only where the installed one is the repository's original
+--      (md5 ea2c5ab5…) or this file's own. Anything else — a function edited
+--      by hand, or one that does not return jsonb — is left byte for byte,
+--      and closed at the door instead: EXECUTE is revoked from PUBLIC, anon
+--      AND authenticated, so only the service role can call it. The result
+--      says which of the two happened.
 --   2. INSERT, UPDATE, DELETE and TRUNCATE on public.dashboard_configs are
 --      revoked from anon and authenticated. SELECT is left as found (a user
 --      reads their own row through "dashboard_configs own_select"); the
@@ -83,6 +87,11 @@ declare
   v_left     jsonb := '[]'::jsonb;
   v_auth_had boolean;
   v_svc_had  boolean;
+  -- md5(prosrc) of the two bodies this file knows: the one
+  -- supabase/schema_phase_dashboard_config.sql creates, and the one below
+  -- (tests/engine/test_entitlement_hole_laws.py holds both to the files).
+  c_original constant text := 'ea2c5ab53ed8b7ee97994e05a8b48a10';
+  c_checked  constant text := 'e44e90445fd49871e00e4d3451bc9738';
 begin
   perform set_config('lock_timeout', '5s', true);
   perform set_config('cfo_holes.result', '', false);   -- never answer with another file's result
@@ -90,15 +99,17 @@ begin
   -- ── 1. the function ──────────────────────────────────────────────────
   if v_fn is null then
     v_skipped := v_skipped || to_jsonb('upsert_dashboard_config(uuid, jsonb) does not exist — nothing to close'::text);
-  elsif (select prorettype from pg_proc where oid = v_fn) <> 'jsonb'::regtype then
+  elsif (select prorettype <> 'jsonb'::regtype or md5(prosrc) not in (c_original, c_checked)
+           from pg_proc where oid = v_fn) then
     -- A body this repository never committed: do not replace what nobody
     -- has read. Close it at the door instead — the service role only.
     if has_function_privilege('authenticated', v_fn, 'execute')
        or has_function_privilege('anon', v_fn, 'execute') then
       revoke all on function public.upsert_dashboard_config(uuid, jsonb) from public, anon, authenticated;
-      v_changed := v_changed || to_jsonb('upsert_dashboard_config: EXECUTE revoked from PUBLIC, anon AND authenticated (the installed function does not return jsonb — its body was not replaced)'::text);
+      v_changed := v_changed || to_jsonb('upsert_dashboard_config: EXECUTE revoked from PUBLIC, anon AND authenticated (the installed body is not one this repository committed — it was not replaced)'::text);
     end if;
-    v_skipped := v_skipped || to_jsonb('upsert_dashboard_config body NOT replaced: the installed function does not return jsonb'::text);
+    v_skipped := v_skipped || to_jsonb(format('upsert_dashboard_config body NOT replaced: the installed function is not the repository''s (md5 %s, returns %s). Read it; only the service role can call it now.',
+      (select md5(prosrc) from pg_proc where oid = v_fn), (select pg_get_function_result(v_fn))));
   else
     select md5(prosrc) into v_before from pg_proc where oid = v_fn;
     -- What the two roles that keep the function could do BEFORE this file.

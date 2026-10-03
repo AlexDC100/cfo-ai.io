@@ -185,6 +185,12 @@ closed_checks() { # tag user-for-(i) user-for-(ii)
   check_has "$tag (i) … of cui" "$out" "organizations.cui is not writable directly"
   out="$(sql_as authenticated "$ui" "update organizations set name = 'renamed with an archive smuggled in', archived_at = now() where id = '$org';")"
   check_has "$tag (i) … of archived_at beside a legitimate column in one PATCH" "$out" "organizations.archived_at is not writable directly"
+  # What a PostgREST upsert is: INSERT … ON CONFLICT (id) DO UPDATE. And the
+  # other input of the cap: a membership the user gives themselves.
+  out="$(sql_as authenticated "$ui" "insert into organizations (id, name, archived_at) values ('$org', 'upserted', now()) on conflict (id) do update set archived_at = excluded.archived_at;")"
+  check_has "$tag (i) … of archived_at through an upsert (insert … on conflict do update)" "$out" "ERROR"
+  out="$(sql_as authenticated "$ui" "insert into memberships (user_id, org_id, role) values ('$ui', '$(first_org "$uii")', 'owner');")"
+  check_has "$tag (i) a membership the user gives themselves in another user's workspace is refused" "$out" "ERROR"
   check "$tag (i) the workspace row is byte-identical after every refused write" "$(org_row "$org")" "$before"
   check "$tag (i) the user still has exactly 1 live workspace" "$(live "$ui")" "1"
   out="$(sql_as authenticated "$ui" "select create_workspace('a second one');")"
