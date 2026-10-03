@@ -335,7 +335,7 @@ create policy "workspaces owner delete" on workspaces for delete using (auth.uid
 drop policy if exists "subscriptions self select" on subscriptions;
 drop policy if exists "subscriptions self insert" on subscriptions;
 drop policy if exists "subscriptions self update" on subscriptions;
-create policy "subscriptions self select" on subscriptions for select using (auth.uid() = user_id);
+create policy "subscriptions self select" on subscriptions for select to authenticated using (auth.uid() = user_id);
 
 -- ═════════════════════════════════════════════════════════════════════════
 -- PHASE 1 — Document intake + persisted alerts

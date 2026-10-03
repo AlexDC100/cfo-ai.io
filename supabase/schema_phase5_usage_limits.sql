@@ -84,8 +84,10 @@ create trigger user_usage_set_updated_at
 
 alter table user_usage enable row level security;
 drop policy if exists "users_see_own_usage" on user_usage;
+-- `to authenticated`: the one policy supabase/schema_phase_subscriptions_write_lockdown.sql
+-- keeps on this table — re-running this file after it changes nothing.
 create policy "users_see_own_usage" on user_usage
-  for select using (auth.uid() = user_id);
+  for select to authenticated using (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- 3. founding_members — DB-backed 500-seat counter
