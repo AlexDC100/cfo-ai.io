@@ -362,7 +362,10 @@ describe("a failed regeneration keeps the briefing", () => {
   it.each([
     ["the engine's answer", { ok: false, regenerated: false, reason: "provider_error", stale: true, briefing: ENGLISH, briefing_length: ENGLISH.length }],
     ["an engine that predates the ruling (ok:true over the sentinel)", { ok: true, briefing: "[NARRATIVE_UNAVAILABLE]", briefing_length: 23, currency: "RON" }],
-    ["the inert legacy answer", { ok: true, regenerated: false, legacy: true, briefing: ENGLISH, briefing_length: ENGLISH.length, currency: "RON" }],
+    // An engine that predates the truthful `stale` (2026-10-03) answers the
+    // inert shape with no `stale` at all: the cautious reading stands.
+    ["the inert legacy answer of an engine that says nothing about stale", { ok: true, regenerated: false, legacy: true, briefing: ENGLISH, briefing_length: ENGLISH.length, currency: "RON" }],
+    ["the inert legacy answer over a stored briefing the engine reports stale", { ok: true, regenerated: false, legacy: true, briefing: ENGLISH, briefing_length: ENGLISH.length, currency: "RON", stale: true }],
   ])("ok:false — %s: the prose stays, one sentence says so, the eyebrow stops saying 'verified'", async (_name, body) => {
     await i18n.changeLanguage("ro");
     answer = { status: 200, body };
@@ -380,6 +383,74 @@ describe("a failed regeneration keeps the briefing", () => {
     expect(button().textContent).toBe("Regenerează în română");
     await act(async () => { await i18n.changeLanguage("en"); });
     expect(screen.getByTestId("briefing-regenerate-notice").textContent).toBe(KEPT.en);
+  });
+
+  // OWNER RULING 2026-10-03: "Never report a state that isn't stored." The
+  // engine's `stale` is what the stored row holds. A failure that marked
+  // NOTHING — a failed currency conversion (a converted briefing is never
+  // stored), a marker the database refused, the inert legacy answer over a
+  // current row — answers `stale: false`: the prose on screen is still the
+  // current briefing, and the card must not present it as a kept, stale one
+  // just because a request failed.
+  it.each([
+    ["a failed conversion, nothing marked", { ok: false, regenerated: false, reason: "provider_error", stale: false, briefing: ENGLISH, briefing_length: ENGLISH.length, currency: "EUR" }],
+    ["a failure whose marker was not stored", { ok: false, regenerated: false, reason: "no_api_key", stale: false, briefing: ENGLISH, briefing_length: ENGLISH.length, currency: "RON" }],
+    ["the inert legacy answer over a current row", { ok: true, regenerated: false, legacy: true, briefing: ENGLISH, briefing_length: ENGLISH.length, currency: "RON", stale: false }],
+  ])("stale:false — %s: the sentence is shown, and the briefing is still presented as the current one", async (_name, body) => {
+    env.currency = "EUR";
+    answer = { status: 200, body };
+    render(card());
+    expect(header()).toMatch(/verified/i);
+    fireEvent.click(button());
+    await waitFor(() => expect(screen.getByTestId("briefing-regenerate-notice").textContent).toBe(KEPT.en));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("cfo-briefing-body").textContent).toBe(ENGLISH);
+    expect(screen.getByTestId("cfo-briefing").getAttribute("data-briefing-state")).toBe("current");
+    expect(header()).toMatch(/verified/i);
+    expect(header()).not.toMatch(/previous version kept/i);
+    expect(screen.getByTestId("cfo-briefing").textContent).not.toMatch(/provider_error|no_api_key/);
+    expect(invalidate).not.toHaveBeenCalled();
+    // the reader can ask again
+    expect(button().textContent).toBe("Regenerate in EUR");
+  });
+
+  it("the same failure with stale:true IS presented as kept — the difference above is the engine's word, not the failure", async () => {
+    env.currency = "EUR";
+    answer = { status: 200, body: { ok: false, regenerated: false, reason: "provider_error", stale: true, briefing: ENGLISH, briefing_length: ENGLISH.length, currency: "EUR" } };
+    render(card());
+    fireEvent.click(button());
+    await waitFor(() => expect(screen.getByTestId("briefing-regenerate-notice").textContent).toBe(KEPT.en));
+    expect(screen.getByTestId("cfo-briefing").getAttribute("data-briefing-state")).toBe("stale");
+    expect(header()).not.toMatch(/verified/i);
+    expect(header()).toMatch(/previous version kept/i);
+  });
+
+  // The route refuses what it cannot serve BEFORE the meter (422
+  // unsupported_language / unsupported_currency, 503 fx_unavailable) and
+  // answers a dead meter 503 metering_unavailable. None of them is a cap and
+  // none marks anything: the one generic sentence, never the code, and the
+  // stored briefing is still the current one.
+  it.each([
+    [422, "unsupported_language"],
+    [422, "unsupported_currency"],
+    [503, "fx_unavailable"],
+    [503, "metering_unavailable"],
+  ])("HTTP %s {code: %s}: the generic sentence — no code, no plans link, nothing presented as stale", async (status, code) => {
+    env.currency = "EUR";
+    answer = { status, body: { detail: { code } } };
+    render(card());
+    fireEvent.click(button());
+    await waitFor(() => expect(screen.getByTestId("briefing-regenerate-notice").textContent).toBe(KEPT.en));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const shown = screen.getByTestId("cfo-briefing").textContent ?? "";
+    expect(shown).not.toMatch(/unsupported|fx_unavailable|metering|HTTP|\b422\b|\b503\b/);
+    expect(screen.queryByTestId("briefing-regenerate-plans")).toBeNull();
+    expect(screen.getByTestId("cfo-briefing-body").textContent).toBe(ENGLISH);
+    expect(screen.getByTestId("cfo-briefing").getAttribute("data-briefing-state")).toBe("current");
+    expect(header()).toMatch(/verified/i);
+    expect(invalidate).not.toHaveBeenCalled();
+    await act(async () => { await i18n.changeLanguage("ro"); });
+    expect(screen.getByTestId("briefing-regenerate-notice").textContent).toBe(KEPT.ro);
   });
 
   it.each([500, 502, 403])("HTTP %s: the same sentence — never a status code, never the server's words", async (status) => {
@@ -475,7 +546,11 @@ describe("the allowance is spent: 429 briefing_regen_cap_reached", () => {
     );
   });
 
-  it("a refusal with no counts (the meter was unreachable) prints no invented number", async () => {
+  // (An engine before 2026-10-03 answered a DEAD meter as this 429 with no
+  // usable counts; the route now answers that 503 metering_unavailable — the
+  // generic sentence, gated above. A cap refusal without counts must still
+  // never invent one.)
+  it("a cap refusal with no counts prints no invented number", async () => {
     answer = { status: 429, body: { detail: { code: "briefing_regen_cap_reached", kind: "monthly_cap_reached", upgrade_url: "/pricing" } } };
     env.currency = "USD";
     render(card());

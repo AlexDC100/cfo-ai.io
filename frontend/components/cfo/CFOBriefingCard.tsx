@@ -102,8 +102,11 @@ export function CFOBriefingCard({
   const [session, setSession] = useState<SessionNarration | null>(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
-  // A failed explicit regeneration this session: the prose on screen is the
-  // one that was kept.
+  // A failed explicit regeneration this session after which the STORED
+  // briefing is marked stale — the engine's own word (`stale` in its answer
+  // is what the stored row holds), not "a failure happened": a failed
+  // currency conversion marks nothing, and the briefing on screen is then
+  // still the current one (owner ruling 2026-10-03).
   const [keptAfterFailure, setKeptAfterFailure] = useState(false);
   // A4 — model / regeneration mechanics live behind this disclosure,
   // closed by default so model ids never sit in the primary DOM.
@@ -173,9 +176,13 @@ export function CFOBriefingCard({
         data.ok !== false && data.regenerated !== false && !!fresh && !isUnusableNarrative(fresh);
       if (!regenerated) {
         // The narration failed: the engine wrote nothing and released the
-        // message. Whatever prose is on screen stays.
+        // message. Whatever prose is on screen stays. It is SHOWN as stale
+        // only when the engine says the stored briefing is: `stale: false`
+        // is a failure that marked nothing (a converted narration, a marker
+        // the database refused). An answer with no boolean `stale` (an
+        // engine that predates it) keeps the cautious reading.
         setNotice({ kind: hadProse ? "failed" : "generate_failed" });
-        setKeptAfterFailure(hadProse);
+        setKeptAfterFailure(hadProse && data.stale !== false);
         return;
       }
       setSession({
