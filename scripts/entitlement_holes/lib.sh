@@ -58,12 +58,13 @@ HOLES_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HOLES_SQL_DIR="$HOLES_REPO/supabase"
 HOLES_BOOTSTRAP="$HOLES_REPO/scripts/entitlement_holes/scratch_bootstrap.sql"
 
-# The four migrations under test. They are NEVER part of the base build: a
-# gate applies its own, on top of the schema the other files produce.
+# The migrations under test. They are NEVER part of the base build: a gate
+# applies its own, on top of the schema the other files produce.
 HOLES_UNDER_TEST=(
   schema_phase_workspace_cap_guard.sql
   schema_phase_dashboard_config_caller.sql
   schema_phase_public_tables_write_revoke.sql
+  schema_phase_derived_tables_write_revoke.sql
   schema_phase_signup_tier_trial.sql
 )
 
@@ -362,6 +363,34 @@ jget() { # json path-as-text-array-literal, e.g. '{hole_open}'
   holes_psql "$HOLES_DB" -At -v j="$json" -v p="$path" 2>&1 <<'SQL'
 select coalesce((:'j'::jsonb #>> :'p'::text[]), 'null');
 SQL
+}
+
+# SQL over a result row: the row is the psql variable j (write :'j'::jsonb).
+jsql() { # json sql
+  local json="$1"
+  holes_psql "$HOLES_DB" -At -v j="$json" 2>&1 <<SQL
+$2
+SQL
+}
+
+# The table list of a migration, read from the migration (the one place it
+# is written): the quoted names between <MARKER>-BEGIN and <MARKER>-END.
+tables_between() { # file marker
+  sed -n "/$2-BEGIN/,/$2-END/p" "$1" | sed -n "s/^[[:space:]]*'\([a-z_0-9]*\)'.*/\1/p"
+}
+# The whole content of a table, as one digest (as the table's owner).
+table_digest() { q "select md5(coalesce(string_agg(t::text, E'\n' order by t::text), '')) || ':' || count(*) from public.$1 t;"; }
+# What a write attempt answered, in one word.
+write_verdict() { # output of `with x as (<write> returning 1) select count(*) from x`
+  case "$1" in
+    *"permission denied for table"*) echo "refused: no privilege" ;;
+    *"permission denied for function"*) echo "refused: a policy's function is not executable" ;;
+    *"violates row-level security"*) echo "refused: row level security" ;;
+    *ERROR*) echo "error: $(printf '%s' "$1" | grep ERROR | head -1)" ;;
+    0) echo "0 rows" ;;
+    *[!0-9]*|"") echo "unreadable: $1" ;;
+    *) echo "LANDED" ;;
+  esac
 }
 
 holes_finish() {
