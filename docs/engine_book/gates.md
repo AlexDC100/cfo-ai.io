@@ -20227,87 +20227,442 @@ only by the operator.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_fx_bnr_feed.py -q` |
-| canary | `test_the_real_feed_parses_to_the_figures_bnr_published`, `test_the_pre_2026_namespace_still_parses`, `test_the_feed_is_asked_at_the_address_it_lives_at_first`, `test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried`, `test_no_address_answering_the_feed_serves_the_fallback_marked_stale`, `test_an_implausible_feed_is_never_served` |
-| work count | junit tests, floor **14** (measured 14) |
+| canary | `test_the_real_feed_parses_to_the_figures_bnr_published`, `test_the_pre_2026_namespace_still_parses`, `test_the_feed_is_asked_at_the_address_it_lives_at_first`, `test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried`, `test_no_address_answering_the_feed_serves_the_fallback_marked_stale`, `test_an_implausible_feed_is_never_served`; round 2: `test_every_fetch_carries_the_timeout`, `test_after_the_window_a_failed_refetch_serves_the_last_rate_marked_stale`, `test_inside_the_window_a_second_call_makes_no_fetch`, `test_the_bundled_fallback_is_within_five_percent_of_bnrs_file`, `test_an_answer_that_is_not_200_is_a_failure_whatever_its_body`, `test_a_cube_without_a_usable_date_is_not_the_feed`, `test_a_cube_is_fresh_for_ten_days_and_never_from_the_future`, `test_a_frozen_first_address_loses_to_a_newer_second`, `test_elements_are_matched_by_local_name_in_any_namespace`, `test_a_body_declaring_a_doctype_or_an_entity_is_refused_before_it_is_parsed`, `test_an_anonymous_refresh_is_ignored_and_costs_no_fetch`, `test_the_operator_bearer_forces_a_refetch`, `test_health_says_not_ok_while_the_fallback_is_served`, `test_a_bnr_outage_does_not_turn_the_whole_health_answer_red`, `test_the_live_check_does_not_pass_on_a_memo` |
+| work count | junit tests, floor **60** (measured 64; 14 before round 2) |
+| operator tool | `scripts/check_fx_live.py` — read-only, run inside the backend after a switch; exit 0 only on a current BNR rate |
 
-**INCIDENT** — measured on production on 2026-10-03, during the log watch of an
-unrelated deploy: `GET /api/fx-rates` answered `{"source": "fallback", "as_of":
-"2026-05-01", "stale": true}` with 4.97 RON per EUR and 1.08 USD per EUR, and
-the backend logged one `[fx_rates] BNR fetch failed (syntax error: line 1,
-column 0)` per five minutes. BNR had moved the reference-rate feed:
-`https://www.bnr.ro/nbrfxrates.xml` answers a redirect to an HTML page, the feed
-is at `https://curs.bnr.ro/nbrfxrates.xml`, and its default namespace is
-`https://www.bnr.ro/xsd` (it was `http://`). BNR's file of 2026-10-02 says
-5.3447 RON per EUR and 4.7519 RON per USD: every amount a reader switched to
-EUR was shown 7.5% too high, every amount in USD 3.3% too high. How long is not
-known — the previous container's log went with the container. No test read the
-feed's real bytes; the two existing tests of the module replace the fetch.
+**INCIDENT** — measured on production on 2026-10-03. TWO FACTS, and they are not
+the same fact.
+
+1. **The engine endpoint.** `GET /api/fx-rates` answered `{"source": "fallback",
+   "as_of": "2026-05-01", "stale": true}` with 4.97 RON per EUR and 1.08 USD per
+   EUR, and the backend logged one `[fx_rates] BNR fetch failed (syntax error:
+   line 1, column 0)` per five minutes. BNR's file of 2026-10-02 says 5.3447 RON
+   per EUR and 4.7519 RON per USD: at the fallback an amount in EUR is 7.5% too
+   high and one in USD 3.3%. That rate reached `/api/fx-rates`, `/api/health`
+   and the EUR/USD briefing regeneration — and nothing else.
+2. **What a reader saw.** The browser does not read the engine endpoint:
+   `frontend/lib/rates.ts` asks the Supabase Edge Function `fx-rates`. The
+   deployed function asked the same dead address and served its last cached row,
+   marked stale — `{"rates":{"EUR":1,"RON":5.2489,"USD":1.1541116974494283},
+   "source":"BNR","as_of":"2026-08-05","fetched_at":"2026-08-05T11:09:17.271+00:00",
+   "stale":true}` — and the browser used it. For two months every amount a
+   reader switched to EUR was shown 1.8% too high (5.3447 / 5.2489) and every
+   amount in USD 4.5% too high (4.548 RON per USD served against 4.7519). The
+   browser's half and the function's source are held by `fx-browser`, below.
+
+The cause is one: BNR moved the reference-rate feed. `https://www.bnr.ro/nbrfxrates.xml`
+answers a redirect to an HTML page, the feed is at `https://curs.bnr.ro/nbrfxrates.xml`,
+and its default namespace is `https://www.bnr.ro/xsd` (it was `http://`). Nothing
+failed loudly; `/api/health` said `fx_rates: ok` throughout; no test read the
+feed's real bytes; the two existing tests of the module replace the fetch. How
+long the engine served the fallback is not known — the previous container's
+log went with the container.
+
+Round 1 (`ca669f15`) repaired the engine module (address list, namespace,
+plausibility bounds; 14 tests). Its commit message says the 7.5% error was what
+a reader saw in EUR; that sentence is wrong (fact 2) and stays in the history.
+An independent review (`specs-durable/review_fx_2026-10-03.json`) found the
+gate green on seven planted defects and the browser untouched. Round 2 is this
+section and the next.
 
 **LAW** — on BNR's own bytes (`tests/engine/fixtures/fx/nbrfxrates_REAL_curs_bnr_ro.xml`,
-the file of 2026-10-02, public data, committed as fetched): the parser returns
-the figures a regex reads out of the file (never the parser's own output as its
-expectation); the pre-2026 `http://` namespace still parses; a `multiplier`
-attribute is divided out; a web page is not the feed; a rate outside the
-plausible range (RON per EUR 3–10, USD per EUR 0.5–2) is refused. Through
-`get_fx_rates` with the module's `urlopen` replaced: the first address is the
-one the feed lives at and nothing else is asked when it answers; a page or an
-unreachable host at the first address is a failure and the next address is
-tried; when no address answers the feed, the bundled fallback is served
-**marked stale**, and inside the failure cooldown the second call costs no
-fetch; an implausible feed at every address serves the fallback, never the
-feed. The incident itself is one of the tests
-(`test_production_as_it_was_the_old_address_alone_serves_the_fallback`).
+the file of 2026-10-02, public data, committed as fetched):
 
-**WHAT IT FAILS ON AFTER THE REPAIR (TC-11)** — an address list whose first
-entry is not the feed's; a namespace strip that knows one scheme; a fetch that
-stops at the first address; a fallback not marked stale; a guard removed.
+- the parser returns the figures a regex reads out of the file (never the
+  parser's own output as its expectation); elements are matched by LOCAL name,
+  so the `http://`, `https://`, `curs.bnr.ro`, single-quoted, unknown and absent
+  namespaces all parse; a `multiplier` attribute is divided out;
+- a web page is not the feed; a body over 64 KB is not the feed and the fetch
+  never reads more than 64 KB + 1 byte; a body declaring a `DOCTYPE` or an
+  `ENTITY` is refused BEFORE it reaches the XML parser; a rate outside the
+  plausible range (RON per EUR 3–10, USD per EUR 0.5–2) is refused — EUR and
+  USD each on their own;
+- a Cube whose date is missing, empty, in another format or impossible is not
+  the feed; of two Cubes the newest date is the rate; a Cube dated after today
+  or more than 10 days before it is a failure (the address answers a file that
+  stopped updating);
+- every address is a candidate: the first listed is the one the feed lives at,
+  a failure at one address moves to the next, the NEWEST acceptable date wins
+  (the first listed on a tie), today's file ends the search; an answer that is
+  not 200 is a failure whatever its body; every `urlopen` carries the timeout;
+- when no address answers: the last accepted rate — else the bundled fallback
+  — is served **marked stale**; inside the 24 h window a second call makes no
+  fetch; inside the 300 s failure cooldown a failed fetch is not repeated;
+  after the window, a failed refetch serves the old payload with `stale: true`
+  and its ORIGINAL `fetched_at`;
+- the bundled fallback's VALUES are held within 5% of the committed file (the
+  module's own "update when >5%" rule), not compared with the module itself;
+- `GET /api/fx-rates?refresh=true` is honoured for the operator bearer only: an
+  anonymous or wrong-bearer caller gets the plain route's answer, byte for
+  byte, and costs no fetch (measured before: five anonymous hits were five BNR
+  fetches, ten with the feed down). The anonymous-egress census
+  (`tests/engine/test_launch_anonymous_egress.py`) called every route WITHOUT a
+  query string and so classified the route CACHED; it now also drives every
+  anonymous GET that declares a cache-skipping parameter (`refresh`, `force`,
+  `reload`, `bust`, `nocache`) with it set true, twice;
+- `/api/health`: `checks.fx_rates` carries `source`, `stale`, `as_of` and is
+  `ok: false` unless a current BNR rate is being served;
+- `scripts/check_fx_live.py` exits 0 only when the engine, asking BNR on that
+  call, serves `source: BNR`, `stale: false` and an `as_of` at most 10 days old.
 
-Plants, each alone in the worktree, then reverted (14 passed):
+**`/api/health` — what was chosen and why (decision D4e).** The overall `ok` and
+the HTTP status are computed in `_health._build_body` from the DATABASE check
+alone (`critical_ok = checks["db"]["ok"]`; 503 when false). Stripe is already a
+warning: its `ok: false` changes neither. FX is made a warning of the same
+kind — `checks.fx_rates.ok` goes false, `ok` and the status do not move. Read
+before choosing: the deploy lane prints `d['ok']` and `d['mode']` and stops on a
+red `ok`; an uptime monitor polls the status; `tests/engine/test_launch_survival.py`
+replaces the three checks and asserts the memo, not the rollup. A BNR outage
+that turned `ok` red would fail every deploy made during the outage and page
+for a dependency whose loss leaves every surface rendering (in RON, and in
+EUR/USD at a rate marked stale). The signal for a human is `checks.fx_rates`
+and `scripts/check_fx_live.py`.
+
+**PLANT** — thirty-two, each applied ALONE in the worktree by
+`specs-durable/fx_feed_round2/plants_engine.py`, the touched file restored
+byte-exact after each (sha256 asserted). P1–P6 are round 1's six on the
+round-2 module; E1–E7 are the seven the review found GREEN on round 1's gate;
+F1–F19 are round 2's own rules.
+
+| plant | RED |
+|---|---|
+| P1 the old address only (production as it was) | `29 failed, 35 passed` |
+| P2 elements matched in ONE known namespace, not by local name | `3 failed, 61 passed` — `…pre_2026_namespace_still_parses`, `…matched_by_local_name…[curs.bnr.ro]`, `[unknown]` |
+| P3 the first address's failure is final | `15 failed, 49 passed` |
+| P4 the plausibility guard removed | `5 failed, 59 passed` |
+| P5 the bundled fallback served as fresh | `15 failed, 49 passed` |
+| P6 a body the parser refuses with ValueError answers the fallback rates labelled BNR | `16 failed, 48 passed` |
+| E1 `urlopen` without the timeout | `1 failed, 63 passed` — `test_every_fetch_carries_the_timeout` |
+| E2 the expired last-known rate, after a failed refetch, served as fresh | `3 failed, 61 passed` — `test_after_the_window_a_failed_refetch_serves_the_last_rate_marked_stale`, `test_health_says_not_ok_on_a_last_known_rate…`, `test_the_live_check_does_not_pass_on_a_memo` |
+| E3 the USD-per-EUR bound deleted | `2 failed, 62 passed` — `…plausible_range_is_refused[usd-x10]`, `[usd-div10]` |
+| E4 the success memo never taken (`fetched_at` written as 0) | `5 failed, 59 passed` — `test_inside_the_window_a_second_call_makes_no_fetch` and four more |
+| E5 the bundled fallback back at 4.97 RON per EUR | `12 failed, 52 passed` — `test_the_bundled_fallback_is_within_five_percent_of_bnrs_file` and every test that is served the fallback |
+| E6 the non-200 check deleted | `4 failed, 60 passed` — `test_an_answer_that_is_not_200…[204]`, `[206]`, `[301]`, `[503]` |
+| E7 a dateless Cube accepted, dated with the fallback's date | `4 failed, 60 passed` — `test_a_cube_without_a_usable_date_is_not_the_feed[missing]`, `[empty]`, `[dotted]`, `[impossible]` |
+| F1 the freshness rule removed | `3 failed, 61 passed` — `…fresh_for_ten_days…[eleven-days]`, `[frozen]`, `[future]` |
+| F2 a Cube dated after today is accepted | `1 failed, 63 passed` — `[future]` |
+| F3 the age limit raised from 10 days to 400 | `1 failed, 63 passed` — `[eleven-days]` |
+| F4 the first address that parses wins (no comparison of dates) | `10 failed, 54 passed` |
+| F5 the last address that parses wins, whatever its date | `2 failed, 62 passed` — `test_an_older_second_address_never_replaces_the_first`, `test_on_the_same_date_the_first_address_wins` |
+| F6 today's file does not end the search | `1 failed, 63 passed` — `test_todays_file_ends_the_search` |
+| F7 of two Cubes the first is taken, not the newest | `1 failed, 63 passed` — `test_of_two_cubes_the_newest_date_is_the_rate` |
+| F8 the read is not capped | `1 failed, 63 passed` — `test_a_body_over_64_kb_is_not_the_feed` |
+| F9 a body over 64 KB is parsed | `1 failed, 63 passed` — the same test |
+| F10 a body declaring a DOCTYPE / ENTITY reaches the XML parser | `4 failed, 60 passed` |
+| F11 `?refresh=true` honoured for anyone (the route as it was) | `4 failed, 61 passed` — three in this gate and the census's `test_no_anonymous_route_becomes_a_tap_when_asked_to_refresh` |
+| F12 `?refresh=true` honoured for any `Authorization` header | `1 failed, 63 passed` — `test_a_wrong_bearer_refreshes_nothing_and_is_not_refused` |
+| F13 `?refresh=true` refused for the operator too | `1 failed, 63 passed` — `test_the_operator_bearer_forces_a_refetch` |
+| F14 `/api/health`: `fx_rates` ok while the fallback or a stale rate is served (the check as it was) | `2 failed, 62 passed` |
+| F15 `/api/health`: `checks.fx_rates` carries no `as_of` | `2 failed, 62 passed` |
+| F16 `/api/health`: a BNR outage turns the whole answer red (503) | `1 failed, 63 passed` — `test_a_bnr_outage_does_not_turn_the_whole_health_answer_red` |
+| F17 `check_fx_live` reads the memo instead of asking BNR | `1 failed, 63 passed` — `test_the_live_check_does_not_pass_on_a_memo` |
+| F18 `check_fx_live` passes a rate of any age | `1 failed, 63 passed` — `…own_judgement_holds_each_condition[frozen]` |
+| F19 `check_fx_live` passes a stale answer | `3 failed, 61 passed` |
+
+**RED** — every plant exits `1` (full output with every failing test name:
+`specs-durable/fx_feed_round2/plants_engine.out`).
+
+**REVERT** — the four files restored byte-exact; exit `0`: `65 passed` (the 64
+of this gate and the census test). Verdict: proven RED, thirty-two of
+thirty-two.
+
+Round 1's transcript, as recorded on `ca669f15` (14 tests). P6 is relabelled to
+what was planted: the plant's `except ValueError` caught a refusal of the
+parser's own (an implausible rate, a missing Body) and never a web page, which
+raised `ParseError` on that module — so the label "a 200 web page accepted" was
+wrong, and the plant as named reds four tests, not one:
 ```
 PLANT P1 the old address only (production as it was)
     RED -> ['========================= 6 failed, 8 passed in 0.38s ==========================']
-    FAILED test_the_feed_is_asked_at_the_address_it_lives_at_first
-    FAILED test_the_live_rate_is_served_and_not_marked_stale
-    FAILED test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried
-    FAILED test_an_unreachable_first_address_falls_through_to_the_next
-    FAILED test_no_address_answering_the_feed_serves_the_fallback_marked_stale
-    FAILED test_an_implausible_feed_is_never_served
 PLANT P2 the namespace strip reads http:// only
     RED -> ['========================= 7 failed, 7 passed in 0.39s ==========================']
-    FAILED test_the_real_feed_parses_to_the_figures_bnr_published
-    FAILED test_a_multiplier_is_divided_out
-    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
-    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
-    FAILED test_the_live_rate_is_served_and_not_marked_stale
-    FAILED test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried
-    FAILED test_an_unreachable_first_address_falls_through_to_the_next
 PLANT P3 the first address's failure is final (no second address)
     RED -> ['========================= 4 failed, 10 passed in 0.37s =========================']
-    FAILED test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried
-    FAILED test_an_unreachable_first_address_falls_through_to_the_next
-    FAILED test_no_address_answering_the_feed_serves_the_fallback_marked_stale
-    FAILED test_an_implausible_feed_is_never_served
 PLANT P4 the plausibility guard removed
     RED -> ['========================= 3 failed, 11 passed in 0.37s =========================']
-    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
-    FAILED test_a_rate_outside_the_plausible_range_is_refused[<Rate
-    FAILED test_an_implausible_feed_is_never_served
 PLANT P5 the bundled fallback served as fresh
     RED -> ['========================= 3 failed, 11 passed in 0.37s =========================']
-    FAILED test_production_as_it_was_the_old_address_alone_serves_the_fallback
-    FAILED test_no_address_answering_the_feed_serves_the_fallback_marked_stale
-    FAILED test_an_implausible_feed_is_never_served
-PLANT P6 a 200 web page accepted: parse failure answers the fallback rates as BNR's
+PLANT P6 a ValueError from the parser (an implausible rate, a missing element — NOT a web page) answers the fallback rates as BNR's
     RED -> ['========================= 1 failed, 13 passed in 0.37s =========================']
     FAILED test_an_implausible_feed_is_never_served
 REVERTED: ['============================== 14 passed in 0.40s ==============================']
 ```
 
-**Cannot see** — BNR moving the feed again (the fixture is a recording; the
-live reading is production's `/api/fx-rates` `source` field, which must say
-`BNR`); what the browser does with `stale: true` (the bundled first-paint rate
-in `frontend/lib/rates.ts` and `lib/currency.ts` is still 4.97 as of
-2026-05-01 — it is served only until the endpoint answers, and during a real
-BNR outage); whether a stored briefing was written with amounts converted at
-the fallback rate.
+**After the repair it reds on (TC-11):** an address list whose first entry is
+not the feed's; elements matched in one namespace; a fetch that stops at the
+first address, or takes the first or the last that parses without comparing
+dates; a Cube accepted without a date, from the future or older than ten days;
+a body read past 64 KB or carrying a DOCTYPE / ENTITY into the parser; either
+plausibility bound removed; a non-200 accepted; the timeout dropped; the
+success memo not taken; an expired or fallback rate served with `stale: false`;
+a bundled fallback more than 5% from the committed file; `?refresh=true`
+honoured without the operator bearer, or refused with it; `checks.fx_rates`
+saying ok on anything but a current BNR rate, losing its `source` / `stale` /
+`as_of`, or turning the overall health answer red; `check_fx_live.py` reading
+a memo, or passing a stale, fallback, frozen or future-dated answer.
 
+**POST-DEPLOY (read-only)** — inside the new backend, after the switch
+(CLAUDE.md §14):
+```
+docker exec cfo-ai-backend python3 /app/scripts/check_fx_live.py
+```
+One GET per BNR address, no write. Measured from this worktree on 2026-10-03:
+```
+check_fx_live: addresses asked, in order: https://curs.bnr.ro/nbrfxrates.xml, https://www.bnr.ro/nbrfxrates.xml
+  source      BNR
+  stale       False
+  as_of       2026-10-02   (today in Romania: 2026-10-03)
+  RON per EUR 5.3447
+  USD per EUR 1.124750099960016
+  RON per USD 4.7519
+FX-LIVE GREEN — BNR's file of 2026-10-02, read on this call
+```
+
+**CANNOT SEE** — BNR moving the feed again (the fixture is a recording; the
+live reading is `check_fx_live.py` and `checks.fx_rates` on `/api/health`);
+whether the VPS reaches `curs.bnr.ro`; the deployed Edge Function and what a
+browser shows (`fx-browser`); a mislabelled feed inside the plausible range
+(EUR carrying USD's figure — the parser selects by the `currency` attribute, so
+only BNR could produce it); concurrent cold-cache requests (each fetches: there
+is no single-flight, and the timeout is per socket read, not a total deadline);
+whether a stored chat answer or a downloaded export was produced at an old
+rate. The 4.97 that remains in `config.yaml` (`fx_eur_ron`),
+`frontend/lib/currency.ts` (`FX_RON_TO_EUR`) and `frontend/lib/thresholds.ts`
+(`fxEurRon`) is DEAD and deliberately untouched: `FX_RON_TO_EUR` is read by
+`cfoDerive.flatten` / `derive`, whose only caller is `alerts.deriveAlertsFromRun`,
+which nothing calls; `fxEurRon` is sent as the `fx_eur_ron` override, which the
+engine merges and echoes on `GET /config` and never reads.
+
+## fx-browser
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/fxRatesChoice.test.ts frontend/lib/__tests__/fxFunctionBnr.test.ts --reporter=verbose` |
+| work count | `Tests N passed`, floor **100** (measured 105: 29 browser + 76 function) |
+| canary | `production on 2026-10-03, with this release: the function's August row is stale, the engine has BNR's file of 2 October — the engine's rate is shown, as current`; `a current function payload is used and costs no second request — the engine may be stopped`; `the engine is unreachable: the function's payload is kept, MARKED STALE, and the next call asks both again`; `a held payload that is not a current BNR rate never spares the next attempt`; `whatever the two sources answer, nothing but a current BNR rate is ever returned with stale false`; `the real feed parses to the figures BNR published`; `the deployed row + BNR at its new address: the feed is fetched, the fresh row stored, the answer BNR and not stale`; `a stale row does not refetch BNR on every request: once per five minutes, whichever instance asks`; `the engine's, the function's and the browser's fallback are equal, and say the same date`; `index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic` |
+
+**INCIDENT** — fact 2 of `fx-feed`, above: the rate a reader saw came from the
+Edge Function's last cached row (5.2489 RON per EUR as of 2026-08-05, marked
+stale), and `frontend/lib/rates.ts` used a payload that said `stale: true`.
+The function asked one address, dead since BNR moved the feed; while stale it
+asked BNR again on EVERY request; its parser, address and cache logic sat
+inside `Deno.serve`, where no test could run them. A frontend deploy does not
+redeploy the function, so the browser has to be right without it.
+
+**LAW — the browser (`fxRatesChoice.test.ts`).** Through `fetchRates`, with the
+two addresses answered by the test — the function's payload as the deployed
+function answered it (verbatim), the engine's as production answered it (the
+4.97 fallback) and as this release answers it (BNR's file of 2026-10-02):
+
+- a function payload that is not a current BNR rate (`stale` anything but
+  `false`, or `source` not `BNR`) makes the browser ask the engine as well; the
+  engine's CURRENT rate is used, as current — unless the function's is a BNR
+  rate published strictly after it, which is kept, marked stale;
+- a current function payload is used and costs NO second request (the engine
+  may be stopped — that independence is why the function exists);
+- the engine unreachable (network error, 502, 404, a body that is not rates) or
+  itself stale (the fallback, or a last-known rate): the function's payload is
+  kept and stays MARKED STALE — never 4.97, never presented as current;
+- the function not answering (network error, 500, a wrong body, a zero rate, a
+  hang abandoned after 8 s, Supabase not configured): the engine's payload is
+  used as served;
+- neither answering: the last payload this browser held — marked stale once it
+  is past its day — else the bundled fallback, marked stale and never written
+  to the browser's copy;
+- `?refresh=true` goes to the function, never to the engine;
+- across all 100 pairs of ten payload shapes, nothing but a current BNR rate is
+  ever returned with `stale: false`, and what is returned is never older than
+  a current rate that was on the table.
+
+**The browser's own copy — what was found.** `localStorage["cfo:fx-rates:v1"]`
+holds `{payload, cached_at}`. Before this release the 24 h check ALREADY
+skipped a held payload with `stale: true` (`!cached.payload.stale`), so a stale
+record never suppressed the next attempt — the browser asked the function on
+every mount and got the same stale row back. What it did not do: ask anyone
+else; mark a day-old held copy stale when the request failed (it was returned
+as held, `stale: false`); mark it stale on first paint. Now only a CURRENT
+payload held for less than a day (and not stamped in the future) spares the
+request, and a held copy past its day is marked stale wherever it is shown.
+
+**LAW — the function (`fxFunctionBnr.test.ts`).** `supabase/functions/fx-rates/bnr.ts`
+has no Deno global and no import, so the gate runs the code the function
+serves with. On BNR's committed bytes: the engine's parsing, plausibility,
+date, freshness and address rules, restated (any namespace or prefix; plain
+decimals only — `5,3447`, `0x5` and `5e0` are not rates; a page-sized body is
+abandoned mid-read; a hanging address is abandoned after 8 s). Through
+`resolveRates` — one request, with the row and the wire passed in:
+
+- on the row production holds (`as_of 2026-08-05`), with BNR answering at the
+  new address: BOTH addresses are asked (the file is yesterday's), ONE write
+  stores the fresh row (`fetched_at = updated_at = now`), the answer is
+  `source: BNR, stale: false`, and the next request from another instance is
+  served from the row;
+- while BNR does not answer: the August row byte for byte, `stale: true`; the
+  rate and its `fetched_at` are never overwritten; the attempt is stamped on
+  the row's `updated_at` ALONE, so every instance holds the cooldown — 42
+  requests in under five minutes, `?refresh=true` included, are ONE attempt
+  (one GET per address; the deployed function: a GET on every request); past
+  five minutes BNR is asked again;
+- an accepted file past its day with BNR down is served `stale: true` with its
+  original `fetched_at`; an implausible, frozen or dateless feed is never
+  stored and never served; a malformed row is no row;
+- with no row, or a row that cannot be read or written, the instance's own
+  memory holds the cooldown and the last accepted file: a broken table is not
+  a BNR fetch per request.
+
+**The failure cooldown needs no migration.** `fx_rates_cache` holds one row
+(`check (id = 'current')`). A success writes `fetched_at = updated_at`; a
+failed attempt touches `updated_at` alone; "BNR was last asked at" is
+`max(fetched_at, updated_at)`. With no row yet there is nothing to stamp and
+the cooldown is the instance's memory — per instance, not per project.
+
+The three live copies of the bundled fallback (`fx_rates.py`, `bnr.ts`,
+`lib/rates.ts`) are held EQUAL, to one date, and within 5% of the committed
+file. `index.ts` is read as text: it imports `./bnr.ts` by its extension, holds
+no address, parser, fallback or TTL of its own, raises supabase-js's `error`
+on each of its three statements, and sends `no-store` on a stale answer.
+
+**PLANT** — thirty-eight, each applied ALONE in the worktree by
+`specs-durable/fx_feed_round2/plants_browser.py`, the touched file restored
+byte-exact after each (sha256 asserted).
+
+| plant | RED |
+|---|---|
+| B0 `lib/rates.ts` as it was before this release | `23 failed \| 82 passed` |
+| B1 the stale one is preferred: the function's payload is kept even when the engine holds a current rate | `5 failed \| 100 passed` — the production case first |
+| B2 a second request when the function is fresh | `4 failed \| 101 passed` — `a current function payload is used and costs no second request…` |
+| B3 a stale payload presented with `stale: false` | `11 failed \| 94 passed` |
+| B4 a payload trusted as current on its source alone | `9 failed \| 96 passed` |
+| B5 a payload trusted as current on `stale: false` alone | `2 failed \| 103 passed` — `is a current BNR rate…`, the 100-pair law |
+| B6 a held STALE payload spares the next attempt for a day | `2 failed \| 103 passed` |
+| B7 a held current payload spares the request at any age | `4 failed \| 101 passed` |
+| B8 a day-old held copy shown as current | `3 failed \| 102 passed` |
+| B9 the engine's stale payload preferred to the function's | `2 failed \| 103 passed` — `…serving 4.97: the function's payload is kept, never 4.97…` |
+| B10 the engine's current rate replaces a function rate BNR published after it | `1 failed \| 104 passed` |
+| B11 `?refresh=true` passed on to the engine | `14 failed \| 91 passed` |
+| B12 the function request has no timeout | `1 failed \| 104 passed` |
+| B13 the engine not asked when the function does not answer | `8 failed \| 97 passed` |
+| B14 the bundled fallback written to the browser's copy | `1 failed \| 104 passed` |
+| B15 the browser's fallback back at 4.97 | `3 failed \| 102 passed` — both files |
+| N1 the deployed function's address list (the old address only) | `28 failed \| 77 passed` |
+| N2 no failure cooldown (the deployed behaviour) | `7 failed \| 98 passed` |
+| N3 the last accepted rate, past its day, served as current | `7 failed \| 98 passed` |
+| N4 the freshness rule removed | `4 failed \| 101 passed` |
+| N5 the plausibility bounds removed | `5 failed \| 100 passed` |
+| N6 a dateless Cube takes the fallback's date (the deployed parser) | `6 failed \| 99 passed` |
+| N7 the failed attempt not stamped on the row | `5 failed \| 100 passed` |
+| N8 `?refresh=true` skips the five-minute window | `4 failed \| 101 passed` |
+| N9 a page-sized body read whole | `1 failed \| 104 passed` |
+| N10 a decimal comma read as its integer part (`parseFloat`, the deployed parser) | `1 failed \| 104 passed` |
+| N11 a body declaring a DOCTYPE / ENTITY is parsed | `5 failed \| 100 passed` |
+| N12 an older second address replaces the first | `1 failed \| 104 passed` |
+| N13 the first Cube is the rate, not the newest | `1 failed \| 104 passed` |
+| N14 a non-200 answer carrying the feed is accepted | `4 failed \| 101 passed` |
+| N15 the instance forgets what it accepted | `1 failed \| 104 passed` |
+| N16 a hanging address is never abandoned | `1 failed \| 104 passed` |
+| N17 the function's fallback back at 4.97 | `2 failed \| 103 passed` |
+| N18 a malformed cache row is served | `2 failed \| 103 passed` |
+| N19 `index.ts` imports `./bnr` without its extension | `1 failed \| 104 passed` |
+| N20 `index.ts` lets the browser cache a STALE answer for an hour (the deployed header) | `1 failed \| 104 passed` |
+| N21 `index.ts` swallows a failed statement | `1 failed \| 104 passed` |
+| N22 the engine's fallback moved alone | `1 failed \| 104 passed` — `the engine's, the function's and the browser's fallback are equal…` |
+
+**RED** — every plant exits `1` (full output with every failing test name:
+`specs-durable/fx_feed_round2/plants_browser.out`, `plants_browser_B14.out`).
+
+**REVERT** — the four files restored byte-exact; exit `0`: `Tests 105 passed (105)`.
+Verdict: proven RED, thirty-eight of thirty-eight.
+
+**The function's REAL `index.ts` under Deno** (2.7.14; `deno check` clean;
+supabase-js mapped to an in-memory row by an import map, `Deno.serve` captured,
+`fetch` replaced — `specs-durable/fx_feed_round2/deno/`). The feed is the
+committed file, re-dated to the day before the run:
+```
+A. the deployed row; BNR answers at the new address, a web page at the old one
+ 1         {"status":200,"source":"BNR","stale":false,"as_of":"2026-10-02","RON":5.3447,"USD":1.124750099960016,"cache_control":"public, max-age=3600","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+   row now {"as_of":"2026-10-02","RON":5.3447,"source":"BNR","fetched_eq_updated":true}
+ 2         {"status":200,"source":"BNR","stale":false,"as_of":"2026-10-02","RON":5.3447,"cache_control":"public, max-age=3600","asked":[]}
+ 3 refresh {"status":200,"source":"BNR","stale":false,"as_of":"2026-10-02","RON":5.3447,"cache_control":"public, max-age=3600","asked":[]}
+   writes  upsert
+B. a NEW instance, the deployed row; BNR dead at both addresses (a page, a 503)
+ 1         {"status":200,"source":"BNR","stale":true,"as_of":"2026-08-05","RON":5.2489,"USD":1.1541116974494283,"fetched_at":"2026-08-05T11:09:17.271+00:00","cache_control":"no-store","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+ 2         {"status":200,"source":"BNR","stale":true,"as_of":"2026-08-05","RON":5.2489,"cache_control":"no-store","asked":[]}
+ 3 refresh {"status":200,"source":"BNR","stale":true,"as_of":"2026-08-05","RON":5.2489,"cache_control":"no-store","asked":[]}
+   writes  update:updated_at | rate and fetched_at kept: true
+C. a NEW instance, no row; BNR dead (the cooldown is this instance's memory)
+ 1         {"status":200,"source":"fallback","stale":true,"as_of":"2026-10-02","RON":5.3447,"cache_control":"no-store","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+ 2         {"status":200,"source":"fallback","stale":true,"as_of":"2026-10-02","RON":5.3447,"cache_control":"no-store","asked":[]}
+D. the row cannot be read (the statement errors); BNR answers
+ 1         {"status":200,"source":"BNR","stale":false,"as_of":"2026-10-02","RON":5.3447,"cache_control":"public, max-age=3600","asked":["https://curs.bnr.ro/nbrfxrates.xml","https://www.bnr.ro/nbrfxrates.xml"]}
+ 2         {"status":200,"source":"BNR","stale":false,"as_of":"2026-10-02","RON":5.3447,"cache_control":"public, max-age=3600","asked":[]}
+E. OPTIONS 200 "ok"; POST 405 {"error":"Method not allowed"}
+```
+And `bnr.ts`'s own `fetchBnr` with Deno's real `fetch`, one GET per address,
+2026-10-03:
+```
+accepted: {"base":"EUR","rates":{"EUR":1,"RON":5.3447,"USD":1.124750099960016},"source":"BNR","as_of":"2026-10-02"}
+  asked: https://curs.bnr.ro/nbrfxrates.xml -> 200 text/xml
+  asked: https://www.bnr.ro/nbrfxrates.xml -> 200 text/html; charset=UTF-8 (redirected to https://www.bnr.ro/)
+```
+
+**REDEPLOY** — the function goes live only by this command (the Supabase CLI
+must be signed in; the project ref is the one in
+`supabase/schema_phase_fx_rates.sql`'s runbook and CLAUDE.md §16 Milestone D):
+```
+supabase functions deploy fx-rates --project-ref <ref> --use-api --no-verify-jwt
+```
+The directory `supabase/functions/fx-rates/` is the bundle: `index.ts` and
+`bnr.ts`. No secret, no migration, no schema change.
+
+Probe, before and after (`-i` to read the `cache-control` header; add
+`-H "apikey: <anon key>"` if the gateway asks for it):
+```
+curl -si "https://<ref>.supabase.co/functions/v1/fx-rates"
+```
+
+| | BEFORE (measured 2026-10-03) | AFTER — the first request |
+|---|---|---|
+| `source` | `BNR` | `BNR` |
+| `stale` | `true` | **`false`** |
+| `as_of` | `2026-08-05` | BNR's latest business day (`2026-10-02` until Monday 5 October 13:00 Romanian time) |
+| `rates.RON` | `5.2489` | the EUR figure in `https://curs.bnr.ro/nbrfxrates.xml` (`5.3447` for 2026-10-02) |
+| `rates.USD` | `1.1541116974494283` | EUR ÷ USD of the same file (`1.124750099960016`) |
+| `fetched_at` | `2026-08-05T11:09:17.271+00:00` | the time of the probe |
+| `cache-control` | `public, max-age=3600` | `public, max-age=3600` (a stale answer now says `no-store`) |
+
+A second probe answers the same `fetched_at` (served from the row). If the
+first answer is still `stale: true` with `as_of 2026-08-05`: the edge runtime
+did not reach `curs.bnr.ro` or the bundle did not land — read the function's
+log for `[fx-rates] BNR did not answer the feed`; a re-probe inside five
+minutes does NOT ask BNR again (the cooldown), so wait five minutes before
+concluding. The row can be read directly: `select as_of, fetched_at,
+updated_at, rates from fx_rates_cache;`. Until the redeploy, and through any
+later outage of either source, the browser's choice above covers it: a browser
+on this release shows the engine's current rate.
+
+**After the repair it reds on:** the browser using a function payload that is
+not a current BNR rate while the engine holds one; asking the engine when the
+function is current; returning anything that is not a current BNR rate with
+`stale: false` (a kept payload, a day-old held copy, the fallback); a held
+stale payload sparing the next attempt; `?refresh=true` reaching the engine; a
+request without a timeout; the function's reader knowing only the old address,
+taking a web page, an implausible, dateless, frozen or future-dated Cube, a
+non-200 or a page-sized body; a stale cache asking BNR on every request, from
+any instance; a failed attempt overwriting or not stamping the row; the last
+accepted rate served as current past its day; `index.ts` growing a second copy
+of the feed logic, importing `./bnr` without its extension, swallowing a
+failed statement or letting a stale answer be cached; the three fallback
+copies drifting apart or more than 5% from the committed file.
+
+**CANNOT SEE:** the DEPLOYED function and the deployed engine (the tests answer
+for both; the probe above and `check_fx_live.py` are the live readings); the
+real supabase-js client and the real `fx_rates_cache` table (the three
+statements are read as text and were run against a stub under Deno, not
+against Postgres); the real `npm:@supabase/supabase-js@2` import under Deno
+(unchanged from the deployed function); concurrent requests reaching several
+instances at the same instant (each may ask BNR once before the first stamp
+lands); the UI's stale marker and its wording (an 8 px dot whose tooltip names
+a button that no longer exists — not changed here); amounts already stored at
+an old rate (chat answers given in EUR / USD, downloaded exports); the
+non-RON `briefing/regenerate` path (seen in review, ticketed, not built).

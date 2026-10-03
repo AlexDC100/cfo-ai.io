@@ -518,7 +518,7 @@ describe("fx function · one request, on the row production holds", () => {
       const got = await request(store, wire, i % 2 ? first : bnr.newInstanceMemory(), new Date(NOW.getTime() + i * 7_000));
       expect([got.stale, got.rates.RON]).toEqual([true, 5.2489]);
     }
-    expect(wire.asked).toHaveLength(2); // the deployed function: 82 requests to BNR
+    expect(wire.asked).toHaveLength(2); // ONE attempt; the deployed function asked BNR on each of the 41
     expect(store.writes).toHaveLength(1);
     // ?refresh=true does not skip the five-minute window either — the function is anonymous
     await request(store, wire, bnr.newInstanceMemory(), minutes(4.9), true);

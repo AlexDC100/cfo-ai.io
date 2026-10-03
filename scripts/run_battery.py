@@ -1102,25 +1102,85 @@ def _engine_gates() -> List[Gate]:
                        "finding-before-build-unchecked, finding-on-measured-positive-cash, finding-paraphrased, "
                        "finding-sign-unchecked, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
                        "trigger-threshold-in-code, withheld-names-nothing, x3-keeps-the-stock-build")),
-        # ── fx-feed (2026-10-03): the BNR reference-rate feed on its REAL bytes.
-        # Production served the bundled fallback (4.97 RON per EUR, as of
-        # 2026-05-01, stale) while BNR published 5.3447 — BNR had moved the feed
-        # to curs.bnr.ro and changed its namespace to https://, the old address
-        # answered a web page, and nothing read the feed's real bytes. The law:
-        # the committed real file parses to BNR's figures; the pre-2026
-        # namespace still parses; a page that is not the feed is a failure and
-        # the next address is tried; no address answering serves the fallback
-        # MARKED STALE; a rate outside the plausible range is refused.
-        # Measured 14. Plant log: gates.md "fx-feed".
+        # ── fx-feed + fx-browser (2026-10-03): the BNR reference-rate feed on
+        # its REAL bytes, in the three places that read or show it.
+        # TWO FACTS, measured on production, and they are not the same fact.
+        # The ENGINE endpoint served the bundled fallback (4.97 RON per EUR as
+        # of 2026-05-01, stale) while BNR published 5.3447 — 7.5% high on EUR
+        # amounts, reaching /api/fx-rates, /api/health and the EUR/USD briefing
+        # regeneration only. What a READER saw came from the Supabase Edge
+        # Function fx-rates, which served its last cached row marked stale
+        # (5.2489 as of 2026-08-05) for two months, and the browser used it:
+        # EUR amounts 1.8% too high, USD amounts 4.5%. BNR had moved the feed to
+        # curs.bnr.ro and changed its namespace to https://; the old address
+        # answers a web page; nothing read the feed's real bytes.
+        #   fx-feed      the ENGINE: the committed real file parses to BNR's
+        #                figures in any namespace; a page, an oversized body,
+        #                a DOCTYPE / ENTITY, an implausible rate, a Cube that
+        #                is dateless, future-dated or over 10 days old is a
+        #                failure; every address is a candidate and the newest
+        #                date wins; no address answering serves the last rate
+        #                — else the fallback — MARKED STALE; the two memos;
+        #                ?refresh=true for the operator bearer only;
+        #                /api/health says what is served without turning the
+        #                answer red; scripts/check_fx_live.py. Measured 64
+        #                (14 before round 2), floor 60.
+        #   fx-browser   the BROWSER's choice (lib/rates.ts: a stale function
+        #                payload makes it ask the engine; the current rate
+        #                wins; nothing stale is ever shown as current) and the
+        #                FUNCTION's reader (supabase/functions/fx-rates/bnr.ts,
+        #                run in Node on the same real bytes and on the row
+        #                production held), with the three copies of the
+        #                bundled fallback held equal. Measured 105, floor 100.
+        # Plant logs: gates.md "fx-feed", "fx-browser".
         Gate("fx-feed",
              [PY, "-m", "pytest", "tests/engine/test_fx_bnr_feed.py", "-q"],
-             work_junit=True, floor=14, units="tests",
+             work_junit=True, floor=60, units="tests",
              canaries=("test_the_real_feed_parses_to_the_figures_bnr_published",
                        "test_the_pre_2026_namespace_still_parses",
                        "test_the_feed_is_asked_at_the_address_it_lives_at_first",
                        "test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried",
                        "test_no_address_answering_the_feed_serves_the_fallback_marked_stale",
-                       "test_an_implausible_feed_is_never_served")),
+                       "test_an_implausible_feed_is_never_served",
+                       # round 2 (review of ca669f15): the seven plants the
+                       # first gate stayed green on, and the new rules
+                       "test_every_fetch_carries_the_timeout",
+                       "test_after_the_window_a_failed_refetch_serves_the_last_rate_marked_stale",
+                       "test_inside_the_window_a_second_call_makes_no_fetch",
+                       "test_the_bundled_fallback_is_within_five_percent_of_bnrs_file",
+                       "test_an_answer_that_is_not_200_is_a_failure_whatever_its_body",
+                       "test_a_cube_without_a_usable_date_is_not_the_feed",
+                       "test_a_cube_is_fresh_for_ten_days_and_never_from_the_future",
+                       "test_a_frozen_first_address_loses_to_a_newer_second",
+                       "test_elements_are_matched_by_local_name_in_any_namespace",
+                       "test_a_body_declaring_a_doctype_or_an_entity_is_refused_before_it_is_parsed",
+                       "test_an_anonymous_refresh_is_ignored_and_costs_no_fetch",
+                       "test_the_operator_bearer_forces_a_refetch",
+                       "test_health_says_not_ok_while_the_fallback_is_served",
+                       "test_a_bnr_outage_does_not_turn_the_whole_health_answer_red",
+                       "test_the_live_check_does_not_pass_on_a_memo")),
+        Gate("fx-browser",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/fxRatesChoice.test.ts",
+              "frontend/lib/__tests__/fxFunctionBnr.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=100,
+             units="browser-choice and function-reader tests",
+             canaries=("production on 2026-10-03, with this release: the function's August row is stale, "
+                       "the engine has BNR's file of 2 October — the engine's rate is shown, as current",
+                       "a current function payload is used and costs no second request — the engine may be stopped",
+                       "the engine is unreachable: the function's payload is kept, MARKED STALE, "
+                       "and the next call asks both again",
+                       "a held payload that is not a current BNR rate never spares the next attempt",
+                       "whatever the two sources answer, nothing but a current BNR rate is ever returned "
+                       "with stale false",
+                       "the real feed parses to the figures BNR published",
+                       "the deployed row + BNR at its new address: the feed is fetched, the fresh row stored, "
+                       "the answer BNR and not stale",
+                       "a stale row does not refetch BNR on every request: once per five minutes, "
+                       "whichever instance asks",
+                       "the engine's, the function's and the browser's fallback are equal, and say the same date",
+                       "index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic")),
 
         # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
         # Supabase client logs a WARNING and retries ONCE on a read timeout
