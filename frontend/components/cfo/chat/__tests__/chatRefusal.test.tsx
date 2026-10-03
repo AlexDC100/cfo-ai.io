@@ -262,7 +262,7 @@ describe("chatRefusalOf — which errors are refusals", () => {
     expect(chatRefusalOf(err(429, { code: "chat_cap_reached", kind: "monthly_cap_reached", daily_cap: 3, monthly_cap: 5, upgrade_url: "/pricing?from=chat" })))
       .toEqual({ code: "chat_cap_reached", period: "monthly", cap: 5, href: "/pricing?from=chat" });
     for (const notOne of [
-      err(503, { code: "auth_unavailable" }), err(503, "503 Service Unavailable"), err(429, { code: "rate_limited" }),
+      err(503, { code: "auth_unavailable" }), err(503, { code: "ai_not_configured" }), err(503, "503 Service Unavailable"), err(429, { code: "rate_limited" }),
       err(429, "429"), err(500, { code: "chat_cap_reached" }), err(400, { error: "invalid_request" }), new TypeError("Failed to fetch"), null, "x",
     ]) expect(chatRefusalOf(notOne)).toBeNull();
   });

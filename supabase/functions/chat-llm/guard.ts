@@ -13,7 +13,9 @@
 //   1. NO VERIFIED USER, NO MODEL CALL.  No bearer, or a bearer the auth
 //      server does not vouch for → 401 sign_in_required. Before the request
 //      is validated, before any metering write, before any upstream request.
-//   2. the request is validated; the system prompt is built (pure).
+//   2. the request is validated; the system prompt is built (pure). With
+//      no model key the call ends here: 503 ai_not_configured, nothing
+//      reserved.
 //   3. the plan row is read. Unreadable → 503 metering_unavailable.
 //   4. reserve_user_chat — THE cap decision, atomic in Postgres. This file
 //      never reads a counter and never pre-checks: two calls at cap − 1 are
@@ -138,7 +140,7 @@ export interface ChatReply {
 // ── The refusals: a CODE, and a sentence for a caller that has no words of
 //    its own. The app renders its own sentence from the code, in the
 //    reader's language (frontend/lib/chatRefusal.ts) — never these.
-export type RefusalCode = "sign_in_required" | "metering_unavailable" | "auth_unavailable";
+export type RefusalCode = "sign_in_required" | "metering_unavailable" | "auth_unavailable" | "ai_not_configured";
 
 const REFUSAL_TEXT: Record<RefusalCode, Record<Lang, string>> = {
   sign_in_required: {
@@ -157,12 +159,20 @@ const REFUSAL_TEXT: Record<RefusalCode, Record<Lang, string>> = {
     en: "Ask CFO AI could not confirm who is signed in, so it did not answer. Try again in a moment.",
     ro: "Ask CFO AI nu a putut confirma cine este autentificat, așa că nu a răspuns. Încearcă din nou în câteva momente.",
   },
+  // No model key among the function's secrets. Said to the caller without
+  // the internals: which variable, which model and where to set it are in
+  // the function's log, not in a reader's conversation.
+  ai_not_configured: {
+    en: "Ask CFO AI is not available right now.",
+    ro: "Ask CFO AI nu este disponibil momentan.",
+  },
 };
 
 const REFUSAL_STATUS: Record<RefusalCode, number> = {
   sign_in_required: 401,
   metering_unavailable: 503,
   auth_unavailable: 503,
+  ai_not_configured: 503,
 };
 
 function refusal(code: RefusalCode, lang: Lang): ChatReply {
@@ -171,11 +181,6 @@ function refusal(code: RefusalCode, lang: Lang): ChatReply {
     body: { error: code, detail: { code, message: REFUSAL_TEXT[code][lang] } },
   };
 }
-
-export const NOT_CONFIGURED_ANSWER =
-  "Conversational AI isn't configured on this build — " +
-  "ANTHROPIC_API_KEY is missing. Set it as a Supabase Edge " +
-  "Function secret to chat with Claude Opus 4.7.";
 
 // ── Small pure helpers ──────────────────────────────────────────────────
 
@@ -434,9 +439,13 @@ export async function handleChat(deps: ChatDeps, call: ChatCall): Promise<ChatRe
     return { status: 400, body: { error: "invalid_request", detail: "The request could not be read." } };
   }
 
-  // No key, no model call — and so nothing to reserve.
+  // No key, no model call — and so nothing to reserve. A typed 503, not an
+  // "answer": until 2026-10-03 this arm returned HTTP 200 with a sentence
+  // naming the missing secret and the model, which the chat stored in the
+  // conversation and Explain cached as a panel's explanation.
   if (!deps.modelConfigured) {
-    return { status: 200, body: { answer: NOT_CONFIGURED_ANSWER, model: null, usage: null } };
+    log("error", "[chat] ANTHROPIC_API_KEY is not set among the function's secrets — refusing (nothing reserved)");
+    return refusal("ai_not_configured", lang);
   }
 
   // 3. The plan row. Unreadable is NOT "trial": it is "cannot meter".

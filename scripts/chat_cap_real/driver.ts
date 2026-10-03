@@ -445,13 +445,16 @@ try {
     check("10.6 …no upstream request", seen.length - before, 0);
     await noAuth.stop();
 
-    // (d) no model key: a verified user gets the notice, nothing reserved;
-    //     an unverified one still gets 401.
+    // (d) no model key: a verified user gets a typed 503 (no "answer", no
+    //     internals), nothing reserved; an unverified one still gets 401.
     const noKey = await startFunction("no-key", { ANTHROPIC_API_KEY: null });
     before = seen.length;
+    mark = fnLog.length;
     const d = await ask(noKey, u.token);
     const e = await ask(noKey, null);
-    check("10.7 no ANTHROPIC_API_KEY: a verified user gets the notice (200), an unverified caller still 401", [d.status, String(d.json.answer).includes("isn't configured"), e.status, e.json.error], [200, true, 401, "sign_in_required"]);
+    check("10.7 no ANTHROPIC_API_KEY: a verified user gets 503 ai_not_configured — no 'answer', the secret's name in the log and not in the reply; an unverified caller still 401",
+      [d.status, d.json.error, "answer" in d.json, /ANTHROPIC|secret|Opus/i.test(JSON.stringify(d.json)), loggedSince(mark, "ANTHROPIC_API_KEY is not set"), e.status, e.json.error],
+      [503, "ai_not_configured", false, false, 1, 401, "sign_in_required"]);
     check("10.8 …no upstream request, nothing reserved", [seen.length - before, await meter(u)], [0, [null, null, null, null]]);
     await noKey.stop();
 

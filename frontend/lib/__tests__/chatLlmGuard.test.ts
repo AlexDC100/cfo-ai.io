@@ -34,7 +34,6 @@ import {
   MAX_TOKENS,
   METERING_TIMEOUT_MS,
   MODEL_ID,
-  NOT_CONFIGURED_ANSWER,
   bearerOf,
   buildModelRequestBody,
   dayAndMonth,
@@ -466,13 +465,19 @@ describe("C3 — fail closed: 'could not meter' is never 'allowed'", () => {
     expect(METERING_TIMEOUT_MS).toBeLessThanOrEqual(15000);
   });
 
-  it("no key, verified user: the configuration notice — and nothing is reserved for a call that cannot be made", async () => {
+  it("no model key, verified user: 503 ai_not_configured — not an 'answer' — nothing reserved, the internals in the log and not in the reply", async () => {
     const w = world({ modelConfigured: false });
     const r = await ask(w);
-    expect(r.status).toBe(200);
-    expect(bodyOf(r).answer).toBe(NOT_CONFIGURED_ANSWER);
+    expect(r.status).toBe(503);
+    expect(bodyOf(r).error).toBe("ai_not_configured");
+    expect(bodyOf(r).detail).toEqual({ code: "ai_not_configured", message: "Ask CFO AI is not available right now." });
+    expect(bodyOf(r).answer).toBeUndefined(); // nothing a chat would store or Explain would cache
+    for (const internal of ["ANTHROPIC", "API_KEY", "secret", "Opus", "Claude"]) expect(JSON.stringify(r.body), internal).not.toContain(internal);
+    expect(w.logs.some((l) => l.level === "error" && l.message.includes("ANTHROPIC_API_KEY is not set"))).toBe(true);
     expect(w.calls).toEqual(["verify"]);
     expectNothingSpent(w);
+    const ro = await ask(world({ modelConfigured: false }), undefined, { ...BODY, language: "ro" });
+    expect(bodyOf(ro).detail?.message).toBe("Ask CFO AI nu este disponibil momentan.");
   });
 });
 
