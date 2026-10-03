@@ -20574,7 +20574,7 @@ applied — 59 pass with F4 "refused by the trigger", and plant s-c RED 9 of 59
 
 **After the repair it reds on:** a non-select policy or a write privilege for
 an API role on a listed table, at table or column level; row level security
-off on one; a second policy on `subscriptions`; any of the 34 attacks landing
+off on one; a second policy on `subscriptions`; any of the 35 attacks landing
 or answering anything but the table's own refusal; a user reading another
 user's plan row; anon reading at all; a legitimate writer (the service
 role's upsert, the reserve / commit RPCs, the workspace cap's read) breaking;
