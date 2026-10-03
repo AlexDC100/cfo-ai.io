@@ -47,6 +47,15 @@
 // the request only for a held payload with `stale: false`. What it did not do
 // was ask anyone else, mark a day-old copy stale when the network failed, or
 // mark it stale on first paint.)
+//
+// A TAB THAT STAYS OPEN (stores/currency.tsx, law: fxOpenTab.test.tsx). The
+// rule above is about TIME, so it cannot be applied once, at load: a rate
+// accepted at 07:00 on Monday is not Thursday's rate because the tab was never
+// reloaded. A held rate is therefore a record — the payload AND the moment a
+// source answered it (`HeldRates`) — and what may be shown is derived from it
+// at read time (`ratesAsShown`): unchanged inside its day, marked stale after.
+// The provider keeps asking for as long as it is mounted (`ratesNeedAttempt`);
+// inside the held day that costs no request.
 
 export type Currency = "RON" | "EUR" | "USD";
 
@@ -154,10 +163,17 @@ export function chooseRates(
   return null;
 }
 
-type CacheRecord = {
+/** A payload and the moment (epoch ms) a source answered it to this browser.
+ *  `cached_at: 0` is "never": the bundled fallback, which no source answered. */
+export interface HeldRates {
   payload: RatesPayload;
-  cached_at: number;   // epoch ms
-};
+  cached_at: number;
+}
+
+type CacheRecord = HeldRates;
+
+/** Nothing held: the bundled fallback, answered by no source at no time. */
+const NOTHING_HELD: HeldRates = { payload: FALLBACK_PAYLOAD, cached_at: 0 };
 
 function isRatesPayload(payload: unknown): payload is RatesPayload {
   const p = payload as RatesPayload | null;
@@ -178,19 +194,22 @@ function readCache(): CacheRecord | null {
     const parsed = JSON.parse(raw) as CacheRecord;
     // Light shape validation — bail on anything weird.
     if (!isRatesPayload(parsed?.payload)) return null;
-    return parsed;
+    // A record without a usable timestamp was answered "never": it can be
+    // shown (marked stale) and never spares a request.
+    const at = typeof parsed.cached_at === "number" && Number.isFinite(parsed.cached_at) ? parsed.cached_at : 0;
+    return { payload: parsed.payload, cached_at: at };
   } catch {
     return null;
   }
 }
 
-function writeCache(payload: RatesPayload): void {
+function writeCache(rec: CacheRecord): void {
   try {
-    const rec: CacheRecord = { payload, cached_at: Date.now() };
     localStorage.setItem(CACHE_KEY, JSON.stringify(rec));
   } catch {
     // localStorage may be disabled (private mode); silent failure is OK
-    // because the runtime still has the in-memory copy.
+    // because the caller is handed the same record and holds it in memory
+    // (stores/currency.tsx keeps it, with its `cached_at`).
   }
 }
 
@@ -201,10 +220,38 @@ function heldIsCurrent(rec: CacheRecord, nowMs: number): boolean {
   return isCurrentBnrRate(rec.payload) && age >= 0 && age < TTL_MS;
 }
 
-/** The held payload as it may be shown: unchanged while it is current,
- *  marked stale otherwise. */
-function heldPayload(rec: CacheRecord, nowMs: number): RatesPayload {
-  return heldIsCurrent(rec, nowMs) ? rec.payload : asStale(rec.payload);
+/** What this browser holds — the record in localStorage, else the bundled
+ *  fallback (`cached_at: 0`). Synchronous; never throws. */
+export function getHeldRates(): HeldRates {
+  return readCache() ?? NOTHING_HELD;
+}
+
+/** A held record AS IT MAY BE SHOWN at `nowMs`: the payload unchanged while
+ *  it is a current rate inside its day, marked stale otherwise. Derived at
+ *  READ time — a tab that stays open calls this again as the clock moves, so
+ *  a rate does not stay "current" for as long as nobody reloads. */
+export function ratesAsShown(held: HeldRates, nowMs: number): RatesPayload {
+  return heldIsCurrent(held, nowMs) ? held.payload : asStale(held.payload);
+}
+
+/** Should the sources be asked: true unless a current rate is held inside
+ *  its day. */
+export function ratesNeedAttempt(held: HeldRates, nowMs: number): boolean {
+  return !heldIsCurrent(held, nowMs);
+}
+
+/** The same rate, the same date, the same label — whatever the object. */
+export function sameRates(a: RatesPayload, b: RatesPayload): boolean {
+  return (
+    a === b ||
+    (a.source === b.source &&
+      a.stale === b.stale &&
+      a.as_of === b.as_of &&
+      a.fetched_at === b.fetched_at &&
+      a.rates.EUR === b.rates.EUR &&
+      a.rates.RON === b.rates.RON &&
+      a.rates.USD === b.rates.USD)
+  );
 }
 
 /** Synchronous accessor for the most recent cached payload (or fallback).
@@ -214,9 +261,7 @@ function heldPayload(rec: CacheRecord, nowMs: number): RatesPayload {
  *  stale until that fetch answers — it is the last rate this browser saw,
  *  not a current one. */
 export function getInitialRates(): RatesPayload {
-  const cached = readCache();
-  if (cached) return heldPayload(cached, Date.now());
-  return FALLBACK_PAYLOAD;
+  return ratesAsShown(getHeldRates(), Date.now());
 }
 
 /** One GET. null on any failure: network, timeout, non-2xx, wrong shape. */
@@ -241,16 +286,17 @@ async function ask(
 }
 
 /** Fetch the rates: the function first, the engine only when the function's
- *  answer is not a current BNR rate. Caller decides when to call — on app
- *  mount. Never throws; always returns a payload. */
-export async function fetchRates(opts: { forceRefresh?: boolean } = {}): Promise<RatesPayload> {
+ *  answer is not a current BNR rate. Returns the RECORD — the payload and
+ *  when a source answered it — so the caller can keep deriving what may be
+ *  shown as time passes (`ratesAsShown`). Never throws. */
+export async function fetchHeldRates(opts: { forceRefresh?: boolean } = {}): Promise<HeldRates> {
   // A CURRENT payload held for less than a day is used without a request.
   // A held payload that is stale (or is the fallback, or is past its day)
   // never suppresses the next attempt: every call asks again until a current
   // rate is held.
   const cached = readCache();
   if (!opts.forceRefresh && cached && heldIsCurrent(cached, Date.now())) {
-    return cached.payload;
+    return cached;
   }
 
   const fn = functionEndpoint(opts.forceRefresh === true);
@@ -260,12 +306,19 @@ export async function fetchRates(opts: { forceRefresh?: boolean } = {}): Promise
 
   const chosen = chooseRates(fromFunction, fromEngine);
   if (chosen) {
-    writeCache(chosen);
-    return chosen;
+    const answered: HeldRates = { payload: chosen, cached_at: Date.now() };
+    writeCache(answered);
+    return answered;
   }
 
   // Neither answered. The last payload this browser held is better than the
-  // bundled constant — and past its day it is no longer a current rate.
-  if (cached) return heldPayload(cached, Date.now());
-  return FALLBACK_PAYLOAD;
+  // bundled constant — and past its day it is no longer a current rate
+  // (`ratesAsShown` marks it).
+  return cached ?? NOTHING_HELD;
+}
+
+/** `fetchHeldRates`, as the payload that may be shown now. Never throws;
+ *  always returns a payload. */
+export async function fetchRates(opts: { forceRefresh?: boolean } = {}): Promise<RatesPayload> {
+  return ratesAsShown(await fetchHeldRates(opts), Date.now());
 }
