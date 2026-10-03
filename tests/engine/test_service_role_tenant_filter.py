@@ -99,7 +99,9 @@ DECLARED_UNFILTERED = {
     ("pipeline.py", "briefings", "upsert"): "period-keyed; authorized upstream.",
     ("pipeline.py", "recommendations", "select"): "period-keyed; authorized upstream.",
     ("pipeline.py", "recommendations", "insert"): "server-built rows.",
-    ("pipeline.py", "recommendations", "delete"): "period-keyed rebuild.",
+    # ("pipeline.py", "recommendations", "delete") — no longer declared
+    # (2026-10-03): `stage_persist_narrative`'s period-keyed rebuild now
+    # names the tenant in its filter, and no other literal delete remains.
     ("pipeline.py", "alerts", "select"): "period/document-keyed; authorized upstream.",
     ("pipeline.py", "alerts", "upsert"): "server-built rows for an authorized period.",
     ("pipeline.py", "alerts", "delete"): "document-keyed; authorized upstream.",

@@ -2631,7 +2631,8 @@ def _refuse_cross_company_takeover(admin_client: Any, doc: Dict[str, Any], perio
 
 
 def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
-                                  narration_unavailable: Optional[str] = None) -> str:
+                                  narration_unavailable: Optional[str] = None,
+                                  keep_recommendations: bool = False) -> str:
     """The run has SUCCEEDED: if it was staged beside an existing month,
     make it that month. Returns the period id the document is pinned to —
     the served row after a takeover, `period_id` itself otherwise.
@@ -2640,12 +2641,25 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
     tell apart (the provenance stamp names the document an envelope was
     built from) and never an empty month:
       1. the run's rows move from the staged row onto the served row —
-         EXCEPT a failed narration: a staged briefing row holding a failure
-         text never replaces the month's usable briefing (owner ruling
-         2026-10-02). The month's briefing is kept and marked stale
-         (`narration_unavailable` is the run's own code, when the caller
-         has it), and the staged row's briefing is deleted explicitly so
-         nothing is left under the staged id;
+         EXCEPT what a failed narration would cost the month (owner rulings
+         2026-10-02 and 2026-10-03: "A takeover must not delete anything
+         that was good"). The staged run narrated nothing usable when its
+         briefing row holds a failure text OR when it left NO briefing row
+         at all (its narrative write raised — the orchestrator logs that as
+         non-fatal — or the lane never narrates). Then:
+           · the month's usable briefing is KEPT and marked stale
+             (`narration_unavailable` is the run's own code, when the
+             caller has it) — an absent staged row is not a replacement;
+           · the month's recommendations are KEPT with it, whatever the
+             month's briefing row holds — a failed narration brings none;
+           · whatever the staged run left in those two tables is deleted
+             explicitly, the tenant in the filter, so nothing is left under
+             the staged id.
+         `keep_recommendations`: the caller knows the run stored no
+         recommendations to replace the month's with — the narration was
+         usable but its `recommendations` could not be read
+         (`_recommendation_rows`), or the narrative write raised part-way.
+         The month's are kept; a usable staged briefing still moves;
       2. the served row takes the staged row's columns (envelope, currency,
          confidence, detection) — its identity columns untouched;
       3. the staged row gives up the (org, month, document) tuple, the
@@ -2674,26 +2688,42 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
         # 1. the run's rows
         staged_briefing = _stored_briefing_row(admin_client, staged, org_id)
         served_briefing_row = _stored_briefing_row(admin_client, served, org_id)
-        keep_served_briefing = (staged_briefing is not None
-                                and not _is_usable_stored_briefing(staged_briefing)
+        # No staged row is the least usable briefing there is: the keep
+        # decision must never require one to exist (it did — and a staged
+        # run whose narrative write raised cost the month its briefing).
+        staged_narration_unusable = not _is_usable_stored_briefing(staged_briefing)
+        keep_served_briefing = (staged_narration_unusable
                                 and _is_usable_stored_briefing(served_briefing_row))
+        # Nothing usable to put in its place — or nothing at all: the
+        # month's briefing row stays where it is.
+        briefing_row_stays = keep_served_briefing or staged_briefing is None
+        # A failed narration brings no recommendations; neither does a run
+        # the caller says stored none that may replace the month's.
+        recommendations_stay = staged_narration_unusable or keep_recommendations
         for table in TAKEOVER_TABLES:
-            if table == "briefings" and keep_served_briefing:
-                # The staged run narrated nothing usable: the month keeps
-                # its last good briefing. The staged row's failure text goes
-                # with the staged id — explicitly, tenant in the filter.
+            # The month keeps its own rows in these two cases. Whatever the
+            # staged run left goes with the staged id — explicitly, the
+            # tenant in the filter (the delete runs under the service role;
+            # the table names are literals so the tenant censuses read them).
+            if table == "briefings" and briefing_row_stays:
                 admin_client.delete(
                     "briefings",
+                    filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+                continue
+            if table == "recommendations" and recommendations_stay:
+                admin_client.delete(
+                    "recommendations",
                     filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
                 continue
             admin_client.delete(table, filters={"period_id": f"eq.{served}"})
             admin_client.update(table, {"period_id": served}, filters={"period_id": f"eq.{staged}"})
         if keep_served_briefing:
             _reason = (narration_unavailable
-                       or stored_briefing_failure_code(staged_briefing.get("body"))
+                       or stored_briefing_failure_code((staged_briefing or {}).get("body"))
                        or "provider_error")
             logger.warning("[stage_persist] %s: the staged run's narration is unavailable (%s) — "
-                           "the month's briefing on period %s is kept and marked stale",
+                           "the month's briefing and recommendations on period %s are kept; "
+                           "briefing marked stale",
                            doc.get("id"), _reason, served)
             _mark_briefing_stale(admin_client, served_briefing_row, served, org_id, str(_reason))
         # 2. the row's own columns
@@ -2722,6 +2752,142 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
     logger.info("[stage_persist] %s replaced the month's period %s (staged %s; superseded document %s)",
                 doc.get("id"), served, staged, superseded)
     return served
+
+
+# ── The Docs panel's "Re-run analysis" never destroys a last good briefing ──
+#
+# POST /api/pipeline/retry RESETS before it re-runs: it deletes the period
+# the document is pinned to (the original phase-3 design, 2026-05-10 — the
+# foreign keys cascade the line items, the metrics, the briefing and the
+# recommendations away) and the run then files the document afresh. With the
+# provider refusing (production, 2026-09/10) that re-run's narration fails,
+# `stage_persist_narrative` finds nothing to keep on the fresh period, and
+# the reader is served "unavailable" where the last good briefing stood —
+# keep-last-good never engaged on the one re-run a user can start (owner
+# ruling 2026-10-03).
+#
+# THE RULE NOW. A period that holds a USABLE briefing is not reset before
+# its re-run: the run goes IN PLACE, exactly like every other re-run entry
+# (recover-stuck, the watchdog, the move-period correction) — `stage_persist`
+# finds the document's own row again and replaces its line items, the later
+# stages replace the metrics, the valuation and the alerts, and
+# `stage_persist_narrative` keeps the briefing and the recommendations when
+# the narration fails. A re-run that FAILS therefore leaves the month
+# serving what it served (the reset used to cost it the whole month). A
+# document pinned to ANOTHER document's month is staged beside it and takes
+# it over only on success (G4), which keeps the briefing the same way.
+#
+# WHAT THE RESET WAS STILL GOOD FOR, kept:
+#   · a period with NO usable briefing is reset as before — nothing of the
+#     kind to protect, and the AI lane (which never narrates) relies on it:
+#     its cache IS the persisted envelope, so a re-run of an un-reset period
+#     would answer from the cache and extract nothing;
+#   · a re-run that files the document under a DIFFERENT month used to leave
+#     no row behind for the old one. Now the old row is retired only once
+#     the run has SUCCEEDED (`_retire_prior_period_of_rerun`) — never while
+#     it is the only place the last good briefing lives.
+
+_RERUN_PRIOR_PERIODS: Dict[str, str] = {}
+_RERUN_PRIOR_LOCK = threading.Lock()
+
+
+def _record_rerun_prior_period(document_id: Any, period_id: Any) -> None:
+    if not document_id or not period_id:
+        return
+    with _RERUN_PRIOR_LOCK:
+        _RERUN_PRIOR_PERIODS[str(document_id)] = str(period_id)
+
+
+def _pop_rerun_prior_period(document_id: Any) -> Optional[str]:
+    with _RERUN_PRIOR_LOCK:
+        return _RERUN_PRIOR_PERIODS.pop(str(document_id or ""), None)
+
+
+def _period_holds_a_last_good_briefing(doc: Dict[str, Any]) -> bool:
+    """Does the period `doc` is pinned to hold a usable briefing — in the
+    document's OWN organization?
+
+    `documents.period_id` is browser-written, and this read runs under the
+    service role: the tenant is in the filter (`_stored_briefing_row`), so
+    a row carrying another workspace's period id finds nothing there — and
+    the reset that follows names the tenant too, so it deletes nothing of
+    theirs. An UNREADABLE briefing is treated as one to keep: a transient
+    read failure must not be the reason a month is reset."""
+    period_id = doc.get("period_id")
+    org_id = str(doc.get("org_id") or "").strip()
+    if not period_id or not org_id:
+        return False
+    try:
+        with _supabase.admin() as admin_client:
+            return _is_usable_stored_briefing(
+                _stored_briefing_row(admin_client, str(period_id), org_id))
+    except Exception:  # noqa: BLE001 — unreadable: destroy nothing
+        logger.exception("[pipeline] retry of %s: the briefing of period %s could not be read — "
+                         "the period is not reset", doc.get("id"), period_id)
+        return True
+
+
+def _retire_prior_period_of_rerun(doc: Dict[str, Any], period_id: Any, *,
+                                  narration_unavailable: Optional[str] = None) -> Optional[str]:
+    """The run has SUCCEEDED. When it was a Docs-panel re-run that went in
+    place (`_retry_rerun` recorded the period the document was pinned to)
+    and it filed the document under ANOTHER period, the old row is this
+    document's superseded filing: remove it, as the reset used to up front.
+    Returns the removed period id, or None.
+
+    Removed only when all of this holds — every filter names the tenant and
+    the document, because under the service role the filter IS the access
+    control:
+      · the row still exists in the document's organization and still names
+        THIS document as its source (another document's month is never
+        touched);
+      · no other document is pinned to it;
+      · it is not the only home of a last good briefing: when this run's
+        narration failed and the old row holds a usable briefing, the row
+        stays (the document's new period serves "unavailable"; nothing good
+        is deleted because a model call failed).
+    Never raises: the analysis has succeeded."""
+    prior = _pop_rerun_prior_period(doc.get("id"))
+    org_id = str(doc.get("org_id") or "").strip()
+    document_id = str(doc.get("id") or "").strip()
+    if not prior or not org_id or not document_id or str(prior) == str(period_id):
+        return None
+    try:
+        with _supabase.admin() as admin_client:
+            own = admin_client.select(
+                "financial_periods",
+                filters={"id": f"eq.{prior}", "org_id": f"eq.{org_id}",
+                         "source_document_id": f"eq.{document_id}"},
+                columns="id", limit=1,
+            )
+            if not own:
+                return None
+            others = admin_client.select(
+                "documents",
+                filters={"period_id": f"eq.{prior}", "org_id": f"eq.{org_id}",
+                         "id": f"neq.{document_id}"},
+                columns="id", limit=1,
+            )
+            if others:
+                return None
+            if narration_unavailable is not None and _is_usable_stored_briefing(
+                    _stored_briefing_row(admin_client, prior, org_id)):
+                logger.warning(
+                    "[pipeline] %s was re-filed from period %s to %s and its narration is "
+                    "unavailable (%s) — the old period is kept: it holds the last good briefing",
+                    document_id, prior, period_id, narration_unavailable)
+                return None
+            admin_client.delete(
+                "financial_periods",
+                filters={"id": f"eq.{prior}", "org_id": f"eq.{org_id}",
+                         "source_document_id": f"eq.{document_id}"})
+        logger.info("[pipeline] %s was re-filed to period %s by its re-run — removed its "
+                    "previous period %s", document_id, period_id, prior)
+        return prior
+    except Exception:  # noqa: BLE001 — the analysis succeeded; a leftover row is not a failure
+        logger.exception("[pipeline] could not remove the previous period %s of re-filed "
+                         "document %s", prior, document_id)
+        return None
 
 
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
@@ -4839,6 +5005,91 @@ def _persist_period_alerts(admin_client: Any, org_id: str, document_id: Any,
         admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
 
 
+_RECOMMENDATION_URGENCY = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
+
+
+def _recommendation_text(value: Any) -> str:
+    """A model-written field as the text column it lands in: a JSON null is
+    the empty string, a number or a nested value is its text."""
+    if value is None:
+        return ""
+    return value if isinstance(value, str) else str(value)
+
+
+def _recommendation_rows(narrate: Any, org_id: Any, period_id: str) -> Optional[List[Dict[str, Any]]]:
+    """The narration's recommendations as rows of `recommendations` —
+    VALIDATED HERE, before any write: the writer deletes the period's
+    recommendations to replace them, and a row that raised while it was
+    being built used to land AFTER that delete (a JSON null rationale, a
+    list of numbers for the actions, a string where the list was asked for:
+    recommendations gone, none inserted, the run's alerts never written).
+
+      · a list of objects      → one row per object; every field is coerced
+                                  to what its column holds (text; a number
+                                  or null for the cash impact). An item that
+                                  is not an object is dropped.
+      · an empty list          → [] — the narration recommends nothing, and
+                                  that replaces what is stored.
+      · anything else          → None: UNREADABLE (a string, an object, no
+                                  `recommendations` at all, a non-empty list
+                                  holding no object). Nothing is replaced —
+                                  an unreadable reply is not "no
+                                  recommendations".
+    Well-formed input yields byte-for-byte the rows the writer built before.
+    """
+    raw = narrate.get("recommendations") if isinstance(narrate, dict) else None
+    if not isinstance(raw, list):
+        return None
+    rows: List[Dict[str, Any]] = []
+    for r in raw:
+        if not isinstance(r, dict):
+            continue
+        actions_raw = r.get("actions")
+        if isinstance(actions_raw, str):
+            actions_raw = [actions_raw]
+        elif not isinstance(actions_raw, (list, tuple)):
+            actions_raw = []
+        actions = [_recommendation_text(a) for a in actions_raw if a is not None]
+        explanation = _recommendation_text(r.get("rationale")) + (
+            "\n\nActions:\n• " + "\n• ".join(actions) if actions else "")
+        severity = _recommendation_text(r.get("severity") or "medium").lower()
+        title = _recommendation_text(r.get("title", "Untitled recommendation"))
+        impact = r.get("estimated_ron_impact")
+        if isinstance(impact, str):
+            # A plain numeric string only. "12,500" / "1.234,56" are never
+            # guessed at — absent, not approximated.
+            try:
+                impact = float(impact.strip())
+            except ValueError:
+                impact = None
+        if isinstance(impact, bool) or not isinstance(impact, (int, float)) \
+                or impact != impact or impact in (float("inf"), float("-inf")):
+            impact = None
+        rows.append({
+            "org_id": org_id,
+            "period_id": period_id,
+            "target_type": "dataset",
+            "target_id": str(period_id),
+            "title": title if title.strip() else "Untitled recommendation",
+            "explanation": explanation,
+            "expected_cash_impact_kron": impact,
+            "urgency": _RECOMMENDATION_URGENCY.get(severity, "medium"),
+            "status": "new",
+        })
+    if raw and not rows:
+        return None
+    return rows
+
+
+def narration_recommendations_unreadable(narrate: Any) -> bool:
+    """A USABLE narration whose `recommendations` cannot be read — the
+    writer then stores none of them and keeps what the period holds
+    (`stage_persist_narrative`); the same-month takeover must keep the
+    month's for the same reason."""
+    return (narration_unavailable_code(narrate) is None
+            and _recommendation_rows(narrate, None, "") is None)
+
+
 def stage_persist_narrative(
     doc: Dict[str, Any],
     period_id: str,
@@ -4857,7 +5108,20 @@ def stage_persist_narrative(
       · unusable + nothing to keep  → the neutral sentinel is written (a
                                       first analysis), never provider text
                                       or an operator sentence.
-    Alerts are deterministic and are written in every case.
+
+    A FAILED NARRATION NEVER DELETES THE PERIOD'S RECOMMENDATIONS, whatever
+    the stored briefing row holds (owner ruling 2026-10-03). The state the
+    pre-repair regenerate left in production — the sentinel over the
+    briefing, the recommendations untouched — lost the statuses, owners and
+    due dates a user had set on them at the first re-run whose narration
+    failed. Recommendations are replaced only by a USABLE narration whose
+    list can be read, and they are validated BEFORE the delete
+    (`_recommendation_rows`): nothing raises between the delete and the
+    insert because of what a model wrote.
+
+    Alerts are deterministic and are written in EVERY case — also when a
+    briefing or recommendation write raises (a transient database error, a
+    schema drift): the raise still reaches the caller, after the alerts.
     """
     org_id = doc["org_id"]
     document_id = doc["id"]
@@ -4882,109 +5146,122 @@ def stage_persist_narrative(
             )
             return
 
-        # The last good briefing, when this run's narration failed. Read
-        # only then (a usable narration is written whatever is stored), with
-        # the tenant in the filter.
-        kept_row: Optional[Dict[str, Any]] = None
-        if unavailable is not None:
-            stored_row = _stored_briefing_row(admin_client, period_id, org_id)
-            if _is_usable_stored_briefing(stored_row):
-                kept_row = stored_row
+        try:
+            # The last good briefing, when this run's narration failed. Read
+            # only then (a usable narration is written whatever is stored),
+            # with the tenant in the filter.
+            kept_row: Optional[Dict[str, Any]] = None
+            if unavailable is not None:
+                stored_row = _stored_briefing_row(admin_client, period_id, org_id)
+                if _is_usable_stored_briefing(stored_row):
+                    kept_row = stored_row
 
-        if kept_row is not None:
-            logger.warning(
-                "[stage_persist_narrative] narration unavailable (%s) for period %s — "
-                "the stored briefing and recommendations are kept; briefing marked stale",
-                unavailable, period_id,
+            if kept_row is not None:
+                logger.warning(
+                    "[stage_persist_narrative] narration unavailable (%s) for period %s — "
+                    "the stored briefing and recommendations are kept; briefing marked stale",
+                    unavailable, period_id,
+                )
+                _mark_briefing_stale(admin_client, kept_row, period_id, org_id, str(unavailable))
+                return
+
+            # Briefing — upsert one row per period
+            admin_client.upsert(
+                "briefings",
+                {
+                    "period_id": period_id,
+                    "org_id": org_id,
+                    # Nothing to protect and the narration failed: the neutral
+                    # sentinel, whatever text the failure branch returned.
+                    "body": narrate["briefing"] if unavailable is None else NARRATIVE_UNAVAILABLE_SENTINEL,
+                    "language": briefing_language_stamp(doc),
+                    "model": _narrative_model(),
+                    # The EBITDA definition the prose was written under (owner
+                    # ruling 2026-09-26). Served beside the body so a briefing
+                    # written under an earlier definition is recognised and
+                    # hidden, never shown beside corrected numbers. Column added
+                    # by supabase/schema_phase_briefing_ebitda_definition.sql.
+                    "ebitda_definition": _EBITDA_DEFINITION_REVISION,
+                },
+                on_conflict="period_id",
+                returning=False,
             )
-            _mark_briefing_stale(admin_client, kept_row, period_id, org_id, str(unavailable))
-            _persist_period_alerts(admin_client, org_id, document_id, period_id,
-                                   validation_alerts)
-            return
+            if unavailable is not None:
+                # The narration failed and there was no usable briefing to
+                # keep: the sentinel is stored — and that is ALL a failed
+                # narration writes. It brings no recommendations, so the
+                # period's stored ones are not touched.
+                logger.warning(
+                    "[stage_persist_narrative] narration unavailable (%s) for period %s — "
+                    "the sentinel is stored; the period's recommendations are kept",
+                    unavailable, period_id,
+                )
+                return
 
-        # Briefing — upsert one row per period
-        admin_client.upsert(
-            "briefings",
-            {
-                "period_id": period_id,
-                "org_id": org_id,
-                # Nothing to protect and the narration failed: the neutral
-                # sentinel, whatever text the failure branch returned.
-                "body": narrate["briefing"] if unavailable is None else NARRATIVE_UNAVAILABLE_SENTINEL,
-                "language": briefing_language_stamp(doc),
-                "model": _narrative_model(),
-                # The EBITDA definition the prose was written under (owner
-                # ruling 2026-09-26). Served beside the body so a briefing
-                # written under an earlier definition is recognised and
-                # hidden, never shown beside corrected numbers. Column added
-                # by supabase/schema_phase_briefing_ebitda_definition.sql.
-                "ebitda_definition": _EBITDA_DEFINITION_REVISION,
-            },
-            on_conflict="period_id",
-            returning=False,
-        )
-        if unavailable is None:
             # A good write: the row is current again. NEVER inside the
             # upsert payload above (see `_mark_briefing_stale`).
             _clear_briefing_stale(admin_client, period_id, org_id)
 
-        # Recommendations — wipe per-PERIOD, re-insert with period_id.
-        #
-        # Phase D-backend: the prior `delete WHERE org_id = ?` wiped EVERY
-        # period's recommendations on every re-run, then re-inserted only
-        # the current period's. Result: only the most-recently-analysed
-        # period had recs; every other period's were silently wiped on
-        # the next upload. The new scope is `WHERE period_id = ?` so a
-        # re-run only replaces THIS period's recs; sibling periods are
-        # untouched. The schema migration at
-        # supabase/schema_phase_notes_period_scope.sql adds the period_id
-        # column + index this query depends on.
-        admin_client.delete("recommendations", filters={"period_id": f"eq.{period_id}"})
-        recs = []
-        for r in narrate["recommendations"]:
-            actions = r.get("actions") or []
-            explanation = r.get("rationale", "") + ("\n\nActions:\n• " + "\n• ".join(actions) if actions else "")
-            urgency_map = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
-            severity = (r.get("severity") or "medium").lower()
-            recs.append({
-                "org_id": org_id,
-                "period_id": period_id,
-                "target_type": "dataset",
-                "target_id": str(period_id),
-                "title": r.get("title", "Untitled recommendation"),
-                "explanation": explanation,
-                "expected_cash_impact_kron": r.get("estimated_ron_impact"),
-                "urgency": urgency_map.get(severity, "medium"),
-                "status": "new",
-            })
-        if recs:
-            admin_client.insert("recommendations", recs, returning=False)
-
-        # ── Alerts — DETERMINISTIC rules only (read from canonical views) ──
-        # LLM-generated alerts are NO LONGER persisted. The "15 duplicate
-        # critical alerts" problem came from the LLM emitting many slight
-        # variations of the same concern, each landing as a fresh row.
-        # `stage_validate` is now the single source — each rule has a
-        # unique rule_key, structurally deduped before this step.
-        #
-        # Phase D-backend: dedup scope is now (period_id, alert_key), not
-        # (org_id, alert_key). The pre-D-backend setup had alerts as
-        # org-scoped rows — `/api/period/:id` then returned the union of
-        # every period's alerts on every period view, producing the
-        # "80 on file" duplicate pile the user reported. Now:
-        #
-        #   1. DELETE every alert for THIS period_id before inserting
-        #      (covers re-runs and old document_ids that previously
-        #      attached to this period via documents.period_id).
-        #   2. INSERT the deduped set with period_id stamped on each
-        #      row, with a (period_id, alert_key) unique constraint
-        #      enforcing idempotency at the DB level.
-        #
-        # The schema migration that adds `period_id` + the new unique
-        # is at supabase/schema_phase_notes_period_scope.sql — both
-        # must ship together.
-        _persist_period_alerts(admin_client, org_id, document_id, period_id,
-                               validation_alerts)
+            # Recommendations — wipe per-PERIOD, re-insert with period_id.
+            #
+            # Phase D-backend: the prior `delete WHERE org_id = ?` wiped EVERY
+            # period's recommendations on every re-run, then re-inserted only
+            # the current period's. Result: only the most-recently-analysed
+            # period had recs; every other period's were silently wiped on
+            # the next upload. The new scope is `WHERE period_id = ?` so a
+            # re-run only replaces THIS period's recs; sibling periods are
+            # untouched. The schema migration at
+            # supabase/schema_phase_notes_period_scope.sql adds the period_id
+            # column + index this query depends on.
+            #
+            # The rows are built and validated FIRST: the delete below is
+            # destructive, and nothing a model wrote may raise after it.
+            recs = _recommendation_rows(narrate, org_id, period_id)
+            if recs is None:
+                logger.warning(
+                    "[stage_persist_narrative] the narration's recommendations cannot be read "
+                    "for period %s — the stored recommendations are kept",
+                    period_id,
+                )
+                return
+            admin_client.delete(
+                "recommendations",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"})
+            if recs:
+                admin_client.insert("recommendations", recs, returning=False)
+        finally:
+            # ── Alerts — DETERMINISTIC rules only (read from canonical views) ──
+            # LLM-generated alerts are NO LONGER persisted. The "15 duplicate
+            # critical alerts" problem came from the LLM emitting many slight
+            # variations of the same concern, each landing as a fresh row.
+            # `stage_validate` is now the single source — each rule has a
+            # unique rule_key, structurally deduped before this step.
+            #
+            # Phase D-backend: dedup scope is now (period_id, alert_key), not
+            # (org_id, alert_key). The pre-D-backend setup had alerts as
+            # org-scoped rows — `/api/period/:id` then returned the union of
+            # every period's alerts on every period view, producing the
+            # "80 on file" duplicate pile the user reported. Now:
+            #
+            #   1. DELETE every alert for THIS period_id before inserting
+            #      (covers re-runs and old document_ids that previously
+            #      attached to this period via documents.period_id).
+            #   2. INSERT the deduped set with period_id stamped on each
+            #      row, with a (period_id, alert_key) unique constraint
+            #      enforcing idempotency at the DB level.
+            #
+            # The schema migration that adds `period_id` + the new unique
+            # is at supabase/schema_phase_notes_period_scope.sql — both
+            # must ship together.
+            #
+            # IN EVERY CASE (`finally`): the briefing kept, the sentinel
+            # stored, the recommendations unreadable — and a briefing or
+            # recommendation write that RAISED. The alerts belong to the
+            # statements, not to the narration; a same-month takeover moves
+            # them onto the month, and a run whose narrative write raised
+            # used to leave the month with none.
+            _persist_period_alerts(admin_client, org_id, document_id, period_id,
+                                   validation_alerts)
 
 
 # ─── Orchestrator ───────────────────────────────────────────────────────────
@@ -5242,25 +5519,80 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
     Two writes per upload:
       1. sku_analyses (one row per document) — briefing + recommendations
       2. sku_aggregates (N rows) — engine-classified per-SKU rollups
+
+    NO RUN REPLACES A USABLE BRIEFING WITH A FAILED NARRATION — the same
+    rule as `stage_persist_narrative`, for the fourth writer of a briefing
+    (owner ruling 2026-10-03: the SKU briefing is in scope). `sku_analyses`
+    holds ONE row per document and no history; a re-run of a sales document
+    whose narration failed used to store the operator sentence, the
+    sentinel, or the first 500 characters of an unparseable reply over the
+    briefing and replace its recommendations with [].
+      · usable narration            → written, as before;
+      · unusable + a usable row     → the row's briefing, recommendations,
+                                      language and model are KEPT (the
+                                      upsert names none of them); the run's
+                                      deterministic `summary` is written;
+      · unusable + nothing to keep  → the neutral sentinel, never provider
+                                      text or an operator sentence — and a
+                                      failed narration never writes over
+                                      recommendations a stored row holds.
     """
     from ._sku_classify import classify_portfolio
 
     raw_skus = parsed.get("skus") or []
     classified = classify_portfolio(raw_skus)
     period_label = parsed.get("period_label") or "Imported period"
+    unavailable = narration_unavailable_code(narrative)
 
     with _supabase.admin() as client:
-        client.upsert(
-            "sku_analyses",
-            {
-                "org_id": doc["org_id"],
-                "document_id": doc["id"],
+        # The run's deterministic part: always written.
+        row: Dict[str, Any] = {
+            "org_id": doc["org_id"],
+            "document_id": doc["id"],
+            "summary": parsed.get("summary") or {},
+        }
+        if unavailable is None:
+            row.update({
                 "briefing": narrative.get("briefing", ""),
-                "summary": parsed.get("summary") or {},
                 "recommendations": narrative.get("recommendations") or [],
                 "language": "en",
                 "model": _narrative_model(),
-            },
+            })
+        else:
+            # The narration failed: read what the document already holds,
+            # with the TENANT in the filter (the read runs under the
+            # service role) and re-checked on the row.
+            stored_rows = client.select(
+                "sku_analyses",
+                filters={"document_id": f"eq.{doc['id']}", "org_id": f"eq.{doc['org_id']}"},
+                columns="document_id,org_id,briefing",
+                limit=1,
+            ) or []
+            stored = next((r for r in stored_rows
+                           if str(r.get("org_id")) == str(doc["org_id"])), None)
+            if stored is not None and stored_briefing_failure_code(stored.get("briefing")) is None:
+                logger.warning(
+                    "[sku] narration unavailable (%s) for document %s — the stored SKU "
+                    "briefing and recommendations are kept",
+                    unavailable, doc["id"],
+                )
+            else:
+                # Nothing usable to keep: the neutral sentinel, whatever
+                # text the failure branch returned. Recommendations are
+                # written only where there is no row to merge into.
+                row.update({
+                    "briefing": NARRATIVE_UNAVAILABLE_SENTINEL,
+                    "language": "en",
+                    "model": _narrative_model(),
+                })
+                if stored is None:
+                    row["recommendations"] = []
+        # An upsert MERGES on conflict: a column the payload does not name
+        # keeps its stored value — which is how the kept briefing and
+        # recommendations survive a failed narration.
+        client.upsert(
+            "sku_analyses",
+            row,
             on_conflict="document_id",
             returning=False,
         )
@@ -6563,8 +6895,10 @@ def _run_pipeline_stages(document_id: str) -> str:
         # being deleted mid-run — must NOT fail the whole scan. This mirrors
         # the "period vanished" skip inside stage_persist_narrative and the
         # non-fatal handling every other side-effect in this pipeline uses.
+        narrative_persisted = False
         try:
             stage_persist_narrative(doc, period_id, narrative, validation_alerts)
+            narrative_persisted = True
         except Exception:  # noqa: BLE001
             logger.exception(
                 "[pipeline] narrative/alerts persistence failed (non-fatal) — "
@@ -6622,7 +6956,19 @@ def _run_pipeline_stages(document_id: str) -> str:
 
         # G4 — every stage has succeeded: a same-month re-upload becomes
         # the month only now (the served row was untouched until here).
+        # The takeover is told what the narration brought (owner ruling
+        # 2026-10-03, "a takeover must not delete anything that was good"):
+        # the run's own code when it failed, and whether the run stored
+        # recommendations that may replace the month's — not when they could
+        # not be read, and not when the narrative write above raised.
         period_id = _finalize_same_month_takeover(
+            doc, period_id, narration_unavailable=narration_unavailable_code(narrative),
+            keep_recommendations=(not narrative_persisted
+                                  or narration_recommendations_unreadable(narrative)))
+        # A Docs-panel re-run that went in place and re-filed the document
+        # under another period leaves its previous row behind: retired
+        # here, once the run has succeeded — never before it.
+        _retire_prior_period_of_rerun(
             doc, period_id, narration_unavailable=narration_unavailable_code(narrative))
         _admin_set_status(
             document_id,
@@ -10145,8 +10491,31 @@ def build_router() -> APIRouter:
         return RunResponse(document_id=req.document_id, status="queued")
 
     def _retry_rerun(document_id: str, doc: Dict[str, Any]) -> None:
-        """The body of a claimed retry: wipe the prior derivatives, queue,
-        hand the run to its thread."""
+        """The body of a claimed retry: wipe the prior derivatives — unless
+        that would destroy a last good briefing — queue, hand the run to
+        its thread."""
+        if _period_holds_a_last_good_briefing(doc):
+            # NOTHING IS WIPED (owner ruling 2026-10-03): the period holds
+            # a usable briefing, and `briefings` keeps no history. The run
+            # goes in place — it replaces the line items, the metrics, the
+            # valuation and the alerts itself, and a narration that fails
+            # keeps the briefing and the recommendations
+            # (`stage_persist_narrative`). The document stays pinned to its
+            # period, so a re-run that FAILS leaves the month serving what
+            # it served. See the notes above `_period_holds_a_last_good_
+            # briefing`.
+            _record_rerun_prior_period(document_id, doc.get("period_id"))
+            with _supabase.admin() as admin_client:
+                admin_client.update(
+                    "documents",
+                    {"error": None, "duration_ms": None},
+                    filters={"id": f"eq.{document_id}",
+                             "org_id": f"eq.{str(doc.get('org_id') or '').strip()}"},
+                )
+            _admin_set_status(document_id, "queued", pipeline_started_at=_now_iso())
+            _doc_dedupe.mark_running(document_id)
+            _enqueue(document_id)
+            return
         # Wipe prior derivatives via cascade — deleting the financial_periods
         # row removes statement_line_items, calculated_metrics, briefings,
         # AND alerts (alerts.document_id has on delete set null, we explicitly
