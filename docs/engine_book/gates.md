@@ -20249,8 +20249,6 @@ the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
 the journal) — each has its own gates; whether the operator bearer is held
 only by the operator.
 
-unauthenticated `/api/cfo/decisions` demo store.
-
 ---
 
 ## engine-proof
