@@ -285,7 +285,7 @@ def test_the_migrations_pre_flight_queries_name_exactly_the_list():
     text = MIGRATION.read_text(encoding="utf-8")
     header = text[: text.index("set search_path = public;")]
     lists = re.findall(r"(?:tablename|relname)\s+in\s+\(((?:[^()]|\n)*?)\)", header)
-    assert len(lists) == 3, "the header carries three pre-flight queries (policies, grants, row level security)"
+    assert len(lists) == 4, "the header carries four pre-flight queries (policies, grants, row level security, views)"
     for body in lists:
         assert sorted(re.findall(r"'([a-z_0-9]+)'", body)) == sorted(TABLES), body
     # The file ends with the reload, and checks its own result.

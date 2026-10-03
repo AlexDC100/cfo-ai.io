@@ -63,6 +63,9 @@
 --   · the service-only tables — nothing: everything is revoked from
 --     `authenticated` too.
 -- `service_role` and the table owner are never touched.
+-- NO VIEW IS CHANGED. A view over a listed table is not closed by a revoke
+-- on the table; every such view an API role may use is NAMED (pre-flight (d)
+-- below, and a NOTICE / WARNING when the file runs).
 --
 -- THE FILE CHECKS ITSELF. Before it ends it reads the result back from the
 -- catalog and RAISES if a write privilege or a non-select policy survives on
@@ -84,7 +87,13 @@
 --       already-revoked privilege, and it still does what the stopgap did
 --       not — anon's remaining SELECT, the sibling tables, the sweep of
 --       policies under other names;
---   (c) a database this file already ran on (idempotent).
+--   (c) a database this file already ran on (idempotent: the second run
+--       drops nothing);
+--   (d) a database somebody re-opened by hand afterwards, under names this
+--       file has never heard of: a `for all` policy to authenticated, a
+--       permissive `using (true)` read, a column-level `grant update (tier)`,
+--       row level security switched off on a meter, privileges handed back
+--       to anon — every one is closed again, and the policies are named.
 -- A listed table that does not exist is skipped with a NOTICE — except
 -- public.subscriptions, whose absence means the wrong database and raises.
 --
@@ -158,10 +167,56 @@
 --    relrowsecurity = false and a write privilege in (b) is open to every
 --    signed-in user, on every row. A table missing from (c) does not exist
 --    (plan_assignment_audit before schema_phase_owner_plan.sql) — fine.
---    A view is not closed by a revoke on its table and this file touches no
---    view; look at what reads the table through one:
---      select viewname from pg_views
---       where schemaname = 'public' and definition ilike '%subscriptions%';
+--
+--    (d) the views over a listed table. A VIEW IS NOT CLOSED BY A REVOKE ON
+--        ITS TABLE, AND THIS FILE CHANGES NO VIEW: a plain view runs with its
+--        owner's rights, and Supabase's default privileges hand ALL on every
+--        new public view to `anon` and `authenticated`.
+--      select v.relname as view_name,
+--             coalesce((select option_value from pg_options_to_table(v.reloptions)
+--                        where option_name = 'security_invoker'), 'false') as security_invoker,
+--             (pg_relation_is_updatable(v.oid, false) & 28) <> 0           as can_be_written_through,
+--             string_agg(distinct t.relname, ', ')                         as reads,
+--             coalesce((select string_agg(r || ':' || p, ' ' order by r, p)
+--                         from unnest(array['anon', 'authenticated']) r,
+--                              unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
+--                        where has_table_privilege(r, v.oid, p)), '-')    as api_privileges
+--        from pg_rewrite w
+--        join pg_class v on v.oid = w.ev_class and v.relkind in ('v', 'm')
+--        join pg_depend d on d.classid = 'pg_rewrite'::regclass and d.objid = w.oid
+--                        and d.refclassid = 'pg_class'::regclass
+--        join pg_class t on t.oid = d.refobjid and t.relkind = 'r'
+--                       and t.relnamespace = 'public'::regnamespace
+--       where t.relname in ('subscriptions', 'user_usage', 'plan_chat_daily_usage',
+--                           'document_quota_ledger', 'founding_members',
+--                           'billing_events', 'plan_assignment_audit')
+--       group by v.oid, v.relname, v.reloptions
+--       order by 1;
+--      READ IT, row by row:
+--      · security_invoker false, can_be_written_through TRUE, and INSERT /
+--        UPDATE / DELETE among api_privileges: THE VIEW IS A WRITE PATH AROUND
+--        THIS FILE. Close it by hand, on the view:
+--          revoke insert, update, delete, truncate on public.<view> from anon, authenticated;
+--        (this file prints a WARNING naming it, and the local gate reds on it).
+--      · security_invoker false with SELECT: the view shows what it selects
+--        to whoever holds SELECT, whatever this file does to the table. Right
+--        for an aggregate; a leak for a view that returns rows per user.
+--      · security_invoker TRUE with SELECT for anon / authenticated: after
+--        this file the view answers those roles only what the TABLE lets
+--        them read — for `anon`, "permission denied".
+--      The two views this repository creates (current_user_usage,
+--      founding_member_count) are security_invoker and granted to neither
+--      role (schema_phase_security_hardening.sql): expected here with
+--      api_privileges `-`.
+--      ⚠ `founder_cohort_public` — the pricing page reads it with the anon
+--      key (frontend/lib/founder.ts) and POST /api/checkout/start reads it
+--      with the service role — IS CREATED BY NO FILE IN THIS REPOSITORY: it
+--      exists only where somebody made it by hand. If this query lists it,
+--      read its row before step 1: with security_invoker false it is
+--      untouched by this file; with security_invoker TRUE its anon read is
+--      refused after this file and the Founding Member card falls back to
+--      its built-in default (500 seats left) — checkout itself still reads
+--      the true count. If it is not listed it reads no listed table.
 --
 -- 0b. AUDIT (read-only). Was the hole ever used? This lists subscription rows
 --     whose entitlement has no payment visible behind it. IT IS A LIST FOR A
@@ -286,18 +341,24 @@
 --     whoever made it; `stripe_event_names_user` only reaches back to the day
 --     billing_events started recording.
 --
--- 1. Run this SQL in Supabase Studio (includes the NOTIFY at the bottom). Read
---    the NOTICEs: each dropped policy and each skipped table is named.
+-- 1. Run this SQL in Supabase Studio (includes the NOTIFY at the bottom). It
+--    answers "Success" or one error; on the error nothing was applied. Each
+--    dropped policy, each skipped table and each view over a listed table is
+--    named in a NOTICE (a WARNING for a view that can be written through) —
+--    psql prints them; Studio's editor may not (Logs -> Postgres has them).
+--    Do not rely on seeing them: the proof is step 3.
 -- 2. IMMEDIATELY click Supabase Dashboard -> Settings -> API ->
 --    "Reload schema cache". The NOTIFY is optimistic on Supabase managed
 --    infra; the Dashboard click is the deterministic step.
 -- 3. POST-CHECKS.
---    (i)  Run the three pre-flight queries again. Expected: (a) no policy
+--    (i)  Run the pre-flight queries again. Expected: (a) no policy
 --         whose cmd is not SELECT, and subscriptions with exactly one policy,
 --         "subscriptions self select", roles {authenticated}; (b) `anon` and
 --         PUBLIC absent, `authenticated` holding SELECT only on subscriptions
 --         (and on user_usage / plan_chat_daily_usage if it held it before),
---         nothing on the others; (c) relrowsecurity = true on every row.
+--         nothing on the others; (c) relrowsecurity = true on every row;
+--         (d) unchanged by this file — no row with can_be_written_through
+--         true and a write privilege for anon / authenticated.
 --    (ii) THE PROBE — signed in to the product, open the browser console on
 --         any page of the app and paste the block below. It uses the session
 --         the page already holds, reads your own row, then tries to write
@@ -395,6 +456,7 @@ declare
   v_table text;
   v_rel   regclass;
   v_pol   record;
+  v_view  record;
   v_role  text;
   v_priv  text;
   v_n     int;
@@ -506,6 +568,45 @@ begin
              || 'run the revoke as the grantor named above, then run this file again.';
   end if;
   raise notice 'write lockdown: verified — every listed table is closed to anon and authenticated writes';
+
+  -- ── 4. THE VIEWS — named, never changed ───────────────────────────────
+  -- A view over a listed table is not closed by anything above (pre-flight
+  -- (d) in the header). One an API role can WRITE THROUGH is the same hole
+  -- by another door: a WARNING names it and the revoke that closes it. Any
+  -- other view an API role may use is named in a NOTICE.
+  for v_view in
+    select v.relnamespace::regnamespace::text || '.' || quote_ident(v.relname) as view_name,
+           coalesce((select option_value from pg_options_to_table(v.reloptions)
+                      where option_name = 'security_invoker'), 'false') = 'true' as invoker,
+           (pg_relation_is_updatable(v.oid, false) & 28) <> 0 as updatable,
+           (select string_agg(r || ':' || p, ' ' order by r, p)
+              from unnest(array['anon', 'authenticated']) r,
+                   unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
+             where has_table_privilege(r, v.oid, p)) as api_privs,
+           exists (select 1 from unnest(array['anon', 'authenticated']) r,
+                                 unnest(array['INSERT', 'UPDATE', 'DELETE']) p
+                    where has_table_privilege(r, v.oid, p)) as api_write
+      from pg_class v
+     where v.relkind in ('v', 'm')
+       and exists (select 1
+                     from pg_rewrite w
+                     join pg_depend d on d.classid = 'pg_rewrite'::regclass and d.objid = w.oid
+                                     and d.refclassid = 'pg_class'::regclass
+                     join pg_class t on t.oid = d.refobjid
+                    where w.ev_class = v.oid and t.relkind = 'r'
+                      and t.relnamespace = 'public'::regnamespace
+                      and t.relname = any (v_user_readable || v_service_only))
+     order by 1
+  loop
+    continue when v_view.api_privs is null;
+    if v_view.api_write and v_view.updatable and not v_view.invoker then
+      raise warning 'write lockdown: view % reads a listed table, can be written through, and anon / authenticated hold [%] on it — THIS FILE DOES NOT CLOSE IT. Run: revoke insert, update, delete, truncate on % from anon, authenticated;',
+        v_view.view_name, v_view.api_privs, v_view.view_name;
+    else
+      raise notice 'write lockdown: view % reads a listed table (security_invoker %, [%]) — left as found',
+        v_view.view_name, v_view.invoker, v_view.api_privs;
+    end if;
+  end loop;
 end
 $lockdown$;
 

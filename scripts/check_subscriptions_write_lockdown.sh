@@ -10,7 +10,7 @@
 # a PATCH of {"tier":"multi","status":"active"} from the browser was a paid
 # plan with no payment.
 #
-# What it proves, one PASS/FAIL line per case, from THREE starting states that
+# What it proves, one PASS/FAIL line per case, from FOUR starting states that
 # must each end in the same catalog and the same refused-attack table:
 #   (a) the catalog a database built from this repository has BEFORE the fix
 #       (the two write policies present, the default grants in place) — and
@@ -20,7 +20,12 @@
 #       dropped; insert, update, delete, truncate, references, trigger revoked
 #       from anon and authenticated) — the migration must run on top of it
 #       without an error and still close what the stopgap left;
-#   (c) the migration's own result (a second run: idempotent, and silent).
+#   (c) the migration's own result (a second run: idempotent, and silent);
+#   (d) a locked database somebody RE-OPENED BY HAND under names the migration
+#       has never heard of (a `for all` policy to authenticated, a permissive
+#       `using (true)` read, a column-level `grant update (tier, status)`, row
+#       level security off on a meter, privileges handed back to anon) — shown
+#       OPEN first (the attacker writes ANOTHER user's tier), then closed.
 # In each: every write of a signed-in user to their own row is refused
 # (status, the body's reason, and the row read back with the service role is
 # byte-identical), on every sold tier and every entitlement column; INSERT
@@ -31,7 +36,11 @@
 # table refuses a user write. Beside the behaviour, the catalog laws: row
 # level security on, no policy that is not a SELECT policy, no privilege for
 # anon, no write privilege for authenticated, on every table of THE LIST —
-# which this script reads from the migration (one list).
+# which this script reads from the migration (one list); no function an API
+# role may call names a listed table but the product's two; no view over a
+# listed table that an API role can write through — while a public AGGREGATE
+# view over one (the shape of production's founder_cohort_public, which no
+# file in this repository creates) still answers anon.
 #
 # OWNER-PLAN. The migration is correct with and without
 # supabase/schema_phase_owner_plan.sql. A case that needs an owner-plan
@@ -51,15 +60,21 @@
 #
 # It creates its own users (…@subs-gate.invalid) and removes them, their
 # workspaces and their counters on exit. It never resets or drops a table.
-# ON EXIT IT RE-APPLIES THE MIGRATION, whatever happened in between: state (a)
-# is the open hole, and a run that dies half-way must not leave it open.
+# ON EXIT IT RE-APPLIES THE REPOSITORY'S MIGRATION, whatever happened in
+# between and whatever file the run was pointed at: states (a), (b) and (d)
+# are open holes, and neither a run that dies half-way nor a plant run
+# (SUBS_LOCKDOWN_MIGRATION=<a planted copy>) may leave the stack open.
 #
-# Usage:  scripts/check_subscriptions_write_lockdown.sh            the gate
-#         scripts/check_subscriptions_write_lockdown.sh --observe  apply NOTHING,
-#             assert nothing: print the attack table as this database answers
-#             it today (the BEFORE / AFTER tables of docs/engine_book/gates.md)
-# Exit:   0 every case passed (or vacuous, or --observe) · 1 a case failed
-#         · 2 refused (not local)
+# Usage:  scripts/check_subscriptions_write_lockdown.sh               the gate
+#         … --observe          apply NOTHING, assert nothing: print the attack
+#                              table as this database answers it today
+#         … --before a|b|c|d   build that starting state (a, b and d OPEN the
+#                              hole on the local stack), print the table;
+#                              the migration is re-applied on exit
+#         … --after  a|b|c|d   build it, apply the migration, print the table
+#         (the BEFORE / AFTER tables of docs/engine_book/gates.md)
+# Exit:   0 every case passed (or vacuous, or a table mode) · 1 a case failed
+#         · 2 refused (not local, or an argument this script does not know)
 
 set -u
 set -o pipefail
@@ -71,8 +86,21 @@ OWNER_PLAN_MIGRATION="${SUBS_LOCKDOWN_OWNER_PLAN_MIGRATION:-$REPO/supabase/schem
 DB_URL="${SUBS_LOCKDOWN_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 API_URL="${SUBS_LOCKDOWN_API_URL:-http://127.0.0.1:54321}"
 CONTAINER="${SUBS_LOCKDOWN_DB_CONTAINER:-supabase_db_cfo-ai-test}"
-OBSERVE=0
-[ "${1:-}" = "--observe" ] && OBSERVE=1
+REPO_MIGRATION="$REPO/supabase/schema_phase_subscriptions_write_lockdown.sql"
+MODE="gate"; STATE=""
+usage() {
+  echo "usage: $(basename "$0") [--observe | --before a|b|c|d | --after a|b|c|d]"
+  echo "GATE-WORK $GATE units=0"
+  exit 2
+}
+case "${1:-}" in
+  "") ;;
+  --observe) MODE="observe" ;;
+  --before|--after)
+    MODE="${1#--}"; STATE="${2:-}"
+    case "$STATE" in a|b|c|d) ;; *) usage ;; esac ;;
+  *) usage ;;
+esac
 
 echo "SUBSCRIPTIONS-WRITE-LOCKDOWN GATE — $(basename "$MIGRATION") on the local stack"
 
@@ -212,8 +240,10 @@ apply_file() { # file → APPLY_OUT, returns psql's status (one transaction, lik
   APPLY_OUT="$(run_psql --single-transaction -f - < "$1" 2>&1)"
 }
 
+FIXTURE_VIEW="subs_gate_cohort_public"
 cleanup() {
   run_psql >/dev/null 2>&1 <<SQL
+drop view if exists public.$FIXTURE_VIEW;
 do \$\$
 declare
   v_users uuid[] := array(select id from auth.users where email like '%@$DOMAIN');
@@ -241,8 +271,13 @@ SQL
 }
 on_exit() {
   cleanup
-  # Never leave state (a) — the open hole — behind, however the run ended.
-  if [ "$OBSERVE" = 0 ]; then run_psql --single-transaction -f - < "$MIGRATION" >/dev/null 2>&1; fi
+  # Never leave an open state behind, however the run ended — and whatever
+  # file it was pointed at: the REPOSITORY's migration closes the stack, so a
+  # plant run leaves no plant.
+  if [ "$MODE" != observe ]; then
+    local f="$REPO_MIGRATION"; [ -f "$f" ] || f="$MIGRATION"
+    run_psql --single-transaction -f - < "$f" >/dev/null 2>&1
+  fi
   rm -f "$BODY_FILE"
 }
 trap on_exit EXIT
@@ -267,6 +302,25 @@ esac
 
 OWN="/rest/v1/subscriptions?user_id=eq.$A"
 VIC="/rest/v1/subscriptions?user_id=eq.$V"
+
+# A PUBLIC AGGREGATE VIEW over a listed table — the shape of production's
+# `founder_cohort_public`, which the pricing page reads with the anon key and
+# which NO FILE IN THIS REPOSITORY CREATES. A plain view runs with its owner's
+# rights: the lockdown must leave its anon read working (P6), and it is not a
+# way to write (L4). Created by the gate, removed by cleanup; never in
+# --observe, which applies nothing.
+if [ "$MODE" != observe ]; then
+  sql "create or replace view public.$FIXTURE_VIEW as
+         select count(*)::int as seats_claimed from public.founding_members;
+       revoke all on public.$FIXTURE_VIEW from public, anon, authenticated;
+       grant select on public.$FIXTURE_VIEW to anon, authenticated;
+       notify pgrst, 'reload schema';" >/dev/null
+  for _try in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do   # PostgREST learns of a new relation on reload
+    req GET "/rest/v1/$FIXTURE_VIEW?select=seats_claimed" "$SERVICE_KEY"
+    [ "$HTTP_STATUS" = "200" ] && break
+    sleep 0.5
+  done
+fi
 
 # The row, read back as the database owner. `fp` is its whole content
 # (updated_at included: a write that changed nothing visible still moves it).
@@ -347,12 +401,112 @@ return_row() {
 rpc() { req POST "/rest/v1/rpc/$1" "$SERVICE_KEY" "$2"; }
 first_col() { sql "select attname from pg_attribute where attrelid = 'public.$1'::regclass and attnum = 1;" | head -1; }
 
-# ══ --observe: the table, nothing applied, nothing asserted ══════════════
-if [ "$OBSERVE" = 1 ]; then
+# ── The four starting states ─────────────────────────────────────────────
+# (a) the catalog of a database built from this repository BEFORE the fix —
+#     measured on a fresh stack: the three policies of the old schema.sql,
+#     Supabase's default grants on the three user-readable tables.
+state_a() {
+  sql "set client_min_messages = warning;
+       drop policy if exists \"subscriptions self select\" on public.subscriptions;
+       drop policy if exists \"subscriptions self insert\" on public.subscriptions;
+       drop policy if exists \"subscriptions self update\" on public.subscriptions;
+       create policy \"subscriptions self select\" on public.subscriptions for select using (auth.uid() = user_id);
+       create policy \"subscriptions self insert\" on public.subscriptions for insert with check (auth.uid() = user_id);
+       create policy \"subscriptions self update\" on public.subscriptions for update using (auth.uid() = user_id);
+       grant all on public.subscriptions, public.user_usage, public.plan_chat_daily_usage to anon, authenticated;
+       notify pgrst, 'reload schema';"
+}
+# (b) the stopgap, verbatim (owner, 2026-10-03).
+state_b() {
+  sql "set client_min_messages = warning;
+       drop policy if exists \"subscriptions self insert\" on public.subscriptions;
+       drop policy if exists \"subscriptions self update\" on public.subscriptions;
+       revoke insert, update, delete, truncate, references, trigger on public.subscriptions from anon, authenticated;
+       notify pgrst, 'reload schema';"
+}
+# (d) a LOCKED database somebody re-opened by hand, under names the migration
+#     has never heard of. Built on top of the migration's own result.
+state_d() {
+  sql "set client_min_messages = warning;
+       drop policy if exists \"billing can write\" on public.subscriptions;
+       drop policy if exists \"everyone reads plans\" on public.subscriptions;
+       drop policy if exists \"users write own usage\" on public.user_usage;
+       create policy \"billing can write\" on public.subscriptions for all to authenticated using (true) with check (true);
+       create policy \"everyone reads plans\" on public.subscriptions for select using (true);
+       create policy \"users write own usage\" on public.user_usage for update using (auth.uid() = user_id);
+       grant update (tier, status) on public.subscriptions to authenticated;
+       grant update on public.user_usage to authenticated;
+       alter table public.plan_chat_daily_usage disable row level security;
+       grant insert, update, delete on public.plan_chat_daily_usage to authenticated;
+       grant all on public.founding_members to anon;
+       notify pgrst, 'reload schema';"
+}
+state_title() {
+  case "$1" in
+    a) echo "a database built from this repository before the fix" ;;
+    b) echo "the hand-applied three-statement stopgap" ;;
+    c) echo "the migration already applied" ;;
+    d) echo "locked, then re-opened by hand under other names" ;;
+  esac
+}
+build_state() { # a|b|c|d — quietly; every state starts from (a)
+  state_a >/dev/null
+  case "$1" in
+    b) state_b >/dev/null ;;
+    c) apply_file "$MIGRATION" ;;
+    d) apply_file "$MIGRATION"; state_d >/dev/null ;;
+  esac
+}
+# Views over a listed table that an API role holds a privilege on: name,
+# security_invoker, whether the view can be written through, the privileges.
+api_views() {
+  sql "select coalesce(string_agg(x, ' ; ' order by x), '(none)') from (
+         select v.relname
+                || ' invoker=' || coalesce((select option_value from pg_options_to_table(v.reloptions) where option_name = 'security_invoker'), 'false')
+                || ' updatable=' || ((pg_relation_is_updatable(v.oid, false) & 28) <> 0)
+                || ' ' || (select string_agg(r || ':' || p, ',' order by r, p)
+                             from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']) p
+                            where has_table_privilege(r, v.oid, p)) as x
+           from pg_class v
+          where v.relkind in ('v', 'm') and v.relnamespace = 'public'::regnamespace
+            and exists (select 1 from pg_rewrite w
+                          join pg_depend d on d.classid = 'pg_rewrite'::regclass and d.objid = w.oid and d.refclassid = 'pg_class'::regclass
+                          join pg_class t on t.oid = d.refobjid
+                         where w.ev_class = v.oid and t.relkind = 'r' and t.relnamespace = 'public'::regnamespace
+                           and t.relname = any (string_to_array('$(echo $ALL_TABLES)', ' ')))
+            and exists (select 1 from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']) p
+                         where has_table_privilege(r, v.oid, p))) q;" | head -1
+}
+migrate() { # label
+  apply_file "$MIGRATION"; local rc=$?
+  if [ $rc -eq 0 ]; then
+    case "$APPLY_OUT" in
+      *ERROR*|*WARNING*) fail "$1" "$(echo "$APPLY_OUT" | grep -E 'ERROR|WARNING' | head -3)" ;;
+      *) pass "$1" ;;
+    esac
+  else fail "$1" "$(echo "$APPLY_OUT" | grep -v '^$' | tail -4)"; fi
+}
+
+
+# ══ The table modes: --observe (nothing applied), --before / --after <state> ══
+if [ "$MODE" != gate ]; then
   owner_plan="not applied"; [ "$(sql "select to_regproc('public.assign_internal_plan') is not null;")" = "t" ] && owner_plan="applied"
-  echo "OBSERVE — nothing is applied and nothing is asserted. schema_phase_owner_plan.sql: $owner_plan."
+  case "$MODE" in
+    observe)
+      echo "OBSERVE — nothing is applied and nothing is asserted. schema_phase_owner_plan.sql: $owner_plan." ;;
+    *)
+      build_state "$STATE"
+      if [ "$MODE" = after ]; then
+        apply_file "$MIGRATION" || { echo "THE MIGRATION DID NOT APPLY:"; echo "$APPLY_OUT" | grep -v '^$' | tail -4; }
+      fi
+      sql "notify pgrst, 'reload schema';" >/dev/null
+      echo "$(echo "$MODE" | tr 'a-z' 'A-Z') THE MIGRATION — starting state ($STATE): $(state_title "$STATE"). schema_phase_owner_plan.sql: $owner_plan."
+      echo "Nothing is asserted. The repository's migration is re-applied on exit." ;;
+  esac
   echo "policies on subscriptions: $(sql "select coalesce(string_agg(policyname || ' [' || cmd || ']', ', ' order by policyname), '(none)') from pg_policies where schemaname = 'public' and tablename = 'subscriptions';")"
   echo "authenticated on subscriptions: $(sql "select coalesce(string_agg(privilege_type, ',' order by privilege_type), '(none)') from information_schema.role_table_grants where table_schema = 'public' and table_name = 'subscriptions' and grantee = 'authenticated';")"
+  echo "anon on subscriptions: $(sql "select coalesce(string_agg(privilege_type, ',' order by privilege_type), '(none)') from information_schema.role_table_grants where table_schema = 'public' and table_name = 'subscriptions' and grantee = 'anon';")"
+  echo "views over a listed table an API role may use: $(api_views)"
   echo
   echo "| attack (through PostgREST) | HTTP | the row, read back with the service role: tier / plan / status / … | written? | body |"
   echo "|---|---|---|---|---|"
@@ -463,6 +617,8 @@ suite() { # state label
     "$(policies_of_subscriptions)" "$ONE_POLICY"
   check "$S L3 no function an API role may call names a listed table, but the product's two" \
     "$(api_callable_functions)" "create_workspace,delete_my_account"
+  check "$S L4 the only view over a listed table an API role may use is the gate's own aggregate: SELECT only, not writable through" \
+    "$(api_views)" "$FIXTURE_VIEW invoker=false updatable=false anon:SELECT,authenticated:SELECT"
 
   # ── W. every write to subscriptions is refused, and the row is byte-identical ──
   baseline
@@ -524,6 +680,18 @@ LIST
   check "$S P5 the chat reserve / commit RPCs still count (service role): today's turns +1" \
     "$got $(sql "select count - $n from public.plan_chat_daily_usage where user_id = '$A' and day = '$TODAY';")" "allowed 1"
 
+  # P6 a plain aggregate view over a listed table — production's founder_cohort_public shape.
+  req GET "/rest/v1/$FIXTURE_VIEW?select=seats_claimed" "$ANON_KEY"
+  check "$S P6 a public aggregate view over a listed table (the shape of production's founder_cohort_public) still answers anon" \
+    "$HTTP_STATUS $HTTP_BODY" "200 [{\"seats_claimed\":$(sql "select count(*) from public.founding_members;")}]"
+  before="$(tfp founding_members)"
+  req PATCH "/rest/v1/$FIXTURE_VIEW?seats_claimed=gte.0" "$ATK_TOKEN" '{"seats_claimed":0}'
+  case "$HTTP_STATUS" in 2*) got="ACCEPTED ($HTTP_STATUS)" ;; *) got="refused" ;; esac   # an aggregate view answers "cannot update view" before any privilege is read
+  req DELETE "/rest/v1/$FIXTURE_VIEW?seats_claimed=gte.0" "$ANON_KEY"
+  case "$HTTP_STATUS" in 2*) got="$got, DELETE ACCEPTED ($HTTP_STATUS)" ;; *) got="$got, refused" ;; esac
+  check "$S P6b … and is not a way to write: a user's PATCH and anon's DELETE through it are refused, founding_members unchanged" \
+    "$got $( [ "$before" = "$(tfp founding_members)" ] && echo unchanged || echo CHANGED )" "refused, refused unchanged"
+
   # ── S. the sibling tables refuse a user ──
   # The real attack on the two meters: zero your own counter.
   before="$(tfp user_usage)"
@@ -575,39 +743,6 @@ LIST
   fi
 }
 
-# ── The three starting states ────────────────────────────────────────────
-# (a) the catalog of a database built from this repository BEFORE the fix —
-#     measured on a fresh stack: the three policies of the old schema.sql,
-#     Supabase's default grants on the three user-readable tables.
-state_a() {
-  sql "set client_min_messages = warning;
-       drop policy if exists \"subscriptions self select\" on public.subscriptions;
-       drop policy if exists \"subscriptions self insert\" on public.subscriptions;
-       drop policy if exists \"subscriptions self update\" on public.subscriptions;
-       create policy \"subscriptions self select\" on public.subscriptions for select using (auth.uid() = user_id);
-       create policy \"subscriptions self insert\" on public.subscriptions for insert with check (auth.uid() = user_id);
-       create policy \"subscriptions self update\" on public.subscriptions for update using (auth.uid() = user_id);
-       grant all on public.subscriptions, public.user_usage, public.plan_chat_daily_usage to anon, authenticated;
-       notify pgrst, 'reload schema';"
-}
-# (b) the stopgap, verbatim (owner, 2026-10-03).
-state_b() {
-  sql "set client_min_messages = warning;
-       drop policy if exists \"subscriptions self insert\" on public.subscriptions;
-       drop policy if exists \"subscriptions self update\" on public.subscriptions;
-       revoke insert, update, delete, truncate, references, trigger on public.subscriptions from anon, authenticated;
-       notify pgrst, 'reload schema';"
-}
-migrate() { # label
-  apply_file "$MIGRATION"; local rc=$?
-  if [ $rc -eq 0 ]; then
-    case "$APPLY_OUT" in
-      *ERROR*|*WARNING*) fail "$1" "$(echo "$APPLY_OUT" | grep -E 'ERROR|WARNING' | head -3)" ;;
-      *) pass "$1" ;;
-    esac
-  else fail "$1" "$(echo "$APPLY_OUT" | grep -v '^$' | tail -4)"; fi
-}
-
 # ══ A. from state (a): the repository's catalog before the fix ═══════════
 out="$(state_a)"
 check "A0 state (a) is built: the two write policies, the default grants" \
@@ -651,18 +786,22 @@ case "$APPLY_OUT" in
 esac
 suite "c"
 
-# ══ D. a hand-made policy under ANOTHER name, and a permissive read ══════
-sql "create policy \"billing can write\" on public.subscriptions for all to authenticated using (true) with check (true);
-     create policy \"everyone reads plans\" on public.subscriptions for select using (true);
-     create policy \"users write own usage\" on public.user_usage for update using (auth.uid() = user_id);
-     grant update on public.subscriptions, public.user_usage to authenticated;
-     notify pgrst, 'reload schema';" >/dev/null
-migrate "D0 the migration applies over three hand-made policies under other names"
-check "D1 … and subscriptions is back to its one policy — the ALL policy and the permissive read are gone" \
-  "$(policies_of_subscriptions)" "$ONE_POLICY"
-check "D2 … and the hand-made UPDATE policy on user_usage is gone, the grants with it" \
-  "$(catalog_of user_usage)|$(catalog_of subscriptions)" \
-  "rls=true non-select-policies=0 anon=- authenticated=SELECT public=-|rls=true non-select-policies=0 anon=- authenticated=SELECT public=-"
+# ══ D. from state (d): locked, then re-opened by hand under other names ══
+out="$(state_d)"
+check "D0 state (d) is built on the migration's result: a FOR ALL policy, a permissive read, a column-level grant, RLS off on a meter, anon re-granted" \
+  "$out|$(sql "select string_agg(policyname || ' [' || cmd || ']', ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'subscriptions';")|$(sql "select has_column_privilege('authenticated', 'public.subscriptions', 'tier', 'UPDATE'), has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE'), (select relrowsecurity from pg_class where oid = 'public.plan_chat_daily_usage'::regclass), has_table_privilege('anon', 'public.founding_members', 'INSERT');")" \
+  "|billing can write [ALL],everyone reads plans [SELECT],subscriptions self select [SELECT]|t|f|f|t"
+baseline
+fire PATCH "$VIC" user '{"tier":"multi","status":"active"}'
+check "D1 in state (d) the hole is OPEN again, and wider: the attacker PATCHes ANOTHER user's tier → multi" \
+  "$HTTP_STATUS $(show "$V" | cut -d' ' -f1-5)" "200 multi / professional / active"
+req GET "/rest/v1/subscriptions?select=user_id" "$ATK_TOKEN"
+check_has "D1b … and reads every user's plan row (the permissive read)" "$HTTP_STATUS $HTTP_BODY" "$V"
+migrate "D2 the migration applies over the hand-made openings, with no error and no warning"
+check_has "D3 … and names the FOR ALL policy it dropped" "$APPLY_OUT" 'dropped policy "billing can write" (ALL) on public.subscriptions'
+check_has "D3b … and the permissive read — a second SELECT policy on subscriptions goes too" "$APPLY_OUT" 'dropped policy "everyone reads plans" (SELECT) on public.subscriptions'
+check_has "D3c … and the hand-made UPDATE policy on a meter" "$APPLY_OUT" 'dropped policy "users write own usage" (UPDATE) on public.user_usage'
+suite "d"
 
 # ══ E. both orders against schema_phase_owner_plan.sql ═══════════════════
 if [ -f "$OWNER_PLAN_MIGRATION" ]; then
@@ -685,10 +824,11 @@ fi
 
 # ══ Z. the gate leaves nothing behind, and leaves the tables closed ══════
 cleanup
-check "Z1 the gate's users, workspaces, counters and seats are removed" \
+check "Z1 the gate's users, workspaces, counters, seats and its view are removed" \
   "$(sql "select (select count(*) from auth.users where email like '%@$DOMAIN'),
                  (select count(*) from public.organizations where name like 'Subs gate company %'),
-                 (select count(*) from public.subscriptions where stripe_customer_id like 'cus_subsgate%');")" "0|0|0"
+                 (select count(*) from public.subscriptions where stripe_customer_id like 'cus_subsgate%'),
+                 (select count(*) from pg_class where relname = '$FIXTURE_VIEW');")" "0|0|0|0"
 check "Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role" \
   "$(policies_of_subscriptions)|$(catalog_of subscriptions)" \
   "$ONE_POLICY|rls=true non-select-policies=0 anon=- authenticated=SELECT public=-"
