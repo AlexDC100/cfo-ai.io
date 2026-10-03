@@ -1157,6 +1157,26 @@ def _engine_gates() -> List[Gate]:
                        "finding-before-build-unchecked, finding-on-measured-positive-cash, finding-paraphrased, "
                        "finding-sign-unchecked, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
                        "trigger-threshold-in-code, withheld-names-nothing, x3-keeps-the-stock-build")),
+        # ── fx-feed (2026-10-03): the BNR reference-rate feed on its REAL bytes.
+        # Production served the bundled fallback (4.97 RON per EUR, as of
+        # 2026-05-01, stale) while BNR published 5.3447 — BNR had moved the feed
+        # to curs.bnr.ro and changed its namespace to https://, the old address
+        # answered a web page, and nothing read the feed's real bytes. The law:
+        # the committed real file parses to BNR's figures; the pre-2026
+        # namespace still parses; a page that is not the feed is a failure and
+        # the next address is tried; no address answering serves the fallback
+        # MARKED STALE; a rate outside the plausible range is refused.
+        # Measured 14. Plant log: gates.md "fx-feed".
+        Gate("fx-feed",
+             [PY, "-m", "pytest", "tests/engine/test_fx_bnr_feed.py", "-q"],
+             work_junit=True, floor=14, units="tests",
+             canaries=("test_the_real_feed_parses_to_the_figures_bnr_published",
+                       "test_the_pre_2026_namespace_still_parses",
+                       "test_the_feed_is_asked_at_the_address_it_lives_at_first",
+                       "test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried",
+                       "test_no_address_answering_the_feed_serves_the_fallback_marked_stale",
+                       "test_an_implausible_feed_is_never_served")),
+
         # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
         # Supabase client logs a WARNING and retries ONCE on a read timeout
         # for its one GET (select), and never retries a write: through the
