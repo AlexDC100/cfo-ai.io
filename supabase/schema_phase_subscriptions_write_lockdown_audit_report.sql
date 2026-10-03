@@ -34,17 +34,17 @@
 
 with
 present as (
-  select to_regclass('public.founding_members') is not null as founding_members,
+  select to_regclass('public.founding_members') is not null as fm_present,
          (to_regclass('public.billing_events') is not null
           and exists (select 1 from pg_attribute a
                        where a.attrelid = to_regclass('public.billing_events')
-                         and a.attname = 'payload' and not a.attisdropped)) as billing_events
+                         and a.attname = 'payload' and not a.attisdropped)) as be_present
 ),
 fm as (
   select x.user_id
     from present
     cross join lateral (
-      select case when present.founding_members
+      select case when present.fm_present
                   then query_to_xml('select user_id::text as user_id from public.founding_members',
                                     false, false, '') end as doc) q
     cross join lateral xmltable('/table/row' passing q.doc columns user_id text path 'user_id') x
@@ -54,7 +54,7 @@ ev as (
   select x.user_id, x.names_user, x.sub_in_events, x.cus_in_events
     from present
     cross join lateral (
-      select case when present.billing_events
+      select case when present.be_present
                   then query_to_xml($events$
                          with e as materialized (select payload::text as p from public.billing_events)
                          select s.user_id::text as user_id,
@@ -80,11 +80,11 @@ s as (
          (sub.custom_limits is not null)          as has_custom_limits,
          sub.intro_unlock_expiry, sub.trial_end, sub.current_period_end,
          sub.created_at, sub.updated_at,
-         case when present.founding_members then (fm.user_id is not null) end as founding_seat_claimed,
-         case when present.billing_events then coalesce(ev.names_user, false) end as stripe_event_names_user,
-         case when present.billing_events and sub.stripe_subscription_id is not null
+         case when present.fm_present then (fm.user_id is not null) end as founding_seat_claimed,
+         case when present.be_present then coalesce(ev.names_user, false) end as stripe_event_names_user,
+         case when present.be_present and sub.stripe_subscription_id is not null
               then not coalesce(ev.sub_in_events, false) end as subscription_id_in_no_event,
-         case when present.billing_events and sub.stripe_customer_id is not null
+         case when present.be_present and sub.stripe_customer_id is not null
               then not coalesce(ev.cus_in_events, false) end as customer_id_in_no_event,
          array_remove(array[
            case when sub.tier is not null and lower(sub.tier) <> 'trial'
@@ -96,9 +96,9 @@ s as (
                 then 'status ' || sub.status || ', no Stripe customer' end,
            case when sub.plan <> 'professional' and sub.stripe_subscription_id is null
                 then 'plan column is not the signup default' end,
-           case when sub.is_founding_member and present.founding_members and fm.user_id is null
+           case when sub.is_founding_member and present.fm_present and fm.user_id is null
                 then 'founding flag, no claimed seat' end,
-           case when sub.is_founding_member and not present.founding_members
+           case when sub.is_founding_member and not present.fm_present
                 then 'founding flag (no founding_members table here to check the seat against)' end,
            case when sub.custom_limits is not null then 'custom_limits set' end,
            case when sub.intro_unlock_expiry is not null and sub.stripe_customer_id is null
@@ -134,8 +134,8 @@ select jsonb_build_object(
   'what', 'entitlement audit — subscription rows with no payment visible behind them (read-only; a list, not a verdict)',
   'generated_at', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
   'database', current_database(),
-  'tables_present', (select jsonb_build_object('founding_members', p.founding_members,
-                                               'billing_events', p.billing_events) from present p),
+  'tables_present', (select jsonb_build_object('founding_members', p.fm_present,
+                                               'billing_events', p.be_present) from present p),
   'subscriptions_total', (select count(*) from s),
   'listed_count', (select count(*) from s where cardinality(s.why_listed) > 0),
   'rows',
@@ -155,7 +155,7 @@ select jsonb_build_object(
   'stripe_ids_in_no_billing_event_count',
     (select count(*) from s where s.subscription_id_in_no_event or s.customer_id_in_no_event),
   'stripe_ids_in_no_billing_event', jsonb_build_object(
-    'checked', (select p.billing_events from present p),
+    'checked', (select p.be_present from present p),
     'count', (select count(*) from s where s.subscription_id_in_no_event or s.customer_id_in_no_event),
     'rows',
       (select coalesce(jsonb_agg(jsonb_build_object(
