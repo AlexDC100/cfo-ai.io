@@ -128,7 +128,7 @@
 --   · frontend/lib/billing.ts                        (reads the row; writes nothing)
 --
 -- ── OPERATOR RUNBOOK (locked discipline — CLAUDE.md §14 / F3.24) ──────
--- 0. PRE-FLIGHT (read-only). Is the hole open in production? Three queries.
+-- 0. PRE-FLIGHT (read-only). Is the hole open in production? Four queries.
 --
 --    (a) the policies:
 --      select tablename, policyname, cmd, roles, qual, with_check
