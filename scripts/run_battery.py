@@ -2236,6 +2236,42 @@ def _engine_gates() -> List[Gate]:
              work_junit=True, floor=8, units="tests",
              canaries=("test_cron_without_a_configured_token_is_503_never_run",
                        "test_cron_with_a_wrong_bearer_is_refused")),
+        # NO SCHEDULED MAIL REACHES A PERSON WHO IS NOT ENTITLED TO IT,
+        # CARRIES ANOTHER TENANT'S DATA, OR GOES OUT TWICE (owner ticket
+        # 2026-10-02, the audit before the Firm Cockpit flag flips). The
+        # crons and drains read under the SERVICE ROLE — the filter the
+        # code writes is the access control. Through the REAL create_app()
+        # over the tenancy suite's two-firm world, the provider replaced by
+        # a recorder: the renewal reminder goes to the SUBSCRIBER (it went
+        # to the first membership by role.asc — the firm's accountant); a
+        # digest names only what its recipient reads today (no other firm's
+        # request, no archived client, no archived firm); entitlement is
+        # decided again at send time (a removed member, an opt-out, a
+        # revoked request, a cancelled subscription); every queue row is
+        # CLAIMED before the provider is called and every cron claims
+        # before it queues (one run, two runs, two interleaved runs, a
+        # failed mark-sent write: one mail); the drains refuse everyone but
+        # the operator; every function that queues or sends mail is on a
+        # census. cron-auth above holds the crons' 503 / 401. Measured 39.
+        # Plant log: docs/engine_book/gates.md "scheduled-mail-tenancy".
+        Gate("scheduled-mail-tenancy",
+             [PY, "-m", "pytest",
+              "tests/engine/test_scheduled_mail_renewals.py",
+              "tests/engine/test_scheduled_mail_digest.py",
+              "tests/engine/test_scheduled_mail_requests.py",
+              "tests/engine/test_scheduled_mail_census.py",
+              "tests/engine/test_supabase_update_returning.py", "-q"],
+             work_junit=True, floor=39, units="tests",
+             canaries=("test_the_renewal_reminder_goes_to_the_subscriber_never_to_a_teammate",
+                       "test_running_the_renewal_cron_twice_queues_one_reminder",
+                       "test_each_member_is_mailed_their_own_firms_live_clients_and_nothing_else",
+                       "test_a_request_another_firm_minted_never_reaches_this_firms_digest",
+                       "test_an_archived_client_is_in_no_digest",
+                       "test_a_member_removed_between_the_cron_and_the_drain_is_not_mailed",
+                       "test_two_interleaved_runs_queue_one_digest",
+                       "test_no_reminder_for_a_request_whose_firm_no_longer_serves_the_client",
+                       "test_every_function_that_queues_or_sends_mail_is_classified",
+                       "test_update_returning_sends_the_filter_and_asks_for_the_changed_rows")),
         Gate("public-refresh-shield",
              [PY, "-m", "pytest", "tests/engine/test_public_refresh_shield.py", "-q"],
              work_junit=True, floor=20, units="tests",

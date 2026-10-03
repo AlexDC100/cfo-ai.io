@@ -248,6 +248,27 @@ class SupabaseClient:
         r = self._client.patch(f"{self.url}/rest/v1/{table}", params=params, json=patch)
         r.raise_for_status()
 
+    def update_returning(self, table: str, patch: Dict[str, Any], *,
+                         filters: Dict[str, str]) -> List[Dict[str, Any]]:
+        """PATCH that answers with the rows it CHANGED (`Prefer:
+        return=representation`) — the compare-and-swap primitive.
+
+        `update` answers 204 whether it touched one row or none, so a
+        caller cannot tell "I moved this row from queued" from "someone
+        else already had". Here the filter is the condition and the answer
+        is the proof: Postgres re-checks the WHERE under the row lock, so
+        of two callers racing on `status=eq.queued` exactly one gets the
+        row back and the other gets []. The mail drains CLAIM a queued row
+        this way before the provider is called (gate scheduled-mail-tenancy).
+        """
+        headers = dict(self._headers)
+        headers["Prefer"] = "return=representation"
+        r = self._client.patch(f"{self.url}/rest/v1/{table}", params={**filters},
+                               json=patch, headers=headers)
+        r.raise_for_status()
+        data = r.json()
+        return data if isinstance(data, list) else [data]
+
     def delete(self, table: str, *, filters: Dict[str, str]) -> None:
         params = {**filters}
         r = self._client.delete(f"{self.url}/rest/v1/{table}", params=params)

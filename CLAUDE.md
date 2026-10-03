@@ -1731,6 +1731,75 @@ report and alert bodies) are NOT converted — a separate ruling.
 
 ---
 
+## 27. Scheduled-mail audit before the Firm Cockpit flag (2026-10-03)
+
+Owner ticket 2026-10-02: "firm digest cron and renewal recipient audited
+before the Firm Cockpit flag flips." Branch `claude/admiring-benz-72166d`
+(from main 72a29c72). Engine only; nothing deployed, nothing sent, the flag
+untouched. Gate `scheduled-mail-tenancy` (39 tests, twenty plants:
+`docs/engine_book/gates.md`).
+
+**The rule.** Every cron and drain reads under the SERVICE ROLE: the filter
+the code writes is the access control. A mail path therefore decides three
+things, in this order, and decides them again AT SEND TIME (a drain is an
+operator action that runs hours or days after the cron):
+
+1. **Who** — a recipient is resolved from the record that owns the mail (the
+   subscriber; the opted-in user), never from "the first row" of a join.
+2. **What** — every workspace a body names is one the recipient reads today
+   (`_firm_requests.digest_scope`: member now, role holds `read`, firm not
+   archived, client served now and unarchived).
+3. **Once** — the cron CLAIMS before it queues (`firm_digest_log`'s unique
+   index; `reminders_sent`; the renewal queue read), and the drain claims
+   the row before the provider is called
+   (`SupabaseClient.update_returning`, PATCH + `Prefer:
+   return=representation`). The worst case is a row that says "claimed by a
+   drain; outcome unknown", never a second mail.
+
+**What was wrong** (all latent: the Cockpit is unmounted in production and
+no scheduler calls the renewal cron):
+
+- The renewal reminder went to the first `memberships` row ordered
+  `role.asc` — `'admin'` before `'owner'`. `import_firm_client` writes the
+  firm's responsible accountant into a client workspace as `'admin'`, so
+  with the Cockpit on the client's renewal date and price went to the
+  accountant. Now: `subscriptions.user_id`, else the oldest owner.
+- That cron had no idempotency marker (its docstring claimed one), mailed
+  subscriptions set to cancel, and queued address-less rows that blocked the
+  drain forever.
+- The firm digest read open requests by `client_org_id` alone (a previous
+  firm's request followed the client), computed archived clients, mailed
+  archived firms, and claimed its day after queueing.
+- Both drains sent whatever was queued (a removed member, a revoked request,
+  a cancelled subscription) and marked rows sent AFTER sending.
+- `firm_name` in the body of `POST /api/firm/requests` was printed as the
+  sender. It is ignored now; the name is `firms.name`.
+
+**Owner steps, none done here:**
+
+- `supabase/schema_phase_email_idempotency.sql` — the dedupe index for two
+  OVERLAPPING renewal runs (§14 two-step protocol; its pre-flight must
+  return zero rows). The engine works without it.
+- **Unverified:** no migration in this repository gives `subscriptions` the
+  `is_founder` / `org_id` columns the renewal cron filters on (§16 "Known
+  drift"). If production does not have them the cron answers 500 and reminds
+  nobody. One read-only `select column_name from information_schema.columns
+  where table_name = 'subscriptions'` settles it.
+- No scheduler calls any cron, and both drains take an operator's user JWT
+  (`PRICING_ADMIN_USER_IDS`), which a scheduler cannot hold: today mail is
+  queued and waits for a hand-run drain. Founding members under the tier
+  model (`is_founding_member`) are not selected by the renewal cron at all.
+- `firm_invite_email_queue` is written and never drained (the accept link is
+  in the API response) — invitations are not mailed.
+- The digest's report provider loads no suppressions: an item a member
+  dismissed on the board is still mailed. Not a tenancy defect; ticketed.
+
+**Never choose a recipient with `limit=1` over a join.** And a new function
+that queues or sends mail is red in `test_scheduled_mail_census.py` until it
+is classified with its recipient rule.
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*
