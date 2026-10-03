@@ -50,13 +50,14 @@
 # apart, never a pass. The GraphQL row is skipped the same way on a stack
 # that serves no /graphql/v1.
 #
-# LOCAL ONLY. The database is SUBS_LOCKDOWN_DB_URL (default: the local test
-# stack, postgresql://postgres:postgres@127.0.0.1:54322/postgres) and the API
-# is SUBS_LOCKDOWN_API_URL (default http://127.0.0.1:54321). A host that is
-# not a loopback address is REFUSED (exit 2) before anything is opened: this
-# script creates users, re-creates the open state (a) and applies a migration.
+# LOCAL ONLY, AND ONLY WHERE IT IS TOLD. The database is SUBS_LOCKDOWN_DB_URL
+# and the API is SUBS_LOCKDOWN_API_URL; there is NO default. With either one
+# unset the gate is VACUOUS: a machine's standard local stack is shared, and
+# this script creates users, re-creates the open state (a) and applies a
+# migration. A host that is not a loopback address is REFUSED (exit 2) before
+# anything is opened.
 #
-# VACUOUS, never green, when the local stack is not running: it prints
+# VACUOUS, never green, when no stack is named or the named one is not running: it prints
 # `GATE-WORK subscriptions-write-lockdown units=0` and exits 0;
 # scripts/run_battery.py reports that as PASS(VACUOUS).
 #
@@ -85,9 +86,15 @@ GATE="subscriptions-write-lockdown"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 MIGRATION="${SUBS_LOCKDOWN_MIGRATION:-$REPO/supabase/schema_phase_subscriptions_write_lockdown.sql}"
 OWNER_PLAN_MIGRATION="${SUBS_LOCKDOWN_OWNER_PLAN_MIGRATION:-$REPO/supabase/schema_phase_owner_plan.sql}"
-DB_URL="${SUBS_LOCKDOWN_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
-API_URL="${SUBS_LOCKDOWN_API_URL:-http://127.0.0.1:54321}"
-CONTAINER="${SUBS_LOCKDOWN_DB_CONTAINER:-supabase_db_cfo-ai-test}"
+# NO DEFAULT STACK. A machine's standard local stack is shared: this gate
+# creates users on it and holds the hole open for seconds at a time, under
+# whatever else runs there. It runs only where it is TOLD which stack.
+DB_URL="${SUBS_LOCKDOWN_DB_URL:-}"
+API_URL="${SUBS_LOCKDOWN_API_URL:-}"
+CONTAINER="${SUBS_LOCKDOWN_DB_CONTAINER:-}"
+PREFLIGHT_REPORT="$REPO/supabase/schema_phase_subscriptions_write_lockdown_preflight_report.sql"
+AUDIT_REPORT="$REPO/supabase/schema_phase_subscriptions_write_lockdown_audit_report.sql"
+PREFLIGHT_GRIDS="$REPO/supabase/schema_phase_subscriptions_write_lockdown_preflight.sql"
 REPO_MIGRATION="$REPO/supabase/schema_phase_subscriptions_write_lockdown.sql"
 MODE="gate"; STATE=""
 usage() {
@@ -105,6 +112,18 @@ case "${1:-}" in
 esac
 
 echo "SUBSCRIPTIONS-WRITE-LOCKDOWN GATE — $(basename "$MIGRATION") on the local stack"
+
+if [ -z "$DB_URL" ] || [ -z "$API_URL" ]; then
+  echo "VACUOUS — SUBS_LOCKDOWN_DB_URL and SUBS_LOCKDOWN_API_URL are not both set."
+  echo "This gate addresses NO stack by default: it creates users and re-opens the hole to"
+  echo "prove it sees one, and a machine's standard local stack is shared with other work."
+  echo "Name an isolated local stack, both its database and its API:"
+  echo "  SUBS_LOCKDOWN_DB_URL=postgresql://postgres:postgres@127.0.0.1:<db port>/postgres \\"
+  echo "  SUBS_LOCKDOWN_API_URL=http://127.0.0.1:<api port> $0"
+  echo "The write lockdown was NOT exercised; this line is not a pass."
+  echo "GATE-WORK $GATE units=0"
+  exit 0
+fi
 
 # ── The local-only guard (the database AND the API) ──────────────────────
 host_port() { # url → "host port" (port may be empty)
@@ -152,10 +171,12 @@ command -v openssl >/dev/null 2>&1 || vacuous "no openssl on this host (the serv
 if command -v psql >/dev/null 2>&1; then
   run_psql() { psql "$DB_URL" -X -At -q -v ON_ERROR_STOP=1 "$@"; }
 elif command -v docker >/dev/null 2>&1 \
+     && { [ -n "$CONTAINER" ] || CONTAINER="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep ":$DB_PORT->5432/tcp" | head -1 | cut -d' ' -f1)"; } \
+     && [ -n "$CONTAINER" ] \
      && docker port "$CONTAINER" 5432/tcp 2>/dev/null | grep -q ":$DB_PORT\$"; then
   run_psql() { docker exec -i "$CONTAINER" psql -U postgres -d postgres -X -At -q -v ON_ERROR_STOP=1 "$@"; }
 else
-  vacuous "no psql on this host and no container '$CONTAINER' publishing port $DB_PORT"
+  vacuous "no psql on this host and no database container publishing port $DB_PORT"
 fi
 
 if [ ! -f "$MIGRATION" ]; then
@@ -168,6 +189,7 @@ fi
 UNITS=0
 FAILS=0
 SKIPS=0
+W_FAILS=0
 pass() { UNITS=$((UNITS + 1)); echo "PASS $1"; }
 fail() { UNITS=$((UNITS + 1)); FAILS=$((FAILS + 1)); echo "FAIL $1"; shift; for l in "$@"; do echo "     | $l"; done; }
 # A case that needs an object this database does not have. NOT a pass: it is
@@ -243,6 +265,8 @@ graphql_body() { # user id → the mutation that writes that user's tier
   printf '{"query":"mutation { updatesubscriptionsCollection(set: {tier: \\"multi\\", status: \\"active\\"}, filter: {user_id: {eq: \\"%s\\"}}) { affectedCount } }"}' "$1"
 }
 
+rpc() { req POST "/rest/v1/rpc/$1" "$SERVICE_KEY" "$2"; }
+
 RUN="$(date +%s)$$"
 DOMAIN="subs-gate.invalid"
 MONTH="$(date -u +%Y-%m)"
@@ -253,6 +277,29 @@ apply_file() { # file → APPLY_OUT, returns psql's status (one transaction, lik
 }
 
 FIXTURE_VIEW="subs_gate_cohort_public"
+apply_batch() { # file → APPLY_OUT; the WHOLE file as ONE multi-statement query — one
+  # implicit transaction, the way Studio's editor and the Management API send it
+  APPLY_OUT="$(run_psql -c "$(cat "$1")" 2>&1)"
+}
+read_only() { # file → its output, run inside a READ ONLY transaction: a write would error
+  { echo "begin transaction read only;"; cat "$1"; echo; echo "rollback;"; } | run_psql -f - 2>&1
+}
+in_rolled_back_txn() { # SQL text → its output. Everything it does is rolled back: an
+  # error ends the session (ON_ERROR_STOP), which rolls back too. Nothing here persists.
+  { echo "begin;"; printf '%s\n' "$1"; echo "rollback;"; } | run_psql -f - 2>&1
+}
+json_field() { # json text, key → a boolean or string value, as jsonb prints it
+  printf '%s' "$1" | grep -o "\"$2\": \(true\|false\|\"[^\"]*\"\)" | head -1 | sed 's/^"[^"]*": //; s/"//g'
+}
+verdict_of() { # → what …_preflight_report.sql says of this database, read-only
+  local out; out="$(read_only "$PREFLIGHT_REPORT")"
+  case "$out" in *ERROR*) echo "ERROR $(printf '%s' "$out" | grep ERROR | head -1)"; return ;; esac
+  echo "$(json_field "$out" state) hole_open=$(json_field "$out" hole_open) stopgap_in_place=$(json_field "$out" stopgap_in_place) fully_locked=$(json_field "$out" fully_locked)"
+}
+remedies_of() { # an INCOMPLETE error → the statements its lines end with
+  printf '%s\n' "$1" | sed -n 's/.*Run: //p' | sed 's/  (or end the membership.*//'
+}
+
 cleanup() {
   run_psql >/dev/null 2>&1 <<SQL
 drop view if exists public.$FIXTURE_VIEW;
@@ -314,6 +361,18 @@ esac
 
 OWN="/rest/v1/subscriptions?user_id=eq.$A"
 VIC="/rest/v1/subscriptions?user_id=eq.$V"
+
+# Both users get a row in each meter, written the way the engine writes them
+# (the reserve / commit RPCs, service role): a user must read their own and
+# never the other's.
+if [ "$MODE" != observe ]; then
+  for u in "$A" "$V"; do
+    rpc reserve_user_upload "{\"p_user_id\":\"$u\",\"p_month\":\"$MONTH\",\"p_base_cap\":50,\"p_allow_extra\":false}"
+    rpc commit_user_upload "{\"p_user_id\":\"$u\",\"p_month\":\"$MONTH\",\"p_was_extra\":false}"
+    rpc reserve_user_chat "{\"p_user_id\":\"$u\",\"p_month\":\"$MONTH\",\"p_day\":\"$TODAY\",\"p_daily_cap\":500,\"p_monthly_cap\":5000}"
+    rpc commit_user_chat "{\"p_user_id\":\"$u\",\"p_month\":\"$MONTH\",\"p_day\":\"$TODAY\"}"
+  done
+fi
 
 # A PUBLIC AGGREGATE VIEW over a listed table — the shape of production's
 # `founder_cohort_public`, which the pricing page reads with the anon key and
@@ -388,6 +447,40 @@ ANON: INSERT a row|POST|/rest/v1/subscriptions|anon|{"user_id":"$V","tier":"mult
 GraphQL (/graphql/v1): mutation updatesubscriptionsCollection, own tier → multi, status → active|POST|/graphql/v1|user|$(graphql_body "$A")|$A
 LIST
 }
+# ONE WRITE PER COLUMN of public.subscriptions, generated from the catalog at
+# run time: a column added tomorrow is attacked the day it exists. The value
+# is one the column's type and CHECKs admit, so that in the open state the
+# write LANDS (a refused attack must be refused by the lockdown, not by a
+# constraint).
+GATE_UUID="$(sql "select gen_random_uuid();" | head -1)"
+column_attacks() {
+  sql "select a.attname || '|' || format_type(a.atttypid, a.atttypmod)
+         from pg_attribute a
+        where a.attrelid = 'public.subscriptions'::regclass and a.attnum > 0 and not a.attisdropped
+        order by a.attnum;" |
+  while IFS='|' read -r col typ; do
+    case "$col" in
+      tier) v='"multi"' ;;
+      status) v='"active"' ;;
+      plan) v='"enterprise"' ;;
+      billing_cycle) v='"yearly"' ;;
+      stripe_customer_id) v="\"cus_subsgate$RUN\"" ;;
+      stripe_subscription_id) v="\"sub_subsgate$RUN\"" ;;
+      *) case "$typ" in
+           boolean) v='true' ;;
+           integer|bigint|smallint|numeric*|real|"double precision") v='0' ;;
+           "timestamp with time zone"|"timestamp without time zone") v='"2099-01-01T00:00:00Z"' ;;
+           date) v='"2099-01-01"' ;;
+           jsonb|json) v='{"docs":100000,"workspaces":100000}' ;;
+           uuid) v="\"$GATE_UUID\"" ;;
+           *) v='"subsgate"' ;;
+         esac ;;
+    esac
+    echo "COLUMN $col ($typ): PATCH own row|PATCH|$OWN|user|{\"$col\":$v}|$A"
+  done
+}
+NCOLS="$(column_attacks | grep -c '^COLUMN ')"
+NNAMED=$(( $(attacks | grep -c '|') + 2 ))
 fire() { # METHOD path who body → HTTP_STATUS, HTTP_BODY
   local tok="$ATK_TOKEN"; [ "$3" = "anon" ] && tok="$ANON_KEY"
   if [ "$1" = "UPSERT" ]; then req POST "$2" "$tok" "$4" "return=representation,resolution=merge-duplicates"
@@ -411,7 +504,6 @@ return_row() {
 # own counter) on a row the service role's RPCs wrote; every listed table
 # gets the three verbs. `seed_meters` runs the REAL reserve / commit RPCs
 # through PostgREST as the service role — the path the engine takes.
-rpc() { req POST "/rest/v1/rpc/$1" "$SERVICE_KEY" "$2"; }
 first_col() { sql "select attname from pg_attribute where attrelid = 'public.$1'::regclass and attnum = 1;" | head -1; }
 
 # ── The four starting states ─────────────────────────────────────────────
@@ -444,6 +536,8 @@ state_d() {
        drop policy if exists \"billing can write\" on public.subscriptions;
        drop policy if exists \"everyone reads plans\" on public.subscriptions;
        drop policy if exists \"users write own usage\" on public.user_usage;
+       drop policy if exists \"everyone reads usage\" on public.user_usage;
+       create policy \"everyone reads usage\" on public.user_usage for select using (true);
        create policy \"billing can write\" on public.subscriptions for all to authenticated using (true) with check (true);
        create policy \"everyone reads plans\" on public.subscriptions for select using (true);
        create policy \"users write own usage\" on public.user_usage for update using (auth.uid() = user_id);
@@ -478,25 +572,51 @@ acl_of() {
         where c.oid = 'public.subscriptions'::regclass
           and a.grantee = (select oid from pg_roles where rolname = '$1');" | head -1
 }
-# Views over a listed table that an API role holds a privilege on: name,
-# security_invoker, whether the view can be written through, the privileges.
+# Views that read a listed table — DIRECTLY OR THROUGH ANOTHER VIEW — and on
+# which an API role holds a privilege: name, depth, security_invoker, whether
+# the view can be written through, the privileges.
 api_views() {
-  sql "select coalesce(string_agg(x, ' ; ' order by x), '(none)') from (
-         select v.relname
+  sql "with recursive listed as (
+         select c.oid from pg_class c
+          where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+            and c.relname = any (string_to_array('$(echo $ALL_TABLES)', ' '))
+       ), walk (view_oid, depth) as (
+         select w.ev_class, 1
+           from pg_rewrite w
+           join pg_depend d on d.classid = 'pg_rewrite'::regclass and d.objid = w.oid and d.refclassid = 'pg_class'::regclass
+           join listed t on t.oid = d.refobjid
+          where w.ev_class <> d.refobjid
+         union
+         select w.ev_class, walk.depth + 1
+           from walk
+           join pg_depend d on d.refclassid = 'pg_class'::regclass and d.refobjid = walk.view_oid and d.classid = 'pg_rewrite'::regclass
+           join pg_rewrite w on w.oid = d.objid
+          where w.ev_class <> walk.view_oid and walk.depth < 10
+       )
+       select coalesce(string_agg(x, ' ; ' order by x), '(none)') from (
+         select v.relname || ' depth=' || min(walk.depth)
                 || ' invoker=' || coalesce((select option_value from pg_options_to_table(v.reloptions) where option_name = 'security_invoker'), 'false')
                 || ' updatable=' || ((pg_relation_is_updatable(v.oid, false) & 28) <> 0)
                 || ' ' || (select string_agg(r || ':' || p, ',' order by r, p)
                              from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']) p
                             where has_table_privilege(r, v.oid, p)) as x
-           from pg_class v
-          where v.relkind in ('v', 'm') and v.relnamespace = 'public'::regnamespace
-            and exists (select 1 from pg_rewrite w
-                          join pg_depend d on d.classid = 'pg_rewrite'::regclass and d.objid = w.oid and d.refclassid = 'pg_class'::regclass
-                          join pg_class t on t.oid = d.refobjid
-                         where w.ev_class = v.oid and t.relkind = 'r' and t.relnamespace = 'public'::regnamespace
-                           and t.relname = any (string_to_array('$(echo $ALL_TABLES)', ' ')))
-            and exists (select 1 from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']) p
-                         where has_table_privilege(r, v.oid, p))) q;" | head -1
+           from walk
+           join pg_class v on v.oid = walk.view_oid and v.relkind in ('v', 'm')
+          where exists (select 1 from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'SELECT', 'UPDATE']) p
+                         where has_table_privilege(r, v.oid, p))
+          group by v.oid, v.relname, v.reloptions) q;" | head -1
+}
+# Any view in public, WHATEVER IT READS, on which an API role holds a write
+# privilege (a new public view gets ALL by default): the door a name scan of
+# function bodies or a dependency walk can miss.
+writable_public_views() {
+  sql "select coalesce(string_agg(v.relname || ' ' || (select string_agg(r || ':' || p, ',' order by r, p)
+                                    from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'UPDATE']) p
+                                   where has_table_privilege(r, v.oid, p)), ' ; ' order by v.relname), '(none)')
+         from pg_class v
+        where v.relnamespace = 'public'::regnamespace and v.relkind in ('v', 'm')
+          and exists (select 1 from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'UPDATE']) p
+                       where has_table_privilege(r, v.oid, p));" | head -1
 }
 migrate() { # label
   apply_file "$MIGRATION"; local rc=$?
@@ -528,6 +648,7 @@ if [ "$MODE" != gate ]; then
   echo "authenticated on subscriptions: $(acl_of authenticated)"
   echo "anon on subscriptions: $(acl_of anon)"
   echo "views over a listed table an API role may use: $(api_views)"
+  echo "the pre-flight report says: $(verdict_of)"
   echo
   echo "| attack (through PostgREST) | HTTP | the row, read back with the service role: tier / plan / status / … | written? | body |"
   echo "|---|---|---|---|---|"
@@ -619,9 +740,46 @@ catalog_of() {
        from pg_class c where c.oid = 'public.$1'::regclass;" | head -1
 }
 ONE_POLICY="subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)|"
-policies_of_subscriptions() {
+policies_of() { # table → every policy on it
   sql "select coalesce(string_agg(policyname || '|' || cmd || '|' || roles::text || '|' || coalesce(qual, '') || '|' || coalesce(with_check, ''), ' ; ' order by policyname), '(none)')
-         from pg_policies where schemaname = 'public' and tablename = 'subscriptions';" | head -1
+         from pg_policies where schemaname = 'public' and tablename = '$1';" | head -1
+}
+# THE CENSUS. A SECURITY DEFINER function writes past every revoke — and a
+# trigger function needs no EXECUTE privilege at all (a definer trigger on a
+# browser-written table that sets a tier stayed green under the first version
+# of this gate). So: every SECURITY DEFINER function in public whose body
+# names a listed table is on THIS list, whoever may execute it; a new one
+# reds until someone has read it and added its name here.
+DEFINER_ALLOWED="_purge_org_content claim_founding_seat commit_user_chat commit_user_nonro_upload commit_user_upload create_workspace delete_my_account handle_new_user handle_new_user_v2 increment_plan_chat_daily increment_user_usage release_user_chat release_user_nonro_upload release_user_upload reserve_user_chat reserve_user_nonro_upload reserve_user_upload reserve_user_upload_extra"
+# … and, where schema_phase_owner_plan.sql is applied, its four.
+DEFINER_ALLOWED_OWNER_PLAN="assign_internal_plan revoke_internal_plan subscriptions_audit_internal_tier_delete user_plan_is_unlimited"
+definer_allowed() {
+  local l="$DEFINER_ALLOWED"
+  [ "$(sql "select to_regproc('public.assign_internal_plan') is not null;")" = "t" ] && l="$l $DEFINER_ALLOWED_OWNER_PLAN"
+  echo $l | tr ' ' '\n' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//'
+}
+definer_census() {
+  local rx; rx="$(echo $ALL_TABLES | tr ' ' '|')"
+  sql "select coalesce(string_agg(n, ' ' order by n collate \"C\"), '(none)')
+         from (select distinct p.proname::text as n
+                 from pg_proc p
+                where p.pronamespace = 'public'::regnamespace and p.prosecdef
+                  and p.prosrc ~* ('\\m($rx)\\M')) q;" | head -1
+}
+# Every trigger on a table an API role can write runs one of THESE functions,
+# and none of them SECURITY DEFINER (an invoker trigger writes as the user,
+# and is refused where the user is). The list is of functions, not of
+# triggers: a new table's updated_at trigger is not a new door.
+TRIGGER_FUNCTIONS_ALLOWED="firm_attention_pin_era set_updated_at_now"
+trigger_census() {
+  sql "select coalesce(string_agg(n, ' ' order by n collate \"C\"), '(none)')
+         from (select distinct p.proname::text || case when p.prosecdef then '[SECURITY-DEFINER]' else '' end as n
+                 from pg_trigger t
+                 join pg_class c on c.oid = t.tgrelid
+                 join pg_proc p on p.oid = t.tgfoid
+                where not t.tgisinternal and c.relnamespace = 'public'::regnamespace
+                  and exists (select 1 from unnest(array['anon', 'authenticated']) r, unnest(array['INSERT', 'UPDATE', 'DELETE']) x
+                               where has_table_privilege(r, c.oid, x))) q;" | head -1
 }
 # Functions an API role may EXECUTE whose body names a listed table: a
 # SECURITY DEFINER function granted to `authenticated` writes past every
@@ -652,13 +810,26 @@ suite() { # state label
     check "$S L1 $t: row level security on, no non-select policy, anon nothing, authenticated no write" "$(catalog_of "$t")" "$want"
   done
   check "$S L2 subscriptions carries EXACTLY ONE policy: own row, SELECT, to authenticated" \
-    "$(policies_of_subscriptions)" "$ONE_POLICY"
+    "$(policies_of subscriptions)" "$ONE_POLICY"
+  check "$S L2b user_usage carries EXACTLY ONE policy: own row, SELECT, to authenticated" \
+    "$(policies_of user_usage)" "users_see_own_usage|SELECT|{authenticated}|(auth.uid() = user_id)|"
+  check "$S L2c plan_chat_daily_usage carries EXACTLY ONE policy: own row, SELECT, to authenticated" \
+    "$(policies_of plan_chat_daily_usage)" "plan_chat_daily_usage_own_select|SELECT|{authenticated}|(user_id = auth.uid())|"
   check "$S L3 no function an API role may call names a listed table, but the product's two" \
     "$(api_callable_functions)" "create_workspace,delete_my_account"
-  check "$S L4 the only view over a listed table an API role may use is the gate's own aggregate: SELECT only, not writable through" \
-    "$(api_views)" "$FIXTURE_VIEW invoker=false updatable=false anon:SELECT,authenticated:SELECT"
+  check "$S L3b THE CENSUS: every SECURITY DEFINER function in public whose body names a listed table is on the committed list, whoever may execute it" \
+    "$(definer_census)" "$(definer_allowed)"
+  check "$S L3c every trigger on a table an API role can write runs a function on the committed list, and none of them SECURITY DEFINER" \
+    "$(trigger_census)" "$TRIGGER_FUNCTIONS_ALLOWED"
+  check "$S L4 the only view over a listed table — directly or through another view — an API role may use is the gate's own aggregate: SELECT only, not writable through" \
+    "$(api_views)" "$FIXTURE_VIEW depth=1 invoker=false updatable=false anon:SELECT,authenticated:SELECT"
+  check "$S L4b no view in public, whatever it reads, on which anon or authenticated hold INSERT, UPDATE or DELETE" \
+    "$(writable_public_views)" "(none)"
 
   # ── W. every write to subscriptions is refused, and the row is byte-identical ──
+  check "$S W0 the per-column attacks are generated from the catalog: one per column of public.subscriptions (22 on 2026-10-03)" \
+    "$( [ "$NCOLS" -ge 22 ] && echo "covers $NCOLS columns" || echo "ONLY $NCOLS columns" )" "covers $NCOLS columns"
+  local fails_before_w="$FAILS"
   baseline
   while IFS='|' read -r label method path who body uid; do
     before="$(fp "$uid")"
@@ -684,6 +855,7 @@ suite() { # state label
     check "$S W  $label — refused, the row unchanged" "$got" "$want denied unchanged"
   done <<LIST
 $(attacks)
+$(column_attacks)
 LIST
   for label in "$NOROW_SOLD|multi" "$NOROW_OWNER|owner"; do
     take_row
@@ -692,6 +864,7 @@ LIST
     check "$S W  ${label%%|*} — refused, and there is still no row" "$got $(fp "$A")" "403 denied (no row)"
     return_row
   done
+  W_FAILS=$(( W_FAILS + FAILS - fails_before_w ))
 
   # ── R. what a signed-in user and anon can read ──
   baseline
@@ -702,6 +875,14 @@ LIST
   req GET "/rest/v1/subscriptions?select=user_id" "$ANON_KEY"
   check_has "$S R3 anon sees nothing: the read itself is refused" "$HTTP_STATUS $HTTP_BODY" "401 "
   check_has "$S R3b … with the table's own refusal" "$HTTP_BODY" "permission denied for table subscriptions"
+  req GET "/rest/v1/user_usage?select=user_id" "$ATK_TOKEN"
+  check "$S R4 a signed-in user reads their own document meter — and no other user's" "$HTTP_STATUS $HTTP_BODY" "200 [{\"user_id\":\"$A\"}]"
+  req GET "/rest/v1/plan_chat_daily_usage?select=user_id" "$ATK_TOKEN"
+  check "$S R5 … and their own chat counter — and no other user's" "$HTTP_STATUS $HTTP_BODY" "200 [{\"user_id\":\"$A\"}]"
+
+  # ── Y. the post-check the runbook gives the operator ──
+  check "$S Y1 the post-check report (…_preflight_report.sql, run READ ONLY) reads this catalog as fully_locked" \
+    "$(verdict_of)" "fully_locked hole_open=false stopgap_in_place=false fully_locked=true"
 
   # ── P. every legitimate writer still works ──
   # P1 the Stripe webhook's upsert (src/engine/api/_billing.py: on_conflict=user_id), service role.
@@ -800,8 +981,10 @@ out="$(state_a)"
 check "A0 state (a) is built: the two write policies, the default grants" \
   "$out|$(sql "select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'subscriptions';")|$(sql "select has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE'), has_table_privilege('anon', 'public.subscriptions', 'INSERT');")" \
   "|subscriptions self insert,subscriptions self select,subscriptions self update|t|t"
-# The hole, seen by this harness: without these three the suite below could
-# be refusing for a reason of its own.
+check "A0b the pre-flight report (…_preflight_report.sql, run READ ONLY) reads state (a) as hole_open" \
+  "$(verdict_of)" "hole_open hole_open=true stopgap_in_place=false fully_locked=false"
+# The hole, seen by this harness: without these the suite below could be
+# refusing for a reason of its own.
 baseline
 fire PATCH "$OWN" user '{"tier":"multi","status":"active"}'
 check "A1 in state (a) the hole is OPEN: a signed-in user PATCHes their own tier → multi, status → active" \
@@ -828,8 +1011,34 @@ if [ "$GRAPHQL" = 1 ]; then
 else
   skip "A3b … and through the GraphQL endpoint (/graphql/v1) the same write lands" "this stack serves no /graphql/v1"
 fi
+
+# ── K. IT WAITS FOR NO ONE. Another session holds a row lock on subscriptions
+# (the shape of an in-flight commit RPC); the file, sent as ONE batch, must
+# answer "lock timeout" in about 5 s — and have applied nothing.
+run_psql -c "begin; select 1 from public.subscriptions where user_id = '$A' for update; select pg_sleep(9); rollback;" >/dev/null 2>&1 &
+HOLDER=$!
+sleep 1
+k_t0=$(date +%s)
+apply_batch "$MIGRATION"
+k_dt=$(( $(date +%s) - k_t0 ))
+case "$APPLY_OUT" in
+  *"lock timeout"*) got="lock timeout" ;;
+  *) got="NO lock timeout: $(printf '%s' "$APPLY_OUT" | grep -E 'ERROR|verified' | head -2 | tr '\n' ' ')" ;;
+esac
+if [ "$k_dt" -le 7 ]; then got="$got, answered within 7 s"; else got="$got, answered after $k_dt s"; fi
+check "K1 with a row lock held on subscriptions by another session, the file — sent as one batch — answers 'lock timeout' in about 5 s instead of waiting" \
+  "$got" "lock timeout, answered within 7 s"
+check "K2 … and NOTHING was applied: the three policies and the write privilege are still there (one batch is one transaction)" \
+  "$(sql "select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'subscriptions';")|$(sql "select has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE');")" \
+  "subscriptions self insert,subscriptions self select,subscriptions self update|t"
+wait "$HOLDER" 2>/dev/null
+
 migrate "A4 the migration applies on state (a), with no error and no warning"
-check_has "A5 … and names what it dropped (the NOTICEs an operator reads)" "$APPLY_OUT" 'dropped policy "subscriptions self update" (UPDATE) on public.subscriptions'
+check_has "A5 … and its LAST RESULT is the row \`applied\`: verified" "$APPLY_OUT" \
+  '"verified": "every listed table is closed to anon and authenticated writes"'
+check_has "A5b … which names the policy it dropped — no NOTICE is needed to know what changed" "$APPLY_OUT" \
+  '{"cmd": "UPDATE", "table": "subscriptions", "policy": "subscriptions self update"}'
+check_has "A5c … and says it changed something" "$APPLY_OUT" '"changed_anything": true'
 suite "a"
 
 # ══ B. from state (b): the hand-applied stopgap ══════════════════════════
@@ -839,42 +1048,209 @@ check "B0 state (b) is built: the stopgap ran without an error" "$out" ""
 check "B1 the stopgap alone leaves anon's SELECT on subscriptions and the meters' write grants in place" \
   "$(sql "select has_table_privilege('anon', 'public.subscriptions', 'SELECT'), has_table_privilege('authenticated', 'public.user_usage', 'UPDATE'), has_table_privilege('anon', 'public.plan_chat_daily_usage', 'DELETE');")" \
   "t|t|t"
+check "B1b the pre-flight report reads state (b) as stopgap_in_place" \
+  "$(verdict_of)" "stopgap_in_place hole_open=false stopgap_in_place=true fully_locked=false"
 migrate "B2 the migration applies ON TOP of the stopgap: nothing errors on a missing policy or an already-revoked privilege"
 suite "b"
 
 # ══ C. from state (c): the migration's own result ════════════════════════
 migrate "C0 the migration applies a second time (idempotent)"
+got=""
+for frag in '"changed_anything": false' '"policies_dropped": []' '"policies_created": []' '"row_level_security_switched_on": []'; do
+  case "$APPLY_OUT" in *"$frag"*) got="$got ok" ;; *) got="$got MISSING($frag)" ;; esac
+done
+check "C1 the second run says so in its result row: changed_anything false, nothing dropped, nothing created, no table touched" "$got" " ok ok ok ok"
+apply_batch "$MIGRATION"
 case "$APPLY_OUT" in
-  *"dropped policy"*) fail "C1 the second run drops nothing (it found its own end state)" "$(echo "$APPLY_OUT" | grep 'dropped policy' | head -3)" ;;
-  *) pass "C1 the second run drops nothing (it found its own end state)" ;;
+  *ERROR*) got="$(printf '%s' "$APPLY_OUT" | grep ERROR | head -1)" ;;
+  *'"applied": true'*'"changed_anything": false'*) got="applied, changed nothing" ;;
+  *) got="no applied row: $(printf '%s' "$APPLY_OUT" | tail -1 | cut -c1-160)" ;;
 esac
+check "C1b sent as ONE multi-statement query — the way Studio's editor and the Management API send a file — it applies, and its last result is the row \`applied\`" \
+  "$got" "applied, changed nothing"
+out="$(in_rolled_back_txn "$(cat "$MIGRATION")
+select 'LOCK ' || c.relname || ' ' || l.mode
+  from pg_locks l join pg_class c on c.oid = l.relation
+ where l.pid = pg_backend_pid() and l.locktype = 'relation'
+   and c.relnamespace = 'public'::regnamespace and l.mode <> 'AccessShareLock'
+ order by 1;")"
+check "C2 a run that changes nothing takes NO lock above ACCESS SHARE on any table (it cannot stall a plan read)" \
+  "$(printf '%s\n' "$out" | grep -E '^LOCK|ERROR' | tr '\n' ' ')" ""
+# The repository's own files create the three kept policies. Re-running their
+# statements after the lockdown must re-create them exactly as it keeps them.
+rerun="$( { grep -E 'policy (if exists )?"subscriptions self' "$REPO/supabase/schema.sql"
+            sed -n '/drop policy if exists "users_see_own_usage"/,/using (auth.uid() = user_id);/p' "$REPO/supabase/schema_phase5_usage_limits.sql"
+            sed -n '/drop policy if exists "plan_chat_daily_usage_own_select"/,/using (user_id = auth.uid());/p' "$REPO/supabase/schema_phase_pricing_v2.sql"; } | grep -v '^[[:space:]]*--' )"
+out="$(sql "set client_min_messages = warning;
+$rerun")"
+apply_file "$MIGRATION"
+got="statements re-run: $(printf '%s\n' "$rerun" | grep -c 'create policy') create, $(printf '%s\n' "$rerun" | grep -c 'drop policy') drop; errors: $(printf '%s' "$out" | grep -c ERROR);"
+case "$APPLY_OUT" in *'"changed_anything": false'*) got="$got the next lockdown run changed nothing" ;; *) got="$got THE NEXT LOCKDOWN RUN CHANGED SOMETHING: $(printf '%s' "$APPLY_OUT" | grep -o '"policies_dropped": [^]]*]' | head -1)" ;; esac
+check "C3 re-running the repository's own policy statements (schema.sql, schema_phase5_usage_limits.sql, schema_phase_pricing_v2.sql) after the lockdown re-creates the three kept policies as it keeps them" \
+  "$got" "statements re-run: 3 create, 5 drop; errors: 0; the next lockdown run changed nothing"
 suite "c"
+
+# ══ Y. the read-only files the runbook hands the operator ════════════════
+out="$(read_only "$PREFLIGHT_GRIDS")"
+case "$out" in *ERROR*) got="ERROR: $(printf '%s' "$out" | grep ERROR | head -1)" ;; *) got="no error" ;; esac
+case "$out" in *"subscriptions|subscriptions self select|SELECT|PERMISSIVE|{authenticated}|(auth.uid() = user_id)|"*) got="$got, the policies grid" ;; esac
+case "$out" in *"create_workspace(text,text,text)|t|f|t"*) got="$got, the functions grid" ;; esac
+check "Y2 the pre-flight grids (…_preflight.sql) run whole inside a READ ONLY transaction" \
+  "$got" "no error, the policies grid, the functions grid"
+# The audit: a self-written row (written here with the service role, in the
+# shape the attack leaves), then the same with forged Stripe ids.
+sql "update public.subscriptions set tier = 'multi', status = 'active' where user_id = '$V';" >/dev/null
+out="$(read_only "$AUDIT_REPORT")"
+got=""
+case "$out" in *ERROR*) got="ERROR: $(printf '%s' "$out" | grep ERROR | head -1)" ;; *) got="no error" ;; esac
+case "$out" in *"\"user_id\": \"$V\""*'"tier set, no Stripe subscription"'*|*'"tier set, no Stripe subscription"'*"\"user_id\": \"$V\""*) got="$got, lists the row and why" ;; esac
+case "$out" in *@*) got="$got, AN @ IN THE OUTPUT" ;; *) got="$got, no email" ;; esac
+check "Y3 the audit report (…_audit_report.sql, READ ONLY) lists a self-written tier with no payment behind it" \
+  "$got" "no error, lists the row and why, no email"
+sql "update public.subscriptions set stripe_customer_id = 'cus_subsgate$RUN', stripe_subscription_id = 'sub_subsgate$RUN' where user_id = '$V';" >/dev/null
+out="$(read_only "$AUDIT_REPORT")"
+got=""
+case "$out" in *'"subscription_id_in_no_event": true'*) got="in the second list" ;; *) got="NOT in the second list" ;; esac
+case "$out" in *"subsgate$RUN"*) got="$got, A STRIPE ID VALUE IN THE OUTPUT" ;; *) got="$got, no Stripe id value" ;; esac
+check "Y4 … and the same row WITH forged Stripe ids of the right shape — which the first list cannot see — in stripe_ids_in_no_billing_event" \
+  "$got" "in the second list, no Stripe id value"
+out="$(in_rolled_back_txn "alter table public.founding_members rename to subs_gate_fm_away;
+alter table public.billing_events rename to subs_gate_be_away;
+$(cat "$AUDIT_REPORT")")"
+got=""
+case "$out" in *ERROR*) got="ERROR: $(printf '%s' "$out" | grep ERROR | head -1)" ;; *) got="no error" ;; esac
+case "$out" in *'"founding_members": false'*) got="$got, founding_members absent" ;; esac
+case "$out" in *'"billing_events": false'*) got="$got, billing_events absent" ;; esac
+check "Y5 … and it runs where founding_members and billing_events do not exist" \
+  "$got" "no error, founding_members absent, billing_events absent"
+baseline
+
+# ══ T. a grant, or a table, that is not the owner's to change ════════════
+# Each case is ONE transaction that is rolled back (the roles it creates
+# included): nothing here reaches another session or outlives the case.
+# The runner is NAMED in every role statement: on the local stack's Postgres
+# image (supabase/postgres 17.6.1.106) a GRANT of a role "to" the keyword
+# CURRENT_USER SEGFAULTS the backend — the whole cluster restarts (measured
+# twice, 2026-10-03, on the first draft of these cases). The named form does not.
+RUNNER="$(sql "select current_user;" | head -1)"
+RUNNER_ID="$(sql "select quote_ident(current_user);" | head -1)"
+t_grantor="create role subs_gate_grantor nologin;
+grant update, insert on public.subscriptions to subs_gate_grantor with grant option;
+grant subs_gate_grantor to $RUNNER_ID;
+set local role subs_gate_grantor;
+grant update on public.subscriptions to authenticated;
+grant insert on public.subscriptions to anon;
+reset role;
+revoke subs_gate_grantor from $RUNNER_ID;"
+out="$(in_rolled_back_txn "$t_grantor
+$(cat "$MIGRATION")")"
+got=""
+case "$out" in *"write lockdown INCOMPLETE — nothing was applied"*) got="INCOMPLETE" ;; *) got="NO INCOMPLETE ERROR" ;; esac
+case "$out" in *"authenticated still holds UPDATE — granted by subs_gate_grantor. Run: revoke update on public.subscriptions from subs_gate_grantor cascade;"*) got="$got, names the grantor and the statement" ;; esac
+case "$out" in *"anon still holds INSERT — granted by subs_gate_grantor. Run: revoke insert on public.subscriptions from subs_gate_grantor cascade;"*) got="$got, for anon too" ;; esac
+check "T1 a write privilege granted by ANOTHER role: the file raises, and each line ends with the statement that removes that grant" \
+  "$got" "INCOMPLETE, names the grantor and the statement, for anon too"
+remedy="$(remedies_of "$out")"
+out="$(in_rolled_back_txn "$t_grantor
+revoke update on public.subscriptions from authenticated;
+select 'OWNER-PLAIN-REVOKE ' || has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE');")"
+check_has "T1b … the owner's plain \`revoke update … from authenticated\` answers REVOKE and removes NOTHING (the trap the hint names)" \
+  "$out" "OWNER-PLAIN-REVOKE true"
+out="$(in_rolled_back_txn "$t_grantor
+$remedy
+$(cat "$MIGRATION")")"
+case "$out" in *ERROR*) got="ERROR: $(printf '%s' "$out" | grep -A3 ERROR | head -4 | tr '\n' ' ')" ;; *'"verified": "every listed table is closed to anon and authenticated writes"'*) got="verified" ;; *) got="no verified row" ;; esac
+check "T2 … and those statements, run as the owner, remove it: the file then passes" "$got" "verified"
+
+t_column="create role subs_gate_grantor nologin;
+grant update on public.subscriptions to subs_gate_grantor with grant option;
+grant subs_gate_grantor to $RUNNER_ID;
+set local role subs_gate_grantor;
+grant update (tier) on public.subscriptions to authenticated;
+reset role;
+revoke subs_gate_grantor from $RUNNER_ID;"
+out="$(in_rolled_back_txn "$t_column
+$(cat "$MIGRATION")")"
+check_has "T3 a COLUMN-level grant made by another role: named as that, with the two statements that remove it (a cascade at table level leaves it)" \
+  "$out" "authenticated still holds UPDATE on column tier — a column-level grant made by subs_gate_grantor. Run: grant update (tier) on public.subscriptions to subs_gate_grantor with grant option; revoke update (tier) on public.subscriptions from subs_gate_grantor cascade;"
+remedy="$(remedies_of "$out")"
+out="$(in_rolled_back_txn "$t_column
+$remedy
+$(cat "$MIGRATION")")"
+case "$out" in *ERROR*) got="ERROR: $(printf '%s' "$out" | grep -A3 ERROR | head -4 | tr '\n' ' ')" ;; *'"verified": "every listed table is closed to anon and authenticated writes"'*) got="verified" ;; *) got="no verified row" ;; esac
+check "T4 … and they remove it: the file then passes" "$got" "verified"
+
+t_member="create role subs_gate_group nologin;
+grant update on public.subscriptions to subs_gate_group;
+grant subs_gate_group to authenticated;"
+out="$(in_rolled_back_txn "$t_member
+$(cat "$MIGRATION")")"
+check_has "T5 a privilege INHERITED through a role membership: named as that — not as a column-level grant — with its statement" \
+  "$out" "authenticated still holds UPDATE — inherited through its membership in role subs_gate_group. Run: revoke update on public.subscriptions from subs_gate_group;"
+remedy="$(remedies_of "$out")"
+out="$(in_rolled_back_txn "$t_member
+$remedy
+$(cat "$MIGRATION")")"
+case "$out" in *ERROR*) got="ERROR: $(printf '%s' "$out" | grep -A3 ERROR | head -4 | tr '\n' ' ')" ;; *'"verified": "every listed table is closed to anon and authenticated writes"'*) got="verified" ;; *) got="no verified row" ;; esac
+check "T6 … and it removes it: the file then passes" "$got" "verified"
+
+if [ "$(sql "select rolsuper from pg_roles where rolname = current_user;")" = "f" ]; then
+  out="$(in_rolled_back_txn "create role subs_gate_owner nologin;
+grant subs_gate_owner to $RUNNER_ID;
+grant create on schema public to subs_gate_owner;
+alter table public.billing_events owner to subs_gate_owner;
+revoke subs_gate_owner from $RUNNER_ID;
+$(cat "$MIGRATION")")"
+  got=""
+  case "$out" in *"which does not own every listed table — nothing was applied"*) got="stops before any change" ;; *) got="DID NOT STOP: $(printf '%s' "$out" | grep ERROR | head -1)" ;; esac
+  case "$out" in *"public.billing_events is owned by subs_gate_owner. As subs_gate_owner (or a superuser) run: alter table public.billing_events owner to $RUNNER;"*) got="$got, names the table, its owner and the statement" ;; esac
+  check "T7 a listed table owned by ANOTHER role: the file stops before changing anything and says what Postgres' bare 'must be owner' does not" \
+    "$got" "stops before any change, names the table, its owner and the statement"
+else
+  skip "T7 a listed table owned by another role" "this stack runs the file as a superuser, who may act as any owner"
+fi
+check "T8 nothing of T outlived its transaction: no role, no grant, the table's owner" \
+  "$(sql "select (select count(*) from pg_roles where rolname like 'subs\_gate\_%'), has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE'), (select pg_get_userbyid(relowner) from pg_class where oid = 'public.billing_events'::regclass);")" \
+  "0|f|$RUNNER"
 
 # ══ D. from state (d): locked, then re-opened by hand under other names ══
 out="$(state_d)"
 check "D0 state (d) is built on the migration's result: a FOR ALL policy, a permissive read, a column-level grant, RLS off on a meter, anon re-granted" \
   "$out|$(sql "select string_agg(policyname || ' [' || cmd || ']', ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'subscriptions';")|$(sql "select has_column_privilege('authenticated', 'public.subscriptions', 'tier', 'UPDATE'), has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE'), (select relrowsecurity from pg_class where oid = 'public.plan_chat_daily_usage'::regclass), has_table_privilege('anon', 'public.founding_members', 'INSERT');")" \
   "|billing can write [ALL],everyone reads plans [SELECT],subscriptions self select [SELECT]|t|f|f|t"
+check "D0b the pre-flight report reads state (d) as hole_open" \
+  "$(verdict_of)" "hole_open hole_open=true stopgap_in_place=false fully_locked=false"
 baseline
 fire PATCH "$VIC" user '{"tier":"multi","status":"active"}'
 check "D1 in state (d) the hole is OPEN again, and wider: the attacker PATCHes ANOTHER user's tier → multi" \
   "$HTTP_STATUS $(show "$V" | cut -d' ' -f1-5)" "200 multi / professional / active"
 req GET "/rest/v1/subscriptions?select=user_id" "$ATK_TOKEN"
 check_has "D1b … and reads every user's plan row (the permissive read)" "$HTTP_STATUS $HTTP_BODY" "$V"
+req GET "/rest/v1/user_usage?select=user_id" "$ATK_TOKEN"
+check_has "D1c … and every user's document meter (a permissive read on user_usage)" "$HTTP_STATUS $HTTP_BODY" "$V"
 migrate "D2 the migration applies over the hand-made openings, with no error and no warning"
-check_has "D3 … and names the FOR ALL policy it dropped" "$APPLY_OUT" 'dropped policy "billing can write" (ALL) on public.subscriptions'
-check_has "D3b … and the permissive read — a second SELECT policy on subscriptions goes too" "$APPLY_OUT" 'dropped policy "everyone reads plans" (SELECT) on public.subscriptions'
-check_has "D3c … and the hand-made UPDATE policy on a meter" "$APPLY_OUT" 'dropped policy "users write own usage" (UPDATE) on public.user_usage'
+got=""
+for frag in '{"cmd": "ALL", "table": "subscriptions", "policy": "billing can write"}' \
+            '{"cmd": "SELECT", "table": "subscriptions", "policy": "everyone reads plans"}' \
+            '{"cmd": "UPDATE", "table": "user_usage", "policy": "users write own usage"}' \
+            '{"cmd": "SELECT", "table": "user_usage", "policy": "everyone reads usage"}' \
+            '"row_level_security_switched_on": ["plan_chat_daily_usage"]'; do
+  case "$APPLY_OUT" in *"$frag"*) got="$got ok" ;; *) got="$got MISSING($frag)" ;; esac
+done
+check "D3 … and its result row names each hand-made policy it dropped — the FOR ALL one, both permissive reads, the UPDATE on a meter — and the table it switched row level security back on for" \
+  "$got" " ok ok ok ok ok"
 suite "d"
 
 # ══ E. both orders against schema_phase_owner_plan.sql ═══════════════════
 if [ -f "$OWNER_PLAN_MIGRATION" ]; then
   apply_file "$OWNER_PLAN_MIGRATION"; rc=$?
   check "E0 schema_phase_owner_plan.sql applies AFTER the lockdown" "$rc" "0"
-  got=""
-  for t in $ALL_TABLES; do got="$got$(catalog_of "$t" | sed 's/ public=.*//; s/rls=true non-select-policies=0 //') "; done
-  check "E1 … and re-opens nothing: every listed table, plan_assignment_audit included, is closed" "$got" \
-    "anon=- authenticated=SELECT anon=- authenticated=SELECT anon=- authenticated=SELECT anon=- authenticated=- anon=- authenticated=- anon=- authenticated=- anon=- authenticated=- "
+  got=""; want=""
+  for t in $ALL_TABLES; do
+    got="$got$t:$(catalog_of "$t" | sed 's/ public=.*//; s/rls=true non-select-policies=0 //') "
+    if is_user_readable "$t"; then want="$want$t:anon=- authenticated=SELECT "; else want="$want$t:anon=- authenticated=- "; fi
+  done
+  check "E1 … and re-opens nothing: every listed table, plan_assignment_audit included, is closed" "$got" "$want"
   baseline; before="$(fp "$A")"
   fire PATCH "$OWN" user '{"tier":"multi","status":"active"}'
   check "E2 … a signed-in user's PATCH is still refused, the row unchanged" \
@@ -882,6 +1258,8 @@ if [ -f "$OWNER_PLAN_MIGRATION" ]; then
   migrate "E3 the lockdown applies AFTER schema_phase_owner_plan.sql (the other order)"
   check "E4 … and plan_assignment_audit is on its list: closed, row level security on" \
     "$(catalog_of plan_assignment_audit)" "rls=true non-select-policies=0 anon=- authenticated=- public=-"
+  check "E5 … and the post-check report still reads fully_locked" \
+    "$(verdict_of)" "fully_locked hole_open=false stopgap_in_place=false fully_locked=true"
 else
   skip "E the two files in both orders" "supabase/schema_phase_owner_plan.sql is not in this checkout (set SUBS_LOCKDOWN_OWNER_PLAN_MIGRATION to run it)"
 fi
@@ -894,9 +1272,14 @@ check "Z1 the gate's users, workspaces, counters, seats and its view are removed
                  (select count(*) from public.subscriptions where stripe_customer_id like 'cus_subsgate%'),
                  (select count(*) from pg_class where relname = '$FIXTURE_VIEW');")" "0|0|0|0"
 check "Z2 the stack is left CLOSED: one policy on subscriptions, no write privilege for an API role" \
-  "$(policies_of_subscriptions)|$(catalog_of subscriptions)" \
+  "$(policies_of subscriptions)|$(catalog_of subscriptions)" \
   "$ONE_POLICY|rls=true non-select-policies=0 anon=- authenticated=SELECT public=-"
 
+if [ "$W_FAILS" = 0 ]; then
+  echo "ATTACKS on public.subscriptions — $NNAMED of $NNAMED named attacks and $NCOLS of $NCOLS per-column writes (one per column, generated from pg_attribute) REFUSED, the row byte-identical, from each of the 4 starting states"
+else
+  echo "ATTACKS on public.subscriptions — $W_FAILS attack case(s) NOT refused across the 4 starting states"
+fi
 echo "GATE-WORK $GATE units=$UNITS"
 [ "$SKIPS" -gt 0 ] && echo "SKIPPED $SKIPS case(s) — NOT passes: each names what it needs (an object schema_phase_owner_plan.sql creates, or an endpoint this stack does not serve)"
 if [ "$FAILS" -gt 0 ]; then

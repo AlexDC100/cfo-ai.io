@@ -152,6 +152,8 @@ select jsonb_build_object(
               'stripe_event_names_user', s.stripe_event_names_user,
               'why_listed', to_jsonb(s.why_listed)) order by s.updated_at desc), '[]'::jsonb)
        from s where cardinality(s.why_listed) > 0),
+  'stripe_ids_in_no_billing_event_count',
+    (select count(*) from s where s.subscription_id_in_no_event or s.customer_id_in_no_event),
   'stripe_ids_in_no_billing_event', jsonb_build_object(
     'checked', (select p.billing_events from present p),
     'count', (select count(*) from s where s.subscription_id_in_no_event or s.customer_id_in_no_event),
