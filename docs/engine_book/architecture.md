@@ -106,7 +106,7 @@ graph LR
     pkg_api -->|3| pkg_journal
     pkg_api -->|1| pkg_obs
     pkg_api -->|1| pkg_passes
-    pkg_api -->|3| pkg_public
+    pkg_api -->|4| pkg_public
     pkg_api -->|1| pkg_public_market
     pkg_api -->|3| pkg_public_ro
     pkg_api -->|1| pkg_radar
