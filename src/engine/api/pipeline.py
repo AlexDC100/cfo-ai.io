@@ -3287,9 +3287,9 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 _record_takeover(doc.get("id"), staged=period_id, served=served_row["id"],
                                  superseded_document=served_row.get("source_document_id"))
             else:
-                # 2b. Genuinely new month — insert a fresh period row. If a
-                #     concurrent upload races to insert the same tuple, the
-                #     unique constraint raises and we re-select the winner.
+                # 2b. Genuinely new month — insert a fresh period row. If the
+                #     insert raises, only a row holding THIS document's own
+                #     tuple is adopted (see the `except` below).
                 try:
                     inserted = admin_client.insert(
                         "financial_periods",
@@ -3310,21 +3310,32 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                     # backs it (see `_rollback_period_of_failed_run`).
                     _record_period_minted(doc.get("id"), period_id)
                 except Exception:
-                    # Race-loser: another upload for this month won. Re-select
-                    # by (org_id, period_end) and reuse it — same replace
-                    # semantics as 2a.
-                    rows = admin_client.select(
+                    # The insert was refused, or it landed and its reply was
+                    # lost. ONLY this document's own tuple may be adopted —
+                    # the row this very insert left (as the staged branch
+                    # above does). This branch used to re-select by company
+                    # and month ALONE ("race-loser: another upload won"),
+                    # pin the document to ANOTHER document's row and rewrite
+                    # that row's line items and envelope in place: no
+                    # staging, no takeover, the other document's month under
+                    # this one's figures (measured 2026-10-04). With no row
+                    # of its own the run fails; the next entry finds the
+                    # month taken and stages beside it, as every same-month
+                    # upload does.
+                    own = admin_client.select(
                         "financial_periods",
                         filters={
                             "org_id": f"eq.{doc['org_id']}",
                             "period_end": f"eq.{period_end}",
+                            "source_document_id": f"eq.{doc['id']}",
                         },
-                        order="updated_at.desc",
                     )
-                    if not rows:
+                    if not own:
                         raise
-                    period_id = rows[0]["id"]
-                    prior_period_row = rows[0]
+                    period_id = own[0]["id"]
+                    # It is this run's insert: still the run's to take back
+                    # if a later stage fails (G4).
+                    _record_period_minted(doc.get("id"), period_id)
 
         # 3. Pin the document to the resolved period. Documents drive period
         #    ownership now — multiple docs per period.

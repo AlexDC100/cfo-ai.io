@@ -50,8 +50,6 @@ THE LAW.
   O12 Census: every `delete("financial_periods", …)` in the engine is one of
       the six sites stated here, each with its ownership rule.
 
-(O9–O12 — the sibling fixes — are driven from the commit that makes them.)
-
 STAGE 1 OF 3 (design of 2026-10-04). The reset and the in-memory carry are
 still production's; stage 2 replaces the reset with a re-run STAGED beside
 the document's own month (O5 then becomes "no delete at all"), stage 3 takes
@@ -694,3 +692,303 @@ def test_ownership_that_cannot_be_read_does_not_start_the_rerun(app, gw, monkeyp
     again = W._docs_panel_rerun(app, gw, w)
     assert again["status"] == "analyzed", (again["status"], again.get("error"))
     assert W._served_period(app, w["org"], again["period_id"])["briefing"]["body"] == W.BODY_A
+
+
+# ══════════════════════════════════════════════════════════════════════
+# O9 — the siblings: a deleted document is neither promoted nor moved
+# ══════════════════════════════════════════════════════════════════════
+
+_CORRECTIONS = {
+    "make_active": lambda db, row: PM.make_document_active(db, document=row, now=P._now_iso()),
+    "move_period": lambda db, row: PM.move_document_to_period(
+        db, document=row, target_period_end="2024-12", now=P._now_iso()),
+}
+
+
+@pytest.mark.parametrize("correction", sorted(_CORRECTIONS))
+def test_a_deleted_document_is_neither_promoted_nor_moved(app, gw, monkeypatch, correction):
+    """Measured on 7ca386ec with the superseded copy still ARCHIVED:
+    make-active wiped the month's line items, metrics, briefing and
+    valuations and re-pointed the month at the archived file — whose
+    correction re-run is then refused as DELETED, so nothing ever rebuilt
+    the month; move-period detached it and wrote its month hint. Every
+    analysis entry refuses a deleted document; so do the corrections, before
+    their first write."""
+    w = _superseded(app, gw, monkeypatch, [])
+    (row,) = copy.deepcopy(gw.docs(id=w["doc1"]))
+    assert row["deleted_at"] is not None
+    month_before = _month_view(app, gw, w["org"], w["month"])
+    state_before = gw.state()
+    spy = W._Spy(gw.db, monkeypatch)
+
+    with pytest.raises(PM.MoveRefused) as refused:
+        _CORRECTIONS[correction](gw.db, row)
+
+    assert refused.value.code == "document_deleted", refused.value.code
+    assert spy.writes == [], "%s of a deleted document wrote: %r" % (correction, spy.writes)
+    assert gw.state() == state_before
+    assert _month_view(app, gw, w["org"], w["month"]) == month_before
+
+    # CONTROL: the guard is about the DELETED state — the live owner of the
+    # month is still what make-active calls unchanged, and can still be moved.
+    (owner,) = copy.deepcopy(gw.docs(id=w["doc2"]))
+    if correction == "make_active":
+        assert PM.make_document_active(gw.db, document=owner, now=P._now_iso())["changed"] is False
+    else:
+        record = PM.move_document_to_period(gw.db, document=owner, target_period_end="2024-12", now=P._now_iso())
+        assert record["moved"] is True and record["from"]["action"] == "deleted", record
+
+
+# ══════════════════════════════════════════════════════════════════════
+# O10 — a move never deletes a period whose analysis is another document's
+# ══════════════════════════════════════════════════════════════════════
+
+MOVER = "0d0c0000-0000-4000-8000-0000000000a1"
+
+
+def _from_period(*, source: Optional[str], stamp: Optional[str], envelope: bool = True) -> Dict[str, Any]:
+    env = None  # type: Optional[Dict[str, Any]]
+    if envelope:
+        env = {"canonical_bs": {}}
+        if stamp:
+            env["provenance"] = {"source_document_id": stamp}
+    return {"id": OTHER_PID, "org_id": "org", "period_end": "2025-12-31",
+            "source_document_id": source, "assembled_canonical_v1": env}
+
+
+_STAYING = {"id": OTHER_DOC, "deleted_at": None, "status": "analyzed", "scope": "financial",
+            "created_at": "2026-01-01T00:00:00+00:00"}
+
+#: cell -> (the period the mover leaves, the live documents that stay, the action).
+_PLAN_CELLS = {
+    # nobody live stays behind
+    "alone_and_the_period_is_the_movers": (_from_period(source=MOVER, stamp=MOVER), [], "deleted"),
+    "alone_and_the_pointer_alone_names_the_mover": (_from_period(source=MOVER, stamp=None, envelope=False), [], "deleted"),
+    "alone_and_only_the_stamp_names_the_mover": (_from_period(source=None, stamp=MOVER), [], "deleted"),
+    "alone_in_an_empty_container": (_from_period(source=None, stamp=None, envelope=False), [], "deleted"),
+    "alone_and_the_period_is_another_documents": (_from_period(source=OTHER_DOC, stamp=OTHER_DOC), [], "kept"),
+    "alone_and_the_stamp_names_another_document": (_from_period(source=None, stamp=OTHER_DOC), [], "kept"),
+    "alone_and_the_pointer_names_another_document": (_from_period(source=OTHER_DOC, stamp=None, envelope=False), [], "kept"),
+    "alone_beside_an_analysis_that_names_nobody": (_from_period(source=None, stamp=None), [], "kept"),
+    # somebody stays (unchanged rules)
+    "leaving_siblings_and_the_analysis_is_the_movers": (_from_period(source=MOVER, stamp=MOVER), [_STAYING], "rebuilt"),
+    "leaving_siblings_and_the_analysis_is_theirs": (_from_period(source=OTHER_DOC, stamp=OTHER_DOC), [_STAYING], "kept"),
+}  # type: Dict[str, Tuple[Dict[str, Any], List[Dict[str, Any]], str]]
+
+
+@pytest.mark.parametrize("cell", sorted(_PLAN_CELLS))
+def test_the_plan_deletes_the_period_left_behind_only_when_it_is_the_movers(cell):
+    """`plan_move`, pure. With nobody live staying, the period the mover
+    leaves used to be "deleted" whatever it held — also when its analysis is
+    a document's that sits in "Recently deleted" (restorable for 30 days)."""
+    from_period, siblings, action = _PLAN_CELLS[cell]
+    plan = PM.plan_move(document={"id": MOVER}, from_period=from_period, siblings=siblings,
+                        target_period_end="2024-12-31")
+    assert plan.moved is True and plan.source_action == action, (cell, plan)
+    assert plan.rebuild_document_id == (OTHER_DOC if action == "rebuilt" else None), plan
+
+
+def test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin(app, gw, monkeypatch):
+    """Measured on 7ca386ec: the month's own document (doc2) soft-deleted,
+    the restored superseded copy (doc1) moved to another month — the month's
+    period, doc2's analysis, was hard-deleted with its line items, metrics,
+    briefing and valuations, and restoring doc2 then served nothing. The
+    period is KEPT; restoring its document serves the month again."""
+    w = _superseded_then_restored(app, gw, monkeypatch, [])
+    month_before = _month_view(app, gw, w["org"], w["month"])
+    r = V._http(app).delete("/api/documents/%s" % w["doc2"], headers=V._headers(V.USER, w["org"]))
+    assert r.status_code == 200, r.text[:300]
+    assert [p["id"] for p in gw.db.rows("financial_periods")] == [w["month"]]
+    rows_before = V._rows_under(gw, w["month"])
+    (row,) = copy.deepcopy(gw.docs(id=w["doc1"]))
+    spy = W._Spy(gw.db, monkeypatch)
+
+    record = PM.move_document_to_period(gw.db, document=row, target_period_end="2024-12", now=P._now_iso())
+
+    assert record["moved"] is True and record["from"] == {
+        "period_id": w["month"], "period_end": "2025-12-31", "action": "kept"}, record
+    assert [x for x in spy.writes if x["op"] == "delete"] == [], \
+        "the move deleted under a period that is another document's: %r" % spy.writes
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == w["month"] and period["source_document_id"] == w["doc2"], period
+    assert V._rows_under(gw, w["month"]) == rows_before
+    # The mover itself was detached and given its month, as a move does.
+    (d1,) = gw.docs(id=w["doc1"])
+    assert d1["period_id"] is None and d1["period_end_hint"] == "2024-12-31", d1
+
+    _restore(app, gw, w["org"], w["doc2"])
+    assert _month_view(app, gw, w["org"], w["month"]) == month_before, \
+        "restoring the month's own document does not serve the month as it was"
+
+
+def test_a_move_that_does_delete_the_emptied_period_names_its_company(app, gw, monkeypatch):
+    """The mover's OWN period, nobody else attached: deleted, as before —
+    and the DELETE names the company (it ran by id alone)."""
+    w = _own_month(app, gw, monkeypatch, [])
+    (row,) = copy.deepcopy(gw.docs(id=w["doc1"]))
+    spy = W._Spy(gw.db, monkeypatch)
+
+    record = PM.move_document_to_period(gw.db, document=row, target_period_end="2024-12", now=P._now_iso())
+
+    assert record["from"]["action"] == "deleted", record
+    assert [x["filters"] for x in spy.writes if x["op"] == "delete" and x["table"] == "financial_periods"] == [
+        {"id": "eq.%s" % w["month"], "org_id": "eq.%s" % w["org"]}], spy.writes
+    assert gw.db.rows("financial_periods") == []
+
+
+# ══════════════════════════════════════════════════════════════════════
+# O11 — the run whose period insert failed adopts only its own row
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _fresh_upload(app, gw, monkeypatch) -> Dict[str, Any]:
+    _production_foreign_keys(gw, monkeypatch)
+    out = V.one_tap(app, V.agras_workbook(), "balanta.xlsx")
+    assert gw.db.rows("financial_periods") == []
+    return {"doc": out["commit"]["document_id"], "org": out["commit"]["org_id"]}
+
+
+def test_a_run_whose_period_insert_was_refused_never_writes_into_another_documents_period(
+        app, gw, monkeypatch):
+    """`stage_persist`, the new-month branch. The insert is refused (a
+    timeout) and by then ANOTHER document's row holds the month — an upload
+    that won the race. The old "race-loser" re-selected by company and month
+    alone, pinned this document to that row and rewrote its line items and
+    envelope IN PLACE: another document's analysis under its name, with no
+    staging and no takeover. The run fails; the other row is untouched."""
+    u = _fresh_upload(app, gw, monkeypatch)
+    real_insert = gw.db.insert
+    raced = []  # type: List[Any]
+
+    def insert(table: str, *args: Any, **kwargs: Any) -> Any:
+        if table == "financial_periods" and not raced:
+            raced.append(copy.deepcopy(args[0]))
+            month = args[0]["period_end"]
+            gw.db.add("documents", {"id": OTHER_DOC, "org_id": u["org"], "status": "analyzed",
+                                    "period_id": OTHER_PID, "scope": "financial",
+                                    "original_filename": "balanta_castigatoare.xlsx"})
+            gw.db.add("financial_periods", {
+                "id": OTHER_PID, "org_id": u["org"], "source_document_id": OTHER_DOC, "currency": "RON",
+                "period_start": month, "period_end": month,
+                "assembled_canonical_v1": {"provenance": {"source_document_id": OTHER_DOC}}})
+            gw.db.add("statement_line_items", {"period_id": OTHER_PID, "statement": "pl", "bucket": "revenue",
+                                               "ro_account_code": "707", "amount": 123.0})
+            raise httpx.ReadTimeout("The read operation timed out")
+        return real_insert(table, *args, **kwargs)
+
+    monkeypatch.setattr(gw.db, "insert", insert)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    failed = V.run_analysis(gw, u["doc"])
+
+    assert raced, "the scenario never happened: no period insert was refused"
+    (other,) = gw.db.rows("financial_periods")
+    assert other["id"] == OTHER_PID and other["source_document_id"] == OTHER_DOC and \
+        other["assembled_canonical_v1"] == {"provenance": {"source_document_id": OTHER_DOC}}, \
+        "the run rewrote another document's period: %r" % other
+    assert [x["amount"] for x in gw.db.rows("statement_line_items")] == [123.0], \
+        "the run rewrote another document's line items"
+    touching = [x for x in spy.writes if OTHER_PID in json.dumps([x["payload"], x["filters"]], default=str)]
+    assert touching == [], "the run wrote into another document's period: %r" % touching
+    assert failed["status"] == "failed" and failed["period_id"] is None, (failed["status"], failed["period_id"])
+
+
+@pytest.mark.parametrize("then", ["the_run_succeeds", "the_run_fails"])
+def test_a_run_whose_own_period_insert_landed_with_its_reply_lost_adopts_its_own_row(app, gw, monkeypatch, then):
+    """CONTROL of the law above: the insert LANDED and only its reply was
+    lost. The row that holds this document's own tuple is this run's — it is
+    adopted (one period, the document's), and it is still the run's to take
+    back if a later stage fails (G4: no period without an analysed file)."""
+    u = _fresh_upload(app, gw, monkeypatch)
+    lost = W._refuse_once(gw, monkeypatch, "insert", "financial_periods", land=True)
+    if then == "the_run_fails":
+        def _boom(*a: Any, **kw: Any) -> Any:
+            raise RuntimeError("compute failed")
+
+        monkeypatch.setattr(P, "stage_compute", _boom)
+
+    doc = V.run_analysis(gw, u["doc"])
+
+    assert lost, "the scenario never happened"
+    if then == "the_run_succeeds":
+        assert doc["status"] == "analyzed", (doc["status"], doc.get("error"))
+        (period,) = gw.db.rows("financial_periods")
+        assert period["source_document_id"] == u["doc"] and doc["period_id"] == period["id"], period
+        assert V._served(app, u["org"], period["id"])["source_document"] == u["doc"]
+    else:
+        assert doc["status"] == "failed", doc["status"]
+        assert gw.db.rows("financial_periods") == [], "the failed run left the period it had inserted"
+        assert empty_live_periods(gw.db.tables) == []
+
+
+# ══════════════════════════════════════════════════════════════════════
+# O12 — census: who may delete a period, and by what rule
+# ══════════════════════════════════════════════════════════════════════
+
+#: (file under src/engine, function) -> (the ownership rule the site states,
+#: the columns its filter must name). A NEW site is red until it is added
+#: here with its rule — and every rule names the company.
+PERIOD_DELETE_SITES = {
+    ("api/pipeline.py", "_retry_rerun"): (
+        "the re-run's reset: only a period `_own_periods_for_rerun` read as this document's, and "
+        "the DELETE itself names the source (is.null for a legacy-own row); re-read afterwards",
+        ("id", "org_id", "source_document_id")),
+    ("api/pipeline.py", "_rollback_period_of_failed_run"): (
+        "the period THIS failed run inserted, still naming the document, no other document pinned",
+        ("id", "org_id", "source_document_id")),
+    ("api/pipeline.py", "_finalize_same_month_takeover"): (
+        "the STAGED row of this run, after its rows moved onto the month", ("id", "org_id")),
+    ("api/pipeline.py", "_maybe_drop_empty_period"): (
+        "a period NO document, live or deleted, is pinned to; never in an archived workspace",
+        ("id", "org_id")),
+    ("api/pipeline.py", "delete_period"): (
+        "the user's explicit 'clear period' on a period of a company they are a member of",
+        ("id", "org_id")),
+    ("api/_period_move.py", "move_document_to_period"): (
+        "the period a moved document leaves, only when `plan_move` says it is the mover's own "
+        "analysis or an empty container", ("id", "org_id")),
+}  # type: Dict[Tuple[str, str], Tuple[str, Tuple[str, ...]]]
+
+
+def _period_delete_sites() -> Dict[Tuple[str, str], List[ast.Call]]:
+    found = {}  # type: Dict[Tuple[str, str], List[ast.Call]]
+    for path in sorted(ENGINE_SRC.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        stack = []  # type: List[str]
+
+        def walk(node: ast.AST) -> None:
+            named = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            if named:
+                stack.append(node.name)  # type: ignore[attr-defined]
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "delete" and node.args
+                    and isinstance(node.args[0], ast.Constant) and node.args[0].value == "financial_periods"):
+                key = (path.relative_to(ENGINE_SRC).as_posix(), stack[-1] if stack else "<module>")
+                found.setdefault(key, []).append(node)
+            for child in ast.iter_child_nodes(node):
+                walk(child)
+            if named:
+                stack.pop()
+
+        walk(tree)
+    return found
+
+
+def test_census_every_delete_of_a_period_is_a_stated_site_with_its_ownership_rule():
+    """A period is deleted in six places and nowhere else; a seventh is red
+    until somebody states whose period it may delete. Each site's DELETE
+    names the company, and the two that act for ONE document name the
+    document the period must still be the analysis of."""
+    found = _period_delete_sites()
+    assert len(found) >= 6, "the census finds %d site(s): the walk is broken" % len(found)
+    assert set(found) == set(PERIOD_DELETE_SITES), (
+        "delete(\"financial_periods\", …) sites differ from the stated table.\n  unclassified: %s\n  gone: %s"
+        % (sorted(set(found) - set(PERIOD_DELETE_SITES)), sorted(set(PERIOD_DELETE_SITES) - set(found))))
+    for key, calls in sorted(found.items()):
+        _rule, columns = PERIOD_DELETE_SITES[key]
+        for call in calls:
+            filters = next((k.value for k in call.keywords if k.arg == "filters"), None)
+            rendered = ast.dump(filters) if filters is not None else ""
+            missing = [c for c in columns if "'%s'" % c not in rendered]
+            assert not missing, "%s:%d (%s): the DELETE's filter does not name %s" % (
+                key[0], call.lineno, key[1], missing)

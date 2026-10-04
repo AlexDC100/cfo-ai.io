@@ -282,7 +282,22 @@ def plan_move(
     ]
 
     if not remaining:
-        action, rebuild = "deleted", None
+        # Nobody LIVE stays attached. The period goes only when what it
+        # holds is the mover's own analysis, or nothing at all (a container
+        # that names no source and carries no envelope). An analysis that is
+        # ANOTHER document's stays — its document can be in "Recently
+        # deleted", restorable for 30 days, and this branch used to hard-
+        # delete the month it would be restored to (measured 2026-10-04:
+        # the month's own file in the bin, a restored superseded copy moved
+        # away, the month's line items, metrics, briefing and valuations
+        # gone). `find_orphaned_snapshots` reports such a period as having
+        # no live document, which is true; it is the restore's to serve.
+        empty_container = (not from_period.get("source_document_id")
+                           and not isinstance(from_period.get("assembled_canonical_v1"), dict))
+        if analysis_belongs_to(from_period, document_id) or empty_container:
+            action, rebuild = "deleted", None
+        else:
+            action, rebuild = "kept", None
     elif analysis_belongs_to(from_period, document_id):
         action, rebuild = "rebuilt", pick_rebuild_document(remaining)
     else:
@@ -442,6 +457,7 @@ def move_document_to_period(
     org_id = str(document.get("org_id") or "")
     if not document_id or not org_id:
         raise MoveRefused("invalid_document", "Document is missing id or org.")
+    _refuse_deleted(document)
 
     from_period = _period_row(client, document.get("period_id"), org_id=org_id)
     siblings = _live_siblings(client, from_period, document_id)
@@ -478,8 +494,12 @@ def move_document_to_period(
     if plan.source_action == "deleted" and plan.source_period_id:
         for table in _DERIVED_TABLES + _USER_INPUT_TABLES:
             _safe_delete(client, table, plan.source_period_id)
+        # The company is named in the filter as well as on the row
+        # `_period_row` checked: under the service role the filter IS the
+        # access control, at every delete of a period.
         client.delete(
-            "financial_periods", filters={"id": "eq.%s" % plan.source_period_id}
+            "financial_periods",
+            filters={"id": "eq.%s" % plan.source_period_id, "org_id": "eq.%s" % org_id},
         )
     elif plan.source_action == "rebuilt" and plan.source_period_id:
         for table in _DERIVED_TABLES:
@@ -534,6 +554,7 @@ def make_document_active(
     document_id = str(document.get("id") or "")
     org_id = str(document.get("org_id") or "")
     period_id = document.get("period_id")
+    _refuse_deleted(document)
     if not period_id:
         raise MoveRefused(
             "not_in_a_period",
@@ -577,6 +598,22 @@ def make_document_active(
 
 
 # ── small helpers ─────────────────────────────────────────────────────
+
+
+def _refuse_deleted(document: Dict[str, Any]) -> None:
+    """A DELETED document is neither moved nor promoted — refused before the
+    first write.
+
+    Both corrections end in a re-run of the document, and every analysis
+    entry refuses a deleted one (`_doc_dedupe.enter_analysis`: DELETED /
+    DUPLICATE). So the correction did its destructive half — make-active
+    wiped the period's line items, metrics, briefing and valuations and
+    re-pointed it at the deleted file; move-period detached the file and
+    deleted or rebuilt the period it left — and the half that rebuilds
+    never ran (measured 2026-10-04 on a superseded, archived upload still
+    pinned to its month: the month was emptied for good)."""
+    if document.get("deleted_at"):
+        raise MoveRefused("document_deleted", "This file was deleted. Restore it first.")
 
 
 def _period_row(client: Any, period_id: Any, *, org_id: str) -> Optional[Dict[str, Any]]:
