@@ -2705,12 +2705,29 @@ def _engine_gates() -> List[Gate]:
         # call. The seven other narration languages byte for byte. Runs
         # under `-p netblock`; its last law SKIPS without the plugin, and
         # a junit gate counts tests minus skips — so the floor is the
-        # number of laws (measured 261). Blind to: what a model writes;
-        # rows stored before the release; a lone group left by design.
+        # number of laws (measured 357).
+        #
+        # FIX ROUND (two reviews, 2026-10-05, both "do not ship"): the
+        # gate compared DIGITS and nothing else, so a currency moved onto
+        # the wrong number passed every law — "EUR 1.5-2.5M" came back
+        # "1,5 EUR-2,5 mil.", "RON 4.58 mil" came back "4,58 RON mil",
+        # "EUR 12 300 000" came back "12 EUR 300 000". Now: E11 an
+        # INDEPENDENT reader (tests/engine/_figure_reader.py) reads every
+        # figure's amount, currency, sign and unit before and after —
+        # over the corpus's hand-typed strings, the grid and a grammar of
+        # 152,640 code-first amounts; E12 a text holding a lone
+        # three-digit group is returned WHOLE (never half rewritten); E13
+        # a composed set of 12,000 texts whose sha256 digest the
+        # browser's twin must reproduce; E14 the run-time proof refuses a
+        # changed magnitude, a dropped sign, a code on another number.
+        # Blind to: what a model writes; rows stored before the release;
+        # a non-figure re-spelt because a currency or unit stands beside
+        # it ("Versiunea 2.1 RON"); a text HELD as written (counted — it
+        # still holds the model's notation).
         Gate("ai-figures-engine",
              [PY, "-m", "pytest", "-p", "netblock",
               "tests/engine/test_ai_figure_format.py", "-q"],
-             work_junit=True, floor=261, units="tests",
+             work_junit=True, floor=357, units="tests",
              canaries=("test_e3_the_detector_is_the_frontends_every_pattern_is_read_out_of_its_file_and_compiles",
                        "test_e2_the_standard_and_the_hint_examples_are_what_lib_money_prints",
                        "test_the_corpus_is_what_it_says_it_is",
@@ -2719,6 +2736,14 @@ def _engine_gates() -> List[Gate]:
                        "test_e1_a_lone_three_digit_group_is_never_guessed_with_or_without_handed_figures",
                        "test_e1_handed_figures_change_nothing_but_bare_decimals_and_bare_groups",
                        "test_e1_the_run_time_proof_refuses_a_result_whose_digits_differ",
+                       "test_e11_the_independent_reader_sees_a_figure_bound_to_something_else",
+                       "test_e11_the_grammar_no_code_first_amount_is_bound_to_anything_else_after_the_pass",
+                       "test_e11_the_reviews_sentences_come_back_as_written_and_counted",
+                       "test_e11_joiners_the_product_did_not_write_are_read_as_spaces_and_kept_as_bytes",
+                       "test_e12_a_text_holding_a_lone_group_is_returned_whole_whatever_else_it_holds",
+                       "test_e12_the_narrator_holds_each_prose_field_on_its_own",
+                       "test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_twin_digest_holds",
+                       "test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_another_number",
                        "test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_format",
                        "test_e4_a_ratio_the_model_was_handed_is_proved_a_figure_one_it_was_not_handed_is_left",
                        "test_e5_the_regenerate_route_stores_answers_and_serves_what_the_narrator_returned",
@@ -2762,11 +2787,24 @@ def _engine_gates() -> List[Gate]:
         # Every output is read by frontend/test/numberLanguage.ts, never
         # by the normaliser. No test calls a model. The prompt pins are
         # chat-cap-always's (moved on purpose, no pin value changed).
-        # Measured 574 tests. Blind to: what a model writes; a token left
-        # by design (a lone group passes every law and the detector); the
-        # deployed function's source; the report page and the exports; a
-        # bundle older than the release. Plant log:
-        # docs/engine_book/gates.md.
+        #
+        # FIX ROUND (2026-10-05): a text holding a lone three-digit group
+        # is stored and shown WHOLE, as the model wrote it; the composed
+        # set's digest equals the engine's (a rule changed in one runtime
+        # moves one digest); the run-time proof holds magnitudes, signs
+        # and currency bindings; a Spanish or Portuguese text is not
+        # Romanian for sharing "este" and "dar" (read as Romanian, its
+        # "12,3M" became "12,3 mil." — twelve THOUSAND there); a Romanian
+        # label list is not English for one English gloss; thin evidence
+        # of a text's language is never followed against the question;
+        # the card shows a narration stamped in another language as
+        # served; a figure inside a link label and a reply that is one
+        # bare figure are corpus cases.
+        # Measured 765 tests. Blind to: what a model writes; a text HELD
+        # as written (counted; it still holds the model's notation); a
+        # token left by design; the deployed function's source; the
+        # report page and the exports; a bundle older than the release.
+        # Plant log: docs/engine_book/gates.md.
         Gate("ai-figures",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/chatLlmFigureFormat.test.ts",
@@ -2775,7 +2813,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/explainFigures.test.ts",
               "frontend/components/cfo/__tests__/briefingCardFigures.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=560,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=755,
              units="figure-format tests", no_skips=True,
              canaries=("GATE-WORK ai-figures-standard grid=984 lone=120 examples=12",
                        "POSITIVE CONTROL: it sees the shapes the base patterns cannot",
@@ -2799,12 +2837,23 @@ def _engine_gates() -> List[Gate]:
                        "ro: a lone three-digit group comes back byte-identical",
                        "en: a lone three-digit group comes back byte-identical",
                        "handed figures change nothing but bare decimals and bare groups",
+                       "every figure of it stays as the model wrote it, counted",
+                       "a lone group with nothing to rewrite beside it holds nothing",
+                       "the digest is the one the engine's twin produces",
+                       "the composition is deterministic and varied, and holds the review's shapes",
+                       "the structure reader sees a magnitude read as another, a dropped sign",
+                       "with the proof blinded a rule that loses a sign changes what is shown",
                        "984 rows: 864 rewritten to the print byte for byte",
                        "FIGURE_STANDARD equals standard.json",
                        "de: a narration in another language is not changed by a byte",
                        "pl: a narration in another language is not changed by a byte",
                        "a text too short to tell is not touched on its own",
                        "an English answer that quotes Romanian terms is English",
+                       "no word Spanish, Portuguese or Italian shares makes a text Romanian",
+                       "with one English gloss, is NOT read as English",
+                       "thin evidence of a text's own language is followed only where the caller does not say otherwise",
+                       "es: a narration in another language is not changed by a byte",
+                       "pt: a narration in another language is not changed by a byte",
                        "the UI language decides nothing",
                        "no separator is ever inserted into a plain integer",
                        "reads the figures the model was handed, skips dates and bare integers",
@@ -2815,6 +2864,11 @@ def _engine_gates() -> List[Gate]:
                        "the snapshot's figures reach the pass",
                        "a reply too short to tell its language takes the QUESTION's",
                        "what the pipeline logs about a reply is its language and COUNTS by reason",
+                       "Spanish and Portuguese share words with Romanian, not its format",
+                       "a correct Romanian reply written as labels with one English gloss keeps its right figures",
+                       "figure-in-a-link-label",
+                       "reply-that-is-one-handed-amount",
+                       "lone-group-holds-the-whole-text",
                        "the incident's reply, alone in a conversation",
                        "a failed and an interrupted turn holding the SAME digits are not touched",
                        "a freshly arrived reply TYPES OUT in the reader's format",
@@ -2827,6 +2881,7 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK ai-figures-explain answers=",
                        "an answer CACHED BEFORE the release",
                        "the answer's OWN language wins over the one that was asked for",
+                       "a correct Romanian answer written as labels, with one English gloss, keeps its right figures",
                        "an empty answer: the template, byte for byte",
                        "the prompt the function builds for it holds no figure-format rule and no digit example of it",
                        # the briefing card
@@ -2838,7 +2893,8 @@ def _engine_gates() -> List[Gate]:
                        "the card's own decisions read the SERVED bytes",
                        "the source: ONE call of the pass",
                        "an engine that predates the release answers a Romanian narration in EUR",
-                       "the language the engine SAYS it narrated in is trusted")),
+                       "the language the engine SAYS it narrated in is trusted",
+                       "a Spanish one too, though it shares words with Romanian")),
         # ── end of lane ai-figures ───────────────────────────────────────
         # ── period-verdict-served (production, 2026-10-04) ───────────────
         # A signed-in reader's dashboard said "nothing analysed here yet"

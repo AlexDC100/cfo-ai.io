@@ -30501,3 +30501,240 @@ long unbroken run made quadratic again; chat search losing the joiners.
   Both fold the joiners (one character for one);
 - no locale key was added; `pages/cfo/Chat.tsx` (the snapshot), `lib/cfoApi.ts`,
   `lib/briefingDefinition.ts` and everything under `instrument/shell/capsuleAnswer/` are untouched.
+
+### ai-figures / ai-figures-engine — the fix round after two reviews (2026-10-05)
+
+Two independent reviews read the lane (lenses: *values and the engine*; *what the reader sees*).
+Both said **do not ship**. Each blocking and high finding was reproduced first, on `9bd6f2e0`, with
+the reviewer's own sentences (`run_defects.py` against the worktree: the output was the reviewer's
+transcript byte for byte), then repaired in BOTH twins, then held by a law whose plant is below.
+
+**What was wrong — and that both gates were green on it.** The gates compared DIGITS. Every one of
+these kept every digit:
+
+| the model wrote | the pass returned (stored, shown, sent back as history) | what changed |
+|---|---|---|
+| `EUR 1.5-2.5M` | `1,5 EUR-2,5 mil.` | the first bound lost its magnitude, the second its currency |
+| `între EUR 40 și 55 milioane` | `între 40 EUR și 55 milioane` | 40 million became 40 |
+| `RON 4.58 mil` / `EUR 1 milion` / `RON 4.58 M` | `4,58 RON mil` / `1 EUR milion` / `4,58 RON M` | the code between a number and its magnitude |
+| `EUR 12 300 000` (plain, U+00A0 or U+202F spaces) | `12 EUR 300 000` | the code inside the number |
+| `la 31.12 RON 5.2M` | `la 31,12 RON 5,2 mil.` | a date re-spelt as an amount, the code taken as its currency |
+| `CAD $7.5M` / `$7.5M CAD` | `CAD 7,5 mil. USD` / `7,5 mil. USD CAD` | another dollar named USD |
+| `conturile 28,281,291` | `conturile 28.281.291` | a list of accounts printed as one number |
+| `… RON 110,…,309.14 … RON 11.8M (10.7%) … RON 386,102` | everything Romanian **but** `RON 386,102` | the one lone group now reads 386 lei among Romanian figures |
+| a Spanish reply: `ingresos de 12,3M EUR` | `ingresos de 12,3 mil. EUR` | read as Romanian for "este" and "dar"; "mil" is a THOUSAND in Spanish |
+| a correct Romanian label list with one English gloss | every right figure re-spelt in English | two English function words decided the language |
+
+With six such outputs typed in as corpus cases' `expected`, every law of both gates passed (the
+review's experiment). That is the gate's defect, and the first thing repaired.
+
+**The rule now** (both twins; `figure_format.py` / `readerFigures.ts` say it in their headers):
+
+- **A code moves only behind an amount read to its end.** A range or a list (`-`, `–`, `și`, `and`,
+  `to`, `sau`, `or`, a comma; `la` after an opener or before a number that carries the magnitude), a
+  number that goes on (a space, U+00A0, U+202F or an apostrophe and more digits), a magnitude the
+  standard does not print (`mil`, `mld`, `M` after a space, `milion`, `trillion`, `mio.` …), another
+  currency named beside it (`CAD`, `(AUD)`), anything but closing punctuation against the number:
+  the WHOLE expression is left exactly as written and counted once, `open_amount`.
+- **A code between two numbers is neither one's** (`31.12 RON 5.2M`, `3M RON 5.2M`, `0.19 milioane
+  USD 1.5M`, `31.12-RON 1.234.567`): both are left, counted `open_amount`. After a plain year it is
+  the next figure's (`În 2025 RON 64.5M` → `În 2025 64,5 mil. RON`).
+- **A "$" the reply names another dollar for is not written USD** (`CAD $7.5M` → `CAD $7,5 mil.`).
+- **A code that stays before its figure is counted** (`code_before`): after a rate word, before a
+  percentage, behind two spaces / a tab / an en dash / a bracket / emphasis marks.
+- **A run of groups with no decimal part is a figure only with evidence** — something beside it, or
+  a handed figure (and never after a reference word). `28,281,291` and an IP address stay.
+- **Never half a text.** A text that holds a lone three-digit group AND figures the pass would
+  rewrite is returned WHOLE, byte for byte, counted `text_held`. Per text: a briefing, each
+  recommendation field, each chat reply.
+- **The run-time proof** also holds every sign and ratio mark (`-`, `−`, `+`, `%`, `‰`, `×`), every
+  number's magnitude and the currency bound to it — read with tables of its own.
+- **The language of a text.** Romanian needs a word no other narration language has; English words
+  around Romanian letters (ă, ș, ț) decide nothing; fewer than four function words are thin
+  evidence — followed when nothing contradicts it, never against the question the text answers.
+  The briefing card shows a narration whose stamp names another language as served.
+- Found by the independent reader on a 30,000-composition fuzz and repaired too: a number that
+  touches a date or a clock time is a piece of it (`1,234:99`); a token that is a number in neither
+  notation is never touched (`77,4,2025`); a symbol against a symbol is nobody's code; a sentence
+  stop is not invented before an acronym (`4,58 mil. CAD`); `2.3pp` and `82.4/100` are units; a
+  per-unit slash closes an amount (`RON 5.2M/an` → `5,2 mil. RON/an`), a hyphen against a word does
+  not (`EUR 5-year`), a slash before a digit or another currency's code does not (`RON 5M/6M`, `EUR
+  2.5M/USD`), and Romanian's "de" before a magnitude in words is read through (`RON 120 de mii`
+  stays).
+
+**What holds it.** `ai-figures-engine` → `357 passed`, `netblock: 0 outbound socket attempts`,
+canary `GATE-WORK ai-figures-engine corpus=156 grid=984 narrations=151 languages=9 grammar=152640
+composed=12000`. `ai-figures` (five files) → `765 passed (765)` (15 + 224 + 248 + 151 + 127),
+canaries `GATE-WORK ai-figures corpus=156 grid=984 kept=158 composed=12000`, `GATE-WORK
+ai-figures-chat turns=142 rendered=227 requests=2`, `GATE-WORK ai-figures-explain answers=145`,
+`GATE-WORK ai-figures-briefing bodies=450`. Battery floors: 357 (the number of laws) and 755.
+
+| law | where | reds on |
+|---|---|---|
+| E11 what a figure is bound to | engine | `tests/engine/_figure_reader.py` — an INDEPENDENT reader (it imports `re` and `typing`; a law reads its imports) — finds an amount, a currency, a sign or a unit that differs between a text and what the pass returned: over the corpus's OUTPUT and its hand-typed `expected`, over the grid, and over a grammar of 152,640 code-first amounts (10 heads × 8 numbers × 9 magnitudes × 50 followers × 2 languages, and 9 things that can stand before the code). Positive control: sixteen misbound outputs typed from the reviews' transcripts — it flags every one, each with every digit in place |
+| E12 never half a text | engine + browser | a text holding a lone group comes back changed; `text_held` is not reported; a handed figure equal to either reading rewrites anything; the hold leaks from one prose field to another |
+| E13 / law 11 the composed set | engine + browser | over `compose.json` (12,000 texts composed from parts by integer arithmetic, the same in both runtimes): a digit moves; a second pass changes the text; a text is half rewritten; the run-time proof does not hold on what was returned; **the sha256 of every output differs from the fixture's `digest`** — one runtime's rule changed |
+| E14 / law 12 the proof beyond digits | engine + browser | with a rule that reads "Bn" as a million, a head reader that loses the sign, or a closure made blind, the text is not returned as written |
+| corpus (156 cases, 41 new) | both | the reviews' shapes, `expected` typed by hand: 31 `open_amount`, 11 `code_before`, 4 `text_held`, `Bn`, `+`, `‰`, a per-unit slash, a slash before a number or another code, "de mii", a link label, a reply that is one bare figure |
+| law 7 languages | browser | a Spanish or Portuguese text holding "este" and "dar" is read as Romanian; a Romanian label list with an English gloss is read as English; thin evidence is followed against the question |
+| the chat, Explain, the card | browser | a Spanish / Portuguese reply or a Romanian label list is changed between the transport and the bubble; a held reply is not stored as written; a card body stamped `es` / `pt` is changed |
+
+**PLANT** — the engine's twin (`src/engine/ai/figure_format.py`), the fixtures and the reader:
+
+| plant (each ALONE) | `ai-figures-engine` |
+|---|---|
+| **V1** a code is moved whatever follows the number (the closure is gone) | `50 failed, 307 passed` (exit 1) |
+| **V2** a range's dash is not read as joining two numbers (a code before a range moves onto its first bound) | `16 failed, 341 passed` (exit 1) |
+| **V3** a joining word is not read ("EUR 40 și 55 milioane": the first bound loses its magnitude) | `11 failed, 346 passed` (exit 1) |
+| **V4** a magnitude the standard does not print is not seen ("RON 4.58 mil" -> "4,58 RON mil") | `17 failed, 340 passed` (exit 1) |
+| **V5** a space- or apostrophe-grouped number is not seen to go on ("EUR 12 300 000" -> "12 EUR 300 000") | `8 failed, 349 passed` (exit 1) |
+| **V6** a code between two numbers is the FIRST one's evidence again ("31.12 RON 5.2M" -> "31,12 RON 5,2 mil.") | `9 failed, 348 passed` (exit 1) |
+| **V7** a number with a magnitude of another spelling before a code is not seen ("0.19 milioane USD 1.5M") | `2 failed, 355 passed` (exit 1) |
+| **V8** the run-time proof no longer reads the structure (digits only, as before the review) | `3 failed, 354 passed` (exit 1) |
+| **V9** the proof reads magnitudes with the RULE SET's table (a rule that reads Bn as a million proves itself) | `8 failed, 349 passed` (exit 1) |
+| **V10** "Bn" is read as a million (the review's evasion V1: a value 1000x smaller, every digit kept) | `5 failed, 352 passed` (exit 1) |
+| **V11** the floor is dropped: a code after one figure is read as the next one's too (the review's evasion V2) | `2 failed, 355 passed` (exit 1) |
+| **V12** a "+" sign is dropped when the code moves (the review's evasion V3) | `5 failed, 352 passed` (exit 1) |
+| **V13** a per-mille sign is written as a percentage (the review's evasion V5) | `4 failed, 353 passed` (exit 1) |
+| **V14** "$" is named USD although the reply names another dollar before it ("CAD $7.5M" -> "CAD 7,5 mil. USD") | `7 failed, 350 passed` (exit 1) |
+| **V15** another currency named AFTER the amount is not seen ("$7.5M CAD" -> "7,5 mil. USD CAD") | `8 failed, 349 passed` (exit 1) |
+| **V16** a code left before its figure is no longer counted (the log says nothing is left) | `7 failed, 350 passed` (exit 1) |
+| **V17** a code after a year is contested like any other ("În 2025 RON 64.5M" is left as written) | `4 failed, 353 passed` (exit 1) |
+| **V18** a bare run of groups with a short head is one number again ("conturile 28,281,291" -> "28.281.291") | `6 failed, 351 passed` (exit 1) |
+| **V19** a text is half rewritten around a lone three-digit group (the hold is gone) | `12 failed, 345 passed` (exit 1) |
+| **V20** a lone group is rewritten when a handed figure equals ONE of its readings (the review's option a) | `19 failed, 338 passed` (exit 1) |
+| **V21** a number that touches a date or a clock time is read on its own ("1,234:99") | `2 failed, 355 passed` (exit 1) |
+| **V22** a token that is a number in neither notation takes a code ("$77,4,2025" -> "77,4,2025 USD") | `2 failed, 355 passed` (exit 1) |
+| **V23** anything may follow an amount ("RON 1.5$3" -> "1,5 RON$3") | `3 failed, 354 passed` (exit 1) |
+| **V24** "la" never joins, even before a number that carries the magnitude ("RON 5 la 7 milioane") | `2 failed, 355 passed` (exit 1) |
+| **V25** a unit written against the number is not read ("2.3pp", "82.4/100" stay) | `4 failed, 353 passed` (exit 1) |
+| **V26** a sentence stop is invented before an acronym again ("4,58 mil. CAD" -> "4.58M. CAD") | `3 failed, 354 passed` (exit 1) |
+| **V27** a symbol against another symbol is taken as the number's code ("5 €$3") | `2 failed, 355 passed` (exit 1) |
+| **V28** a magnitude after the Romanian "de" is not seen ("RON 120 de mii" -> "120 RON de mii") | `2 failed, 355 passed` (exit 1) |
+| **V29** a slash before a digit closes an amount too ("RON 5M/6M" -> "5 mil. RON/6M") | `2 failed, 355 passed` (exit 1) |
+| **V30** a slash before another currency's code closes an amount too ("EUR 2.5M/USD" -> "2,5 mil. EUR/USD") | `2 failed, 355 passed` (exit 1) |
+
+| plant (each ALONE) | `ai-figures-engine` | `ai-figures` |
+|---|---|---|
+| **F3** THE REVIEW'S EXPERIMENT: the normaliser moves the code onto the first bound, the proof is blind, AND the wrong output is typed in as the case's expected string | `55 failed, 302 passed` (exit 1) | `82 failed, 684 passed (766)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **F4** the independent reader is blinded (it reports no changed amount) | `2 failed, 355 passed` (exit 1) | not run |
+| **F5** the composed set's digest is edited on disk | `2 failed, 355 passed` (exit 1) | `2 failed, 763 passed (765)` (exit 1) — readerFigures |
+| **F6** a held case of the corpus is typed as HALF rewritten (what the pass returned before the review) | `3 failed, 354 passed` (exit 1) | `6 failed, 759 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+
+**PLANT** — the browser's twin (`frontend/lib/readerFigures.ts`, `CFOBriefingCard.tsx`):
+
+| plant (each ALONE) | `ai-figures` |
+|---|---|
+| **T1** browser: a code is moved whatever follows the number (the closure is gone) | `74 failed, 691 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **T2** browser: a code between two numbers is the first one's evidence again | `14 failed, 751 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **T3** browser: the run-time proof no longer reads the structure | `3 failed, 762 passed (765)` (exit 1) — readerFigures |
+| **T4** browser: "$" is named USD although the reply names another dollar before it | `9 failed, 756 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **T5** browser: a code left before its figure is no longer counted | `7 failed, 758 passed (765)` (exit 1) — readerFigures |
+| **T6** browser: a bare run of groups with a short head is one number again | `21 failed, 744 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **T7** browser: a text is half rewritten around a lone three-digit group (the hold is gone) | `20 failed, 745 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **T8** browser: "Bn" is read as a million | `9 failed, 756 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **T9** browser: a number that touches a date or a clock time is read on its own | `2 failed, 763 passed (765)` (exit 1) — readerFigures |
+| **T10** browser: a magnitude the standard does not print is not seen | `24 failed, 741 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **L1** browser: a text is Romanian on words Spanish and Portuguese share ("este", "dar") — no word of Romanian's own needed | `7 failed, 758 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, readerFigures |
+| **L2** browser: Romanian letters no longer veto English (a label list with an English gloss is English) | `2 failed, 763 passed (765)` (exit 1) — readerFigures |
+| **L3** browser: thin evidence of a text's own language is followed against the question | `2 failed, 763 passed (765)` (exit 1) — explainFigures, readerFigures |
+| **L4** browser: the briefing card no longer believes a stamp that names another language (es, pt) | `1 failed, 764 passed (765)` (exit 1) — briefingCardFigures |
+| **L5** browser: a vetoed (leaning) text is read in whatever the caller says, agreement or not | `1 failed, 764 passed (765)` (exit 1) — readerFigures |
+
+**PLANT** — replayed on the repaired tree: the reader review's two plants that left the gate GREEN
+(a figure inside a link label skipped; a reply that is one bare number skipped), and three of the
+lane's own as a control:
+
+| plant (each ALONE) | gate | result |
+|---|---|---|
+| **E4b** browser (the review's green plant): a figure inside a link label is skipped | `ai-figures` | `5 failed, 760 passed (765)` (exit 1) — chatReplyFigures, explainFigures, readerFigures |
+| **E5** browser (the review's green plant): a reply that is one bare number is skipped | `ai-figures` | `5 failed, 760 passed (765)` (exit 1) — chatReplyFigures, explainFigures |
+| **R2** browser (the lane's own N1, replayed): a lone three-digit group is guessed | `ai-figures` | `50 failed, 715 passed (765)` (exit 1) — briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **N1** engine (the lane's own N1, replayed): a lone three-digit group is guessed | `ai-figures-engine` | `39 failed, 318 passed` (exit 1) |
+| **S1** engine (the lane's own S1, replayed): the pass is taken out of stage_narrate | `ai-figures-engine` | `86 failed, 271 passed` (exit 1) |
+
+**RED** — 54 of 54 plants exit non-zero on the gate named, each planted ALONE in the
+worktree by ONE runner that restores the planted files from the bytes read before the plant and
+compares their sha256 after each. V10–V13 are the values review's four evasions (a "Bn" read as a
+million, the floor dropped, a "+" dropped, a "‰" written "%"): each was GREEN on both gates before
+this round. F3 is the review's experiment — the normaliser misbinding, the proof blind AND the wrong
+output typed in as `expected`: before, `273 passed` / `588 passed`. Baseline before the first plant:
+`357 passed` and `765 passed (765)`. **REVERT** — exit `0` on both: `357 passed`, `765 passed
+(765)`; `git status` clean.
+
+**Two plants were GREEN on the first complete run, and are why the run above is the second.**
+"A slash before a digit closes an amount" changed no law's outcome — no case held the rule; and "a
+text whose words lean English and whose letters are Romanian is read in whatever the caller says"
+changed nothing a law looked at (a Romanian-format text read as Romanian is not rewritten). Each
+got its law — two corpus cases typed by hand (`open-slash-before-a-number`,
+`open-slash-before-another-code`), and an English answer quoting Romanian terms that a Romanian
+question must leave untouched — and every plant was then run again on the committed tree: V29,
+V30 and L5 are RED above.
+
+(Two earlier runs were DISCARDED and are not recorded: in the first a launcher left a second runner
+alive and two runners planted in one tree at once — its counts mean nothing; both were stopped by
+pid and the one file left planted was restored from the commit. The other was interrupted to add
+three closure refinements — a per-unit slash, a dash before a word, "de mii" — so that every plant
+ran against the tree that is committed. The rule the first one broke is the project's own: never
+plant while another run uses the same tree.)
+
+**After the repair it reds on** (TC-11): a code moved onto another number in any of the shapes
+above; a code between two numbers taken as the first one's evidence; a "$" named USD beside another
+currency's code; a code left before its figure and not counted; a bare run of groups printed as one
+number; a text half rewritten around a lone group, or a lone group rewritten because a handed figure
+equals one reading; a magnitude, a sign or a ratio mark changed; the proof reduced to digits, or
+reading with the rule set's own tables; an `expected` string that binds a figure differently from
+its input; a rule changed in one runtime only (the digest); a Spanish or Portuguese text read as
+Romanian; a Romanian label list read as English; thin evidence followed against the question; the
+card re-spelling a narration stamped in another language.
+
+**CANNOT SEE:**
+
+- **a non-figure the pass re-spells because a currency or a unit stands beside it**: "Versiunea 2.1
+  RON", "Pe 5.11 lei 300", "Conturile 121,117,129 EUR", "Contul RON 5121" → "5121 RON", "În EUR 3
+  scenarii" → "În 3 EUR scenarii", "Argumentul $1" → "1 USD", "2025.12 luni". No value changes and
+  no reader can tell a version from an amount; the values review lists these as low. On its own
+  1,001 cases its independent checker now flags 8 of this class (58 before), plus the year-then-code
+  cases it classes as non-figures and this round rewrites on purpose;
+- **a handed figure that happens to equal a non-figure** ("Vezi 3.12 din raport" with 3.12 handed):
+  the owner's ruling 4 of the build spec, unchanged;
+- **a text HELD as written**: it is the model's own notation, whole — counted `text_held`, logged by
+  count, and NOT read by the detector (it would flag every figure of it). 4 of the 156 corpus cases
+  and 1,002 of the 12,000 composed texts are held;
+- **a code left before its figure on purpose** (`open_amount`, `code_before`): the corpus masks the
+  expression by name; the report counts it;
+- **what the proof cannot see**: a non-figure re-spelt with nothing moved ("la 3M RON 5.2M" → "la 3
+  mil. RON 5,2 mil." has the same structure) — the rule that leaves a code between two numbers
+  alone, and the corpus, hold that one;
+- **a Romanian text with no diacritics and none of the fifteen words only Romanian has**: left as
+  written unless the question or the caller says Romanian;
+- **a text in a third language where the caller KNOWS the language** (Explain asked for Romanian and
+  the model answered in Spanish; a card body stamped `ro` that is Spanish): it is read in the
+  language the caller names. In the chat the caller is the question, and a Spanish question reads as
+  nothing;
+- **a mid-sentence stop before a capitalised WORD**: English text, "4,58 mil. Romanian lei" →
+  "4.58M. Romanian lei" (an acronym is seen, a proper adjective is not);
+- **a one-decimal bare ratio** ("DSO este 42.6"): never proved by a handed figure (too many handed
+  figures round to it) — left, counted `bare_decimal`; the card and Explain hand the pass no figures;
+- what a model WRITES; whether a figure is TRUE; everything stage 1 and stage 2 list above.
+
+**Decisions of this round that change what a reader sees** (each the owner's to reverse):
+
+1. **A reply or briefing that holds a lone three-digit group beside wrong-format figures is shown
+   exactly as the model wrote it** — whole, in the model's notation — instead of converted around
+   it. The reader review offered two repairs; the other one (let a handed figure choose the reading
+   when exactly one of the two matches) is the fact tier the judge measured changing a correct
+   "4,975 RON" into "4.975 RON" — it is planted here as V20 and is RED. Reverse = one condition in
+   each twin.
+2. **A code-first amount the pass cannot read to its end is left as written** — a range, a list, a
+   spaced number, an unread magnitude: "EUR 1.5-2.5M" stays "EUR 1.5-2.5M" in a Romanian sentence
+   (before: a misbound rewrite). Moving the code behind the range's last term ("1,5-2,5 mil. EUR")
+   is the next rung and was not built.
+3. **A bare run of groups** ("| EBITDA | 18,778,901 |" in a table, no currency beside it) is left as
+   written unless the model was handed that figure (the chat hands the snapshot's; Explain and the
+   card hand none).
+4. **The language rule**: a Romanian text with no diacritics and no Romanian-only word is no longer
+   read as Romanian on "este" / "dar" / "care" alone; an English answer that quotes Romanian terms
+   (with ă, ș, ț) is read as English only where the question is English; a short reply whose few
+   words point one way while its question points the other is not touched.
+5. **The briefing card believes a stamp that names another language** (es, pt, de …): shown as served.
