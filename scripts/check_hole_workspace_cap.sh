@@ -318,6 +318,12 @@ check "C9 the service role un-archives with a direct write, whatever the owner's
 out="$(sql_as service_role "" "update organizations set archived_at = now(), purge_after = null where id = '$ORG_SVC';")"
 check "C10 … and archives one as HELD (no deletion date)" "$(q "select (archived_at is not null and purge_after is null)::text from organizations where id = '$ORG_SVC';")" "true"
 check "C11 the SQL editor (the table's owner, no JWT) writes the columns" "$(q "update organizations set archived_at = null where id = '$ORG_SVC' returning (archived_at is null)::text;")" "true"
+# The ROLE decides, not the absence of a user id: a service-role request whose
+# claims carry that user's id (a key minted for a user, an impersonating
+# client) is still the service role — archive, then un-archive at the cap.
+sql_as service_role "$U_SVC" "update organizations set archived_at = now(), purge_after = null where id = '$ORG_SVC';" >/dev/null
+out="$(sql_as service_role "$U_SVC" "update organizations set archived_at = null where id = '$ORG_SVC' returning 'restored';")"
+check "C11b the service role is not asked for a cap even when its claims carry the user's id" "$out|$(live "$U_SVC")" "restored|2"
 # The firm functions are SECURITY DEFINER: they change firm_id and pass.
 ORG_FO="$(first_org "$U_FIRMOWNER")"
 out="$(sql_as authenticated "$U_FIRMOWNER" "select attach_workspace_to_firm('$ORG_FO', '$FIRM');")"
