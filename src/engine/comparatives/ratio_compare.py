@@ -111,6 +111,24 @@ from what surfaced, so a demotion never shrinks them. Each crossed row's
 `finding_id` names its finding row. The builder is a required argument:
 there is no composition without findings to serve as an empty list.
 
+── WHICH WAY TIME RUNS ───────────────────────────────────────────────────
+
+"Improved", "deteriorated" and a band CROSSING are statements about time:
+the ratio moved from the prior period to the current one. When the
+comparison period closes LATER than the one on screen, or the order of the
+two closes cannot be read (`engine.comparatives.analysis.time_direction`),
+the caller passes the reason as `verdicts_withheld` and this block serves
+no verdict: every `delta.favourable` that would be improved / deteriorated
+is null with that reason code, every crossing is `not_comparable` with it
+(so it stays in the partition, under `band_movements.not_comparable`),
+`improved` and `deteriorated` are empty, no band finding is built, and
+`band_movements.verdicts_withheld` names the reason. Both sides' values,
+bands and ladders, every delta's value and percentage, and the rows that
+held their band are served exactly as they are forwards. Until 2026-10-04
+this block did not read the direction: a document that said
+`verdicts_served: false` listed twelve ratios as deteriorated — the twelve
+the forward document lists as improved — with a high-severity finding.
+
 Pure over its inputs: no clock, no I/O, deterministic JSON.
 """
 from __future__ import annotations
@@ -135,7 +153,16 @@ DELTA_REASON_CODES: Tuple[str, ...] = (
     # stock, so no delta and no direction is served (the movement carries
     # the same code)
     "basis_differs",
+    # the comparison period closes after the current one, or the order of
+    # the two closes cannot be read: the delta is served, its direction is
+    # not (`analysis.Direction.reason`; the movement carries the same code)
+    "prior_is_later",
+    "period_order_unknown",
 )
+
+#: The reasons a caller may withhold every verdict for
+#: (`analysis.time_direction`'s two `reason` codes).
+VERDICT_WITHHELD_CODES: Tuple[str, ...] = ("prior_is_later", "period_order_unknown")
 
 #: Codes a `not_comparable` movement carries beyond the table's own band
 #: codes (sector_unconfirmed, negative_denominator, no_cost_of_sales,
@@ -151,6 +178,10 @@ MOVEMENT_REASON_CODES: Tuple[str, ...] = (
     # other a single year-end, say) — a band move between them is the change
     # of basis, not of the stock
     "basis_differs",
+    # time does not run forward from the prior to the current period: a
+    # band crossing is a direction of travel, and none is served
+    "prior_is_later",
+    "period_order_unknown",
 )
 
 #: The rows read from the ONE inventory-days block whose served basis
@@ -706,6 +737,20 @@ def _rank_key(row: Mapping[str, Any]) -> Tuple[Any, ...]:
             row["key"])
 
 
+def _withhold_verdict(row: Dict[str, Any], reason: str) -> None:
+    """Take the direction of travel off one row, in place: an improved /
+    deteriorated delta keeps its value and loses the adjective; a band
+    crossing becomes `not_comparable`. Nothing else on the row is touched —
+    and a delta of zero ("none") or a band that held says nothing about
+    which way time ran, so it stands."""
+    delta = row.get("delta") or {}
+    if delta.get("favourable") in ("improved", "deteriorated"):
+        row["delta"] = dict(delta, favourable=None, reason_code=reason)
+    movement = row.get("movement") or {}
+    if movement.get("status") in ("crossed_up", "crossed_down"):
+        row["movement"] = _not_comparable(reason)
+
+
 def _inventory_basis(statements: Mapping[str, Any]) -> Optional[str]:
     """The served inventory-days block's basis for one side, or None."""
     from engine.ratios.inventory_days import served_block
@@ -727,12 +772,20 @@ def compare_ratio_tables(
     prior_period_id: Optional[str] = None,
     current_snapshot_id: Optional[str] = None,
     prior_snapshot_id: Optional[str] = None,
+    verdicts_withheld: Optional[str] = None,
 ) -> Dict[str, Any]:
     """The two-period ratio block for two served `get_period` payloads.
 
     Period ids default to each payload's own `period.id`; snapshot ids have
     no default (a payload does not carry its envelope's content hash — the
-    route's period rows do)."""
+    route's period rows do).
+
+    `verdicts_withheld` is the reason no direction of travel may be served
+    (one of `VERDICT_WITHHELD_CODES` — the document's `direction.reason`),
+    or None when time runs forward from the prior to the current period."""
+    if verdicts_withheld is not None and verdicts_withheld not in VERDICT_WITHHELD_CODES:
+        raise ValueError("verdicts_withheld must be one of %s or None, got %r"
+                         % (VERDICT_WITHHELD_CODES, verdicts_withheld))
     cur_payload = dict(current_payload)
     pri_payload = dict(prior_payload)
     blocking = _blocking_signal(cur_payload) or _blocking_signal(pri_payload)
@@ -783,6 +836,12 @@ def compare_ratio_tables(
         rows.append(row)
 
     composites, subscores = _composite_rows(cur_t["credit"], pri_t["credit"])
+
+    if verdicts_withheld is not None:
+        # BEFORE the partition: the lists, the findings and each row's
+        # finding id are all derived from the movements below.
+        for r in rows + composites + subscores:
+            _withhold_verdict(r, verdicts_withheld)
 
     movable = rows + [r for r in composites if r["key"] in MOVABLE_COMPOSITES]
 
@@ -853,6 +912,10 @@ def compare_ratio_tables(
             "not_comparable": not_comparable,
             "refused": refused,
             "findings": findings,
+            # None when verdicts are served. Otherwise WHY `improved`,
+            # `deteriorated` and `findings` are empty and every crossing
+            # sits under `not_comparable` with this code.
+            "verdicts_withheld": verdicts_withheld,
         },
         "coverage": {
             "census_count": len(T.CENSUS),

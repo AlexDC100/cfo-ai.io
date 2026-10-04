@@ -5364,7 +5364,8 @@
       "band": "strong",
       "key": "net_debt_to_ebitda"
      }
-    ]
+    ],
+    "verdicts_withheld": null
    },
    "composites": [
     {

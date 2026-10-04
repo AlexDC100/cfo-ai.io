@@ -10102,7 +10102,11 @@ def build_router() -> APIRouter:
         # override for the same reason as the two blocks above — the
         # balance-sheet base is the served total assets. Nothing below
         # changes a figure it reads (the gate recomputes it from the body
-        # this handler returns). See `_attach_common_size_block`.
+        # this handler returns). A result line's share of turnover is a
+        # margin: the block asks the one margin rule itself, over these
+        # statements — the verdict `statements.margin_meaning` is built from
+        # further down (the gate holds the two equal on every served body).
+        # See `_attach_common_size_block`.
         _attach_common_size_block(statements, line_items)
 
         # ── F3.3 — Per-upload confidence report ─────────────────────

@@ -30,6 +30,11 @@ WHAT A LINE WITHOUT A SHARE SAYS. Never 0 %:
   no_base       the line is reported, and the base it would be a share OF
                 is absent, refused, or below the zero floor — which holds
                 for EVERY line of that statement, the base line included
+  margin_not_meaningful
+                the line is reported and its share of turnover is a MARGIN
+                the period's margin rule refuses (a result over a turnover
+                that is an incidental line of the book): the ratio table
+                refuses that margin with this code, and so does the share
 
 Jurisdiction-blind like the rest of the package: nothing here names a
 country, a chart or an account.
@@ -50,13 +55,22 @@ from .columns import (
     refusal_text,
     round_money,
 )
-from .lines import LINE_SPECS, ZERO_FLOOR, LineSpec, coverage_from_envelope, unwrap_envelope
+from .lines import (
+    LINE_SPECS,
+    SHARE_NOT_MEANINGFUL,
+    ZERO_FLOOR,
+    LineSpec,
+    coverage_from_envelope,
+    share_withheld_of,
+    unwrap_envelope,
+)
 
 __all__ = [
     "COMMON_SIZE_BASE",
     "SHARE_DP",
     "STATUS_SHARE",
     "STATUS_NO_BASE",
+    "STATUS_NOT_MEANINGFUL",
     "SIDE_STATUSES",
     "SideLine",
     "SideShare",
@@ -76,6 +90,9 @@ SHARE_DP = 6
 STATUS_SHARE = "share"
 #: The line is reported; its base is not there to be a share of.
 STATUS_NO_BASE = "no_base"
+#: The line is reported; its share of turnover is a margin the period's
+#: margin rule refuses (`lines.share_withheld_of`).
+STATUS_NOT_MEANINGFUL = SHARE_NOT_MEANINGFUL
 
 #: Everything one period can say about one line's share. The three
 #: no-figure statuses ARE the column model's per-side disclosures — one
@@ -83,6 +100,7 @@ STATUS_NO_BASE = "no_base"
 SIDE_STATUSES: Tuple[str, ...] = (
     STATUS_SHARE,
     STATUS_NO_BASE,
+    STATUS_NOT_MEANINGFUL,
     DISCLOSURE_ABSENT,
     DISCLOSURE_REFUSED,
     DISCLOSURE_NOT_AT_LEVEL,
@@ -109,6 +127,8 @@ class SideLine:
     disclosure: str
     #: Why there is no figure, for a line that is not REPORTED ("" else).
     note: str = ""
+    #: Why a REPORTED line takes no share ("" when it may): the margin rule.
+    share_withheld: str = ""
 
 
 @dataclass(frozen=True)
@@ -174,6 +194,7 @@ def side_lines(
     # error, never as a block of absences.
     unwrap_envelope(envelope)
     coverage = coverage_from_envelope(envelope)
+    withheld = share_withheld_of(envelope, specs)
     out = []
     for spec in specs:
         value, disclosure = disclose_side(envelope, spec, coverage, level, True)
@@ -185,6 +206,7 @@ def side_lines(
             value=None if value is None else round_money(value),
             disclosure=disclosure,
             note=_undisclosed_note(envelope, spec, disclosure, level),
+            share_withheld=withheld.get(spec.key, ""),
         ))
     return tuple(out)
 
@@ -202,6 +224,12 @@ def side_shares(lines: Sequence[SideLine]) -> Tuple[SideShare, ...]:
         if line.value is None:
             out.append(SideShare(line=line, raw=None, share=None,
                                  status=line.disclosure, note=line.note))
+            continue
+        if line.share_withheld:
+            # Asked BEFORE the division: a refused margin is never taken
+            # and then hidden.
+            out.append(SideShare(line=line, raw=None, share=None,
+                                 status=STATUS_NOT_MEANINGFUL, note=line.share_withheld))
             continue
         base_line = by_key.get(line.base_key)
         base = None if base_line is None else base_line.value

@@ -16,10 +16,13 @@ carniprod as Dec 2024, each read back through the real router):
       The pair the OTHER way round: Dec 2024 on screen, compared with Dec
       2025 — a prior that closes LATER. The served comparatives document
       (`direction.order == "prior_is_later"`, every mover verdict null, both
-      lists empty, every figure served) and the body of the period on
-      screen, in `pair_served.json`'s own shape so the same helpers load
-      it. Trimmed of what its readers do not read (`_trimmed` names each):
-      line items on both sides, and the two-period ratio block.
+      lists empty, the ratio block's band verdicts withheld under the same
+      reason, every figure served) and the body of the period on screen, in
+      `pair_served.json`'s own shape so the same helpers load it. Trimmed
+      of what its readers do not read (`_trimmed` names each): the line
+      items on both sides. The two-period ratio block stays: the Ratios tab
+      renders it, and what it must NOT list under a later prior is the
+      frontend gate's law.
 
 A frontend gate over a hand-written document is a gate over a product that
 does not exist (CLAUDE.md 21), so this test rebuilds both and reds when the
@@ -46,7 +49,7 @@ REPO = Path(__file__).resolve().parents[2]
 PERIOD_BLOCKS_FIXTURE = FX.FIXTURE.with_name("period_common_size.json")
 PRIOR_LATER_FIXTURE = FX.FIXTURE.with_name("pair_prior_later.json")
 
-PRIOR_LATER_TRIMMED = ("current_body.line_items", "comparatives.prior_line_items", "comparatives.ratios")
+PRIOR_LATER_TRIMMED = ("current_body.line_items", "comparatives.prior_line_items")
 
 
 def build_period_blocks_fixture() -> Dict[str, Any]:
@@ -70,7 +73,6 @@ def build_prior_later_fixture() -> Dict[str, Any]:
     doc = FX._compare(earlier, later)
     earlier.pop("line_items", None)
     doc.pop("prior_line_items", None)
-    doc.pop("ratios", None)
     return {"_trimmed": list(PRIOR_LATER_TRIMMED), "current_body": earlier, "comparatives": doc}
 
 
@@ -117,11 +119,10 @@ def test_the_committed_fixtures_carry_what_the_frontend_gate_needs():
     # the period body the dashboard gates render carries the same block
     assert pair["current_body"]["statements"]["common_size"] == blocks[cur_id]["common_size"]
     assert later["current_body"]["statements"]["common_size"] == blocks[pri_id]["common_size"]
-    # (the prior's block also rides `prior_statements` today; nothing may
-    # require it there — a prior share is read from the document's rows)
-    for doc, pid in ((pair["comparatives"], pri_id), (later["comparatives"], cur_id)):
-        if "common_size" in doc["prior_statements"]:
-            assert doc["prior_statements"]["common_size"] == blocks[pid]["common_size"]
+    # (the prior's block does not ride `prior_statements` a second time: a
+    # prior share is read from the document's rows)
+    for doc in (pair["comparatives"], later["comparatives"]):
+        assert "common_size" not in doc["prior_statements"]
 
     # ONE FIGURE PER PAGE: with a document on screen, the share it serves
     # for the period on screen is that period's own block, key by key.
@@ -151,7 +152,22 @@ def test_the_committed_fixtures_carry_what_the_frontend_gate_needs():
     assert later["comparatives"]["prior"]["label"] == "Dec 2025"
     for name in ("pl", "bs_assets", "bs_liabilities_equity"):
         assert later["comparatives"]["bridges"][name]["closes"] is True, name
-    assert "ratios" not in later["comparatives"] and later["_trimmed"] == list(PRIOR_LATER_TRIMMED)
+    assert later["_trimmed"] == list(PRIOR_LATER_TRIMMED)
+    # THE RATIO BLOCK reads the same direction: forwards, ratios are listed
+    # improved / deteriorated with a finding each; backwards, none is — the
+    # crossings sit under `not_comparable` with the reason, and no delta
+    # carries the adjective.
+    fbm = pair["comparatives"]["ratios"]["band_movements"]
+    assert fbm["verdicts_withheld"] is None and fbm["improved"] and fbm["deteriorated"] and fbm["findings"]
+    bbm = later["comparatives"]["ratios"]["band_movements"]
+    assert bbm["verdicts_withheld"] == "prior_is_later"
+    assert bbm["improved"] == [] and bbm["deteriorated"] == [] and bbm["findings"] == []
+    withheld = set(e["key"] for e in bbm["not_comparable"] if e["reason_code"] == "prior_is_later")
+    assert withheld == set(fbm["improved"]) | set(fbm["deteriorated"]) and len(withheld) >= 5
+    block = later["comparatives"]["ratios"]
+    for row in block["rows"] + block["composites"] + block["subscores"]:
+        assert row["delta"]["favourable"] not in ("improved", "deteriorated"), row["key"]
+        assert row["movement"]["status"] not in ("crossed_up", "crossed_down"), row["key"]
 
 
 if __name__ == "__main__":

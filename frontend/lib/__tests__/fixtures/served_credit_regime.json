@@ -3880,10 +3880,10 @@
       "base_key": "pl.revenue",
       "current": 29752179.7,
       "key": "pl.gross_profit",
-      "note": "share of pl.revenue",
-      "share": 183.24205,
+      "note": "Gross profit over net turnover is a margin (gross_margin), and the period's margin rule refuses its margins — margin not meaningful: turnover is 0.6% of activity; no share is taken",
+      "share": null,
       "statement": "PL",
-      "status": "share"
+      "status": "margin_not_meaningful"
      },
      {
       "base_key": "pl.revenue",
@@ -3934,19 +3934,19 @@
       "base_key": "pl.revenue",
       "current": 550976.12,
       "key": "pl.ebitda",
-      "note": "share of pl.revenue",
-      "share": 3.393432,
+      "note": "EBITDA over net turnover is a margin (ebitda_margin), and the period's margin rule refuses its margins — margin not meaningful: turnover is 0.6% of activity; no share is taken",
+      "share": null,
       "statement": "PL",
-      "status": "share"
+      "status": "margin_not_meaningful"
      },
      {
       "base_key": "pl.revenue",
       "current": 488756.68,
       "key": "pl.ebit",
-      "note": "share of pl.revenue",
-      "share": 3.010226,
+      "note": "EBIT over net turnover is a margin (operating_margin), and the period's margin rule refuses its margins — margin not meaningful: turnover is 0.6% of activity; no share is taken",
+      "share": null,
       "statement": "PL",
-      "status": "share"
+      "status": "margin_not_meaningful"
      },
      {
       "base_key": "pl.revenue",
@@ -3997,10 +3997,10 @@
       "base_key": "pl.revenue",
       "current": -801604.14,
       "key": "pl.pretax",
-      "note": "share of pl.revenue",
-      "share": -4.937036,
+      "note": "Profit before tax over net turnover is a margin (pre-tax margin), and the period's margin rule refuses its margins — margin not meaningful: turnover is 0.6% of activity; no share is taken",
+      "share": null,
       "statement": "PL",
-      "status": "share"
+      "status": "margin_not_meaningful"
      },
      {
       "base_key": "pl.revenue",
@@ -4015,19 +4015,19 @@
       "base_key": "pl.revenue",
       "current": -30391418.38,
       "key": "pl.net_income_operational",
-      "note": "share of pl.revenue",
-      "share": -187.179086,
+      "note": "Net income — build-up before the stock variation and own work (excl. 711, 72x) over net turnover is a margin (net margin before the stock variation), and the period's margin rule refuses its margins — margin not meaningful: turnover is 0.6% of activity; no share is taken",
+      "share": null,
       "statement": "PL",
-      "status": "share"
+      "status": "margin_not_meaningful"
      },
      {
       "base_key": "pl.revenue",
       "current": -801604.14,
       "key": "pl.net_income",
-      "note": "share of pl.revenue",
-      "share": -4.937036,
+      "note": "Net income over net turnover is a margin (net_margin), and the period's margin rule refuses its margins — margin not meaningful: turnover is 0.6% of activity; no share is taken",
+      "share": null,
       "statement": "PL",
-      "status": "share"
+      "status": "margin_not_meaningful"
      },
      {
       "base_key": "bs.total_assets",

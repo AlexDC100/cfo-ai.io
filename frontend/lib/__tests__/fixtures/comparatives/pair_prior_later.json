@@ -1,8 +1,7 @@
 {
  "_trimmed": [
   "current_body.line_items",
-  "comparatives.prior_line_items",
-  "comparatives.ratios"
+  "comparatives.prior_line_items"
  ],
  "comparatives": {
   "bridges": {
@@ -7181,1002 +7180,6 @@
      }
     ]
    },
-   "common_size": {
-    "bases": {
-     "BS": {
-      "key": "bs.total_assets",
-      "value": 39319114.09
-     },
-     "PL": {
-      "key": "pl.revenue",
-      "value": 110798309.14
-     }
-    },
-    "rows": [
-     {
-      "base_key": "pl.revenue",
-      "current": 110798309.14,
-      "key": "pl.revenue",
-      "note": "share of pl.revenue",
-      "share": 1.0,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 70557114.68,
-      "key": "pl.cogs",
-      "note": "share of pl.revenue",
-      "share": 0.636807,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 1071687.03,
-      "key": "pl.inventory_variation",
-      "note": "share of pl.revenue",
-      "share": 0.009672,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 41312881.49,
-      "key": "pl.gross_profit",
-      "note": "share of pl.revenue",
-      "share": 0.372866,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 29854906.77,
-      "key": "pl.opex_total",
-      "note": "share of pl.revenue",
-      "share": 0.269453,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 386101.85,
-      "key": "pl.other_operating_income",
-      "note": "share of pl.revenue",
-      "share": 0.003485,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 0.0,
-      "key": "pl.capitalized_own_work",
-      "note": "share of pl.revenue",
-      "share": 0.0,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 2819963.03,
-      "key": "pl.depreciation",
-      "note": "share of pl.revenue",
-      "share": 0.025451,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 131394.66,
-      "key": "pl.net_provisions",
-      "note": "share of pl.revenue",
-      "share": 0.001186,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 11844076.57,
-      "key": "pl.ebitda",
-      "note": "share of pl.revenue",
-      "share": 0.106898,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 8892718.88,
-      "key": "pl.ebit",
-      "note": "share of pl.revenue",
-      "share": 0.08026,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 277930.35,
-      "key": "pl.interest_expense",
-      "note": "share of pl.revenue",
-      "share": 0.002508,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 299383.26,
-      "key": "pl.interest_income",
-      "note": "share of pl.revenue",
-      "share": 0.002702,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 456384.14,
-      "key": "pl.financial_income",
-      "note": "share of pl.revenue",
-      "share": 0.004119,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 343877.0,
-      "key": "pl.financial_expense",
-      "note": "share of pl.revenue",
-      "share": 0.003104,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 112507.14,
-      "key": "pl.net_financial_result",
-      "note": "share of pl.revenue",
-      "share": 0.001015,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 9005226.02,
-      "key": "pl.pretax",
-      "note": "share of pl.revenue",
-      "share": 0.081276,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 1471550.0,
-      "key": "pl.tax",
-      "note": "share of pl.revenue",
-      "share": 0.013281,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 6461988.99,
-      "key": "pl.net_income_operational",
-      "note": "share of pl.revenue",
-      "share": 0.058322,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 7533676.02,
-      "key": "pl.net_income",
-      "note": "share of pl.revenue",
-      "share": 0.067995,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 1168047.04,
-      "key": "bs.cash",
-      "note": "share of bs.total_assets",
-      "share": 0.029707,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 8513384.96,
-      "key": "bs.trade_receivables_net",
-      "note": "share of bs.total_assets",
-      "share": 0.21652,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 8933332.42,
-      "key": "bs.inventory",
-      "note": "share of bs.total_assets",
-      "share": 0.227201,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 8861292.52,
-      "key": "bs.other_current_assets",
-      "note": "share of bs.total_assets",
-      "share": 0.225369,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 27371337.47,
-      "key": "bs.total_current_assets",
-      "note": "share of bs.total_assets",
-      "share": 0.696133,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 11055449.54,
-      "key": "bs.ppe_net",
-      "note": "share of bs.total_assets",
-      "share": 0.281172,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 673090.13,
-      "key": "bs.intangibles_net",
-      "note": "share of bs.total_assets",
-      "share": 0.017119,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 67904.42,
-      "key": "bs.other_non_current_assets",
-      "note": "share of bs.total_assets",
-      "share": 0.001727,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 11947776.62,
-      "key": "bs.total_non_current_assets",
-      "note": "share of bs.total_assets",
-      "share": 0.303867,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 39319114.09,
-      "key": "bs.total_assets",
-      "note": "share of bs.total_assets",
-      "share": 1.0,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 7554847.25,
-      "key": "bs.trade_payables",
-      "note": "share of bs.total_assets",
-      "share": 0.192142,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 2199783.1,
-      "key": "bs.short_term_debt",
-      "note": "share of bs.total_assets",
-      "share": 0.055947,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 3258346.42,
-      "key": "bs.other_current_liabilities",
-      "note": "share of bs.total_assets",
-      "share": 0.082869,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 1440419.23,
-      "key": "bs.long_term_debt",
-      "note": "share of bs.total_assets",
-      "share": 0.036634,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 941634.37,
-      "key": "bs.other_non_current_liabilities",
-      "note": "share of bs.total_assets",
-      "share": 0.023949,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 3640202.33,
-      "key": "bs.total_debt",
-      "note": "share of bs.total_assets",
-      "share": 0.092581,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 15395030.37,
-      "key": "bs.total_liabilities",
-      "note": "share of bs.total_assets",
-      "share": 0.391541,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 8795850.0,
-      "key": "bs.share_capital",
-      "note": "share of bs.total_assets",
-      "share": 0.223704,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": -61628.4,
-      "key": "bs.retained_earnings",
-      "note": "share of bs.total_assets",
-      "share": -0.001567,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 7656186.1,
-      "key": "bs.other_equity",
-      "note": "share of bs.total_assets",
-      "share": 0.194719,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 23924083.72,
-      "key": "bs.total_equity",
-      "note": "share of bs.total_assets",
-      "share": 0.608459,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "bs.ar_doubtful_gross",
-      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "absent"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "bs.ar_provisions",
-      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "absent"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 7692202.74,
-      "key": "bs.ar_intercompany",
-      "note": "share of bs.total_assets",
-      "share": 0.195635,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 133402.89,
-      "key": "bs.cash_fx_component",
-      "note": "share of bs.total_assets",
-      "share": 0.003393,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": 49773.0,
-      "key": "bs.ppe_under_construction",
-      "note": "share of bs.total_assets",
-      "share": 0.001266,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "bs.ppe_advances",
-      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "absent"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "bs.ap_dividends",
-      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "absent"
-     },
-     {
-      "base_key": "pl.revenue",
-      "current": 1313827.41,
-      "key": "pl.opex_third_party",
-      "note": "share of pl.revenue",
-      "share": 0.011858,
-      "statement": "PL",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "analytic.related_party_exposure",
-      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "not_disclosed_at_this_detail_level"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "analytic.receivables_by_counterparty",
-      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "not_disclosed_at_this_detail_level"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "analytic.payables_by_counterparty",
-      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "not_disclosed_at_this_detail_level"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "analytic.receivable_ageing",
-      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "not_disclosed_at_this_detail_level"
-     },
-     {
-      "base_key": "bs.total_assets",
-      "current": null,
-      "key": "analytic.non_trade_receivable_split",
-      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "not_disclosed_at_this_detail_level"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 2573536.72,
-      "key": "bs.row.ppe_land",
-      "note": "share of bs.total.assets",
-      "share": 0.065453,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 6651005.88,
-      "key": "bs.row.ppe_buildings",
-      "note": "share of bs.total.assets",
-      "share": 0.169155,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 27571713.7,
-      "key": "bs.row.ppe_machinery_equipment",
-      "note": "share of bs.total.assets",
-      "share": 0.701229,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 554867.72,
-      "key": "bs.row.ppe_furniture_office",
-      "note": "share of bs.total.assets",
-      "share": 0.014112,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 49773.0,
-      "key": "bs.row.ppe_under_construction",
-      "note": "share of bs.total.assets",
-      "share": 0.001266,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": -26345447.48,
-      "key": "bs.row.accumulated_depreciation_ppe",
-      "note": "share of bs.total.assets",
-      "share": -0.670042,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 5301071.25,
-      "key": "bs.row.intangibles_other",
-      "note": "share of bs.total.assets",
-      "share": 0.134822,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": -4627981.12,
-      "key": "bs.row.accumulated_amortization_intangibles",
-      "note": "share of bs.total.assets",
-      "share": -0.117703,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 67904.42,
-      "key": "bs.row.other_non_current_assets",
-      "note": "share of bs.total.assets",
-      "share": 0.001727,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 1034644.15,
-      "key": "bs.row.cash_operating",
-      "note": "share of bs.total.assets",
-      "share": 0.026314,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 133402.89,
-      "key": "bs.row.cash_fx",
-      "note": "share of bs.total.assets",
-      "share": 0.003393,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 906526.42,
-      "key": "bs.row.short_term_investments",
-      "note": "share of bs.total.assets",
-      "share": 0.023056,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 8573293.46,
-      "key": "bs.row.ar_trade_gross",
-      "note": "share of bs.total.assets",
-      "share": 0.218044,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": -59908.5,
-      "key": "bs.row.ar_provisions",
-      "note": "share of bs.total.assets",
-      "share": -0.001524,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 7692202.74,
-      "key": "bs.row.ar_intercompany",
-      "note": "share of bs.total.assets",
-      "share": 0.195635,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 48733.72,
-      "key": "bs.row.ar_tax_recoverable",
-      "note": "share of bs.total.assets",
-      "share": 0.001239,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 19614.76,
-      "key": "bs.row.ar_supplier_advances",
-      "note": "share of bs.total.assets",
-      "share": 0.000499,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 42882.35,
-      "key": "bs.row.ar_other",
-      "note": "share of bs.total.assets",
-      "share": 0.001091,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 3654805.78,
-      "key": "bs.row.inventory_raw_materials",
-      "note": "share of bs.total.assets",
-      "share": 0.092952,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 714545.14,
-      "key": "bs.row.inventory_consumables",
-      "note": "share of bs.total.assets",
-      "share": 0.018173,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 995988.37,
-      "key": "bs.row.inventory_wip",
-      "note": "share of bs.total.assets",
-      "share": 0.025331,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 1457159.29,
-      "key": "bs.row.inventory_finished_goods",
-      "note": "share of bs.total.assets",
-      "share": 0.03706,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 2064260.65,
-      "key": "bs.row.inventory_merchandise_resale",
-      "note": "share of bs.total.assets",
-      "share": 0.0525,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 52648.19,
-      "key": "bs.row.inventory_packaging",
-      "note": "share of bs.total.assets",
-      "share": 0.001339,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": -6075.0,
-      "key": "bs.row.inventory_provisions",
-      "note": "share of bs.total.assets",
-      "share": -0.000155,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 46613.06,
-      "key": "bs.row.unclassified_debit",
-      "note": "share of bs.total.assets",
-      "share": 0.001186,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 151332.53,
-      "key": "bs.row.prepaid_expenses_st",
-      "note": "share of bs.total.assets",
-      "share": 0.003849,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 8795850.0,
-      "key": "bs.row.share_capital",
-      "note": "share of bs.total.assets",
-      "share": 0.223704,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 5.0,
-      "key": "bs.row.share_premium",
-      "note": "share of bs.total.assets",
-      "share": 0.0,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 1888792.0,
-      "key": "bs.row.revaluation_reserves",
-      "note": "share of bs.total.assets",
-      "share": 0.048038,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 5767389.1,
-      "key": "bs.row.other_reserves",
-      "note": "share of bs.total.assets",
-      "share": 0.146682,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": -61628.4,
-      "key": "bs.row.accumulated_losses_prior_years",
-      "note": "share of bs.total.assets",
-      "share": -0.001567,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 7533676.02,
-      "key": "bs.row.current_year_profit",
-      "note": "share of bs.total.assets",
-      "share": 0.191603,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 552921.67,
-      "key": "bs.row.lt_debt_bank",
-      "note": "share of bs.total.assets",
-      "share": 0.014062,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 887497.56,
-      "key": "bs.row.lt_debt_other",
-      "note": "share of bs.total.assets",
-      "share": 0.022572,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 7186373.77,
-      "key": "bs.row.ap_trade",
-      "note": "share of bs.total.assets",
-      "share": 0.18277,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 902453.47,
-      "key": "bs.row.ap_tax",
-      "note": "share of bs.total.assets",
-      "share": 0.022952,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 791069.0,
-      "key": "bs.row.ap_personnel_salaries",
-      "note": "share of bs.total.assets",
-      "share": 0.020119,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 520453.0,
-      "key": "bs.row.ap_personnel_social",
-      "note": "share of bs.total.assets",
-      "share": 0.013237,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 826388.99,
-      "key": "bs.row.ap_personnel_other",
-      "note": "share of bs.total.assets",
-      "share": 0.021017,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 138104.01,
-      "key": "bs.row.ap_other",
-      "note": "share of bs.total.assets",
-      "share": 0.003512,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 2199783.1,
-      "key": "bs.row.st_debt_bank",
-      "note": "share of bs.total.assets",
-      "share": 0.055947,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 79877.95,
-      "key": "bs.row.customer_advances",
-      "note": "share of bs.total.assets",
-      "share": 0.002032,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 368473.48,
-      "key": "bs.row.accrued_expenses",
-      "note": "share of bs.total.assets",
-      "share": 0.009371,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 941634.37,
-      "key": "bs.row.government_grants_deferred",
-      "note": "share of bs.total.assets",
-      "share": 0.023949,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 11796444.09,
-      "key": "bs.section.non_current_assets",
-      "note": "share of bs.total.assets",
-      "share": 0.300018,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 27371337.47,
-      "key": "bs.section.current_assets",
-      "note": "share of bs.total.assets",
-      "share": 0.696133,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 151332.53,
-      "key": "bs.section.prepaid_expenses",
-      "note": "share of bs.total.assets",
-      "share": 0.003849,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 23924083.72,
-      "key": "bs.section.equity",
-      "note": "share of bs.total.assets",
-      "share": 0.608459,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": null,
-      "key": "bs.section.provisions",
-      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
-      "share": null,
-      "statement": "BS",
-      "status": "absent"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 1440419.23,
-      "key": "bs.section.non_current_liabilities",
-      "note": "share of bs.total.assets",
-      "share": 0.036634,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 13012976.77,
-      "key": "bs.section.current_liabilities",
-      "note": "share of bs.total.assets",
-      "share": 0.330958,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 941634.37,
-      "key": "bs.section.deferred_income",
-      "note": "share of bs.total.assets",
-      "share": 0.023949,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 39319114.09,
-      "key": "bs.total.assets",
-      "note": "share of bs.total.assets",
-      "share": 1.0,
-      "statement": "BS",
-      "status": "share"
-     },
-     {
-      "base_key": "bs.total.assets",
-      "current": 39319114.09,
-      "key": "bs.total.equity_plus_liabilities",
-      "note": "share of bs.total.assets",
-      "share": 1.0,
-      "statement": "BS",
-      "status": "share"
-     }
-    ],
-    "schema": "common_size/1"
-   },
    "companyName": "Corpus Entity",
    "currency": "RON",
    "detection_envelope": {
@@ -9800,6 +8803,3835 @@
    "supplementary": {
     "periodDays": 365
    }
+  },
+  "ratios": {
+   "band_movements": {
+    "deteriorated": [],
+    "findings": [],
+    "improved": [],
+    "not_comparable": [
+     {
+      "key": "asset_turnover",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "cash_ratio",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "ccc",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "core_ebitda_margin",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "credit_composite",
+      "reason_code": "graded_by_letter"
+     },
+     {
+      "key": "current_ratio",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "dpo",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "dso",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "ebitda_margin",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "inventory_turnover",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "letter_grade",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "net_margin",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "operating_margin",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "quick_ratio",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "roa",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "roe",
+      "reason_code": "prior_is_later"
+     },
+     {
+      "key": "roic",
+      "reason_code": "prior_is_later"
+     }
+    ],
+    "rank_basis": {
+     "bases": {
+      "asset_turnover": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "cash_ratio": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "ccc": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "core_ebitda_margin": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "current_ratio": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "debt_to_assets": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "debt_to_ebitda": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "debt_to_equity": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "dio": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "dpo": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "dscr": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "dscr_with_lt_principal": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "dso": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "ebitda_margin": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "ebitda_to_interest": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "equity_ratio": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "gross_margin": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "interest_coverage": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "inventory_turnover": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "lt_debt_to_equity": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "net_debt_to_ebitda": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "net_margin": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "operating_margin": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "quick_ratio": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "roa": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "roe": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      },
+      "roic": {
+       "base": "revenue",
+       "numerator_statement": "income_statement"
+      }
+     },
+     "materiality_floor": null,
+     "order": [
+      "abs(rungs_crossed) desc",
+      "distance_fraction desc nulls last",
+      "materiality.share desc nulls last",
+      "key asc"
+     ],
+     "sentence_key": "statements.ratioCmp.rankBasis"
+    },
+    "refused": [
+     {
+      "key": "adjusted_dscr",
+      "reason_code": "both_refused"
+     },
+     {
+      "key": "dscr",
+      "reason_code": "current_refused"
+     },
+     {
+      "key": "dscr_with_lt_principal",
+      "reason_code": "current_refused"
+     },
+     {
+      "key": "ebitda_to_interest",
+      "reason_code": "current_refused"
+     },
+     {
+      "key": "interest_coverage",
+      "reason_code": "current_refused"
+     }
+    ],
+    "unchanged": [
+     {
+      "band": "healthy",
+      "key": "altman_z"
+     },
+     {
+      "band": "strong",
+      "key": "debt_to_assets"
+     },
+     {
+      "band": "strong",
+      "key": "debt_to_ebitda"
+     },
+     {
+      "band": "strong",
+      "key": "debt_to_equity"
+     },
+     {
+      "band": "healthy",
+      "key": "dio"
+     },
+     {
+      "band": "strong",
+      "key": "equity_ratio"
+     },
+     {
+      "band": "healthy",
+      "key": "gross_margin"
+     },
+     {
+      "band": "strong",
+      "key": "lt_debt_to_equity"
+     },
+     {
+      "band": "strong",
+      "key": "net_debt_to_ebitda"
+     }
+    ],
+    "verdicts_withheld": "prior_is_later"
+   },
+   "composites": [
+    {
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "2.6",
+       "watch": "1.1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "x1",
+        "source": "credit_model.altman_x1",
+        "value": 0.1132
+       },
+       {
+        "name": "x2",
+        "source": "credit_model.altman_x2",
+        "value": -0.1073
+       },
+       {
+        "name": "x3",
+        "source": "credit_model.altman_x3",
+        "value": 0.0118
+       },
+       {
+        "name": "x4",
+        "source": "credit_model.altman_x4",
+        "value": 5.6337
+       }
+      ],
+      "reason": null,
+      "value": 6.39,
+      "value_q": "6.39"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "z",
+      "value": "+0.20"
+     },
+     "display_unit": "z",
+     "finding_id": null,
+     "formula_key": "ratioTable.altman_z.formula",
+     "group": "distress",
+     "higher_is_better": true,
+     "key": "altman_z",
+     "label_key": "ratioTable.altman_z.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "healthy",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "healthy"
+     },
+     "prior": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "2.6",
+       "watch": "1.1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "x1",
+        "source": "credit_model.altman_x1",
+        "value": 0.3683
+       },
+       {
+        "name": "x2",
+        "source": "credit_model.altman_x2",
+        "value": 0.1903
+       },
+       {
+        "name": "x3",
+        "source": "credit_model.altman_x3",
+        "value": 0.2264
+       },
+       {
+        "name": "x4",
+        "source": "credit_model.altman_x4",
+        "value": 1.554
+       }
+      ],
+      "reason": null,
+      "value": 6.19,
+      "value_q": "6.19"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_composite",
+        "source": "credit_model.credit_composite",
+        "value": 79.3
+       }
+      ],
+      "reason": {
+       "code": "graded_by_letter",
+       "inputs": [
+        "letter_grade"
+       ]
+      },
+      "value": 79.3,
+      "value_q": "79.3"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "points",
+      "value": "-1.7"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_composite.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_composite",
+     "label_key": "ratioTable.credit_composite.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "graded_by_letter",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_composite",
+        "source": "credit_model.credit_composite",
+        "value": 81.0
+       }
+      ],
+      "reason": {
+       "code": "graded_by_letter",
+       "inputs": [
+        "letter_grade"
+       ]
+      },
+      "value": 81.0,
+      "value_q": "81.0"
+     }
+    },
+    {
+     "current": {
+      "band": "A",
+      "band_status": "graded",
+      "ladder": [
+       {
+        "grade": "AAA",
+        "min": 90
+       },
+       {
+        "grade": "AA",
+        "min": 80
+       },
+       {
+        "grade": "A",
+        "min": 70
+       },
+       {
+        "grade": "BBB",
+        "min": 60
+       },
+       {
+        "grade": "BB",
+        "min": 50
+       },
+       {
+        "grade": "B",
+        "min": 40
+       },
+       {
+        "grade": "CCC",
+        "min": 25
+       },
+       {
+        "grade": "CC",
+        "min": 0
+       }
+      ],
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_composite",
+        "source": "credit_model.credit_composite",
+        "value": 79.3
+       }
+      ],
+      "reason": null,
+      "value": 79.3,
+      "value_q": "A"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "notches",
+      "value": "-1"
+     },
+     "display_unit": "grade",
+     "finding_id": null,
+     "formula_key": "ratioTable.letter_grade.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "letter_grade",
+     "label_key": "ratioTable.letter_grade.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "AA",
+      "band_status": "graded",
+      "ladder": [
+       {
+        "grade": "AAA",
+        "min": 90
+       },
+       {
+        "grade": "AA",
+        "min": 80
+       },
+       {
+        "grade": "A",
+        "min": 70
+       },
+       {
+        "grade": "BBB",
+        "min": 60
+       },
+       {
+        "grade": "BB",
+        "min": 50
+       },
+       {
+        "grade": "B",
+        "min": 40
+       },
+       {
+        "grade": "CCC",
+        "min": 25
+       },
+       {
+        "grade": "CC",
+        "min": 0
+       }
+      ],
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_composite",
+        "source": "credit_model.credit_composite",
+        "value": 81.0
+       }
+      ],
+      "reason": null,
+      "value": 81.0,
+      "value_q": "AA"
+     }
+    }
+   ],
+   "coverage": {
+    "both_sides": 26,
+    "both_sides_census": 23,
+    "census": [
+     "current_ratio",
+     "quick_ratio",
+     "cash_ratio",
+     "gross_margin",
+     "ebitda_margin",
+     "net_margin",
+     "roa",
+     "roe",
+     "roic",
+     "debt_to_ebitda",
+     "debt_to_equity",
+     "equity_ratio",
+     "debt_to_assets",
+     "interest_coverage",
+     "dscr",
+     "adjusted_dscr",
+     "dscr_with_lt_principal",
+     "dso",
+     "dio",
+     "dpo",
+     "ccc",
+     "asset_turnover",
+     "net_debt_to_ebitda",
+     "lt_debt_to_equity",
+     "ebitda_to_interest",
+     "operating_margin",
+     "core_ebitda_margin",
+     "inventory_turnover"
+    ],
+    "census_count": 28,
+    "current_refused": {
+     "adjusted_dscr": "user_input_absent",
+     "dscr": "zero_denominator",
+     "dscr_with_lt_principal": "zero_denominator",
+     "ebitda_to_interest": "engine_metric_absent",
+     "interest_coverage": "zero_denominator"
+    },
+    "movable_composites": [
+     "altman_z",
+     "credit_composite",
+     "letter_grade"
+    ],
+    "prior_refused": {
+     "adjusted_dscr": "user_input_absent"
+    }
+   },
+   "credit": {
+    "current": {
+     "altman": {
+      "thresholds": {
+       "grey_from": 1.1,
+       "safe_from": 2.6
+      },
+      "x1": 0.1132,
+      "x2": -0.1073,
+      "x3": 0.0118,
+      "x3_basis": null,
+      "x4": 5.6337,
+      "z": 6.39,
+      "zone": "safe"
+     },
+     "as_filed": null,
+     "as_filed_differs": false,
+     "composite": 79.3,
+     "declared_rungs": {
+      "coverage": {
+       "file": "packs/credit/model.yaml",
+       "label": "no interest-bearing debt: coverage scored at the top rung by declared rule, not measured",
+       "rung": "no_interest_bearing_debt",
+       "score": 95,
+       "source": "floor_rulings R-D1 (2026-09-15); CLAUDE.md Appendix A section 7 coverage band map (top rung 95)",
+       "when": "total debt == 0 and interest expense == 0 and EBIT > 0, all three measured"
+      },
+      "dscr": {
+       "file": "packs/credit/model.yaml",
+       "label": "no interest-bearing debt: DSCR scored at the top rung by declared rule, not measured",
+       "rung": "no_interest_bearing_debt",
+       "score": 90,
+       "source": "floor_rulings R-D1 (2026-09-15); CLAUDE.md Appendix A section 7 DSCR band map (top rung 90)",
+       "when": "total debt == 0 and interest expense == 0 and EBIT > 0, all three measured"
+      }
+     },
+     "ladder": [
+      {
+       "grade": "AAA",
+       "min": 90
+      },
+      {
+       "grade": "AA",
+       "min": 80
+      },
+      {
+       "grade": "A",
+       "min": 70
+      },
+      {
+       "grade": "BBB",
+       "min": 60
+      },
+      {
+       "grade": "BB",
+       "min": 50
+      },
+      {
+       "grade": "B",
+       "min": 40
+      },
+      {
+       "grade": "CCC",
+       "min": 25
+      },
+      {
+       "grade": "CC",
+       "min": 0
+      }
+     ],
+     "letter": "A",
+     "profitability_disclosure": null,
+     "ranges": {
+      "altman_x1": {
+       "file": "packs/credit/model.yaml",
+       "max": 1.0,
+       "source": "structural: current assets are part of total assets and the leaves are non-negative"
+      },
+      "altman_x4": {
+       "file": "packs/credit/model.yaml",
+       "max": 100.0,
+       "max_is": "1 / altman_x4.liabilities_materiality.share",
+       "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
+      },
+      "altman_z": {
+       "bound": 111.289498,
+       "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
+       "derivation": "6.56 x 1 + 3.26 x -0.1073 + 6.72 x 0.0118 + 1.05 x 100 = 111.2895",
+       "file": "packs/credit/model.yaml",
+       "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
+      },
+      "composite": {
+       "file": "packs/credit/model.yaml",
+       "max": 100.0,
+       "min": 0.0,
+       "source": "CLAUDE.md Appendix A section 7: composite credit score (0-100, weighted); the weights sum to 1"
+      },
+      "subscore": {
+       "file": "packs/credit/model.yaml",
+       "max": 100.0,
+       "min": 0.0,
+       "source": "CLAUDE.md Appendix A section 7: seven sub-scores on a 0-100 scale"
+      }
+     },
+     "reason": null,
+     "refused_subscores": {},
+     "regime": null,
+     "revision": 5,
+     "subscores": {
+      "altman": 100.0,
+      "coverage": 95.0,
+      "dscr": 90.0,
+      "equity": 100.0,
+      "leverage": 100.0,
+      "liquidity": 97.3,
+      "profitability": 5.5
+     },
+     "weights": {
+      "altman": 0.3,
+      "coverage": 0.1,
+      "dscr": 0.1,
+      "equity": 0.05,
+      "leverage": 0.15,
+      "liquidity": 0.1,
+      "profitability": 0.2
+     }
+    },
+    "prior": {
+     "altman": {
+      "thresholds": {
+       "grey_from": 1.1,
+       "safe_from": 2.6
+      },
+      "x1": 0.3683,
+      "x2": 0.1903,
+      "x3": 0.2264,
+      "x3_basis": null,
+      "x4": 1.554,
+      "z": 6.19,
+      "zone": "safe"
+     },
+     "as_filed": null,
+     "as_filed_differs": false,
+     "composite": 81.0,
+     "declared_rungs": {},
+     "ladder": [
+      {
+       "grade": "AAA",
+       "min": 90
+      },
+      {
+       "grade": "AA",
+       "min": 80
+      },
+      {
+       "grade": "A",
+       "min": 70
+      },
+      {
+       "grade": "BBB",
+       "min": 60
+      },
+      {
+       "grade": "BB",
+       "min": 50
+      },
+      {
+       "grade": "B",
+       "min": 40
+      },
+      {
+       "grade": "CCC",
+       "min": 25
+      },
+      {
+       "grade": "CC",
+       "min": 0
+      }
+     ],
+     "letter": "AA",
+     "profitability_disclosure": null,
+     "ranges": {
+      "altman_x1": {
+       "file": "packs/credit/model.yaml",
+       "max": 1.0,
+       "source": "structural: current assets are part of total assets and the leaves are non-negative"
+      },
+      "altman_x4": {
+       "file": "packs/credit/model.yaml",
+       "max": 100.0,
+       "max_is": "1 / altman_x4.liabilities_materiality.share",
+       "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
+      },
+      "altman_z": {
+       "bound": 113.701786,
+       "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
+       "derivation": "6.56 x 1 + 3.26 x 0.1903 + 6.72 x 0.2264 + 1.05 x 100 = 113.7018",
+       "file": "packs/credit/model.yaml",
+       "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
+      },
+      "composite": {
+       "file": "packs/credit/model.yaml",
+       "max": 100.0,
+       "min": 0.0,
+       "source": "CLAUDE.md Appendix A section 7: composite credit score (0-100, weighted); the weights sum to 1"
+      },
+      "subscore": {
+       "file": "packs/credit/model.yaml",
+       "max": 100.0,
+       "min": 0.0,
+       "source": "CLAUDE.md Appendix A section 7: seven sub-scores on a 0-100 scale"
+      }
+     },
+     "reason": null,
+     "refused_subscores": {},
+     "regime": null,
+     "revision": 5,
+     "subscores": {
+      "altman": 100.0,
+      "coverage": 95.0,
+      "dscr": 90.0,
+      "equity": 100.0,
+      "leverage": 90.0,
+      "liquidity": 74.1,
+      "profitability": 33.2
+     },
+     "weights": {
+      "altman": 0.3,
+      "coverage": 0.1,
+      "dscr": 0.1,
+      "equity": 0.05,
+      "leverage": 0.15,
+      "liquidity": 0.1,
+      "profitability": 0.2
+     }
+    }
+   },
+   "current_label": "Dec 2024",
+   "piotroski": {
+    "current": {
+     "checks": [
+      {
+       "detail": "1,435,534 RON",
+       "key": "ni_positive",
+       "label": "Net income positive",
+       "result": "pass"
+      },
+      {
+       "detail": "1.14% on 125,886,193 RON total assets",
+       "key": "roa_positive",
+       "label": "ROA positive",
+       "result": "pass"
+      },
+      {
+       "detail": "5,620,484 RON",
+       "key": "cfo_positive",
+       "label": "Cash from operating positive",
+       "result": "pass"
+      },
+      {
+       "detail": "CFO 5,620,484 > NI 1,435,534",
+       "key": "cfo_gt_ni",
+       "label": "CFO greater than net income (earnings quality)",
+       "result": "pass"
+      },
+      {
+       "detail": "19.16% -> 1.14%",
+       "key": "roa_improving",
+       "label": "ROA improving year-over-year",
+       "result": "fail"
+      },
+      {
+       "detail": "1,440,419 -> 0 RON",
+       "key": "debt_declining",
+       "label": "Long-term debt declining",
+       "result": "pass"
+      },
+      {
+       "detail": "8,795,850 -> 50,000 RON",
+       "key": "no_share_issuance",
+       "label": "No share issuance",
+       "result": "pass"
+      },
+      {
+       "detail": "8.03% -> 1.57%",
+       "key": "margin_improving",
+       "label": "Operating margin improving",
+       "result": "fail"
+      },
+      {
+       "detail": "2.818x -> 0.751x",
+       "key": "asset_turnover_improving",
+       "label": "Asset turnover improving",
+       "result": "fail"
+      }
+     ],
+     "disclosure": null,
+     "has_prior_period": true,
+     "score": 6,
+     "score_max": 9
+    },
+    "current_checks_1_4_source": "served_assembled_piotroski",
+    "current_reason": null,
+    "excluded_from_band_movements": true,
+    "prior": {
+     "checks": [
+      {
+       "detail": "7,533,676 RON",
+       "key": "ni_positive",
+       "label": "Net income positive",
+       "result": "pass"
+      },
+      {
+       "detail": "19.18% on 39,272,501 RON total assets",
+       "key": "roa_positive",
+       "label": "ROA positive",
+       "result": "pass"
+      },
+      {
+       "detail": "10,235,000 RON",
+       "key": "cfo_positive",
+       "label": "Cash from operating positive",
+       "result": "pass"
+      },
+      {
+       "detail": "CFO 10,235,000 > NI 7,533,676",
+       "key": "cfo_gt_ni",
+       "label": "CFO greater than net income (earnings quality)",
+       "result": "pass"
+      },
+      {
+       "detail": "Prior-period data unavailable for YoY comparison.",
+       "key": "roa_improving",
+       "label": "ROA improving year-over-year",
+       "result": "uncertain"
+      },
+      {
+       "detail": "Prior-period data unavailable for YoY comparison.",
+       "key": "debt_declining",
+       "label": "Long-term debt declining",
+       "result": "uncertain"
+      },
+      {
+       "detail": "Prior-period data unavailable for YoY comparison.",
+       "key": "no_share_issuance",
+       "label": "No share issuance",
+       "result": "uncertain"
+      },
+      {
+       "detail": "Prior-period data unavailable for YoY comparison.",
+       "key": "margin_improving",
+       "label": "Operating margin improving",
+       "result": "uncertain"
+      },
+      {
+       "detail": "Prior-period data unavailable for YoY comparison.",
+       "key": "asset_turnover_improving",
+       "label": "Asset turnover improving",
+       "result": "uncertain"
+      }
+     ],
+     "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
+     "has_prior_period": false,
+     "score": 4,
+     "score_max": 9
+    },
+    "prior_capped": true,
+    "reason_code": "piotroski_prior_capped"
+   },
+   "prior_label": "Dec 2025",
+   "rows": [
+    {
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1.5",
+       "strong": "2",
+       "watch": "1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "current_assets",
+        "source": "canonical_bs.current_assets",
+        "value": 31034007.52
+       },
+       {
+        "name": "current_liabilities",
+        "source": "canonical_bs.current_liabilities",
+        "value": 17079808.54
+       }
+      ],
+      "reason": null,
+      "value": 1.816999730841245,
+      "value_q": "1.82"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "-13.3",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "-0.28"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.current_ratio.formula",
+     "group": "liquidity",
+     "higher_is_better": true,
+     "key": "current_ratio",
+     "label_key": "ratioTable.current_ratio.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1.5",
+       "strong": "2",
+       "watch": "1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "current_assets",
+        "source": "canonical_bs.current_assets",
+        "value": 27371337.47
+       },
+       {
+        "name": "current_liabilities",
+        "source": "canonical_bs.current_liabilities",
+        "value": 13012976.77
+       }
+      ],
+      "reason": null,
+      "value": 2.1033878684162133,
+      "value_q": "2.10"
+     }
+    },
+    {
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1",
+       "strong": "1.5",
+       "watch": "0.7"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "cash",
+        "source": "balanceSheet.cash",
+        "value": 10124869.04
+       },
+       {
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 10829721.07
+       },
+       {
+        "name": "current_liabilities",
+        "source": "canonical_bs.current_liabilities",
+        "value": 17079808.54
+       }
+      ],
+      "reason": null,
+      "value": 1.2268632907052481,
+      "value_q": "1.23"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "+66.2",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "+0.49"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.quick_ratio.formula",
+     "group": "liquidity",
+     "higher_is_better": true,
+     "key": "quick_ratio",
+     "label_key": "ratioTable.quick_ratio.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "watch",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1",
+       "strong": "1.5",
+       "watch": "0.7"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "cash",
+        "source": "balanceSheet.cash",
+        "value": 1168047.04
+       },
+       {
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 8513384.96
+       },
+       {
+        "name": "current_liabilities",
+        "source": "canonical_bs.current_liabilities",
+        "value": 13012976.77
+       }
+      ],
+      "reason": null,
+      "value": 0.7439828850167078,
+      "value_q": "0.74"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "0.2",
+       "strong": "0.5",
+       "watch": "0.1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "cash",
+        "source": "balanceSheet.cash",
+        "value": 10124869.04
+       },
+       {
+        "name": "current_liabilities",
+        "source": "canonical_bs.current_liabilities",
+        "value": 17079808.54
+       }
+      ],
+      "reason": null,
+      "value": 0.5927975724252469,
+      "value_q": "0.59"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "+555.6",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "+0.50"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.cash_ratio.formula",
+     "group": "liquidity",
+     "higher_is_better": true,
+     "key": "cash_ratio",
+     "label_key": "ratioTable.cash_ratio.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "0.2",
+       "strong": "0.5",
+       "watch": "0.1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "cash",
+        "source": "balanceSheet.cash",
+        "value": 1168047.04
+       },
+       {
+        "name": "current_liabilities",
+        "source": "canonical_bs.current_liabilities",
+        "value": 13012976.77
+       }
+      ],
+      "reason": null,
+      "value": 0.08976017252968631,
+      "value_q": "0.09"
+     }
+    },
+    {
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "25",
+       "strong": "40",
+       "watch": "15"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "gross_margin",
+        "source": "metrics.gross_margin",
+        "value": 0.3943
+       }
+      ],
+      "reason": null,
+      "value": 39.43,
+      "value_q": "39.4"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "+2.1"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.gross_margin.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "gross_margin",
+     "label_key": "ratioTable.gross_margin.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "healthy",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "healthy"
+     },
+     "prior": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "25",
+       "strong": "40",
+       "watch": "15"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "gross_margin",
+        "source": "metrics.gross_margin",
+        "value": 0.3729
+       }
+      ],
+      "reason": null,
+      "value": 37.29,
+      "value_q": "37.3"
+     }
+    },
+    {
+     "current": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "15",
+       "strong": "25",
+       "watch": "8"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "ebitda_margin",
+        "source": "metrics.ebitda_margin",
+        "value": 0.0499
+       }
+      ],
+      "reason": null,
+      "value": 4.99,
+      "value_q": "5.0"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-5.7"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.ebitda_margin.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "ebitda_margin",
+     "label_key": "ratioTable.ebitda_margin.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "watch",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "15",
+       "strong": "25",
+       "watch": "8"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "ebitda_margin",
+        "source": "metrics.ebitda_margin",
+        "value": 0.1069
+       }
+      ],
+      "reason": null,
+      "value": 10.69,
+      "value_q": "10.7"
+     }
+    },
+    {
+     "current": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "8",
+       "strong": "15",
+       "watch": "3"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_margin",
+        "source": "metrics.net_margin",
+        "value": 0.0152
+       }
+      ],
+      "reason": null,
+      "value": 1.52,
+      "value_q": "1.5"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-5.3"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.net_margin.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "net_margin",
+     "label_key": "ratioTable.net_margin.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "watch",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "8",
+       "strong": "15",
+       "watch": "3"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_margin",
+        "source": "metrics.net_margin",
+        "value": 0.068
+       }
+      ],
+      "reason": null,
+      "value": 6.800000000000001,
+      "value_q": "6.8"
+     }
+    },
+    {
+     "current": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "5",
+       "strong": "10",
+       "watch": "2"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_income_statutory",
+        "source": "assembled_pl.net_income_statutory",
+        "value": 1435533.59
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 125886192.51
+       }
+      ],
+      "reason": null,
+      "value": 1.140342369069559,
+      "value_q": "1.1"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-18.1"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.roa.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "roa",
+     "label_key": "ratioTable.roa.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "5",
+       "strong": "10",
+       "watch": "2"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_income_statutory",
+        "source": "assembled_pl.net_income_statutory",
+        "value": 7533676.02
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 39319114.09
+       }
+      ],
+      "reason": null,
+      "value": 19.16034019168309,
+      "value_q": "19.2"
+     }
+    },
+    {
+     "current": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "12",
+       "strong": "20",
+       "watch": "6"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_income_statutory",
+        "source": "assembled_pl.net_income_statutory",
+        "value": 1435533.59
+       },
+       {
+        "name": "equity",
+        "source": "canonical_bs.equity",
+        "value": 106895967.91
+       }
+      ],
+      "reason": null,
+      "value": 1.3429258540496434,
+      "value_q": "1.3"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-30.2"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.roe.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "roe",
+     "label_key": "ratioTable.roe.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "12",
+       "strong": "20",
+       "watch": "6"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_income_statutory",
+        "source": "assembled_pl.net_income_statutory",
+        "value": 7533676.02
+       },
+       {
+        "name": "equity",
+        "source": "canonical_bs.equity",
+        "value": 23924083.72
+       }
+      ],
+      "reason": null,
+      "value": 31.489924998473462,
+      "value_q": "31.5"
+     }
+    },
+    {
+     "current": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "10",
+       "strong": "15",
+       "watch": "5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "roic",
+        "source": "metrics.roic",
+        "value": 0.0117
+       }
+      ],
+      "reason": null,
+      "value": 1.17,
+      "value_q": "1.2"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-25.9"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.roic.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "roic",
+     "label_key": "ratioTable.roic.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "10",
+       "strong": "15",
+       "watch": "5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "roic",
+        "source": "metrics.roic",
+        "value": 0.271
+       }
+      ],
+      "reason": null,
+      "value": 27.1,
+      "value_q": "27.1"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "3",
+       "strong": "2",
+       "watch": "4.5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "shortTermDebt",
+        "source": "balanceSheet.shortTermDebt",
+        "value": 0.0
+       },
+       {
+        "name": "longTermDebt",
+        "source": "balanceSheet.longTermDebt",
+        "value": 0.0
+       },
+       {
+        "name": "ebitda",
+        "source": "assembled_pl.ebitda",
+        "value": 4720511.64
+       }
+      ],
+      "reason": null,
+      "value": 0.0,
+      "value_q": "0.00"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "-100.0",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "-0.31"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.debt_to_ebitda.formula",
+     "group": "leverage",
+     "higher_is_better": false,
+     "key": "debt_to_ebitda",
+     "label_key": "ratioTable.debt_to_ebitda.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "strong",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "strong"
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "3",
+       "strong": "2",
+       "watch": "4.5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "shortTermDebt",
+        "source": "balanceSheet.shortTermDebt",
+        "value": 2199783.1
+       },
+       {
+        "name": "longTermDebt",
+        "source": "balanceSheet.longTermDebt",
+        "value": 1440419.23
+       },
+       {
+        "name": "ebitda",
+        "source": "assembled_pl.ebitda",
+        "value": 11844076.57
+       }
+      ],
+      "reason": null,
+      "value": 0.3073437011729822,
+      "value_q": "0.31"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1",
+       "strong": "0.5",
+       "watch": "2"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "shortTermDebt",
+        "source": "balanceSheet.shortTermDebt",
+        "value": 0.0
+       },
+       {
+        "name": "longTermDebt",
+        "source": "balanceSheet.longTermDebt",
+        "value": 0.0
+       },
+       {
+        "name": "equity",
+        "source": "canonical_bs.equity",
+        "value": 106895967.91
+       }
+      ],
+      "reason": null,
+      "value": 0.0,
+      "value_q": "0.00"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "-100.0",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "-0.15"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.debt_to_equity.formula",
+     "group": "leverage",
+     "higher_is_better": false,
+     "key": "debt_to_equity",
+     "label_key": "ratioTable.debt_to_equity.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "strong",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "strong"
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1",
+       "strong": "0.5",
+       "watch": "2"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "shortTermDebt",
+        "source": "balanceSheet.shortTermDebt",
+        "value": 2199783.1
+       },
+       {
+        "name": "longTermDebt",
+        "source": "balanceSheet.longTermDebt",
+        "value": 1440419.23
+       },
+       {
+        "name": "equity",
+        "source": "canonical_bs.equity",
+        "value": 23924083.72
+       }
+      ],
+      "reason": null,
+      "value": 0.15215639489494315,
+      "value_q": "0.15"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "30",
+       "strong": "50",
+       "watch": "15"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "equity",
+        "source": "canonical_bs.equity",
+        "value": 106895967.91
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 125886192.51
+       }
+      ],
+      "reason": null,
+      "value": 84.91476767915474,
+      "value_q": "84.9"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "+24.1"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.equity_ratio.formula",
+     "group": "leverage",
+     "higher_is_better": true,
+     "key": "equity_ratio",
+     "label_key": "ratioTable.equity_ratio.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "strong",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "strong"
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "30",
+       "strong": "50",
+       "watch": "15"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "equity",
+        "source": "canonical_bs.equity",
+        "value": 23924083.72
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 39319114.09
+       }
+      ],
+      "reason": null,
+      "value": 60.84593784396732,
+      "value_q": "60.8"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "50",
+       "strong": "30",
+       "watch": "65"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "shortTermDebt",
+        "source": "balanceSheet.shortTermDebt",
+        "value": 0.0
+       },
+       {
+        "name": "longTermDebt",
+        "source": "balanceSheet.longTermDebt",
+        "value": 0.0
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 125886192.51
+       }
+      ],
+      "reason": null,
+      "value": 0.0,
+      "value_q": "0.0"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-9.3"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.debt_to_assets.formula",
+     "group": "leverage",
+     "higher_is_better": false,
+     "key": "debt_to_assets",
+     "label_key": "ratioTable.debt_to_assets.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "strong",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "strong"
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "50",
+       "strong": "30",
+       "watch": "65"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "shortTermDebt",
+        "source": "balanceSheet.shortTermDebt",
+        "value": 2199783.1
+       },
+       {
+        "name": "longTermDebt",
+        "source": "balanceSheet.longTermDebt",
+        "value": 1440419.23
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 39319114.09
+       }
+      ],
+      "reason": null,
+      "value": 9.258098546339856,
+      "value_q": "9.3"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "refused",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "ebit",
+        "source": "assembled_pl.operating_result",
+        "value": 1485303.53
+       },
+       {
+        "name": "interestExpense",
+        "source": "incomeStatement.interestExpense",
+        "value": 0.0
+       }
+      ],
+      "reason": {
+       "code": "zero_denominator",
+       "inputs": [
+        "interest expense"
+       ]
+      },
+      "value": null,
+      "value_q": null
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "current_refused",
+      "unit": "turns",
+      "value": null
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.interest_coverage.formula",
+     "group": "coverage",
+     "higher_is_better": true,
+     "key": "interest_coverage",
+     "label_key": "ratioTable.interest_coverage.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "current_refused",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "3",
+       "strong": "6",
+       "watch": "1.5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "interest_coverage",
+        "source": "metrics.interest_coverage",
+        "value": 31.9962
+       }
+      ],
+      "reason": null,
+      "value": 31.9962,
+      "value_q": "32.00"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "refused",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "ebitda",
+        "source": "assembled_pl.ebitda",
+        "value": 4720511.64
+       },
+       {
+        "name": "interestExpense",
+        "source": "incomeStatement.interestExpense",
+        "value": 0.0
+       },
+       {
+        "name": "shortTermDebt",
+        "source": "balanceSheet.shortTermDebt",
+        "value": 0.0
+       }
+      ],
+      "reason": {
+       "code": "zero_denominator",
+       "inputs": [
+        "interest + short-term debt"
+       ]
+      },
+      "value": null,
+      "value_q": null
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "current_refused",
+      "unit": "turns",
+      "value": null
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.dscr.formula",
+     "group": "coverage",
+     "higher_is_better": true,
+     "key": "dscr",
+     "label_key": "ratioTable.dscr.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "current_refused",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1.25",
+       "strong": "1.5",
+       "watch": "1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "dscr",
+        "source": "metrics.dscr",
+        "value": 4.7802
+       }
+      ],
+      "reason": null,
+      "value": 4.7802,
+      "value_q": "4.78"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "refused",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "annualLeaseExpense",
+        "source": "supplementary.annualLeaseExpense",
+        "value": null
+       }
+      ],
+      "reason": {
+       "code": "user_input_absent",
+       "inputs": [
+        "supplementary.annualLeaseExpense"
+       ]
+      },
+      "value": null,
+      "value_q": null
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "both_refused",
+      "unit": "turns",
+      "value": null
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.adjusted_dscr.formula",
+     "group": "coverage",
+     "higher_is_better": true,
+     "key": "adjusted_dscr",
+     "label_key": "ratioTable.adjusted_dscr.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "both_refused",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "refused",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "annualLeaseExpense",
+        "source": "supplementary.annualLeaseExpense",
+        "value": null
+       }
+      ],
+      "reason": {
+       "code": "user_input_absent",
+       "inputs": [
+        "supplementary.annualLeaseExpense"
+       ]
+      },
+      "value": null,
+      "value_q": null
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "refused",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "ebitda",
+        "source": "assembled_pl.ebitda",
+        "value": 4720511.64
+       },
+       {
+        "name": "interestExpense",
+        "source": "incomeStatement.interestExpense",
+        "value": 0.0
+       },
+       {
+        "name": "longTermDebt",
+        "source": "balanceSheet.longTermDebt",
+        "value": 0.0
+       }
+      ],
+      "reason": {
+       "code": "zero_denominator",
+       "inputs": [
+        "interest + LT principal proxy"
+       ]
+      },
+      "value": null,
+      "value_q": null
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "current_refused",
+      "unit": "turns",
+      "value": null
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.dscr_with_lt_principal.formula",
+     "group": "coverage",
+     "higher_is_better": true,
+     "key": "dscr_with_lt_principal",
+     "label_key": "ratioTable.dscr_with_lt_principal.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "current_refused",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1.25",
+       "strong": "1.5",
+       "watch": "1"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "dscr_with_lt_principal",
+        "source": "metrics.dscr_with_lt_principal",
+        "value": 25.8614
+       }
+      ],
+      "reason": null,
+      "value": 25.8614,
+      "value_q": "25.86"
+     }
+    },
+    {
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "45",
+       "strong": "30",
+       "watch": "75"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 10829721.07
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 94509939.96
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       }
+      ],
+      "reason": null,
+      "value": 41.824682062257025,
+      "value_q": "42"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "days",
+      "value": "+14"
+     },
+     "display_unit": "days",
+     "finding_id": null,
+     "formula_key": "ratioTable.dso.formula",
+     "group": "efficiency",
+     "higher_is_better": false,
+     "key": "dso",
+     "label_key": "ratioTable.dso.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "45",
+       "strong": "30",
+       "watch": "75"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 8513384.96
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 110798309.14
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       }
+      ],
+      "reason": null,
+      "value": 28.045423567553193,
+      "value_q": "28"
+     }
+    },
+    {
+     "basis": {
+      "current": "average_two_year_ends",
+      "prior": "average_two_year_ends"
+     },
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "60",
+       "strong": "30",
+       "watch": "100"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 34.2676
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8865532.47
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 94430857.5
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       }
+      ],
+      "reason": null,
+      "value": 34.2676,
+      "value_q": "34"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "days",
+      "value": "+4"
+     },
+     "display_unit": "days",
+     "finding_id": null,
+     "formula_key": "ratioTable.dio.formula",
+     "group": "efficiency",
+     "higher_is_better": false,
+     "key": "dio",
+     "label_key": "ratioTable.dio.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "healthy",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "healthy"
+     },
+     "prior": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "60",
+       "strong": "30",
+       "watch": "100"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 30.2117
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8467184.86
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       }
+      ],
+      "reason": null,
+      "value": 30.2117,
+      "value_q": "30"
+     }
+    },
+    {
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "45",
+       "strong": "60",
+       "watch": "30"
+      },
+      "ladder_floor": "watch",
+      "operands": [
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 13392746.23
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 57429796.23
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 33492385.21
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       }
+      ],
+      "reason": null,
+      "value": 51.66424475283546,
+      "value_q": "52"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "days",
+      "value": "+25"
+     },
+     "display_unit": "days",
+     "finding_id": null,
+     "formula_key": "ratioTable.dpo.formula",
+     "group": "efficiency",
+     "higher_is_better": true,
+     "key": "dpo",
+     "label_key": "ratioTable.dpo.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "watch",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "45",
+       "strong": "60",
+       "watch": "30"
+      },
+      "ladder_floor": "watch",
+      "operands": [
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       }
+      ],
+      "reason": null,
+      "value": 26.67688366137272,
+      "value_q": "27"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "60",
+       "strong": "30",
+       "watch": "90"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 10829721.07
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 94509939.96
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 37.8642
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 9796026.8
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 94430857.5
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 13392746.23
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 57429796.23
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 33492385.21
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
+       }
+      ],
+      "reason": null,
+      "value": 28.024637309421564,
+      "value_q": "28"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "days",
+      "value": "-5"
+     },
+     "display_unit": "days",
+     "finding_id": null,
+     "formula_key": "ratioTable.ccc.formula",
+     "group": "efficiency",
+     "higher_is_better": false,
+     "key": "ccc",
+     "label_key": "ratioTable.ccc.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "60",
+       "strong": "30",
+       "watch": "90"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 8513384.96
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 110798309.14
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 31.8749
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 8933332.42
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
+       }
+      ],
+      "reason": null,
+      "value": 33.24343990618048,
+      "value_q": "33"
+     }
+    },
+    {
+     "current": {
+      "band": "watch",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1",
+       "strong": "1.5",
+       "watch": "0.5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 94509939.96
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 125886192.51
+       }
+      ],
+      "reason": null,
+      "value": 0.7507569978533779,
+      "value_q": "0.75"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "-73.4",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "-2.07"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.asset_turnover.formula",
+     "group": "efficiency",
+     "higher_is_better": true,
+     "key": "asset_turnover",
+     "label_key": "ratioTable.asset_turnover.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "1",
+       "strong": "1.5",
+       "watch": "0.5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 110798309.14
+       },
+       {
+        "name": "total_assets",
+        "source": "canonical_bs.total_assets",
+        "value": 39319114.09
+       }
+      ],
+      "reason": null,
+      "value": 2.8179248618467536,
+      "value_q": "2.82"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "3",
+       "strong": "1.5",
+       "watch": "4.5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_debt_to_ebitda",
+        "source": "metrics.net_debt_to_ebitda",
+        "value": -2.1449
+       }
+      ],
+      "reason": null,
+      "value": -2.1449,
+      "value_q": "-2.14"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "-1119.0",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "-2.35"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.net_debt_to_ebitda.formula",
+     "group": "leverage",
+     "higher_is_better": false,
+     "key": "net_debt_to_ebitda",
+     "label_key": "ratioTable.net_debt_to_ebitda.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "strong",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "strong"
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "3",
+       "strong": "1.5",
+       "watch": "4.5"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "net_debt_to_ebitda",
+        "source": "metrics.net_debt_to_ebitda",
+        "value": 0.2087
+       }
+      ],
+      "reason": null,
+      "value": 0.2087,
+      "value_q": "0.21"
+     }
+    },
+    {
+     "current": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "0.6",
+       "strong": "0.3",
+       "watch": "1.2"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "lt_debt_to_equity",
+        "source": "metrics.lt_debt_to_equity",
+        "value": 0.0
+       }
+      ],
+      "reason": null,
+      "value": 0.0,
+      "value_q": "0.00"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "-100.0",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "-0.06"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.lt_debt_to_equity.formula",
+     "group": "leverage",
+     "higher_is_better": false,
+     "key": "lt_debt_to_equity",
+     "label_key": "ratioTable.lt_debt_to_equity.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": "strong",
+      "materiality": null,
+      "reason_code": null,
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "same_band",
+      "to": "strong"
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "0.6",
+       "strong": "0.3",
+       "watch": "1.2"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "lt_debt_to_equity",
+        "source": "metrics.lt_debt_to_equity",
+        "value": 0.0602
+       }
+      ],
+      "reason": null,
+      "value": 0.0602,
+      "value_q": "0.06"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "refused",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "ebitda_to_interest",
+        "source": "metrics.ebitda_to_interest",
+        "value": null
+       }
+      ],
+      "reason": {
+       "code": "engine_metric_absent",
+       "inputs": [
+        "metrics.ebitda_to_interest"
+       ]
+      },
+      "value": null,
+      "value_q": null
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "current_refused",
+      "unit": "turns",
+      "value": null
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.ebitda_to_interest.formula",
+     "group": "coverage",
+     "higher_is_better": true,
+     "key": "ebitda_to_interest",
+     "label_key": "ratioTable.ebitda_to_interest.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "current_refused",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "4",
+       "strong": "8",
+       "watch": "2"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "ebitda_to_interest",
+        "source": "metrics.ebitda_to_interest",
+        "value": 42.6153
+       }
+      ],
+      "reason": null,
+      "value": 42.6153,
+      "value_q": "42.62"
+     }
+    },
+    {
+     "current": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "10",
+       "strong": "20",
+       "watch": "4"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "operating_margin",
+        "source": "metrics.operating_margin",
+        "value": 0.0157
+       }
+      ],
+      "reason": null,
+      "value": 1.5699999999999998,
+      "value_q": "1.6"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-6.4"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.operating_margin.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "operating_margin",
+     "label_key": "ratioTable.operating_margin.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "watch",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "10",
+       "strong": "20",
+       "watch": "4"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "operating_margin",
+        "source": "metrics.operating_margin",
+        "value": 0.0803
+       }
+      ],
+      "reason": null,
+      "value": 8.03,
+      "value_q": "8.0"
+     }
+    },
+    {
+     "current": {
+      "band": "critical",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "15",
+       "strong": "25",
+       "watch": "8"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "core_ebitda_margin",
+        "source": "metrics.core_ebitda_margin",
+        "value": 0.0399
+       }
+      ],
+      "reason": null,
+      "value": 3.9899999999999998,
+      "value_q": "4.0"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "pp",
+      "value": "-6.3"
+     },
+     "display_unit": "pct",
+     "finding_id": null,
+     "formula_key": "ratioTable.core_ebitda_margin.formula",
+     "group": "profitability",
+     "higher_is_better": true,
+     "key": "core_ebitda_margin",
+     "label_key": "ratioTable.core_ebitda_margin.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "watch",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "15",
+       "strong": "25",
+       "watch": "8"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "core_ebitda_margin",
+        "source": "metrics.core_ebitda_margin",
+        "value": 0.1034
+       }
+      ],
+      "reason": null,
+      "value": 10.34,
+      "value_q": "10.3"
+     }
+    },
+    {
+     "basis": {
+      "current": "average_two_year_ends",
+      "prior": "average_two_year_ends"
+     },
+     "current": {
+      "band": "healthy",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "6",
+       "strong": "12",
+       "watch": "3"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "inventory_turnover",
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 10.6515
+       }
+      ],
+      "reason": null,
+      "value": 10.6515,
+      "value_q": "10.65"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": "-11.8",
+      "reason_code": "prior_is_later",
+      "unit": "turns",
+      "value": "-1.43"
+     },
+     "display_unit": "x",
+     "finding_id": null,
+     "formula_key": "ratioTable.inventory_turnover.formula",
+     "group": "efficiency",
+     "higher_is_better": true,
+     "key": "inventory_turnover",
+     "label_key": "ratioTable.inventory_turnover.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "prior_is_later",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": "strong",
+      "band_status": "graded",
+      "ladder": {
+       "healthy": "6",
+       "strong": "12",
+       "watch": "3"
+      },
+      "ladder_floor": "critical",
+      "operands": [
+       {
+        "name": "inventory_turnover",
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 12.0814
+       }
+      ],
+      "reason": null,
+      "value": 12.0814,
+      "value_q": "12.08"
+     }
+    }
+   ],
+   "stamps": {
+    "comparable_model": true,
+    "current": {
+     "assembled_at": "serve",
+     "bands": {
+      "industry_resolved": null,
+      "origin": "served",
+      "source": "general_sme_fallback",
+      "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
+     },
+     "credit_model_revision": 5,
+     "currency": "RON",
+     "methodology_version": null,
+     "metrics_basis": "serve",
+     "pack_provenance": {
+      "jurisdiction": "RO",
+      "mapping_version": "ro_omfp1802_v2",
+      "pack": "omfp1802@v1",
+      "pack_hash": "36e3fb50e0cc541c81db3c0e87f943998c013a4ffd3704347f362d9f78990e16"
+     },
+     "pack_provenance_source": "payload",
+     "ratio_table_version": "ratio_table.v1"
+    },
+    "differences": [],
+    "effective_dating": {
+     "basis": "restated_under_current_revision",
+     "is_convention": true
+    },
+    "prior": {
+     "assembled_at": "serve",
+     "bands": {
+      "industry_resolved": null,
+      "origin": "served",
+      "source": "general_sme_fallback",
+      "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
+     },
+     "credit_model_revision": 5,
+     "currency": "RON",
+     "methodology_version": null,
+     "metrics_basis": "serve",
+     "pack_provenance": {
+      "jurisdiction": "RO",
+      "mapping_version": "ro_omfp1802_v2",
+      "pack": "omfp1802@v1",
+      "pack_hash": "36e3fb50e0cc541c81db3c0e87f943998c013a4ffd3704347f362d9f78990e16"
+     },
+     "pack_provenance_source": "payload",
+     "ratio_table_version": "ratio_table.v1"
+    },
+    "sector_withheld_by": []
+   },
+   "subscores": [
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_altman",
+        "source": "credit_model.credit_subscore_altman",
+        "value": 100.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_altman"
+       ]
+      },
+      "value": 100.0,
+      "value_q": "100.0"
+     },
+     "delta": {
+      "favourable": "none",
+      "pct_change": null,
+      "reason_code": null,
+      "unit": "points",
+      "value": "0.0"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_subscore_altman.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_subscore_altman",
+     "label_key": "ratioTable.credit_subscore_altman.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "not_in_pack_bands",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_altman",
+        "source": "credit_model.credit_subscore_altman",
+        "value": 100.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_altman"
+       ]
+      },
+      "value": 100.0,
+      "value_q": "100.0"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_profitability",
+        "source": "credit_model.credit_subscore_profitability",
+        "value": 5.5
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_profitability"
+       ]
+      },
+      "value": 5.5,
+      "value_q": "5.5"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "points",
+      "value": "-27.7"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_subscore_profitability.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_subscore_profitability",
+     "label_key": "ratioTable.credit_subscore_profitability.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "not_in_pack_bands",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_profitability",
+        "source": "credit_model.credit_subscore_profitability",
+        "value": 33.2
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_profitability"
+       ]
+      },
+      "value": 33.2,
+      "value_q": "33.2"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_leverage",
+        "source": "credit_model.credit_subscore_leverage",
+        "value": 100.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_leverage"
+       ]
+      },
+      "value": 100.0,
+      "value_q": "100.0"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "points",
+      "value": "+10.0"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_subscore_leverage.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_subscore_leverage",
+     "label_key": "ratioTable.credit_subscore_leverage.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "not_in_pack_bands",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_leverage",
+        "source": "credit_model.credit_subscore_leverage",
+        "value": 90.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_leverage"
+       ]
+      },
+      "value": 90.0,
+      "value_q": "90.0"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_coverage",
+        "source": "credit_model.credit_subscore_coverage",
+        "value": 95.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_coverage"
+       ]
+      },
+      "value": 95.0,
+      "value_q": "95.0"
+     },
+     "delta": {
+      "favourable": "none",
+      "pct_change": null,
+      "reason_code": null,
+      "unit": "points",
+      "value": "0.0"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_subscore_coverage.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_subscore_coverage",
+     "label_key": "ratioTable.credit_subscore_coverage.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "not_in_pack_bands",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_coverage",
+        "source": "credit_model.credit_subscore_coverage",
+        "value": 95.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_coverage"
+       ]
+      },
+      "value": 95.0,
+      "value_q": "95.0"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_dscr",
+        "source": "credit_model.credit_subscore_dscr",
+        "value": 90.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_dscr"
+       ]
+      },
+      "value": 90.0,
+      "value_q": "90.0"
+     },
+     "delta": {
+      "favourable": "none",
+      "pct_change": null,
+      "reason_code": null,
+      "unit": "points",
+      "value": "0.0"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_subscore_dscr.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_subscore_dscr",
+     "label_key": "ratioTable.credit_subscore_dscr.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "not_in_pack_bands",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_dscr",
+        "source": "credit_model.credit_subscore_dscr",
+        "value": 90.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_dscr"
+       ]
+      },
+      "value": 90.0,
+      "value_q": "90.0"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_liquidity",
+        "source": "credit_model.credit_subscore_liquidity",
+        "value": 97.3
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_liquidity"
+       ]
+      },
+      "value": 97.3,
+      "value_q": "97.3"
+     },
+     "delta": {
+      "favourable": null,
+      "pct_change": null,
+      "reason_code": "prior_is_later",
+      "unit": "points",
+      "value": "+23.2"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_subscore_liquidity.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_subscore_liquidity",
+     "label_key": "ratioTable.credit_subscore_liquidity.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "not_in_pack_bands",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_liquidity",
+        "source": "credit_model.credit_subscore_liquidity",
+        "value": 74.1
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_liquidity"
+       ]
+      },
+      "value": 74.1,
+      "value_q": "74.1"
+     }
+    },
+    {
+     "current": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_equity",
+        "source": "credit_model.credit_subscore_equity",
+        "value": 100.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_equity"
+       ]
+      },
+      "value": 100.0,
+      "value_q": "100.0"
+     },
+     "delta": {
+      "favourable": "none",
+      "pct_change": null,
+      "reason_code": null,
+      "unit": "points",
+      "value": "0.0"
+     },
+     "display_unit": "score",
+     "finding_id": null,
+     "formula_key": "ratioTable.credit_subscore_equity.formula",
+     "group": "credit",
+     "higher_is_better": true,
+     "key": "credit_subscore_equity",
+     "label_key": "ratioTable.credit_subscore_equity.label",
+     "movement": {
+      "band_width": null,
+      "band_width_basis": null,
+      "distance_fraction": null,
+      "distance_past_rung": null,
+      "from": null,
+      "materiality": null,
+      "reason_code": "not_in_pack_bands",
+      "rung_crossed": null,
+      "rungs_crossed": 0,
+      "status": "not_comparable",
+      "to": null
+     },
+     "prior": {
+      "band": null,
+      "band_status": "not_banded",
+      "ladder": null,
+      "ladder_floor": null,
+      "operands": [
+       {
+        "name": "credit_subscore_equity",
+        "source": "credit_model.credit_subscore_equity",
+        "value": 100.0
+       }
+      ],
+      "reason": {
+       "code": "not_in_pack_bands",
+       "inputs": [
+        "credit_subscore_equity"
+       ]
+      },
+      "value": 100.0,
+      "value_q": "100.0"
+     }
+    }
+   ],
+   "table_version": "ratio_compare.v1"
   }
  },
  "current_body": {

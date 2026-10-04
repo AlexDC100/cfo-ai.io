@@ -297,7 +297,11 @@ def compare_payloads(
     # renders (`bs.row.<id>`, `bs.section.<id>`, `bs.total.*`).
     cs = common_size(table) + canonical_common_size(cur_env, pri_env, table)
 
-    prior_statements = prior_payload.get("statements") or {}
+    # The prior's served statements, verbatim — less its own share block:
+    # the prior's shares are this document's `prior_share` column, and a
+    # second copy nothing reads cost every comparison about 19 KB.
+    prior_statements = dict(prior_payload.get("statements") or {})
+    prior_statements.pop("common_size", None)
     # The two-period ratio block (engine.comparatives.ratio_compare): both
     # periods' ratios, bands, deltas, movements and credit composites,
     # computed from these two served payloads under one model revision.
@@ -311,6 +315,9 @@ def compare_payloads(
         current_period_id=current_row.get("id"), prior_period_id=prior_row.get("id"),
         current_snapshot_id=snapshot_id_of(current_row),
         prior_snapshot_id=snapshot_id_of(prior_row),
+        # The same reading of the two closes the movers get: a document
+        # that says no verdict is served serves none in ANY of its blocks.
+        verdicts_withheld=direction.reason,
     )
     return {
         "ratios": ratios,

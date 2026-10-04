@@ -11,7 +11,12 @@ Three readings of the same two envelopes, each with its own refusal.
                 period, so each side's is taken by `shares.side_shares` —
                 the same function `period_common_size` runs over a period
                 read on its own (`statements.common_size` on every period
-                payload): one computation, two documents.
+                payload): one computation, two documents. A result line's
+                share of turnover is a MARGIN, so it asks the one margin
+                rule first (`lines.share_withheld_of`): where the rule
+                refuses a period's margins that side carries no share, the
+                other side keeps its own, and no change in points is struck
+                between a margin and a refusal.
 
   THE BRIDGE    prior total → named steps → current total, closing to the
                 cent. Every step is the change in one engine field that the
@@ -73,6 +78,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .columns import (
     DISCLOSURE_ABSENT,
+    DISCLOSURE_REFUSED,
     DISCLOSURE_REPORTED,
     MOVEMENT_STATUSES,
     STATUS_ABSENT_BOTH,
@@ -80,14 +86,16 @@ from .columns import (
     STATUS_ABSENT_PRIOR,
     STATUS_COMPARED,
     STATUS_INCOMPARABLE,
+    STATUS_REFUSED,
     ComparativeColumn,
     ComparativeTable,
     round_money,
 )
-from .lines import ZERO_FLOOR, spec_for, unwrap_envelope
+from .lines import ZERO_FLOOR, equity_refusal_of, spec_for, unwrap_envelope
 from .shares import (
     COMMON_SIZE_BASE,
     STATUS_NO_BASE,
+    STATUS_NOT_MEANINGFUL,
     SideLine,
     SideShare,
     side_lines,
@@ -101,6 +109,7 @@ __all__ = [
     "CANONICAL_SECTION_PREFIX",
     "CANONICAL_TOTAL_PREFIX",
     "CANONICAL_BASE_KEY",
+    "CANONICAL_EQUITY_KEYS",
     "FAVORABLE_DIRECTION",
     "MATERIALITY_FLOOR",
     "TOP_MOVERS_DEFAULT",
@@ -192,11 +201,13 @@ def _table_side(table: ComparativeTable, which: str) -> Tuple[SideLine, ...]:
     """One side of a comparison as the lines of ONE period — exactly what
     the column model read for that side (value to the cent, disclosure)."""
     current = which == "current"
+    withheld = dict(table.current_share_withheld if current else table.prior_share_withheld)
     return tuple(
         SideLine(key=col.key, statement=col.statement, label=col.label,
                  base_key=COMMON_SIZE_BASE.get(col.statement, ""),
                  value=col.current if current else col.prior,
-                 disclosure=col.current_disclosure if current else col.prior_disclosure)
+                 disclosure=col.current_disclosure if current else col.prior_disclosure,
+                 share_withheld=withheld.get(col.key, ""))
         for col in table.columns)
 
 
@@ -218,6 +229,14 @@ def _pair_row(pair_status: str, pair_note: str, cur: SideShare, pri: SideShare) 
         status, note = "no_base", (
             "%s is below the %.3f zero floor in the prior period; no "
             "share can be taken" % (line.base_key, ZERO_FLOOR))
+    elif STATUS_NOT_MEANINGFUL in (cur.status, pri.status):
+        # The margin rule refused this line's share in one period or both:
+        # that side carries none, the other keeps its own, and there is no
+        # change in points between a margin and a refusal.
+        status, note = STATUS_NOT_MEANINGFUL, "; ".join(
+            "%s period: %s" % (name, side.note)
+            for name, side in (("current", cur), ("prior", pri))
+            if side.status == STATUS_NOT_MEANINGFUL)
     elif cur.raw is not None and pri.raw is not None:
         status, note = "compared", "share of %s in both periods" % line.base_key
     else:
@@ -268,8 +287,29 @@ _CANONICAL_TOTALS = (
     ("equity_plus_liabilities", "Total equity and liabilities"),
 )
 
+#: THE CANONICAL LINES BUILT ON TOTAL EQUITY: the equity section's subtotal
+#: (the bs_v2 schema's own section id) and the grand total that adds the
+#: liabilities to it. When the period refuses total equity as incomplete
+#: (`lines.equity_refusal_of`: short by a refused year's result) both are
+#: that short figure and neither takes a share — a share of total assets on
+#: the equity subtotal IS the equity ratio the ratio table refuses on the
+#: same body. The equity ROWS (share capital, reserves, …) are posted
+#: balances, complete in themselves, and keep theirs.
+_EQUITY_SECTION = "equity"
+CANONICAL_EQUITY_KEYS = (
+    CANONICAL_SECTION_PREFIX + _EQUITY_SECTION,
+    CANONICAL_TOTAL_PREFIX + "equity_plus_liabilities",
+)
 
-def _canonical_line(key: str, label: str, value: Optional[float], why_absent: str) -> SideLine:
+
+def _canonical_line(key, label, value, why_absent, refusal=None):
+    # type: (str, str, Optional[float], str, Optional[Mapping[str, Any]]) -> SideLine
+    if refusal is not None and key in CANONICAL_EQUITY_KEYS:
+        return SideLine(
+            key=key, statement="BS", label=label, base_key=CANONICAL_BASE_KEY,
+            value=None, disclosure=DISCLOSURE_REFUSED,
+            note="%s is refused, so no share is taken — %s"
+                 % (label, refusal.get("text_en") or refusal.get("code") or "refused"))
     if value is None:
         return SideLine(key=key, statement="BS", label=label, base_key=CANONICAL_BASE_KEY,
                         value=None, disclosure=DISCLOSURE_ABSENT, note=why_absent)
@@ -284,11 +324,13 @@ def canonical_side_lines(envelope: Mapping[str, Any]) -> Optional[Tuple[SideLine
 
     A section the object lists with no row in it and a subtotal below the
     zero floor is ABSENT — the book has no such section — never 0 % of
-    total assets."""
+    total assets. The lines built on a REFUSED total equity
+    (`CANONICAL_EQUITY_KEYS`) are refused with the period's own reason."""
     read = _canonical_rows(envelope)
     if read is None:
         return None
     rows, totals = read
+    equity_refusal = equity_refusal_of(envelope)
     node = unwrap_envelope(envelope).get("statements") or {}
     cbs = node.get("canonical_bs") or {}
     out = []  # type: List[SideLine]
@@ -311,11 +353,12 @@ def canonical_side_lines(envelope: Mapping[str, Any]) -> Optional[Tuple[SideLine
         out.append(_canonical_line(
             CANONICAL_SECTION_PREFIX + sid, "section %s" % sid, value,
             "the period's balance sheet carries no row in section %s; absent, "
-            "which is not zero — no share is taken" % sid))
+            "which is not zero — no share is taken" % sid, equity_refusal))
     for name, label in _CANONICAL_TOTALS:
         out.append(_canonical_line(
             CANONICAL_TOTAL_PREFIX + name, label, totals.get(name),
-            "the canonical balance sheet does not serve %s; no share is taken" % label.lower()))
+            "the canonical balance sheet does not serve %s; no share is taken" % label.lower(),
+            equity_refusal))
     return tuple(out)
 
 
@@ -348,6 +391,14 @@ def canonical_common_size(cur_env, pri_env, table):
         p = p if p is not None else _absent_side(line)
         if not table.comparability.comparable:
             status, note = STATUS_INCOMPARABLE, table.comparability.reason
+        elif DISCLOSURE_REFUSED in (c.line.disclosure, p.line.disclosure):
+            # The pair refuses the line, as the column model refuses a
+            # registry line either period refused: no share on either side.
+            status, note = STATUS_REFUSED, "%s is refused, so no change is computed — %s" % (
+                line.label, "; ".join(
+                    "%s: %s" % (label, side.line.note)
+                    for label, side in ((table.current_label, c), (table.prior_label, p))
+                    if side.line.disclosure == DISCLOSURE_REFUSED))
         elif c.line.value is not None and p.line.value is not None:
             status, note = STATUS_COMPARED, "both periods reported %s" % line.label
         elif c.line.value is not None:
@@ -386,7 +437,9 @@ def period_common_size(envelope: Mapping[str, Any], level: str) -> Dict[str, Any
                    "status", "note"}, …]}
 
     `status` is one of `shares.SIDE_STATUSES`; a row carries a `share`
-    only under `share`. Pure: same envelope in, same bytes out."""
+    only under `share`, and a `current` under `share`, `no_base` and
+    `margin_not_meaningful` (the line is reported; it is the share that is
+    not taken). Pure: same envelope in, same bytes out."""
     lines = side_lines(envelope, level)
     by_key = dict((line.key, line) for line in lines)
     rows = []

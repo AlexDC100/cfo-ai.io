@@ -37,6 +37,17 @@ Usage (inside the backend container, §14 step 5):
                             the single-period share column, 2026-10-04). The
                             pre-flight for the image that first serves it; the
                             count of lawful blocks is printed either way.
+                            Two shapes are NAMED, listed and not failures —
+                            they are what the engine serves by design, and
+                            the operator decides whether to ship beside them:
+                              · block withheld: the period's re-assembly
+                                produced no assembled P&L or balance sheet, so
+                                the engine attaches no block (the page says
+                                the shares are not available);
+                              · no canonical balance-sheet rows: a period
+                                with no canonical_bs gets the registry lines
+                                only, so its balance-sheet tab has no share
+                                to print.
 """
 from __future__ import annotations
 
@@ -106,6 +117,40 @@ def credit_snapshot(body: Any) -> Dict[str, Any]:
 COMMON_SIZE_SCHEMA = "common_size/1"
 _COMMON_SIZE_ROW_KEYS = ("key", "statement", "base_key", "current", "share", "status", "note")
 _COMMON_SIZE_BASES = (("PL", "pl.revenue"), ("BS", "bs.total_assets"))
+#: Every status a row may carry (engine.comparatives.shares.SIDE_STATUSES —
+#: tests/engine/test_common_size_single.py holds the two equal). This script
+#: runs before the engine is trusted, so it states the vocabulary itself.
+COMMON_SIZE_STATUSES = ("share", "no_base", "margin_not_meaningful", "absent", "refused",
+                        "not_disclosed_at_this_detail_level")
+#: The key whose presence means the block carries the canonical
+#: balance-sheet rows the balance-sheet tab prints.
+_CANONICAL_BASE_KEY = "bs.total.assets"
+
+#: The two named outcomes that are not failures (see the usage text).
+WITHHELD_NO_ASSEMBLED = "block withheld: no assembled statements"
+NO_CANONICAL_ROWS = "no canonical balance-sheet rows"
+
+
+def common_size_withheld(body: Any) -> bool:
+    """The body carries NO block and has no assembled P&L or balance sheet:
+    the engine withholds the block there on purpose (a block built on a
+    failed re-assembly would call every line "not reported"). A named
+    outcome, not a failure — a body WITH both statements and no block is
+    one."""
+    statements = body.get("statements") if isinstance(body, dict) else None
+    if not isinstance(statements, dict) or isinstance(statements.get("common_size"), dict):
+        return False
+    return not (isinstance(statements.get("assembled_pl"), dict)
+                and isinstance(statements.get("assembled_bs"), dict))
+
+
+def common_size_lacks_canonical_rows(body: Any) -> bool:
+    """A lawful block with no canonical balance-sheet rows (the period has
+    no canonical_bs): its balance-sheet tab has no share to print."""
+    if common_size_problem(body) is not None:
+        return False
+    rows = body["statements"]["common_size"]["rows"]
+    return not any(row.get("key") == _CANONICAL_BASE_KEY for row in rows)
 
 
 def common_size_problem(body: Any) -> Optional[str]:
@@ -128,9 +173,16 @@ def common_size_problem(body: Any) -> Optional[str]:
     rows = block.get("rows")
     if not isinstance(rows, list) or not rows:
         return "statements.common_size.rows is empty"
+    seen = set()
     for row in rows:
         if not isinstance(row, dict) or set(row) != set(_COMMON_SIZE_ROW_KEYS):
             return "a statements.common_size row does not carry exactly %s" % (_COMMON_SIZE_ROW_KEYS,)
+        if row["status"] not in COMMON_SIZE_STATUSES:
+            return "row %s carries status %r, which is not one of %s" % (
+                row["key"], row["status"], COMMON_SIZE_STATUSES)
+        if row["key"] in seen:
+            return "row %s appears twice (a key names one line)" % (row["key"],)
+        seen.add(row["key"])
         if (row["share"] is not None) != (row["status"] == "share"):
             return "row %s carries a share under status %r (a share exists only under 'share')" % (
                 row["key"], row["status"])
@@ -145,6 +197,8 @@ def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch,
     failures: List[Dict[str, Any]] = []
     slowest: Tuple[float, str] = (0.0, "")
     with_common_size = 0
+    withheld: List[str] = []
+    no_canonical: List[str] = []
     for row in rows:
         pid = str(row.get("id") or "")
         started = time.monotonic()
@@ -153,6 +207,10 @@ def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch,
             problem = _judge(pid, status, body, require_common_size=require_common_size)
             if status == 200 and common_size_problem(body) is None:
                 with_common_size += 1
+            if status == 200 and common_size_withheld(body):
+                withheld.append(pid)
+            if status == 200 and common_size_lacks_canonical_rows(body):
+                no_canonical.append(pid)
             if observe is not None:
                 observe(row, status, body)
         except Exception as exc:  # noqa: BLE001 — a crash IS the finding
@@ -178,7 +236,12 @@ def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch,
         "slowest_period": slowest[1],
         # How many served bodies carry a lawful common_size/1 block — counted
         # on every run, required only under --require-common-size.
-        "common_size": {"lawful": with_common_size, "required": bool(require_common_size)},
+        "common_size": {
+            "lawful": with_common_size, "required": bool(require_common_size),
+            # The two named outcomes, by period id — never failures.
+            "withheld": {"outcome": WITHHELD_NO_ASSEMBLED, "periods": withheld},
+            "no_canonical_rows": {"outcome": NO_CANONICAL_ROWS, "periods": no_canonical},
+        },
     }
 
 
@@ -191,7 +254,9 @@ def _judge(pid: str, status: int, body: Any, require_common_size: bool = False) 
     period = body.get("period")
     if not isinstance(period, dict) or str(period.get("id")) != pid:
         return "served body does not carry this period"
-    if require_common_size:
+    if require_common_size and not common_size_withheld(body):
+        # A block the engine withholds by design is a NAMED outcome the
+        # report lists, not a failure of the image under test.
         return common_size_problem(body)
     return None
 
@@ -309,6 +374,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  statements.common_size ({COMMON_SIZE_SCHEMA}) lawful on "
               f"{report['common_size']['lawful']} of {report['checked']} periods"
               + (" — REQUIRED" if args.require_common_size else ""))
+        for name in ("withheld", "no_canonical_rows"):
+            outcome = report["common_size"][name]
+            if outcome["periods"]:
+                print(f"  NOTE {outcome['outcome']} — {len(outcome['periods'])} period(s): "
+                      + ", ".join(outcome["periods"]))
         for f in report["failures"]:
             print(f"  RED  {f['period_id']}  org {f['org_id']}  {f['label']}  → {f['problem']}")
         verdict = {0: "GREEN — every stored period serves", 1: f"RED — {report['failed']} period(s) fail to serve",

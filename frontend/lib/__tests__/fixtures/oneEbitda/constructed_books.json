@@ -18506,10 +18506,10 @@
       "base_key": "pl.revenue",
       "current": null,
       "key": "pl.net_income",
-      "note": "the period did not report Net income; absent, which is not zero — no share is taken",
+      "note": "Net income is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
       "share": null,
       "statement": "PL",
-      "status": "absent"
+      "status": "refused"
      },
      {
       "base_key": "bs.total_assets",
@@ -22104,10 +22104,10 @@
       "base_key": "pl.revenue",
       "current": null,
       "key": "pl.net_income",
-      "note": "the period did not report Net income; absent, which is not zero — no share is taken",
+      "note": "Net income is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
       "share": null,
       "statement": "PL",
-      "status": "absent"
+      "status": "refused"
      },
      {
       "base_key": "bs.total_assets",
@@ -22291,12 +22291,12 @@
      },
      {
       "base_key": "bs.total_assets",
-      "current": 200000.0,
+      "current": null,
       "key": "bs.total_equity",
-      "note": "share of bs.total_assets",
-      "share": 0.47619,
+      "note": "Total equity is refused, so no share is taken — total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
       "statement": "BS",
-      "status": "share"
+      "status": "refused"
      },
      {
       "base_key": "bs.total_assets",
@@ -22498,12 +22498,12 @@
      },
      {
       "base_key": "bs.total.assets",
-      "current": 200000.0,
+      "current": null,
       "key": "bs.section.equity",
-      "note": "share of bs.total.assets",
-      "share": 0.47619,
+      "note": "section equity is refused, so no share is taken — total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
       "statement": "BS",
-      "status": "share"
+      "status": "refused"
      },
      {
       "base_key": "bs.total.assets",
@@ -22552,12 +22552,12 @@
      },
      {
       "base_key": "bs.total.assets",
-      "current": 250000.0,
+      "current": null,
       "key": "bs.total.equity_plus_liabilities",
-      "note": "share of bs.total.assets",
-      "share": 0.595238,
+      "note": "Total equity and liabilities is refused, so no share is taken — total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
       "statement": "BS",
-      "status": "share"
+      "status": "refused"
      }
     ],
     "schema": "common_size/1"

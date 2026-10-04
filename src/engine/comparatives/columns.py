@@ -49,6 +49,7 @@ from .lines import (
     coverage_from_envelope,
     read_value,
     refusal_of,
+    share_withheld_of,
     unwrap_envelope,
 )
 
@@ -163,6 +164,13 @@ class ComparativeTable:
     current_coverage_source: str
     prior_coverage_source: str
     columns: Tuple[ComparativeColumn, ...]
+    #: Per side, the lines whose SHARE of the statement base is withheld
+    #: though the line is reported — `(key, why)` pairs from
+    #: `lines.share_withheld_of` (the one margin rule). Read by
+    #: `analysis.common_size` only: a column's value, delta and percentage
+    #: are not a margin and do not move with it.
+    current_share_withheld: Tuple[Tuple[str, str], ...] = ()
+    prior_share_withheld: Tuple[Tuple[str, str], ...] = ()
 
     def by_key(self, key: str) -> Optional[ComparativeColumn]:
         for col in self.columns:
@@ -210,10 +218,16 @@ def disclose_side(
     same period read alone cannot disagree about what the period said."""
     if level_known and spec.requires == ANALYTIC and not carries_analytic_detail(level):
         return None, DISCLOSURE_NOT_AT_LEVEL
+    # THE REFUSAL IS READ BEFORE THE VALUE. A refused figure can still be
+    # in its field: total equity short by a refused year's result stays
+    # there (it is what the equity rows sum to) with its refusal BESIDE it.
+    # Read value-first, that figure moved, took a percentage and a share of
+    # total assets — the equity ratio the same body's ratio table refuses
+    # (review of 2026-10-04).
+    if refusal_of(envelope, spec) is not None:
+        return None, DISCLOSURE_REFUSED
     value = read_value(envelope, spec, coverage)
     if value is None:
-        if refusal_of(envelope, spec) is not None:
-            return None, DISCLOSURE_REFUSED
         return None, DISCLOSURE_ABSENT
     return value, DISCLOSURE_REPORTED
 
@@ -373,4 +387,6 @@ def build_comparative_columns(
         prior_coverage_source=(
             COVERAGE_UNKNOWN if pri_cov is None else COVERAGE_FROM_LINE_ITEMS),
         columns=tuple(columns),
+        current_share_withheld=tuple(sorted(share_withheld_of(current_envelope, specs).items())),
+        prior_share_withheld=tuple(sorted(share_withheld_of(prior_envelope, specs).items())),
     )

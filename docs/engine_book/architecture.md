@@ -120,7 +120,7 @@ graph LR
     pkg_benchmarks_ro -->|1| pkg_public_ro
     pkg_benchmarks_ro -->|1| pkg_ratios
     pkg_benchmarks_ro -->|1| pkg_serving
-    pkg_comparatives -->|1| pkg_ratios
+    pkg_comparatives -->|2| pkg_ratios
     pkg_comparatives -->|2| pkg_serving
     pkg_consensus -->|1| pkg_core
     pkg_consensus -->|1| pkg_frontends
