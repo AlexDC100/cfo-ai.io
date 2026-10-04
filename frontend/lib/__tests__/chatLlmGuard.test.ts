@@ -378,6 +378,11 @@ describe("C2 — a verified user is metered on every call: reserve → ONE model
 describe("the reservation is settled exactly once", () => {
   it.each([
     ["answers non-2xx", async (): Promise<ModelResult> => ({ ok: false, status: 529, errorText: '{"type":"error","error":{"type":"overloaded_error"}}' }), "Couldn't reach Claude: 529 "],
+    // The state the function is deployed into: the key among the secrets is
+    // DEAD. The upstream refuses the request (nothing is billed) — and the
+    // refusal must not hold the slot: the deploy's signed-in check reads this.
+    ["is refused by the upstream for its key (401)", async (): Promise<ModelResult> => ({ ok: false, status: 401, errorText: '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}' }), "Couldn't reach Claude: 401 "],
+    ["is refused by the upstream for its credit (400)", async (): Promise<ModelResult> => ({ ok: false, status: 400, errorText: '{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low"}}' }), "Couldn't reach Claude: 400 "],
     ["throws", async (): Promise<ModelResult> => { throw new TypeError("fetch failed"); }, "Couldn't reach Claude: TypeError: fetch failed."],
   ])("a model call that %s: released once, never committed; the answer is the sentinel the app intercepts", async (_name, callModel, prefix) => {
     const w = world({ callModel });

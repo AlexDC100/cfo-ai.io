@@ -2531,7 +2531,16 @@ def _engine_gates() -> List[Gate]:
         #                    sentences from the refusal CODES in EN and RO,
         #                    and no labelled link in a bubble that a browser
         #                    would take to another site; one refresh + one
-        #                    retry on a 401. Measured 170.
+        #                    retry on a 401. And since the review of
+        #                    2026-10-04: the ONE model request has a deadline
+        #                    (a hung upstream is aborted and released, and
+        #                    the deadlines add up under the platform's 150 s);
+        #                    nothing is remembered between requests and
+        #                    nobody names who is metered (the model request
+        #                    pinned line for line, two request headers, module
+        #                    scope holds constants only); the report's fact
+        #                    about the plan row and the counters; a refusal is
+        #                    never sent to the model as a turn. Measured 191.
         #   chat-cap-real    the DEPLOYED FILE (index.ts) under Deno on a
         #                    loopback port against the local stack's real
         #                    auth server, plan row and reserve / commit /
@@ -2542,10 +2551,17 @@ def _engine_gates() -> List[Gate]:
         #                    preflight report run on the stack and on an empty
         #                    database, and read again while the run's users
         #                    and counters exist (counts only: no user id, no
-        #                    address). VACUOUS — never green — without the
-        #                    stack or Deno; refuses (exit 2, a FAIL here) a
-        #                    non-loopback API and an API that is not that
-        #                    stack's gateway. Measured 76.
+        #                    address; its meter counts the tables', no
+        #                    reservation of the run left open), and its fact
+        #                    about what a browser can write held to what the
+        #                    run's signed-in user DID write and to eleven
+        #                    shapes in a scratch database. A token served and
+        #                    then revoked; a trial user naming a paying user;
+        #                    the deploy's two signed-in checks; an upstream
+        #                    that never answers. VACUOUS — never green —
+        #                    without the stack or Deno; refuses (exit 2, a
+        #                    FAIL here) a non-loopback API and an API that is
+        #                    not that stack's gateway. Measured 99.
         # Plant log: docs/engine_book/gates.md "chat-cap-always",
         # "chat-cap-real".
         Gate("chat-cap-always",
@@ -2556,7 +2572,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/chatLlmSignInRetry.test.ts",
               "frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=160,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=180,
              units="chat-cap laws",
              canaries=("GATE-WORK chat-cap-always engine-plans=",
                        "GATE-WORK chat-cap-always function-files=",
@@ -2578,9 +2594,18 @@ def _engine_gates() -> List[Gate]:
                        "its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's",
                        "401, then a fresh session: ONE refresh, ONE retry with the NEW token — and the answer",
                        "a refused turn reads as the app's own sentence, from the code — ro > sign_in",
-                       "no labelled link leaves the site")),
+                       "no labelled link leaves the site",
+                       "a model call that NEVER settles: at the deadline the request is told to abort, the reservation is released once, and the caller gets the sentinel",
+                       "the deadlines ADD UP under the platform's limit",
+                       "the auth server is asked on EVERY call: a bearer it vouched for a moment ago and no longer does is refused",
+                       "WHO is metered is who the auth server named",
+                       "the model request is these lines and nothing else: ONE fetch carrying the guard's deadline",
+                       "index.ts reads two request headers — Origin and Authorization",
+                       "nothing is remembered between requests: module scope holds constants only",
+                       "it says whether a browser's roles can write the plan row or the counters",
+                       "after a metering refusal the next request carries the reader's two questions and NOT the refusal")),
         Gate("chat-cap-real", [PY, "scripts/check_chat_cap_real.py"],
-             work_rx=r"GATE-WORK chat-cap-real units=(\d+)", floor=72,
+             work_rx=r"GATE-WORK chat-cap-real units=(\d+)", floor=94,
              units="cases on the local stack", vacuous_ok=True,
              canaries=("CHAT-CAP-REAL GATE",)),
     ]
