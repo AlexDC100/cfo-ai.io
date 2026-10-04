@@ -27,7 +27,10 @@
 //        error / timeout / a shape this file does not understand
 //                             → 503 metering_unavailable
 //   5. ONE upstream request for the ONE reservation (no retry here, no SDK
-//      retry underneath: index.ts uses a single fetch).
+//      retry underneath: index.ts uses a single fetch) — with a DEADLINE
+//      (MODEL_TIMEOUT_MS): a model that has not answered by then is aborted
+//      and counts as failed, so the function settles the reservation itself
+//      instead of being cut off by the platform with it still open.
 //   6. answered → commit_user_chat once; failed → release_user_chat once.
 //
 // THERE IS NO SWITCH. `USAGE_LIMITS_ENABLED` gated steps 3–6 until
@@ -62,6 +65,22 @@ export const MAX_TOKENS = 2000;
 /** How long the auth check, the plan read and each metering RPC may take
  *  before it counts as unavailable. Not a plan limit. */
 export const METERING_TIMEOUT_MS = 8000;
+
+/** The platform's own limit on a request: an Edge Function that has not
+ *  answered within it is cut off (504) and nothing after that line runs —
+ *  a reservation still open then is never released. (Supabase, "Edge
+ *  Function limits": request idle timeout 150 s; the free plan's wall clock
+ *  is the same 150 s.) */
+export const PLATFORM_REQUEST_LIMIT_MS = 150_000;
+
+/** How long the ONE model request may take before it is ABORTED, its
+ *  reservation released and the caller answered (the sentinel a failed
+ *  model call always got). Operational, like METERING_TIMEOUT_MS — not a
+ *  plan limit. It is what keeps the whole request under the platform's
+ *  limit: the auth check, the plan read and the reservation before it and
+ *  the release after it may each take METERING_TIMEOUT_MS, so
+ *  4 × 8 s + 100 s = 132 s < 150 s (held by a law). */
+export const MODEL_TIMEOUT_MS = 100_000;
 
 export type Lang = "en" | "ro";
 
@@ -123,10 +142,13 @@ export interface ChatDeps {
   commit: (args: MeterArgs) => Promise<unknown>;
   /** release_user_chat. REJECTS when the RPC errors. */
   release: (args: MeterArgs) => Promise<unknown>;
-  /** ONE upstream request. */
-  callModel: (input: ModelInput) => Promise<ModelResult>;
+  /** ONE upstream request. `signal` aborts when the request's deadline
+   *  passes (MODEL_TIMEOUT_MS): the request must stop with it. */
+  callModel: (input: ModelInput, signal: AbortSignal) => Promise<ModelResult>;
   log?: (level: "warn" | "error", message: string, extra?: unknown) => void;
   timeoutMs?: number;
+  /** The model request's deadline; MODEL_TIMEOUT_MS unless a law sets it. */
+  modelTimeoutMs?: number;
 }
 
 export interface ChatCall {
@@ -427,10 +449,14 @@ class TimedOut extends Error {
   }
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+function withTimeout<T>(p: Promise<T>, ms: number, what: string, atDeadline?: (e: TimedOut) => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new TimedOut(what)), ms);
+    timer = setTimeout(() => {
+      const e = new TimedOut(what);
+      if (atDeadline) atDeadline(e);
+      reject(e);
+    }, ms);
   });
   return Promise.race([p, timeout]).finally(() => {
     if (timer !== undefined) clearTimeout(timer);
@@ -540,10 +566,22 @@ export async function handleChat(deps: ChatDeps, call: ChatCall): Promise<ChatRe
   }
 
   // 5. ONE upstream request for the ONE reservation.
+  //    …with a deadline. A model that never answers used to hold the
+  //    reservation until the platform cut the function off — and then
+  //    nothing released it: the slot stayed counted for the day and the
+  //    month. At the deadline the request is ABORTED (the signal index.ts
+  //    hands to its fetch) and this function stops waiting for it either
+  //    way: a timed-out call is a failed call — released once, below.
   let result: ModelResult;
   let thrown: unknown = undefined;
+  const deadline = new AbortController();
   try {
-    result = await deps.callModel({ system, messages: parsed.req.messages });
+    result = await withTimeout(
+      deps.callModel({ system, messages: parsed.req.messages }, deadline.signal),
+      deps.modelTimeoutMs ?? MODEL_TIMEOUT_MS,
+      "the model request",
+      (e) => deadline.abort(e),
+    );
   } catch (e) {
     thrown = e;
     result = { ok: false, status: 0, errorText: String(e) };

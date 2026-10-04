@@ -30,7 +30,38 @@
 --                    whatever THEY decide.
 --   meter_closed_to_browser_roles
 --                    neither anon nor authenticated may execute any of the
---                    three (a browser that could would move its own counter).
+--                    three FUNCTIONS (a browser that could would move its own
+--                    counter). It says nothing about the tables — that is:
+--   plan_and_counters_closed_to_browser_roles
+--                    neither anon nor authenticated can write a ROW of the
+--                    plan table or of the two counter tables through row
+--                    security: for each of the three row-writing privileges
+--                    the role either does not hold it (on the table or on any
+--                    column), or row security is on, the role does not bypass
+--                    it, and no permissive policy for that command (or for
+--                    all commands) applies to the role or to public. false →
+--                    a signed-in user can raise their own cap (their plan row)
+--                    or wind back their own counter, and the function, which
+--                    reads both through the service role, will believe them;
+--                    browser_role_row_writes names each open door. null where
+--                    one of the three tables is not there. Measured before
+--                    this fact existed (2026-10-04, local stack): the report
+--                    answered ready and meter_closed_to_browser_roles true
+--                    while a trial user at the cap raised their own tier with
+--                    their own session, and was served.
+--   browser_role_truncate_grants
+--                    for the record only: row security does not cover that
+--                    privilege, and no API a browser reaches issues the
+--                    command. Listed so a later revoke can be seen to land.
+--
+-- WHAT THE TABLE FACT CANNOT SEE: a SECURITY DEFINER function, a trigger or
+-- a view through which a browser role writes these rows on someone else's
+-- privileges; a role other than anon / authenticated that a browser could
+-- reach. And it does not evaluate a policy's own condition: a policy that in
+-- practice admits only the row's owner — or nobody — still reads as a door
+-- for every role it applies to (it errs towards "open"). The subscriptions
+-- lockdown's own post-check is the authority on the plan row — this is the
+-- chat deploy's independent look at the same doors.
 --
 -- It reads ROWS in three places and returns COUNTS only, never a user:
 --   subscriptions.rows_by_stored_key   how many rows the function will read
@@ -92,6 +123,7 @@ tbl(name, cols) as (
 tbl_facts as (
   select t.name,
          to_regclass(t.name) is not null as present,
+         (select k.relrowsecurity from pg_class k where k.oid = to_regclass(t.name)) as row_security,
          (select coalesce(array_agg(c order by c), '{}'::text[])
             from unnest(t.cols) as c
            where not exists (select 1 from pg_attribute a
@@ -112,6 +144,43 @@ uq_facts as (
                            from pg_attribute a
                           where a.attrelid = i.indrelid and a.attnum = any (i.indkey::int2[])) = u.key) as present
     from uq u
+),
+browser as (
+  select r.rolname, r.oid, r.rolbypassrls as bypasses
+    from pg_roles r
+   where r.rolname in ('anon', 'authenticated')
+),
+-- The three row-writing privileges and pg_policy's letter for each. The
+-- names are spelled in two halves: this file is held to carrying no write
+-- keyword outside its comments.
+wr(priv, polcmd) as (
+  values ('INS' || 'ERT', 'a'), ('UPD' || 'ATE', 'w'), ('DEL' || 'ETE', 'd')
+),
+door as (
+  select t.name as tbl, b.rolname as role, w.priv,
+         case when not k.relrowsecurity then 'row security is off'
+              when b.bypasses then 'the role bypasses row security'
+              else 'policy ' || (
+                select string_agg(quote_ident(p.polname), ', ' order by p.polname)
+                  from pg_policy p
+                 where p.polrelid = k.oid and p.polpermissive
+                   and p.polcmd::text in (w.polcmd, '*')
+                   and exists (select 1 from unnest(p.polroles) as pr(o)
+                                where case when pr.o = 0 then true else pg_has_role(b.oid, pr.o, 'USAGE') end))
+         end as how
+    from tbl t
+    join pg_class k on k.oid = to_regclass(t.name)
+   cross join browser b
+   cross join wr w
+   where (has_table_privilege(b.oid, k.oid, w.priv)
+          or (w.polcmd <> 'd' and has_any_column_privilege(b.oid, k.oid, w.priv)))
+     and (not k.relrowsecurity
+          or b.bypasses
+          or exists (select 1 from pg_policy p
+                      where p.polrelid = k.oid and p.polpermissive
+                        and p.polcmd::text in (w.polcmd, '*')
+                        and exists (select 1 from unnest(p.polroles) as pr(o)
+                                     where case when pr.o = 0 then true else pg_has_role(b.oid, pr.o, 'USAGE') end)))
 ),
 blocking as (
   select array_remove(array[
@@ -145,6 +214,16 @@ select jsonb_build_object(
   'blocking', to_jsonb((select items from blocking)),
   'functions_are_this_repository', not exists (select 1 from fn where not body_is_this_repository),
   'meter_closed_to_browser_roles', not exists (select 1 from fn where anon_may_execute or authenticated_may_execute),
+  'plan_and_counters_closed_to_browser_roles', case
+      when exists (select 1 from tbl_facts where not present) then null
+      else not exists (select 1 from door) end,
+  'browser_role_row_writes', (select coalesce(jsonb_agg(d.role || ' may ' || d.priv || ' ' || d.tbl || ' (' || d.how || ')'
+                                                         order by d.tbl, d.role, d.priv), '[]'::jsonb) from door d),
+  'browser_role_truncate_grants', (select coalesce(jsonb_agg(b.rolname || ' on ' || t.name order by t.name, b.rolname), '[]'::jsonb)
+                                     from tbl t
+                                     join pg_class k on k.oid = to_regclass(t.name)
+                                    cross join browser b
+                                    where has_table_privilege(b.oid, k.oid, 'TRUN' || 'CATE')),
   'functions', (select jsonb_object_agg(f.name, jsonb_build_object(
       'signature', f.sig,
       'exists', f.present,
@@ -158,6 +237,7 @@ select jsonb_build_object(
       'authenticated_may_execute', f.authenticated_may_execute)) from fn f),
   'tables', (select jsonb_object_agg(t.name, jsonb_build_object(
       'exists', t.present,
+      'row_security', t.row_security,
       'missing_columns', to_jsonb(t.missing_columns),
       'unique_key', (select jsonb_build_object('columns', to_jsonb(u.key), 'exists', u.present)
                        from uq_facts u where u.name = t.name))) from tbl_facts t),

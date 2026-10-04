@@ -28,7 +28,14 @@
 // answered here.
 //
 // One reservation → one upstream request: a single `fetch`, no SDK retry
-// underneath, no retry here.
+// underneath, no retry here — and the request carries guard.ts's deadline
+// (MODEL_TIMEOUT_MS): a model that does not answer is aborted and its
+// reservation released, well inside the platform's own 150 s.
+//
+// NOTHING IS REMEMBERED BETWEEN REQUESTS. Module scope holds constants only:
+// the bearer is verified with the auth server on every call and the plan row
+// is read on every call, for the user the auth server named — the request's
+// own headers and body never say who is metered.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
@@ -136,8 +143,9 @@ async function rpc(admin: SupabaseClient, name: string, payload: Record<string, 
 
 const meterPayload = (a: MeterArgs) => ({ p_user_id: a.userId, p_month: a.month, p_day: a.day });
 
-/** ONE upstream request. */
-async function callModel(apiKey: string, input: ModelInput): Promise<ModelResult> {
+/** ONE upstream request. `signal` is guard.ts's deadline: when it fires the
+ *  request is aborted — while waiting for the answer or while reading it. */
+async function callModel(apiKey: string, input: ModelInput, signal: AbortSignal): Promise<ModelResult> {
   const resp = await fetch(`${UPSTREAM_BASE}/v1/messages`, {
     method: "POST",
     headers: {
@@ -146,6 +154,7 @@ async function callModel(apiKey: string, input: ModelInput): Promise<ModelResult
       "content-type": "application/json",
     },
     body: JSON.stringify(buildModelRequestBody(input)),
+    signal,
   });
   if (!resp.ok) return { ok: false, status: resp.status, errorText: await resp.text() };
   return { ok: true, ...readModelResponse(await resp.json()) };
@@ -190,7 +199,7 @@ Deno.serve(async (req: Request) => {
         }),
       commit: (a) => rpc(admin, "commit_user_chat", meterPayload(a)),
       release: (a) => rpc(admin, "release_user_chat", meterPayload(a)),
-      callModel: (input) => callModel(ANTHROPIC_API_KEY as string, input),
+      callModel: (input, signal) => callModel(ANTHROPIC_API_KEY as string, input, signal),
       log: (level, message, extra) => (level === "error" ? console.error : console.warn)(message, extra ?? ""),
     },
     { authorization: req.headers.get("authorization"), body },

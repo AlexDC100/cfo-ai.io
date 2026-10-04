@@ -22,20 +22,26 @@
 // still reaches the model; a meter or plan failure answered by calling the
 // model; the function deciding a cap itself instead of asking the RPC; the
 // meter asked with a cap that is not a whole number (the SQL reads NULL as
-// "unlimited").
+// "unlimited"); a model request with no deadline (a hung upstream holds the
+// reservation until the platform cuts the function off, and then nothing
+// releases it); the deadlines adding up past the platform's limit; a bearer
+// or a plan remembered from an earlier call; a request's own fields naming
+// who is metered.
 //
 // WHAT THEY CANNOT SEE: the Deno wiring (index.ts: the supabase-js calls, the
 // fetch) and the SQL functions — scripts/check_chat_cap_real.py runs the real
 // index.ts against the real RPCs on the local stack; and the DEPLOYED
 // function, which only the coordinator's live checks see.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ANTHROPIC_API_BASE,
   MAX_TOKENS,
   METERING_TIMEOUT_MS,
   MODEL_ID,
+  MODEL_TIMEOUT_MS,
+  PLATFORM_REQUEST_LIMIT_MS,
   bearerOf,
   buildModelRequestBody,
   dayAndMonth,
@@ -133,13 +139,13 @@ function world(over: Partial<ChatDeps> & { row?: SubscriptionRow | null; meter?:
   for (const [k, v] of Object.entries(depOver)) {
     const tag = ({ verifyUser: "verify", readPlan: "plan", reserve: "reserve", commit: "commit", release: "release", callModel: "model" } as Record<string, string>)[k];
     if (tag && typeof v === "function") {
-      (wrapped as Record<string, unknown>)[k] = async (arg: unknown) => {
+      (wrapped as Record<string, unknown>)[k] = async (arg: unknown, ...rest: unknown[]) => {
         w.calls.push(tag);
         if (tag === "reserve") w.reserves.push(arg as ReserveArgs);
         if (tag === "commit") w.commits.push(arg as MeterArgs);
         if (tag === "release") w.releases.push(arg as MeterArgs);
         if (tag === "model") w.upstream.push(arg as ModelInput);
-        return (v as (a: unknown) => unknown)(arg);
+        return (v as (...a: unknown[]) => unknown)(arg, ...rest);
       };
     } else {
       (wrapped as Record<string, unknown>)[k] = v;
@@ -430,6 +436,164 @@ describe("the reservation is settled exactly once", () => {
     expect(r.status).toBe(200);
     expect(w.calls).toEqual(["verify", "plan", "reserve", "model", "release"]);
     expect(w.logs.some((l) => l.level === "error" && l.message.includes("release_user_chat failed"))).toBe(true);
+  });
+});
+
+// ── the model request has a deadline ───────────────────────────────────
+//
+// MEASURED on the branch as reviewed (2026-10-04): with the model never
+// answering, the function had not answered after 25 s and the meter read
+// 0 used / 1 reserved; it settled only when the upstream was released by
+// hand. The platform cuts a request off at 150 s — after which nothing
+// releases: the slot stays counted for the UTC day and the month.
+
+describe("the ONE model request has a deadline — a hung upstream is released, not left to the platform", () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("a model call that NEVER settles: at the deadline the request is told to abort, the reservation is released once, and the caller gets the sentinel", async () => {
+    let signal: AbortSignal | undefined;
+    const w = world({ modelTimeoutMs: 30, callModel: (_input: ModelInput, s: AbortSignal) => { signal = s; return hang<ModelResult>(); } });
+    const t0 = Date.now();
+    const r = await ask(w);
+    expect(Date.now() - t0).toBeLessThan(2000); // the function answered — it did not wait for the model
+    expect(r.status).toBe(200);
+    expect(w.calls).toEqual(["verify", "plan", "reserve", "model", "release"]);
+    expect(w.releases).toEqual([{ userId: USER, month: "2026-10", day: "2026-10-03" }]);
+    expect(w.meter.day).toEqual({ count: 0, reserved: 0 });
+    expect(w.meter.month).toEqual({ count: 0, reserved: 0 });
+    // The request was TOLD to stop: the signal index.ts hands to its fetch.
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal!.aborted).toBe(true);
+    const answer = bodyOf(r).answer!;
+    expect(answer).toBe("Couldn't reach Claude: TimedOut: the model request timed out. Try again in a moment.");
+    expect(classifyUpstreamAnswer(answer)).toBe("network"); // the app's calm panel, as for any failed call
+    expect(bodyOf(r).usage).toBeNull();
+  });
+
+  it("a model call that HONOURS the abort (it rejects with the signal's reason): still ONE release, never a commit", async () => {
+    const w = world({
+      modelTimeoutMs: 30,
+      callModel: (_input: ModelInput, s: AbortSignal) => new Promise<ModelResult>((_, reject) => s.addEventListener("abort", () => reject(s.reason))),
+    });
+    const r = await ask(w);
+    await new Promise((res) => setTimeout(res, 60)); // nothing arrives late
+    expect(r.status).toBe(200);
+    expect(w.calls).toEqual(["verify", "plan", "reserve", "model", "release"]);
+    expect(w.meter.day).toEqual({ count: 0, reserved: 0 });
+    expect(bodyOf(r).answer!.startsWith("Couldn't reach Claude: ")).toBe(true);
+  });
+
+  it("an answer in time is not aborted — then or later: the deadline's timer goes with the answer", async () => {
+    let signal: AbortSignal | undefined;
+    const w = world({ modelTimeoutMs: 40, callModel: async (_input: ModelInput, s: AbortSignal) => { signal = s; return OK_MODEL; } });
+    const r = await ask(w);
+    expect(bodyOf(r).answer).toBe("the answer");
+    expect(w.calls).toEqual(["verify", "plan", "reserve", "model", "commit"]);
+    expect(signal!.aborted).toBe(false);
+    await new Promise((res) => setTimeout(res, 120));
+    expect(signal!.aborted).toBe(false);
+  });
+
+  it("the deadline a deployed call gets IS MODEL_TIMEOUT_MS: one millisecond before it the function is still waiting, at it the call is released", async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    const w = world({ timeoutMs: undefined, callModel: (_input: ModelInput, s: AbortSignal) => { signal = s; return hang<ModelResult>(); } });
+    expect(w.deps.modelTimeoutMs).toBeUndefined();
+    let reply: { status: number; body: unknown } | undefined;
+    void ask(w).then((r) => { reply = r; });
+    await vi.advanceTimersByTimeAsync(MODEL_TIMEOUT_MS - 1);
+    expect(reply).toBeUndefined();
+    expect(signal!.aborted).toBe(false);
+    expect(w.meter.day).toEqual({ count: 0, reserved: 1 }); // held, while the model may still answer
+    await vi.advanceTimersByTimeAsync(1);
+    expect(signal!.aborted).toBe(true);
+    expect(reply?.status).toBe(200);
+    expect(w.calls).toEqual(["verify", "plan", "reserve", "model", "release"]);
+    expect(w.meter.day).toEqual({ count: 0, reserved: 0 });
+  });
+
+  it("the deadlines ADD UP under the platform's limit: auth + plan + reserve + the model + release, each at its worst, answer before the request is cut off", () => {
+    expect(PLATFORM_REQUEST_LIMIT_MS).toBe(150_000); // Supabase Edge Functions: request idle timeout (and the free plan's wall clock)
+    expect(4 * METERING_TIMEOUT_MS + MODEL_TIMEOUT_MS).toBeLessThan(PLATFORM_REQUEST_LIMIT_MS);
+    // …with room for the platform's own overhead, and long enough for an
+    // answer of MAX_TOKENS: not a deadline that cuts real answers off.
+    expect(PLATFORM_REQUEST_LIMIT_MS - (4 * METERING_TIMEOUT_MS + MODEL_TIMEOUT_MS)).toBeGreaterThanOrEqual(10_000);
+    expect(MODEL_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it("…and it is the WHOLE request that is bounded: with every step hanging at its worst the function still answers, and nothing is left reserved that it could release", async () => {
+    // auth, plan and reserve each just inside their timeout; the model never; the release just inside its own.
+    const slow = <T,>(v: T, ms: number) => new Promise<T>((res) => setTimeout(() => res(v), ms));
+    const meter = new Meter();
+    const w = world({
+      meter, timeoutMs: 40, modelTimeoutMs: 60,
+      verifyUser: () => slow<VerifyResult>({ kind: "verified", userId: USER }, 30),
+      readPlan: () => slow<SubscriptionRow | null>({ tier: "trial", plan: "professional" }, 30),
+      reserve: (a: ReserveArgs) => slow(meter.reserve(a), 30),
+      callModel: () => hang<ModelResult>(),
+      release: () => slow(meter.release(), 30),
+    });
+    const t0 = Date.now();
+    const r = await ask(w);
+    expect(Date.now() - t0).toBeLessThan(4 * 40 + 60 + 500);
+    expect(r.status).toBe(200);
+    expect(w.calls).toEqual(["verify", "plan", "reserve", "model", "release"]);
+    expect(meter.day).toEqual({ count: 0, reserved: 0 });
+  });
+});
+
+// ── nothing is remembered; nobody names themselves ─────────────────────
+//
+// Two regressions the gates let through until 2026-10-04 (each planted in
+// index.ts, both gates green): a bearer remembered once it had verified (a
+// deleted or signed-out user's token kept working in a warm instance), and
+// the plan row read for an id the caller put in a header (a trial user on a
+// paying user's caps). index.ts is held by source laws (chatLlmPrompt) and
+// by the real gate; THIS is the decision's half.
+
+describe("the decision remembers nothing, and only the auth server says who is asking", () => {
+  it("the auth server is asked on EVERY call: a bearer it vouched for a moment ago and no longer does is refused — nothing upstream, nothing metered for that call", async () => {
+    let alive = true;
+    const w = world({ verifyUser: async (): Promise<VerifyResult> => (alive ? { kind: "verified", userId: USER } : { kind: "unverified" }) });
+    expect((await ask(w)).status).toBe(200);
+    alive = false; // signed out, deleted, or banned between two calls
+    const r = await ask(w);
+    expect(r.status).toBe(401);
+    expect(bodyOf(r).error).toBe("sign_in_required");
+    expect(w.calls).toEqual(["verify", "plan", "reserve", "model", "commit", "verify"]);
+    expect(w.upstream).toHaveLength(1);
+    expect(w.meter.day).toEqual({ count: 1, reserved: 0 });
+  });
+
+  it("the plan row is read on EVERY call: a plan that changed between two calls is the one the second is metered on", async () => {
+    let row: SubscriptionRow = { tier: "pro", plan: "professional" };
+    const w = world({ readPlan: async () => row });
+    await ask(w);
+    row = { tier: "trial", plan: "professional" };
+    await ask(w);
+    expect(w.reserves.map((a) => [a.dailyCap, a.monthlyCap])).toEqual([[25, 150], [3, 5]]);
+  });
+
+  it("WHO is metered is who the auth server named: a body that names another user, a tier or its own caps changes nothing", async () => {
+    const OTHER = "0a0b0c0d-0000-4000-8000-00000000beef"; // invented: "a paying user"
+    const read: unknown[] = [];
+    const w = world({ readPlan: async (userId: string) => { read.push(userId); return { tier: "trial", plan: "professional" }; } });
+    const r = await ask(w, undefined, {
+      ...BODY,
+      user_id: OTHER, userId: OTHER, p_user_id: OTHER, sub: OTHER, user: { id: OTHER },
+      tier: "multi", plan: "multi", plan_key: "multi", daily_cap: 1000, monthly_cap: 1000, p_daily_cap: null, p_monthly_cap: null,
+      chat: { daily: 1000, monthly: 1000 }, day: "1999-01-01", month: "1999-01",
+    });
+    expect(r.status).toBe(200);
+    expect(read).toEqual([USER]);
+    expect(w.reserves).toEqual([{ userId: USER, month: "2026-10", day: "2026-10-03", dailyCap: 3, monthlyCap: 5 }]);
+    expect(w.commits).toEqual([{ userId: USER, month: "2026-10", day: "2026-10-03" }]);
+    expect(JSON.stringify(w.upstream)).not.toContain(OTHER);
+    // …and at the cap, the same body is refused on the caller's own plan.
+    const full = world({ meter: Object.assign(new Meter(), { day: { count: 3, reserved: 0 }, month: { count: 3, reserved: 0 } }) });
+    const refused = await ask(full, undefined, { ...BODY, user_id: OTHER, tier: "multi", daily_cap: 1000 });
+    expect([refused.status, bodyOf(refused).detail?.plan_key, bodyOf(refused).detail?.daily_cap, bodyOf(refused).detail?.monthly_cap]).toEqual([429, "trial", 3, 5]);
+    expect(full.upstream).toHaveLength(0);
   });
 });
 

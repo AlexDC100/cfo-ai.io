@@ -33,7 +33,15 @@ WHAT IT RUNS
      the users whose plan read would be ambiguous (two rows: the function
      refuses them) — none on this stack; and, read while this run's users,
      plan rows and counters are on the stack, its answer holds no user id and
-     no e-mail address: counts only.
+     no e-mail address: counts only — counts that ARE the tables', with no
+     reservation of this run left open. And what it says about the plan row
+     and the two counter tables being closed to a browser's roles
+     (`plan_and_counters_closed_to_browser_roles`) is held twice: to what a
+     signed-in user of THIS stack could actually write (the driver tries every
+     door), and — because one stack is one state — to a truth table of eleven
+     shapes built in a SCRATCH database (a write policy, FOR ALL to public,
+     row security off, production's stopgap shape, a column grant, a
+     restrictive policy, another role's policy, a missing table).
   B. THE ENGINE, EXECUTED. The real `_plan_state.get_plan_state` (this
      checkout's src/, a stub standing only where the HTTP read would be)
      resolves a matrix of subscription rows; the driver holds the function's
@@ -48,8 +56,13 @@ WHAT IT RUNS
      two concurrent calls at cap − 1 and six concurrent first calls; the caps
      a default signup row / no row / tier 'pro' get; invalid requests; FAIL
      CLOSED with a meter, a plan row or an auth server the function cannot
-     reach; and the user at the cap trying to move their own counter through
-     PostgREST.
+     reach; the user at the cap trying to move their own counter through
+     PostgREST; a token that was SERVED and then revoked (its user deleted, or
+     signed out); a trial user who names a paying user in every field a
+     request has; the plan row re-read on every call; the two signed-in
+     checks of the deploy (a real session with an unsendable request; a real
+     message while the key is dead); and an upstream that never answers — the
+     function's own deadline aborts it and releases the reservation.
 
 LOCAL ONLY, AND ONE STACK. The API is CHAT_CAP_API_URL (default
 http://127.0.0.1:54321) and the database is the container
@@ -68,9 +81,13 @@ VACUOUS, never green, when the local stack or Deno is not there: it prints
 that as PASS(VACUOUS).
 
 It creates its own users (…@chat-gate.invalid) and removes them, their
-workspaces and their counters on exit and at start. It never resets, drops or
-alters a table or a function, and applies no migration. The preflight report
-is also run on the cluster's `template1` — a read; nothing is created there.
+workspaces and their counters on exit and at start. On the stack's own
+database it never resets, drops or alters a table or a function, and applies
+no migration. The preflight report is also run on the cluster's `template1` —
+a read; nothing is created there — and in ONE scratch database this gate
+creates from template0 and drops again (chat_gate_scratch_<run>): three empty
+tables, policies built and rolled back inside a transaction per shape. No row
+of anybody is in it.
 
 NOTHING HERE CAN SPEND: the model upstream is a recorder in the driver's own
 process; Deno is run with --allow-net=127.0.0.1, so no other host is
@@ -143,11 +160,12 @@ def refuse(why: str) -> "None":
     sys.exit(2)
 
 
-def psql(sql: str) -> str:
-    """One statement batch on the local stack's database, as the gate's
-    setup / cleanup / catalog reader. Raises on a psql error."""
+def psql(sql: str, database: str = "postgres") -> str:
+    """One statement batch on the local stack's database (or a named one of
+    its cluster), as the gate's setup / cleanup / catalog reader. Raises on a
+    psql error."""
     out = subprocess.run(
-        ["docker", "exec", "-i", CONTAINER, "psql", "-U", "postgres", "-d", "postgres",
+        ["docker", "exec", "-i", CONTAINER, "psql", "-U", "postgres", "-d", database,
          "-X", "-At", "-q", "-v", "ON_ERROR_STOP=1"],
         input=sql, capture_output=True, text=True, timeout=60,
     )
@@ -225,6 +243,125 @@ def remove_memberless(org_ids: list) -> None:
              "and not exists (select 1 from public.memberships m where m.org_id = o.id);" % ",".join(org_ids))
     except Exception as e:  # noqa: BLE001
         print("WARNING — cleanup of a deleted gate user's workspace failed: %s" % e)
+
+
+def remove_rows_of_deleted(user_ids: list) -> None:
+    """The users the driver named (`GATE-CLEANUP user=<id>`): each was a gate
+    user the driver deleted through the auth server AFTER the function had
+    served them, so their daily counter (no foreign key to the user) stayed.
+    Removed by id, and only where no user with that id exists any more."""
+    if not user_ids:
+        return
+    ids = ",".join(user_ids)
+    try:
+        psql("\n".join(
+            "delete from public.%s c where c.user_id = any ('{%s}'::uuid[]) "
+            "and not exists (select 1 from auth.users u where u.id = c.user_id);" % (table, ids)
+            for table in ("plan_chat_daily_usage", "user_usage", "subscriptions")))
+    except Exception as e:  # noqa: BLE001
+        print("WARNING — cleanup of a deleted gate user's counter rows failed: %s" % e)
+
+
+def rows_without_a_user() -> str:
+    """How many plan / counter rows on the stack belong to no user."""
+    return psql("select %s;" % " + ".join(
+        "(select count(*) from public.%s c where not exists (select 1 from auth.users u where u.id = c.user_id))" % table
+        for table in ("plan_chat_daily_usage", "user_usage", "subscriptions")))
+
+
+# ── the scratch database: the report's row-write fact, shape by shape ──
+SCRATCH_PREFIX = "chat_gate_scratch_"
+SCRATCH_SETUP = """
+create table public.subscriptions (user_id uuid primary key, tier text, plan text);
+create table public.user_usage (user_id uuid not null, month text not null, llm_calls integer not null default 0,
+                                llm_calls_reserved integer not null default 0, unique (user_id, month));
+create table public.plan_chat_daily_usage (user_id uuid not null, day date not null, count integer not null default 0,
+                                           reserved integer not null default 0, updated_at timestamptz not null default now(),
+                                           primary key (user_id, day));
+alter table public.subscriptions enable row level security;
+alter table public.user_usage enable row level security;
+alter table public.plan_chat_daily_usage enable row level security;
+grant all on public.subscriptions, public.user_usage, public.plan_chat_daily_usage to anon, authenticated, service_role;
+create policy "own select" on public.subscriptions for select using (true);
+create policy "own select" on public.user_usage for select using (true);
+create policy "own select" on public.plan_chat_daily_usage for select using (true);
+"""
+# (what a shape is, the SQL that makes it, closed?, the doors the report must name — exactly)
+_WRITES3 = ("DELETE", "INSERT", "UPDATE")
+SCRATCH_SHAPES = [
+    ("row security on, a SELECT policy only, the default grants (the counters of a repository-built database)", "", True, []),
+    ("an UPDATE policy on the plan row for authenticated (a user raises their own tier)",
+     "create policy w on public.subscriptions for update to authenticated using (true);", False,
+     ["authenticated may UPDATE public.subscriptions (policy w)"]),
+    ("a policy FOR ALL to public on the daily counter",
+     "create policy every on public.plan_chat_daily_usage for all using (true) with check (true);", False,
+     ["%s may %s public.plan_chat_daily_usage (policy every)" % (r, c) for r in ("anon", "authenticated") for c in _WRITES3]),
+    ("row security switched OFF on the monthly counter",
+     "alter table public.user_usage disable row level security;", False,
+     ["%s may %s public.user_usage (row security is off)" % (r, c) for r in ("anon", "authenticated") for c in _WRITES3]),
+    ("production's stopgap shape: the write policies still there, the three privileges revoked — a policy with no privilege is no door",
+     "create policy i on public.subscriptions for insert with check (true); "
+     "create policy u on public.subscriptions for update using (true); "
+     "revoke insert, update, delete on public.subscriptions from anon, authenticated;", True, []),
+    ("a COLUMN-level UPDATE grant on tier (the table-level one revoked), with a policy",
+     "revoke update on public.subscriptions from anon, authenticated; "
+     "grant update (tier) on public.subscriptions to authenticated; "
+     "create policy u on public.subscriptions for update using (true);", False,
+     ["authenticated may UPDATE public.subscriptions (policy u)"]),
+    ("a RESTRICTIVE write policy alone: it admits nobody",
+     "create policy r on public.subscriptions as restrictive for update using (true);", True, []),
+    ("a write policy for service_role only: no browser role is in it",
+     "create policy s on public.user_usage for all to service_role using (true) with check (true);", True, []),
+    ("an INSERT policy for anon on the monthly counter",
+     "create policy a on public.user_usage for insert to anon with check (true);", False,
+     ["anon may INSERT public.user_usage (policy a)"]),
+    ("a DELETE policy on the plan row for authenticated",
+     "create policy d on public.subscriptions for delete to authenticated using (true);", False,
+     ["authenticated may DELETE public.subscriptions (policy d)"]),
+    ("one of the three tables is not there: it cannot say — null, not 'closed'",
+     "drop table public.user_usage;", None, []),
+]
+
+
+def scratch_cases(run: str) -> None:
+    """The report's `plan_and_counters_closed_to_browser_roles`, held to a
+    truth table. Each shape is built inside a transaction in a scratch
+    database, the report read in it, and the transaction rolled back."""
+    name = SCRATCH_PREFIX + run
+    label = "P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — %s"
+    try:
+        for stale in psql("select datname from pg_database where datname like '%s%%';" % SCRATCH_PREFIX).split():
+            psql('drop database if exists "%s" with (force);' % stale)
+        psql('create database "%s" template template0;' % name)
+        psql(SCRATCH_SETUP, name)
+    except Exception as e:  # noqa: BLE001
+        failed(label % "the scratch database could be made", "%s: %s" % (type(e).__name__, e))
+        try:
+            psql('drop database if exists "%s" with (force);' % name)
+        except Exception:  # noqa: BLE001
+            pass
+        return
+    try:
+        report = PREFLIGHT.read_text(encoding="utf-8")
+        for what, shape, want_closed, want_doors in SCRATCH_SHAPES:
+            try:
+                rep = json.loads(psql("begin;\n%s\n%s\nrollback;" % (shape, report), name))
+                got = [rep.get("plan_and_counters_closed_to_browser_roles", "(key missing)"), rep.get("browser_role_row_writes")]
+                if got == [want_closed, want_doors]:
+                    passed(label % what)
+                else:
+                    failed(label % what, "got:  %s" % json.dumps(got), "want: %s" % json.dumps([want_closed, want_doors]))
+            except Exception as e:  # noqa: BLE001
+                failed(label % what, "%s: %s" % (type(e).__name__, e))
+    finally:
+        try:
+            psql('drop database if exists "%s" with (force);' % name)
+        except Exception as e:  # noqa: BLE001
+            print("WARNING — the scratch database %s could not be dropped: %s" % (name, e))
+
+
+def scratch_databases() -> str:
+    return psql("select count(*) from pg_database where datname like '%s%%';" % SCRATCH_PREFIX)
 
 
 def remaining_users() -> str:
@@ -487,6 +624,8 @@ def main() -> int:
     except Exception as e:  # noqa: BLE001
         failed(name, "%s: %s" % (type(e).__name__, e))
 
+    scratch_cases("%d_%d" % (int(time.time()), os.getpid()))
+
     # ── B. the engine's resolution, executed ──
     matrix_file = None
     try:
@@ -508,6 +647,7 @@ def main() -> int:
     # ── C. the driver ──
     cleanup()  # a previous run that died mid-way
     memberless_before = memberless_workspaces()
+    userless_before = rows_without_a_user()
     env = {k: v for k, v in os.environ.items() if not k.startswith("PRICING_") and k != "USAGE_LIMITS_ENABLED"}
     env.update({
         "CHAT_CAP_API_URL": API_URL,
@@ -524,6 +664,8 @@ def main() -> int:
     driver_units = None
     rc = 1
     orphaned = []
+    deleted_users = []
+    browser_writes = None
     try:
         proc = subprocess.run(
             [deno, "run", "--no-prompt", "--no-config", "--allow-net=127.0.0.1", "--allow-env",
@@ -539,6 +681,14 @@ def main() -> int:
             m = re.match(r"GATE-CLEANUP organization=([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$", line)
             if m:
                 orphaned.append(m.group(1))
+                continue
+            m = re.match(r"GATE-CLEANUP user=([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$", line)
+            if m:
+                deleted_users.append(m.group(1))
+                continue
+            m = re.match(r"GATE-FACT browser_writes plan=(\d+) counters=(\d+)$", line)
+            if m:
+                browser_writes = (int(m.group(1)), int(m.group(2)))
                 continue
             print(line)
         err = proc.stderr.strip()
@@ -571,11 +721,66 @@ def main() -> int:
                        "user-id-shaped strings in the report: %d, e-mail-shaped: %d" % (len(ids), len(mails)))
         except Exception as e:  # noqa: BLE001
             failed(name, "%s: %s" % (type(e).__name__, e))
+            raw = None
+        # THE TRACE the coordinator reads after the deploy's signed-in checks:
+        # the report's meter counts ARE the tables' (read here, directly), there
+        # is at least one row for today — and after every call of this run,
+        # served, refused, failed upstream or timed out, NOTHING of this run's
+        # users is left reserved.
+        name = ("P. the report's meter counts are the tables': rows for today exist, and no call of this run — served, refused, "
+                "failed upstream, timed out — left a reservation open")
+        try:
+            got = (json.loads(raw).get("meter") or {}) if raw else {}
+            direct = json.loads(psql(
+                "select jsonb_build_object("
+                "'daily', (select jsonb_build_object('users', count(*), 'messages_counted', coalesce(sum(\"count\"), 0), 'reservations_open', coalesce(sum(reserved), 0)) "
+                "            from public.plan_chat_daily_usage where day = (now() at time zone 'utc')::date), "
+                "'monthly', (select jsonb_build_object('users_with_a_message', count(*) filter (where llm_calls > 0), 'messages_counted', coalesce(sum(llm_calls), 0), "
+                "            'reservations_open', coalesce(sum(llm_calls_reserved), 0)) from public.user_usage where month = to_char(now() at time zone 'utc', 'YYYY-MM')), "
+                "'gate_open', (select coalesce(sum(c.reserved), 0) from public.plan_chat_daily_usage c join auth.users u on u.id = c.user_id where u.email like '%%@%s') "
+                "           + (select coalesce(sum(c.llm_calls_reserved), 0) from public.user_usage c join auth.users u on u.id = c.user_id where u.email like '%%@%s'));"
+                % (DOMAIN, DOMAIN)))
+            same = got.get("daily_rows_today") == direct["daily"] and got.get("monthly_rows_this_month") == direct["monthly"]
+            if same and direct["daily"]["users"] >= 1 and direct["gate_open"] == 0:
+                passed(name)
+            else:
+                failed(name, "the report: %s" % json.dumps({k: got.get(k) for k in ("daily_rows_today", "monthly_rows_this_month")}),
+                       "the tables: %s" % json.dumps({"daily": direct["daily"], "monthly": direct["monthly"]}),
+                       "reservations of this run's users still open: %s" % direct["gate_open"])
+        except Exception as e:  # noqa: BLE001
+            failed(name, "%s: %s" % (type(e).__name__, e))
+        # WHAT A BROWSER CAN WRITE. The function reads the plan row and the
+        # counters through the service role and believes them. The driver's
+        # signed-in user tried every door PostgREST has on the three tables;
+        # the report must say what is true HERE — closed where nothing could
+        # be written, open (naming the table) where something could.
+        name = ("P. what the report says about the plan row and the counters IS what a signed-in user could write on this stack "
+                "(%s)" % ("the driver did not report its measurement" if browser_writes is None else
+                          "here: nothing — closed" if browser_writes == (0, 0) else
+                          "here: the plan row %d write(s), the counters %d — open, and the report names the table" % browser_writes))
+        try:
+            rep_now = json.loads(raw) if raw else {}
+            closed = rep_now.get("plan_and_counters_closed_to_browser_roles", "(key missing)")
+            doors = rep_now.get("browser_role_row_writes") or []
+            if browser_writes is None:
+                failed(name, "no `GATE-FACT browser_writes` line from the driver")
+            else:
+                plan_open, counters_open = browser_writes[0] > 0, browser_writes[1] > 0
+                named_plan = any(" public.subscriptions " in d for d in doors)
+                named_counters = any(" public.user_usage " in d or " public.plan_chat_daily_usage " in d for d in doors)
+                if closed is (not (plan_open or counters_open)) and (not plan_open or named_plan) and (not counters_open or named_counters):
+                    passed(name)
+                else:
+                    failed(name, "the report: plan_and_counters_closed_to_browser_roles = %s, browser_role_row_writes = %s" % (json.dumps(closed), json.dumps(doors)),
+                           "measured: rows a signed-in user wrote — plan row %d, counters %d" % browser_writes)
+        except Exception as e:  # noqa: BLE001
+            failed(name, "%s: %s" % (type(e).__name__, e))
     except subprocess.TimeoutExpired:
         failed("C. the driver finished within 240 s")
     finally:
         cleanup()
         remove_memberless(orphaned)
+        remove_rows_of_deleted(deleted_users)
         if matrix_file:
             try:
                 os.unlink(matrix_file)
@@ -591,12 +796,18 @@ def main() -> int:
 
     left = remaining_users()
     memberless_after = memberless_workspaces()
-    if left == "0" and memberless_after == memberless_before:
-        passed("Z. the gate left none of its users behind, and no workspace without a member that was not there before")
+    userless_after = rows_without_a_user()
+    scratch_left = scratch_databases()
+    name = ("Z. the gate left none of its users behind, no workspace without a member and no plan or counter row without a user "
+            "that was not there before, and no scratch database")
+    if left == "0" and memberless_after == memberless_before and userless_after == userless_before and scratch_left == "0":
+        passed(name)
     else:
-        failed("Z. the gate left none of its users behind, and no workspace without a member that was not there before",
+        failed(name,
                "%s user(s) @%s remain" % (left, DOMAIN),
-               "workspaces without a member: %s before the run, %s after" % (memberless_before, memberless_after))
+               "workspaces without a member: %s before the run, %s after" % (memberless_before, memberless_after),
+               "plan / counter rows without a user: %s before the run, %s after" % (userless_before, userless_after),
+               "scratch databases left: %s" % scratch_left)
 
     print("")
     if fails == 0:

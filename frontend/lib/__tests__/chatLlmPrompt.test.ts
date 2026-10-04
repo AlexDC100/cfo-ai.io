@@ -14,7 +14,11 @@
 //    overrides, none of them USAGE_LIMITS_ENABLED; it makes ONE fetch; it
 //    calls three RPCs and reads one table (the plan row), never a counter;
 //    the model call is reachable only through guard.handleChat; the pure
-//    modules touch no Deno global.
+//    modules touch no Deno global. The model request is ONE fetch carrying
+//    the guard's deadline, pinned line for line; index.ts reads two request
+//    headers (Origin, Authorization), its method and its JSON body — nothing
+//    else of a request, so nothing in it can name who is metered; and module
+//    scope holds constants only — nothing is remembered between requests.
 //
 //    And the redeploy changes the prompt by the rule ALONE: with its section
 //    taken out, every prompt hashes to what main's function sent (pins
@@ -28,7 +32,10 @@
 // one side only, or moved after a per-request fragment (which would void the
 // prompt cache); a kill switch, a second fetch, a counter read (a pre-check
 // outside the RPC), a fourth RPC, or a model call outside the guard coming
-// back into the function; a byte of a persona, of the currency rule or of the
+// back into the function; a loop or a second try around the model request,
+// or the request sent without the deadline's signal; a third request header
+// (or the URL) being read; a module-level variable or container (a bearer or
+// a plan remembered across requests); a byte of a persona, of the currency rule or of the
 // public-company block changing without its pin; an origin added to, or the
 // caller's origin echoed past, the CORS allowlist; the LAN dev allowance
 // dropped by the redeploy, or widened to a public address, another port or
@@ -41,7 +48,10 @@
 //    are there. It is held here to the two things it describes — the SQL
 //    that defines the functions and the names index.ts calls them with — and
 //    to being ONE statement that only reads (the Management API returns the
-//    last statement's result, as the postgres role).
+//    last statement's result, as the postgres role). And its fact about
+//    the plan row and the counter tables being closed to a browser's roles
+//    reads the SAME three tables the function depends on, from the catalog
+//    alone.
 //
 // WHAT IT CANNOT SEE: what the DEPLOYED function's source is — the
 // coordinator diffs the downloaded source against this tree before deploy.
@@ -234,10 +244,94 @@ describe("no switch, no second door — the function's source", () => {
     expect(index).toContain("fetch(`${UPSTREAM_BASE}/v1/messages`");
     // callModel: its definition, and ONE use — inside the dependencies handed to handleChat.
     expect(count(index, /\bcallModel\(/g)).toBe(2);
-    expect(index).toMatch(/await handleChat\(\s*\{[\s\S]*callModel: \(input\) => callModel\(ANTHROPIC_API_KEY as string, input\)[\s\S]*\},\s*\{ authorization: req\.headers\.get\("authorization"\), body \},\s*\)/);
+    expect(index).toMatch(/await handleChat\(\s*\{[\s\S]*callModel: \(input, signal\) => callModel\(ANTHROPIC_API_KEY as string, input, signal\),[\s\S]*\},\s*\{ authorization: req\.headers\.get\("authorization"\), body \},\s*\)/);
     expect(count(index, "handleChat(")).toBe(1);
     // No retry loop around the model call, and no SDK underneath that would retry on its own.
     expect(all).not.toMatch(/@anthropic-ai\/sdk|maxRetries|max_retries/);
+  });
+
+  // MEASURED 2026-10-04, each planted alone in index.ts: a retry on a 5xx
+  // inside the one `fetch(` left this gate green (only the real gate saw it —
+  // and that gate is vacuous without the stack); and with no deadline a hung
+  // upstream held the reservation until the platform cut the function off.
+  it("the model request is these lines and nothing else: ONE fetch carrying the guard's deadline — no loop, no second try, no timer of its own", () => {
+    const index = code("index.ts");
+    const fn = /async function callModel\([\s\S]*?\n}\n/.exec(index)?.[0] ?? "";
+    expect(fn).toBe(
+      [
+        "async function callModel(apiKey: string, input: ModelInput, signal: AbortSignal): Promise<ModelResult> {",
+        "  const resp = await fetch(`${UPSTREAM_BASE}/v1/messages`, {",
+        '    method: "POST",',
+        "    headers: {",
+        '      "x-api-key": apiKey,',
+        '      "anthropic-version": "2023-06-01",',
+        '      "content-type": "application/json",',
+        "    },",
+        "    body: JSON.stringify(buildModelRequestBody(input)),",
+        "    signal,",
+        "  });",
+        "  if (!resp.ok) return { ok: false, status: resp.status, errorText: await resp.text() };",
+        "  return { ok: true, ...readModelResponse(await resp.json()) };",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    // No loop anywhere in the wiring; the deadline is guard.ts's alone.
+    expect(index).not.toMatch(/\b(for|while|do)\s*[({]/);
+    expect(index).not.toMatch(/setTimeout|setInterval|AbortSignal\.|new AbortController|\.catch\s*\(|retry/i);
+    // guard.ts: the ONE place the model is called — once, under the deadline, the signal handed over.
+    const guard = code("guard.ts");
+    expect(count(guard, "deps.callModel(")).toBe(1);
+    expect(guard).toMatch(
+      /result = await withTimeout\(\s*deps\.callModel\(\{ system, messages: parsed\.req\.messages \}, deadline\.signal\),\s*deps\.modelTimeoutMs \?\? MODEL_TIMEOUT_MS,\s*"the model request",\s*\(e\) => deadline\.abort\(e\),\s*\);/,
+    );
+    expect(guard).toContain("export const MODEL_TIMEOUT_MS = 100_000;");
+  });
+
+  // MEASURED 2026-10-04, planted alone: index.ts reading the plan row for an
+  // id the caller put in a header (a trial user on a paying user's caps) left
+  // both gates green.
+  it("index.ts reads two request headers — Origin and Authorization — its method and its JSON body, and nothing else of a request: who is metered is never the request's to say", () => {
+    const index = code("index.ts");
+    expect([...index.matchAll(/\breq\.(\w+)/g)].map((m) => m[1]).sort()).toEqual(["headers", "headers", "json", "method", "method"]);
+    expect([...index.matchAll(/req\.headers\.get\(\s*"([^"]+)"\s*\)/g)].map((m) => m[1])).toEqual(["origin", "authorization"]);
+    expect(count(index, /\breq\b/g)).toBe(6); // the handler's parameter and those five reads: the request is handed to nothing else
+    expect(index).not.toMatch(/\bURL\b|searchParams|\.url\b|\bcookie\b/i);
+    // The plan row is read for the id guard.ts hands over, and metered under the same one.
+    expect(index).toContain("readPlan: (userId) => readPlan(admin, userId),");
+    expect(count(index, /\breadPlan\(/g)).toBe(2); // its definition, and that one use
+    expect(index).toContain("const meterPayload = (a: MeterArgs) => ({ p_user_id: a.userId, p_month: a.month, p_day: a.day });");
+    // …and in guard.ts that id has ONE source: the auth server's answer.
+    const guard = code("guard.ts");
+    expect(guard).toContain("const userId = who.userId;");
+    expect(count(guard, /\buserId\s*=[^=]/g)).toBe(1);
+    expect(guard).toContain("deps.readPlan(userId)");
+    expect(guard).toContain("const meter: MeterArgs = { userId, month, day };");
+  });
+
+  // MEASURED 2026-10-04, planted alone: index.ts remembering a bearer once it
+  // had verified (a deleted or signed-out user's token kept working in a warm
+  // instance) left both gates green.
+  it("nothing is remembered between requests: module scope holds constants only — no variable, no container, nothing a request could write to", () => {
+    const index = code("index.ts");
+    const top = [...index.matchAll(/^(?:export\s+)?(const|let|var|class|function|async function)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => `${m[1]} ${m[2]}`);
+    expect(top).toEqual([
+      "const SUPABASE_URL", "const SERVICE_ROLE_KEY", "const ANON_KEY", "const ANTHROPIC_API_KEY", "const UPSTREAM_BASE", "const PLANS", "const SERVER_AUTH",
+      "const ALLOWED_ORIGINS", "const LAN_DEV_ORIGIN", "function corsHeaders", "function json",
+      "async function verifyUser", "async function readPlan", "async function rpc", "const meterPayload", "async function callModel",
+    ]);
+    expect(index).not.toMatch(/new (Map|WeakMap|WeakSet|WeakRef)\b|globalThis|\bcaches\b|openKv|localStorage|sessionStorage|\?\?=|\|\|=/);
+    expect(count(index, /new Set\(/g)).toBe(1); // the CORS allowlist — and nothing is ever added to it:
+    expect(index).not.toMatch(/\.(set|add|push|unshift|splice|delete)\s*\(/);
+    for (const [name, uses] of [["ALLOWED_ORIGINS", 2], ["PLANS", 2], ["SERVER_AUTH", 3], ["UPSTREAM_BASE", 2], ["ANTHROPIC_API_KEY", 4]] as const) {
+      expect(count(index, new RegExp(`\\b${name}\\b`, "g")), name).toBe(uses);
+    }
+    // The pure modules: no module-level variable and no container either.
+    for (const f of ["guard.ts", "plans.ts", "prompt.ts"]) {
+      const c = code(f);
+      expect(c, f).not.toMatch(/^(?:export\s+)?(let|var)\s/m);
+      expect(c, f).not.toMatch(/new (Map|WeakMap|WeakSet|WeakRef)\b|globalThis|\?\?=|\|\|=/);
+    }
   });
 
   it("the function never reads a usage counter: it calls three RPCs and reads one table — the plan row", () => {
@@ -369,6 +463,36 @@ describe("the preflight report the coordinator runs before the deploy", () => {
     for (const key of ["rows_by_stored_key", "users_without_a_row", "users_with_more_than_one_row", "daily_rows_today", "monthly_rows_this_month"]) {
       expect(count(statement, `'${key}'`), key).toBe(1);
     }
+  });
+
+  // MEASURED 2026-10-04 on the local stack: the report answered ready and
+  // meter_closed_to_browser_roles true while a trial user at the cap raised
+  // their own tier with their own session and was served — it looked at the
+  // three FUNCTIONS only. What the fact ANSWERS, shape by shape, is the real
+  // gate's (a scratch database); here: that it is there, reads the catalog
+  // alone, and looks at the same three tables the function depends on.
+  it("it says whether a browser's roles can write the plan row or the counters — one fact over the SAME three tables, read from the catalog alone", () => {
+    for (const key of ["plan_and_counters_closed_to_browser_roles", "browser_role_row_writes", "browser_role_truncate_grants", "row_security"]) {
+      expect(count(statement, `'${key}'`), key).toBe(1);
+    }
+    // The doors are computed over `tbl` — the list `ready` is computed over — for the two browser roles…
+    const door = /\bdoor as \(([\s\S]*?)\n\),\nblocking as/.exec(statement)?.[1] ?? "";
+    expect(door).toContain("from tbl t");
+    expect(door).toContain("cross join browser b");
+    expect(statement).toContain("where r.rolname in ('anon', 'authenticated')");
+    // …for each of the three row-writing privileges (spelled in halves: the file carries no write keyword)…
+    expect(statement).toContain("values ('INS' || 'ERT', 'a'), ('UPD' || 'ATE', 'w'), ('DEL' || 'ETE', 'd')");
+    // …a privilege on the table or on any column, and row security off, bypassed, or a PERMISSIVE policy for that command or for all.
+    expect(door).toContain("has_table_privilege(b.oid, k.oid, w.priv)");
+    expect(door).toContain("has_any_column_privilege(b.oid, k.oid, w.priv)");
+    expect(count(door, "not k.relrowsecurity")).toBe(2);
+    expect(count(door, "p.polpermissive")).toBe(2);
+    expect(count(door, "p.polcmd::text in (w.polcmd, '*')")).toBe(2);
+    // "closed" is: no door — and null, not true, where a table is missing.
+    expect(statement).toMatch(/'plan_and_counters_closed_to_browser_roles', case\s+when exists \(select 1 from tbl_facts where not present\) then null\s+else not exists \(select 1 from door\) end,/);
+    // It reads no ROW for this: the five row reads are the five counted ones.
+    expect(door).not.toContain("query_to_xml");
+    expect(count(statement, "query_to_xml(")).toBe(5);
   });
 
   it("its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's", () => {
