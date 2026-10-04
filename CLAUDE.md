@@ -4096,3 +4096,163 @@ through the engine.
 - Dead constants still say 4.97 (`config.yaml` `fx_eur_ron`,
   `frontend/lib/currency.ts` `FX_RON_TO_EUR`, `frontend/lib/thresholds.ts`
   `fxEurRon`): read by nothing live, left alone on purpose.
+
+---
+
+## 31. Entitlement holes beside the subscriptions lockdown — six restrict-only files (2026-10-04)
+
+> Branch `fix/entitlement-holes`. Number 31 is the next free one seen from this
+> branch — **renumber at merge**. NOTHING here was applied to production by the
+> lane that wrote it. The owner's ruling of 2026-10-04: after the subscriptions
+> lockdown, the coordinator applies **H1** (the workspace cap) and **H4** (the
+> signup tier, NEW signups only) — and nothing else. The other four files wait
+> for a ruling each.
+
+The adversarial review of the subscriptions lockdown (2026-10-03) measured four
+more holes beside it; the census behind the third found two more classes. Each
+is closed by ONE migration that only removes or restricts access (the owner's
+fence: no customer row altered, no price or plan limit changed, no money
+spent), read before and after by ONE read-only report.
+
+| | file (`supabase/`) | what was open | what the file does | what it leaves, on purpose |
+|---|---|---|---|---|
+| H1 | `schema_phase_workspace_cap_guard.sql` | A trial user (cap 1) held 2–4 live workspaces: PATCH `organizations.archived_at` → `create_workspace` → PATCH back; `archive_workspace` → `create_workspace` → `restore_workspace` (never re-checked); and two `create_workspace` calls at once (it counts, then inserts, with no lock). `purge_after`, `firm_id` and `cui` were writable by a member the same way — `firm_id` to another tenant's firm. | ONE trigger, `organizations_guard_write` (BEFORE INSERT OR UPDATE, row, SECURITY INVOKER): a statement running as `anon` / `authenticated` may not change `archived_at`, `purge_after`, `firm_id`, `cui`; a workspace coming back from the archive, or created, under a signed-in user's request is allowed only if `create_workspace` would let that user add one — the trigger takes a per-user advisory lock and ASKS `create_workspace` in a sub-transaction that is always rolled back. Outside that question it calls no function of schema `auth` (it fires on a signup's first workspace, inside GoTrue's own session). No function is replaced: the file reads `md5(prosrc)` of the workspace functions before and after and refuses to commit a difference, so no cap number is touched or copied. | Path (iii) `create_firm` → `import_firm_client` ×N → `detach_workspace_from_firm` (a ruling). A user ALREADY over their cap keeps every workspace and cannot restore or create another until under it. The service role and the SQL editor are not capped. A restore refused at the cap shows the frontend's generic "couldn't restore". |
+| H2 | `schema_phase_dashboard_config_caller.sql` | `upsert_dashboard_config(p_user_id, p_cards)` — SECURITY DEFINER, EXECUTE to anon, the id unchecked: the anon key alone overwrote any user's dashboard layout; the table's `with check (true)` INSERT policy let it plant a row. | The body refuses a `p_user_id` that is not `auth.uid()` (the service role may name any user); EXECUTE goes from PUBLIC and anon; INSERT / UPDATE / DELETE / TRUNCATE on `dashboard_configs` go from anon and authenticated. A body this repository never committed is NOT replaced — it is closed at the door (the service role only). | SELECT and the three policies. The engine's own write (`_dashboard.py`, service role) is unchanged. |
+| H3 | `schema_phase_public_tables_write_revoke.sql` | Twelve public-market / intelligence tables created WITHOUT row level security: the anon key inserted, updated and deleted their rows. | INSERT / UPDATE / DELETE / TRUNCATE revoked from anon and authenticated (and PUBLIC) on the twelve. Every legitimate writer is the service role. | SELECT, row level security and every policy exactly as found; every table a user's JWT writes; any table this repository does not define (the report LISTS those that are open). |
+| H3c | `schema_phase_calibration_queue_write_revoke.sql` | NOT one of the four measured. `calibration_rules` has row level security and one INSERT policy whose check admits `org_id` NULL — a GLOBAL rule — from any signed-in user: anyone fills the operator's review queue, for every company. | The same revoke, on that one table. Every legitimate writer is the engine's service role (`pipeline.py` review routes). | SELECT and both policies. A file of its own because the table exists where the twelve do not. Applied on its own decision. |
+| H3b | `schema_phase_derived_tables_write_revoke.sql` | NOT one of the four measured — the rest of the same census. Six tables hold what the ENGINE computes (`statement_line_items`, `calculated_metrics`, `briefings`, `benchmark_reports`, `sku_analyses`, `org_coa_mappings_overrides`); their member policies are scoped, and a member could rewrite their OWN organization's rows through the REST API — the figures the report exports. | The same revoke. No user-JWT path writes them (the laws red the day one appears); a member's period / document delete still cascades. | SELECT (the engine's `per_user` reads). Applied on its own decision. |
+| H4 | `schema_phase_signup_tier_trial.sql` | The signup trigger seeds `tier` NULL / `plan` 'professional'; the engine reads `tier or plan`, and 'professional' is a legacy key for the Multi-Country allowance (15 documents, 5 workspaces, 8 non-RO documents, 40/200 chat) — every new free account was metered as Multi-Country while `create_workspace`'s SQL said trial. | FORWARD ONLY: the subscriptions insert of every function an INSERT trigger on `auth.users` runs (and of `handle_new_user` / `handle_new_user_v2` by name) gains `tier` / `'trial'` — patched in place (`pg_get_functiondef`), so the owner, the grants, SECURITY DEFINER, the search_path and the rest of the body stay as they are. It installs nothing where a tier CHECK does not accept 'trial'. | NO backfill, no existing row read for change. What existing free accounts are metered as is a ruling (below). A new signup then gets the trial's allowance: 1 document, 1 workspace, RO only, 3/5 chat. |
+
+**How a file reaches production.** `supabase db query --linked -f <file>`: one
+batch, executed as `postgres`, only the LAST statement's rows come back. So
+every migration is one `do $migration$` block (`lock_timeout` 5 s first, all
+or nothing, `notify pgrst`) plus one `select` returning a jsonb row —
+`changed` / `revoked`, `changed_count`, `skipped`, `not_closed` — and every
+report (`supabase/preflight/<stem>_preflight_report.sql`) is ONE read-only
+statement returning one jsonb row with a computed `hole_open`. Order, per
+hole: report (`hole_open` true → apply) → migration (`not_closed` must be
+`[]`) → Dashboard → Settings → API → "Reload schema cache" (§14) → the report
+again (`hole_open` false). A lock timeout or any error means NOTHING was
+applied: run it again. Where none of a file's objects exists, the report
+answers `hole_open` false and the migration changes nothing and SAYS so under
+`skipped` — it never fails.
+
+**The fence is measured, not promised (H1, H4).** Each of the two files
+applied to production takes one md5 per whole row of its table
+(`organizations`; `subscriptions`) before it creates or replaces anything and
+again after, refuses to commit if a row it found is no longer byte-identical,
+and answers both digests (`existing_organizations_*`; `existing_rows_*`). The
+report answers the same digest (`organizations_fingerprint`;
+`existing_rows_fingerprint`: `{rows, md5}`). The proof that no customer row
+was altered is: the same `rows` and `md5` in the report read BEFORE and the
+report read AFTER, equal to the migration's own `…_fingerprint_before` /
+`…_after`. A signup, a rename or a webhook that lands between the two reports
+changes it too — `rows` or the grouped counts then show what moved.
+
+**Read before applying.** Each report says who owns the object and whether
+the role running it can change it (`this_role_can_install_the_guard`,
+`this_role_can_replace_it`, `this_role_can_revoke`): an object ANOTHER role
+owns is not replaced, not attached to and its grants are not revoked — the
+file changes nothing of it, names it under `skipped` / `not_closed`, and the
+report keeps saying open. H1: `users_over_their_cap` (a count, never a list)
+and `workspace_functions.*.security_definer` (a SECURITY INVOKER
+`archive_workspace` would be refused by the guard). H3:
+`open_tables_not_known_to_this_repository`,
+`rls_off_tables_not_known_to_this_repository` and `api_writable_views` — what
+a database holds that no committed file creates; with row level security off
+the anon key writes it, and a view that is not `security_invoker` writes its
+table as the view's owner, past every revoke here. H4: `signup_triggers`
+(which function the trigger on `auth.users` runs THERE, and what it seeds),
+`subscriptions.every_tier_check_accepts_trial` and `existing_rows` (counts by
+tier-is-null / plan / status / has a Stripe subscription).
+
+**`supabase db query` over a direct connection cannot run the migrations.**
+`--local` and `--db-url` answer `cannot insert multiple commands into a
+prepared statement` for a two-statement file (measured, CLI 2.95.4); the
+single-statement reports run either way. The migrations are written for the
+`--linked` (Management API) path, or the SQL editor. H4's rollback is ONE
+statement (the `create or replace function handle_new_user_v2()` of
+`schema_phase3.sql`), never that whole file; H1's is the two `drop`s in its
+header.
+
+**Re-running an old file re-opens four of them** (each migration's ⚠ says
+so): `schema_phase_dashboard_config.sql` re-creates the function without the
+caller check; `schema.sql` / `schema_phase3.sql` re-create the signup function
+without `tier`; a new environment creates the twelve tables and
+`calibration_rules` with the default grants again. H1 is not re-opened by the
+files that re-create `restore_workspace` — the cap is on the table.
+
+**Gates** (plant log: `docs/engine_book/gates.md`, "Entitlement holes"):
+`hole-workspace-cap`, `hole-dashboard-config`, `hole-public-tables`,
+`hole-calibration-queue`, `hole-derived-tables`, `hole-signup-tier`
+(`scripts/check_hole_*.sh`, library `scripts/entitlement_holes/lib.sh`) and
+`entitlement-hole-laws` (`tests/engine/test_entitlement_hole_laws.py`). The
+six database gates address NO database by default: without
+`ENTITLEMENT_HOLES_DB_URL` (a loopback URL of a LOCAL Supabase Postgres;
+anything else is refused, exit 2) each is VACUOUS — never green. With it,
+each builds ITS OWN scratch database from this repository's SQL, shows the
+hole OPEN, applies the migration and shows it closed (twice; re-opened by
+hand; on production's shape; on an empty database; on objects another role
+owns), with every legitimate path still working, and drops the database.
+`HOLE_MIGRATION` / `HOLE_REPORT` point a gate at a planted copy; such a run
+ends in exit 1 or 3, never 0.
+
+> ⚠ **Never `set role anon | authenticated | service_role` in a `postgres`
+> session of a local Supabase Postgres and then call a function that role may
+> not execute.** On image 17.6.1.106 that SEGFAULTS THE SERVER (supautils'
+> hint for permission-denied on a function) and drops every session of every
+> database on the cluster. A request is reproduced in an `authenticator`
+> session — what PostgREST's are (`sql_as` in the library); a law reds a gate
+> that sets a role itself.
+
+**Correction to §16 ("Backend cleanup").** `_dashboard.py`'s router IS
+mounted (`server.py`, since 2026-07-26): `PUT /api/dashboard/config` upserts
+`dashboard_configs` with the service role, keyed on the verified user id.
+Nothing calls `upsert_dashboard_config` — not the engine, not the frontend.
+
+**Found, not built — the owner's rulings** (measured in a scratch database
+built from this repository's SQL, 2026-10-04):
+
+1. **Firm clients and the cap (H1 path iii).** `create_firm` →
+   `import_firm_client` ×2 gives a trial user 3 live workspaces, and
+   `detach_workspace_from_firm` leaves them as plain owned workspaces. Do a
+   firm's clients count against the importer's cap? Only where
+   `schema_phase_firm.sql` is applied (the H1 report: `firm_path_iii`).
+2. **Users already over their cap (H1).** They keep everything; after the
+   guard they cannot restore a workspace they archive until they are under
+   the cap — an accidental "delete" is then theirs to lose after 30 days
+   (the service role restores). The SQL cap reads `tier` only: an existing
+   free account (tier NULL) has cap 1 whatever the engine's plan card says.
+   Read `users_over_their_cap` before applying H1.
+3. **The calibration queue (H3c) and the derived tables (H3b).** Apply or
+   not: both restrict-only, no user-JWT writer found. H3c closes who may fill
+   the operator's queue; H3b stops a member rewriting their own figures from
+   the browser. Tables of the same kind that NO committed file creates (the
+   engine writes `valuations`, `sku_lines`, … with the service role; three
+   committed files only ALTER such tables) are in neither list: the H3 report
+   names every one that is open (`open_tables_not_known_to_this_repository`)
+   and no file touches them.
+4. **Existing free accounts (H4).** The engine change that would close it for
+   rows that exist: `_plan_state.get_plan_state` resolves `tier`, else `plan`
+   ONLY where the row has a `stripe_subscription_id`, else trial (today:
+   `row.get("tier") or row.get("plan")`; the same expression sits in
+   `_billing.py`'s usage status and in the chat function's plan lookup). It
+   moves every existing free account from the Multi-Country allowance to the
+   trial's — a change of what existing accounts get, so it is NOT built.
+5. **`delete_my_account` + signing up again** restarts the 14-day trial and
+   zeroes the month's meter (the account's rows are deleted with it).
+6. **`documents.metered_extra` / `nonro_doc` / `nonro_metered_extra`** are
+   writable by a member on their own document (measured; another member's:
+   0 rows). Nothing that charges reads them — a run settles what ITS run
+   reserved (the quota ledger); only the operator's recompute report and
+   `scripts/list_duplicate_charges.py` read `metered_extra`, where a planted
+   stamp adds a line.
+7. **`profiles` has no INSERT policy.** Settings' profile save is an upsert
+   (`insert … on conflict (id) do update`): on a database built from this
+   repository it answers "new row violates row-level security policy" even
+   though the row exists (a plain UPDATE works), and the page shows
+   "Couldn't save profile" while the name it mirrors into the auth metadata
+   does change. A database whose `profiles` holds only the self-select and
+   self-update policies shows it. The fix that widens nothing is the
+   frontend's (`update`, not `upsert`). `profiles.language` is written by
+   the frontend and defined by no committed file.
