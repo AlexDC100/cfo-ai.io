@@ -21153,10 +21153,12 @@ fifteen minutes (`scripts/reprocess_periods_definition.py`, `/run` of a
 document that was `failed` over its period). The pass leaves the row (it may
 be a live run's), the in-place run rewrites the month and clears the
 `interrupted` text, and the LATER resume moves what was still under the
-staged id over the newer run's rows: measured, the month ended with the
-in-place run's statements and recommendations under the OLDER run's briefing
-and valuation, unmarked (`specs-durable/rerun_data_loss/
-probe_inplace_over_committed.out`). The design names who resumes (the
+staged id over the newer run's rows: measured (the earlier run killed right
+after the month's briefing was deleted), the month ended with the in-place
+run's statements and recommendations under the OLDER run's briefing,
+unmarked — any other table still under the staged id moves the same way
+(`specs-durable/rerun_data_loss/probe_inplace_over_committed.out`). The
+design names who resumes (the
 handler, the document's next re-run, the company's next analysis after the
 fifteen minutes) and is silent on this entry; nothing was built for it —
 resuming at once from another process could interleave with a LIVE apply.
