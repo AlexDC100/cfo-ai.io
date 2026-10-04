@@ -30320,3 +30320,184 @@ rule's own bytes (`121639d7…ee10`, 1,090 characters) — V6 above is its RED. 
 conversion note is in no prompt the function builds. `chatLlmGuard.test.ts`: "Revenue          USD
 1,000" became "Revenue          1,000 USD" (V3 is its RED). The static-head law and the four-files
 law hold unchanged. Measured on the five files of the gate: `193 passed (193)`.
+
+### ai-figures — stage 2: the browser, what the reader SEES (2026-10-05)
+
+Stage 1 held what the ENGINE stores and what the function's prompt teaches. This is the other half
+of "with a gate": what a reader SEES in Ask CFO AI, in Explain and on the briefing card — held on
+the rendered output, deterministically, with no model in the loop. `ai-figures` now runs FIVE files:
+
+`npx vitest run --root . frontend/lib/__tests__/chatLlmFigureFormat.test.ts frontend/lib/__tests__/readerFigures.test.ts frontend/components/cfo/chat/__tests__/chatReplyFigures.test.tsx frontend/lib/__tests__/explainFigures.test.ts frontend/components/cfo/__tests__/briefingCardFigures.test.tsx --reporter=verbose`
+→ `574 passed (574)` (15 + 174 + 184 + 110 + 91). Canaries: `GATE-WORK ai-figures corpus=115 grid=984
+kept=101`, `GATE-WORK ai-figures-chat turns=101 rendered=165 requests=2`, `GATE-WORK ai-figures-explain
+answers=105`, `GATE-WORK ai-figures-briefing bodies=318` (and stage 1's `ai-figures-standard` line).
+Battery: floor 560, no skips, one canary per law that has a witness of its own.
+
+**The mechanism.** `frontend/lib/readerFigures.ts` is the browser's twin of
+`engine.ai.figure_format` — the same judged rule set, run over the SAME `reply_corpus.json` and
+`grid.json` (its first run against them: 115 of 115 and 984 of 984). `displayModelText(text,
+{context, fallback, anchors})` is the one entry point; it is called where a model's text reaches a
+reader, and nowhere else:
+
+| surface | where | language of the text |
+|---|---|---|
+| Ask CFO AI — a reply as it arrives | `chatTurns.ts`: stored (so written to history, and sent back as a turn) in the reader's format; the snapshot's figures are handed as evidence | its own prose, else the question's, else the nearest earlier turn's |
+| Ask CFO AI — a reply as it is rendered | `CFOMessageBubble.tsx`, before the typewriter; `CFOMessageList.tsx` hands the conversation's language | the same chain — this is what repairs a reply stored before the release, one written under an older function's prompt, and a thread handed over from the command bar |
+| Explain | `lib/explain.ts`: the fresh answer, the cache write and the cache hit; never the template | its own prose, else the language the request asked for |
+| the briefing card | `CFOBriefingCard.tsx`: DISPLAY ONLY — every decision of the card still reads the served bytes | its own prose, else a served `ro` stamp, else (this session's narration) the language the engine says it narrated in. A served `en` stamp is never trusted |
+| the command bar's answer | NOT a caller | — its guard is handed the function's text byte for byte; its figures are printed by the interface |
+
+The language is never the UI's. A text whose language cannot be told — and a German, French,
+Spanish, Italian, Portuguese, Dutch or Polish one — is not touched.
+
+What runs for real: the normaliser; `startChatTurn`, the chat store, `CFOMessageList` and
+`CFOMessageBubble`; `runAnswerTurn` with `edgeGenerationTransport` and the real `guardAnswer` (tapped,
+not replaced); `getExplanation`; `CFOBriefingCard` and `cfoApi.regenerateBriefing`;
+`buildWorkspaceSnapshot`; the function's own `buildSystemPrompt`. Doubled, and nothing else:
+`cfoApi.chatLlm` (THE RECORDER — it answers a scripted reply and every call is counted), the chat's
+persistence (`chatRemote`), `fetch` for the card (the one channel a request can leave by, counted),
+the display-currency hook and the Supabase session. No model, no request.
+
+| law | file | reds on |
+|---|---|---|
+| 1 the corpus | readerFigures | the output is not `expected` (through plain spaces); a token left that the corpus does not name, with another reason, or out of text order |
+| 2 the independent detector | all four | `foreignNumbersInProse` / `CURRENCY_BEFORE_FIGURE` finds something in an expected string, in an output, in a stored reply, in a rendered bubble, in an explanation, in a card body — after code spans, what the standard leaves by rule and the tokens left on purpose are masked. Positive control: every wrong input IS flagged |
+| 3 no value changes | readerFigures | the digit sequence differs; an INDEPENDENT reader written in the test gives another value for a rewritten token before and after (canonical decimal strings, no float); a second pass changes the text; a swap that drops a digit is not refused by the run-time proof (planted in the test); a swap that throws reaches a caller; a non-string, a language outside the standard or a non-number handed figure is not passed through; a token of several hundred decimals is proved by a handed figure; 200 KB of unbroken word characters, or of dashed digits, does not finish inside the test's time-out |
+| 4 never guessed | readerFigures | a lone three-digit group is not byte-identical — 6 numbers × 19 positions × 5 handed sets × 2 languages (1,140 texts); a handed figure changes anything but a `bare_decimal` / `bare_groups` token (every corpus case, every number of the text handed back in both readings); a handed figure proves a date, a clock time, one decimal, a reference or an account list |
+| 5 the grid | readerFigures | an outcome that is neither lib/money's print byte for byte (U+00A0 joiners included) nor the sentence byte-identical: 864 / 120 / 0 |
+| 6 the standard | readerFigures | `FIGURE_STANDARD` differs from `standard.json`; lib/money's print of 1,234,567.89, 12.3 million and 2.3 billion is not made of its marks, words and joiners; a moved code does not carry lib/money's bytes |
+| 7 languages | readerFigures | a de / fr / es / it / pt / nl / pl text changes by a byte (alone, and as a reply to a question in the same language); a short reply is touched with no context, or does not take the question's language; an English answer quoting Romanian terms reads as Romanian; a mixed text reads as anything; the interface language changes any result |
+| 8 non-figures | readerFigures | a date, a clock time, a section / article / IAS number, an account list, a spreadsheet reference, a tenor, a year after a code, a pair, a foreign dollar, a code span, a URL, a placeholder, an e-mail address, an outline number, a leading-zero identifier, a glued unit changes; a separator inserted into a plain integer; a sign changed |
+| 9 the source | readerFigures | a lookbehind in `readerFigures.ts` (an old iOS WebView throws at PARSE time; the mobile shell is a WebView); an import, `Intl`, a clock, storage, `navigator`, `document`, `i18n` in it; an invisible character in it; `readerFigures` named by any non-test file but the five above (the command bar's folder and `lib/cfoApi.ts` are scanned) |
+| 10 the chat reply | chatReplyFigures | for each of the 101 chat cases, with the INTERFACE IN THE OTHER LANGUAGE: the stored reply is not `expected` or fails law 2; the bubble's text is not the expected text; stored ≠ shown; more than one model request in the turn; the snapshot's figures do not reach the pass, or the briefing quoted inside the snapshot hands a figure; the pipeline logs a token |
+| 11 what is already stored | chatReplyFigures | a wrong-format reply in the store is shown as stored (64 cases, and the incident's sentence alone in a conversation); the reader's own turn, a refusal, a failed or an interrupted turn with the same digits changes; a refusal gives the next reply its language; any frame of the typewriter shows the shape the model wrote |
+| 12 history | chatReplyFigures | the next request carries an earlier answer as stored, or the reader's own figures rewritten; the request gains or loses a field |
+| 13 the command bar is not a caller | chatReplyFigures, explainFigures | the text `guardAnswer` receives in the REAL `runAnswerTurn` over the live transport differs from what the function returned (twice: the one regeneration); the rejected text quoted back to the model is not the one it wrote; the command bar's or Explain's real request builds a prompt holding the figure-format rule |
+| 14 Explain | explainFigures | a fresh answer, the cache entry or a cache hit is un-normalised (105 cases; 75 cached "before the release"); a second model request; the answer's own language not winning over the asked one; the template, a failure or an empty answer passed through the normaliser or cached |
+| 15 the briefing card | briefingCardFigures | a body stamped `ro` is shown wrong (74 cases); a body stamped `en` is repaired where its prose does not say its language, or not repaired where it does; a de / fr / es / it / pt / nl / pl body changes under any stamp and either interface language; a failure text printed; a request on mount; a decision of the card reading the shown text; the narration of an explicit regenerate shown as answered, or more than one request for the click |
+| + the joiners | chatReplyFigures | find-in-conversation or the history filter does not find a figure typed with plain spaces |
+| + the snapshot's headings | chatReplyFigures, readerFigures | `anchorsOfSnapshot` reads a number of the briefing, the recommendations or the alerts the REAL `buildWorkspaceSnapshot` wrote |
+
+**PLANT** — the normaliser (`frontend/lib/readerFigures.ts`):
+
+| plant (each ALONE) | `ai-figures` (5 files) | files that red |
+|---|---|---|
+| **B1** a lone three-digit group is guessed (read as thousands and rewritten) | `44 failed, 530 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **B2** the swap drops a digit (a value would change; the proof returns the text as written) | `361 failed, 213 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **B3** the run-time proof is removed (segment and whole text) | `1 failed, 573 passed (574)` (exit 1) | readerFigures |
+| **B4** a bare decimal is rewritten with nothing beside it (every unit-less dotted number re-printed) | `96 failed, 478 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **B5** a handed figure proves a two-digit DD.MM / HH.MM too | `4 failed, 570 passed (574)` (exit 1) | chatReplyFigures, readerFigures |
+| **B6** the code is no longer moved after the figure | `157 failed, 417 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **B7** the joiner before a moved code is a plain space, not lib/money's U+00A0 (English) | `4 failed, 570 passed (574)` (exit 1) | readerFigures |
+| **B8** a text whose language cannot be told is read as Romanian | `22 failed, 552 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, readerFigures |
+| **B9** one Romanian function word is enough to call a text Romanian | `3 failed, 571 passed (574)` (exit 1) | readerFigures |
+| **B10** a lookbehind in the normaliser's source (an old iOS WebView throws at parse time) | `1 failed, 573 passed (574)` (exit 1) | readerFigures |
+| **B11** the reference guard is dropped for a decimal ("art. 7.1" is no longer named a reference) | `7 failed, 567 passed (574)` (exit 1) | readerFigures |
+| **B12** a symbol after a letter is named ("US$ 5" -> "US5 USD") | `17 failed, 557 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **B13** the e-mail pattern is tried on every text again (quadratic on a long unbroken run) | `1 failed, 573 passed (574)` (exit 1) | readerFigures |
+| **B14** the word before a figure is read for every number again (quadratic on a long unbroken run) | `1 failed, 573 passed (574)` (exit 1) | readerFigures |
+| **B15** anchorsOfSnapshot no longer stops at the snapshot's prose sections | `103 failed, 471 passed (574)` (exit 1) | chatReplyFigures, readerFigures |
+| **B16** the Romanian million word loses its stop ("mil") | `123 failed, 451 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, explainFigures, readerFigures |
+| **B17** a token of several hundred decimals is proved by a handed figure (Infinity === Infinity) | `1 failed, 573 passed (574)` (exit 1) | readerFigures |
+
+**PLANT** — the wiring (the chat's send pipeline, list and bubble; Explain; the briefing card; the command bar; the chokepoint; chat search; the snapshot builder):
+
+| plant (each ALONE) | `ai-figures` (5 files) | files that red |
+|---|---|---|
+| **W1** chat: the reply is stored as the model wrote it (the pass taken out of the send pipeline) | `71 failed, 503 passed (574)` (exit 1) | chatReplyFigures |
+| **W2** chat: the snapshot's figures are no longer handed to the pass | `5 failed, 569 passed (574)` (exit 1) | chatReplyFigures |
+| **W3** chat: an earlier answer is sent back to the model as stored | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+| **W4** chat: the UI language decides a reply's format when it is stored | `24 failed, 550 passed (574)` (exit 1) | chatReplyFigures |
+| **W5** chat: the bubble renders the stored content as it is (the pass taken out of the render) | `69 failed, 505 passed (574)` (exit 1) | chatReplyFigures |
+| **W6** chat: a refusal (the app's own notice) is passed through the normaliser | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+| **W7** chat: the bubble normalises AFTER the typewriter (the old shape shows while typing) | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+| **W8** chat: the list no longer hands the bubble the conversation's language | `20 failed, 554 passed (574)` (exit 1) | chatReplyFigures |
+| **W9** chat: a refusal (written in the UI language) gives the next reply its language | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+| **W10** chat: the reader's own turn is passed through the normaliser | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+| **W11** Explain: a fresh answer is shown and cached as the model wrote it | `76 failed, 498 passed (574)` (exit 1) | explainFigures |
+| **W12** Explain: a cached answer is served as stored (one cached before the release stays wrong) | `1 failed, 573 passed (574)` (exit 1) | explainFigures |
+| **W13** Explain: the TEMPLATE (the panel's own strings) is passed through the normaliser | `1 failed, 573 passed (574)` (exit 1) | explainFigures |
+| **W14** card: the briefing body is printed as served (the pass taken off the card) | `56 failed, 518 passed (574)` (exit 1) | briefingCardFigures |
+| **W15** card: a served `en` stamp is trusted (a German row is re-printed as English) | `9 failed, 565 passed (574)` (exit 1) | briefingCardFigures |
+| **W16** card: the UI language decides the briefing's format | `20 failed, 554 passed (574)` (exit 1) | briefingCardFigures |
+| **W17** card: one of the card's own decisions reads the SHOWN text instead of the served bytes | `1 failed, 573 passed (574)` (exit 1) | briefingCardFigures |
+| **W18** the command bar: the normaliser stands between the function and the guard | `2 failed, 572 passed (574)` (exit 1) | chatReplyFigures, readerFigures |
+| **W19** the chokepoint: lib/cfoApi reaches for the normaliser | `1 failed, 573 passed (574)` (exit 1) | readerFigures |
+| **W20** find-in-conversation compares with a plain indexOf again (a typed figure is not found) | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+| **W21** the history filter compares with a plain includes again | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+| **W22** the snapshot builder renames the briefing's heading (its prose numbers become handed figures) | `1 failed, 573 passed (574)` (exit 1) | chatReplyFigures |
+
+**PLANT** — the shared corpus and the detector:
+
+| plant (each ALONE) | `ai-figures` (5 files) | files that red |
+|---|---|---|
+| **F1** one expected string of the shared corpus is changed on disk | `7 failed, 567 passed (574)` (exit 1) | briefingCardFigures, explainFigures, readerFigures |
+| **D2** the detector no longer sees an ISO code before a figure | `7 failed, 567 passed (574)` (exit 1) | briefingCardFigures, chatReplyFigures, chatLlmFigureFormat, explainFigures, readerFigures |
+
+
+**RED** — every plant above exits `1` on this gate, each planted ALONE in the worktree by a runner
+that restores the planted files from the bytes read before the plant and compares their sha256 after
+each (41 of 41 restored). B13 and B14 red by TIME: the long-run law does not finish inside the test's
+time-out (the runs took 39.6 s and 123.3 s against 8.7 s). Baseline before the first plant:
+`574 passed (574)`. **REVERT** — exit `0`: `574 passed (574)`. Verdict: proven RED, 41 of 41.
+
+Read with the tables: a rule of the normaliser reds its own file AND the three surfaces (B1, B2,
+B4, B6, B12, B16) — the surfaces are held to the same hand-typed strings; a WIRING plant reds only
+the surface it belongs to; W3, W6, W7, W9, W10, W12, W13, W17, W19–W22 are each seen by exactly one
+law — that law is the only thing between the defect and the reader. W19 (the chokepoint) and half of
+W18 are seen by the import census alone: `cfoApi.chatLlm` is the recorder in every behaviour law, so
+nothing inside it can be observed.
+
+**After the repair it reds on** (TC-11): a rule changed in the browser only (the corpus and the grid
+are shared with the engine's twin); a value guessed; a digit dropped, or the proof removed; a
+unit-less number re-printed without evidence; a date, a reference, a foreign dollar touched; a
+joiner or a magnitude word drifting from lib/money's bytes; a language guessed, read off one word,
+or taken from the interface; a lookbehind; the pass taken out of the send pipeline, the bubble,
+Explain or the card; the bubble normalising after the typewriter; a refusal or the reader's own turn
+rewritten; history sent as stored; an `en` stamp trusted; the card deciding on the shown text; the
+normaliser put before the command bar's guard or into `lib/cfoApi`; a snapshot heading renamed; a
+long unbroken run made quadratic again; chat search losing the joiners.
+
+**CANNOT SEE:**
+
+- **what a model WRITES** under the new prompt — the recorder is a script;
+- **a token left by design**: a lone three-digit group ("RON 162,365" in a Romanian sentence) is
+  shown exactly as the model wrote it, code before the figure included, and passes every law and the
+  detector. That is constraint 1, not a gap. A bare ratio with no handed figure, a date and a
+  reference stay too;
+- **a reply whose language cannot be read** — its own prose, its question and every earlier turn too
+  short to tell: it is shown as written. The interface language is never used as a guess;
+- **an English briefing row stored before the release whose prose does not say its language**: shown
+  as stored (the `en` stamp cannot be trusted). A real briefing is a paragraph and reads; the corpus's
+  snippets are where this bites;
+- **the refusal flag after a reload from the server**: `refused` is kept in the local cache only. The
+  cap notice IS written to server history, so on another device it is an ordinary turn — it is then
+  read by the normaliser (it holds plain integers: nothing changes) and can give its language to a
+  later reply too short to tell its own. Notation only;
+- **Explain beside its panel**: the answer is shown in the format of its language even where the
+  panel beside it prints the same figure in another notation (the brief tells the model to quote the
+  panel exactly); an answer in a language Explain never asks for would be read in the asked one;
+- **what is printed elsewhere from stored bytes**: the report page, the exports, the chat snapshot's
+  "Prior engine-generated briefing" — right for every briefing narrated after the release, as stored
+  for the rows before it. The command bar's Copy and its own percent text (ticket);
+- **the phone**: the 200 KB law is a time-out on this machine. A foreign decimal repeated without a
+  space for kilobytes ("1.5-1.5-1.5…") still walks back once per token; no reply has that shape;
+- **a bundle older than the release** (it shows what the function returned); **"lei"** (left as
+  written); a figure written in words; whether a value is TRUE.
+
+**Where the build departs from the spec, or the spec was silent** (for the coordinator):
+
+- two changes against the judged reference, both result-identical on the corpus, the grid and the
+  twin's own laws: the e-mail pattern is left out for a text with no "@", and the word before a
+  figure is read only where a rule asks for it. Each was quadratic on a long unbroken run — on the
+  render thread (measured: 32 KB took 0.5 s and 0.9 s; now 200 KB takes 0.06 s). The engine's twin
+  keeps the reference's shape (it runs off the request thread, on short texts);
+- a token of more than 300 decimal places is never proved by a handed figure — the engine's guard,
+  mirrored (the reference would compare infinities);
+- `displayModelText` reports `lang: null` for a text with no digit (nothing to format, the language
+  is not read); `languageHints` is the one pass the list and the history both use;
+- `useChatSearchHighlight.ts` and `CFOHistorySidebar.tsx` are not on the spec's list: a reply's
+  figures now carry U+00A0 joiners, and a reader searching for "12,3 mil. EUR" typed plain spaces.
+  Both fold the joiners (one character for one);
+- no locale key was added; `pages/cfo/Chat.tsx` (the snapshot), `lib/cfoApi.ts`,
+  `lib/briefingDefinition.ts` and everything under `instrument/shell/capsuleAnswer/` are untouched.
