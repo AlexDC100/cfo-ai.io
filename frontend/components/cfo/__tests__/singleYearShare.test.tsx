@@ -78,6 +78,11 @@ import laterJson from "@/lib/__tests__/fixtures/comparatives/pair_prior_later.js
 import periodsJson from "@/lib/__tests__/fixtures/comparatives/period_common_size.json";
 import constructedJson from "@/lib/__tests__/fixtures/oneEbitda/constructed_books.json";
 
+// Whole statement tabs are rendered, several per test (five tabs × two
+// languages): on a machine busy with other suites a law must not go red on
+// the clock.
+vi.setConfig({ testTimeout: 30_000 });
+
 // ── A company: the committed pair's own two periods (the engine's ids) ──
 const ORG = "0c0a0000-0000-4000-8000-00000000c0a1";
 const P25 = "period-agras-fy2025";
@@ -1453,7 +1458,7 @@ describe("S6 the comparison request's outcome is said on every tab that has the 
       );
     }
     render(<QueryClientProvider client={client}><Page /></QueryClientProvider>);
-    await waitFor(() => expect(outcomeNote()?.getAttribute("data-outcome")).toBe("failed"));
+    await waitFor(() => expect(outcomeNote()?.getAttribute("data-outcome")).toBe("failed"), { timeout: 10_000 });
     expect(outcomeNote()!.getAttribute("data-status")).toBe("502");
     // No retry loop: past the client's own retry delay, still one request.
     await act(async () => { await new Promise((res) => setTimeout(res, 1300)); });
@@ -1461,7 +1466,7 @@ describe("S6 the comparison request's outcome is said on every tab that has the 
 
     fail = false;
     fireEvent.click(screen.getByTestId("comparatives-retry"));
-    await waitFor(() => expect(outcomeNote()).toBeNull());
+    await waitFor(() => expect(outcomeNote()).toBeNull(), { timeout: 10_000 });
     expect(calls.length).toBe(2);
     expect(calls[1]).toBe(calls[0]);
     statesChecked += 2;
