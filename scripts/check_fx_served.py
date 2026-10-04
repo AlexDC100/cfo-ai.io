@@ -94,6 +94,15 @@ NOT_A_ROLLBACK = (
     "    RED there: it names what the container cannot read (egress to curs.bnr.ro)."
 )
 
+#: Printed instead when the route did not answer a payload at all: nothing
+#: was read, so this check says nothing about the rate — and a paragraph
+#: about rollbacks would be advice on a question nobody asked.
+NO_ANSWER = (
+    "  NOTHING WAS READ: GET /api/fx-rates did not answer a payload, so this check says nothing\n"
+    "  about the exchange rate. What failed is the engine or the ingress in front of it — read\n"
+    "  the boot probe and GET /api/health first (CLAUDE.md section 14, steps 3 and 6)."
+)
+
 
 def _judge():
     """``judge`` of check_fx_live.py — ONE definition of 'a current BNR rate'."""
@@ -180,10 +189,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     print("  GET /api/health    %s" % health_line(health_status, health))
 
     if problems:
-        print("FX-SERVED RED — the serving process is NOT answering a current BNR rate:")
+        answered = fx_status == 200 and isinstance(payload, dict)
+        if answered:
+            print("FX-SERVED RED — the serving process is NOT answering a current BNR rate:")
+        else:
+            print("FX-SERVED RED — the serving process did not answer GET /api/fx-rates:")
         for p in problems:
             print("  - %s" % p)
-        print(NOT_A_ROLLBACK)
+        # The rollback paragraph is about a payload that was read and judged
+        # not current. With no payload there is nothing it could be about.
+        print(NOT_A_ROLLBACK if answered else NO_ANSWER)
         return 1
     print("FX-SERVED GREEN — the serving process answers BNR's file of %s" % payload.get("as_of"))
     return 0
