@@ -2220,6 +2220,20 @@ def _engine_gates() -> List[Gate]:
         #                    dates' (same-year and one-day-apart closes); an
         #                    incomparable pair serves no share on any row; the
         #                    zero floor is witnessed at its boundary.
+        #                    SECOND REVIEW ROUND: the deploy pre-flight cannot
+        #                    pass on nothing (a period served without the
+        #                    block is RED unless the operator names it; no
+        #                    lawful block at all is RED whatever is named;
+        #                    the block is held in substance) — driven through
+        #                    main() over a world whose serve-time re-assembly
+        #                    fails; the margin rule's FLOOR reason has a
+        #                    witness; a statement with no base has one
+        #                    reason; the attention document (GET …/attention)
+        #                    judges no statement line and fills no
+        #                    improvement slot under a later or unreadable
+        #                    prior; Piotroski's year-over-year checks are not
+        #                    judged there; the liabilities + equity bridge is
+        #                    refused with a refused total equity.
         #                    Plant log: docs/engine_book/gates.md.
         #   single-year-share   the PAGE prints it. With no comparison
         #                    document on screen — no prior resolves, "No
@@ -2266,28 +2280,78 @@ def _engine_gates() -> List[Gate]:
         #                    paint its share column has none and says why; the
         #                    Ratios tab lists no verdict under a later prior;
         #                    a share-path file imports no new local module.
+        #                    SECOND REVIEW ROUND: the gate MOUNTS THE REAL
+        #                    PAGE (pages/cfo/__tests__/singleYearSharePage.
+        #                    test.tsx — FinancialStatements.tsx itself, the
+        #                    network mocked at its two seams, the engine's
+        #                    committed bytes with their line items put back):
+        #                    the first review's page defects planted one
+        #                    wrapper element away left the text laws green.
+        #                    The source laws: every use of Math beyond abs /
+        #                    max / min / sign is arithmetic (a division needs
+        #                    no "/"); no dynamic import and no re-export to an
+        #                    unscanned module; every TRUSTED module holds the
+        #                    arithmetic it held when trusted (pinned by text,
+        #                    fixtures/sharePathTrustedArithmetic.json). The
+        #                    Ratios tab reads the DOCUMENT's direction, not
+        #                    the ratio block's flag alone; the P&L's share
+        #                    cell is the period's own on a row the document
+        #                    cannot be held to; the workspace upload card
+        #                    resets the period its file landed on.
         #                    Plant log: docs/engine_book/gates.md.
         Gate("common-size-single",
              [PY, "-m", "pytest", "tests/engine/test_common_size_single.py",
               "tests/engine/test_common_size_fe_fixture.py", "-q", "-s"],
-             # measured 2026-10-04 (fix round): 14,548 share cells over 68
-             # offline pairs (plus 7,748 through the real routes over 12
-             # periods, 36 pairs; 174 band verdicts withheld backwards).
+             # measured 2026-10-04 (second review round): 14,548 share cells
+             # over 68 offline pairs (plus 7,748 through the real routes over
+             # 12 periods, 36 pairs; 174 band verdicts and 50 Piotroski
+             # year-over-year checks withheld backwards; 11 backwards
+             # attention documents; 13 periods through the pre-flight's
+             # main() with the re-assembly failing).
              work_rx=r"GATE-WORK common-size-single rows=(\d+)", floor=12000,
              units="share cells held equal between the two documents",
+             # One line per law that has a witness of its own: a law that is
+             # removed or skipped takes its line with it.
              canaries=("GATE-WORK common-size-single rows=",
                        "GATE-WORK common-size-single served_periods=",
                        "GATE-WORK common-size-single swaps=",
-                       "band_verdicts=")),
+                       "band_verdicts=",
+                       "piotroski_yoy_withheld=",
+                       "GATE-WORK common-size-single margin_floor_lines=",
+                       "no_base_lines=",
+                       "GATE-WORK common-size-single zero_floor_lines=",
+                       "GATE-WORK common-size-single refused_lines=",
+                       "refused_equity_bridges=",
+                       "GATE-WORK common-size-single margin_lines_withheld=",
+                       "GATE-WORK common-size-single same_year_crossings_withheld=",
+                       "GATE-WORK common-size-single incomparable_rows=",
+                       "GATE-WORK common-size-single unreadable_close_crossings_withheld=",
+                       "GATE-WORK common-size-single attention_backwards=",
+                       "GATE-WORK common-size-single preflight_unassembled_periods=")),
         Gate("single-year-share",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/singleYearShare.test.tsx",
+              "frontend/pages/cfo/__tests__/singleYearSharePage.test.tsx",
               "--reporter=verbose"],
-             # measured 2026-10-04 (fix round): 1,444 share cells and movers
-             # held to the served documents (106 tests, 415 states).
+             # measured 2026-10-04 (second review round): 1,476 share cells
+             # and movers held to the served documents (113 tests, 528
+             # states), and 121 share cells on the REAL page (8 tests).
              work_rx=r"GATE-WORK single-year-share cells=(\d+)", floor=1300,
              units="share cells held to the served block and document",
              canaries=("GATE-WORK single-year-share cells=",
+                       # the real page (the gate's second file)
+                       "GATE-WORK single-year-share page_cells=",
+                       "pl: the controls are visible, the share box alone, on and ticked",
+                       "balance_sheet: the controls are visible, the share box alone, on and ticked",
+                       "one no-prior notice, the comparison boxes off, the share box on, the column printed",
+                       "one sentence under the tab bar, the comparison boxes off, the period's own share column still printed",
+                       "every share cell is the period's OWN share, the document's points only beside a share it describes",
+                       "a document that LISTS band verdicts under a later comparison period is not believed",
+                       # the source laws of the second review round
+                       "no module is reached without an import declaration",
+                       "a trusted module holds the arithmetic it held when it was trusted, and no other",
+                       "the Ratios tab does not believe one either (prior_is_later)",
+                       "the share cell is the on-screen book's own",
                        "the share box is on, the other three are off, and ONE column is printed from the served block",
                        "every canonical balance-sheet row, subtotal and total on screen prints its served share",
                        "a row whose amount is not the block's is blank; the rule is the comparison's own guard",

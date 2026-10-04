@@ -21087,7 +21087,11 @@ and the law that now holds it:
   balance-sheet rows` (a period with no `canonical_bs`: lawful, and its
   balance-sheet tab has no share to print — the count the operator needs
   before the frontend ships) — checks the status vocabulary (held equal to
-  the engine's) and rejects a key twice.
+  the engine's) and rejects a key twice. (SUPERSEDED for the first outcome by
+  the second review round, below: a period served without the block is RED
+  under `--require-common-size` unless the operator names it, and a run with
+  no lawful block at all is RED — "by design" for every period at once is
+  what a broken re-assembly looks like.)
 
 **FRONTEND (`single-year-share`).**
 
@@ -21206,7 +21210,7 @@ revert run all three files.
 | B6 the block does not say its verdicts are withheld | `4 failed, 25 passed` |
 | B7 a band that held is dropped with the crossings | `4 failed, 25 passed` |
 | D1 the prior's share block rides the document a second time | `2 failed, 27 passed` |
-| P1 the pre-flight fails a period whose block the engine withholds by design | `1 failed, 28 passed` |
+| P1 the pre-flight fails a period whose block the engine withholds by design (the law this plant proved was REVERSED in the second review round: such a period fails unless named) | `1 failed, 28 passed` |
 | P2 the pre-flight accepts any status string | `1 failed, 28 passed` |
 | P3 the pre-flight accepts a key twice | `1 failed, 28 passed` |
 | P4 the pre-flight does not name a period with no canonical rows | `1 failed, 28 passed` |
@@ -21309,11 +21313,9 @@ a band" there.
 **CANNOT SEE** (the fix round's own limits; the two lists above are edited
 where the round closed an entry):
 
-- **the command bar's "what changed" lines under a later prior**
-  (`engine.attention.now`, through `analysis.line_verdict`): they still
-  judge current − later when a later prior is requested. The bar's
-  ratio-band lines no longer do (they read the withheld list). Out of scope
-  (S8) — for the owner;
+- ~~the command bar's "what changed" lines under a later prior~~ — CLOSED
+  in the second review round (below): `engine.attention` reads the
+  document's `direction`;
 - **profit lines the margin rule does not reach**: `pl.net_financial_result`
   is a result too and keeps its share of turnover; and every COST line's
   share on a book whose turnover is incidental (the developer's operating
@@ -21328,14 +21330,12 @@ where the round closed an entry):
   order;
 - **a refused line's title** is the page's general sentence for a refusal,
   not the engine's refusal words for that line;
-- **what feeds the composition in the page**: the period query, the
-  comparison query, the company's period list and `useRatioSurfaces` are
-  mocked nowhere and rendered nowhere in this gate — the page's call is held
-  by its text, its inputs' names by other gates (`compare-no-prior`,
-  `ratioCompareTab`);
-- **arithmetic added to a module the share path already imports**
-  (`lib/money`, `lib/changeKind`, …): the import law reds a NEW module, not
-  a new line in a trusted one;
+- ~~what feeds the composition in the page~~ — CLOSED in the second review
+  round (below): the gate's second file mounts the page itself, over the
+  real period, comparison and period-list queries;
+- ~~arithmetic added to a module the share path already imports~~ — CLOSED
+  in the second review round (below): every trusted module's arithmetic is
+  pinned by its text;
 - **how many stored periods have no canonical balance sheet, or no block**:
   the pre-flight counts them inside the new image; it was not run here (no
   production access);
@@ -21345,3 +21345,271 @@ where the round closed an entry):
 - line items with no account code (the re-assembly skips them: the registry
   rows then read a disclosed zero); no stored period is known to have the
   shape.
+
+### single-period-share — the second review round (2026-10-04)
+
+Two independent reviewers read the fix round (cc852dea) before the deploy.
+Both said DO NOT SHIP, each for a GATE that stayed green on the defect it is
+named for; the served figures themselves held on everything they drove.
+Each blocking and high finding was reproduced first (none failed to
+reproduce); what changed, and the law that now holds it:
+
+**ENGINE (`common-size-single`).**
+
+- *The deploy pre-flight was GREEN when no period served the block.* The
+  first fix round made "block withheld: no assembled statements" a named
+  outcome that is not a failure — the engine attaches no block to a body
+  whose re-assembly produced no statements, by design. The same body is what
+  a serve-time re-assembly that BREAKS on the new image serves (every period
+  still 200 — the shape of 2026-09-20). Reproduced at cc852dea on the gate's
+  own twelve served bodies with their assembled statements and block
+  removed: `checked 12, failed 0, lawful 0, withheld 12`, exit 0 — which
+  `main()` prints as `GREEN — every stored period serves` (the reviewer
+  drove it through `create_app()` with
+  `pipeline._assemble_with_statutory_anchor` raising: 7 of 7). The gate now
+  drives `main()` over that very world — thirteen periods through the real
+  route with the re-assembly failing. Under `--require-common-size`: a period served
+  without the block is RED unless the operator names it (`--accept-withheld
+  <period id>[,…]`, listed as `NOTE … ACCEPTED`); a run in which NO period
+  serves a lawful block is RED whatever is accepted (exit 2, vacuous —
+  TC-2); a name that matches no withheld period is reported as unused. The
+  block is also held in SUBSTANCE: both base rows are rows of the block and
+  `bases` states their own amounts, an amount and a share are numbers, and a
+  statement whose base takes a share has another line that does (a block of
+  absent rows beside a served base is not what the engine builds).
+- *The gate stayed green on a margin refused under the rule's FLOOR reason
+  served as a share* (plant EV1: `if not verdict.refused or verdict.reason ==
+  rule.REASON_FLOOR`, 61 passed). Every margin witness was the corpus
+  developer — the SHARE-threshold branch. The floor has a constructed
+  witness now (a clean book with a turnover of half a unit: the six result
+  lines `margin_not_meaningful` with the floor's sentence, turnover and the
+  cost lines keep their shares). And a statement with no base has ONE
+  reason: `shares.side_shares` asks the base before the margin rule (a
+  turnover under half a cent gave `margin_not_meaningful` on the result
+  lines and `no_base` on the rest).
+- *The attention document still judged backwards (high).* `engine.attention`
+  called `line_verdict` on every statement delta itself: through the real
+  route, an earlier period compared with a later one served `pl.revenue`
+  "deteriorated" in the movement slot and `bs.cash` "improved" as the
+  period's improvement — each judged on current − later — under a
+  comparatives document that says `verdicts_served: false`. It reads the
+  document's `direction` now (`attention.now.verdicts_withheld_of`): no
+  statement line carries a verdict, no ratio-band candidate is read (a
+  document that lists them under such a direction is not believed), and the
+  improvement slot is unfilled with `{code: verdicts_withheld, inputs:
+  [reason]}`. The movement slot still ranks by size — a size is not a
+  verdict. A document that does not say which way time runs is not believed
+  to run forwards.
+- *`ratios.piotroski` served five year-over-year checks judged backwards*
+  (ROA "improving" against a later period), and a nine-point score built on
+  them, under `band_movements.verdicts_withheld`. Under a withheld direction
+  the current side is evaluated without a prior — the period's own served
+  shape: checks 1–4 judged, 5–9 `uncertain`, the score capped at four — and
+  `current_reason` names the direction's code with the five checks.
+- *The same document refused total equity and walked a closing bridge to
+  liabilities + that equity.* `analysis.bs_bridge` refuses the liabilities +
+  equity walk when either period carries `total_equity_refusal` (no steps,
+  no residual, the refused period's total not served, the reason in the
+  bridge's own sentence) — as a refused EBITDA refuses the P&L walk. The
+  assets walk is untouched; a refused net result alone refuses nothing here.
+- *Housekeeping.* Every law with a witness of its own prints a `GATE-WORK`
+  line and the battery names it as a canary (a law removed or skipped takes
+  its line with it); the gate's stale "cannot see" entry is corrected.
+
+**FRONTEND (`single-year-share`).**
+
+- *Both gate files stayed green on the first review's page defects planted
+  one wrapper element away* (the notes under `false &&` inside a `<div>`; the
+  whole P&L under `{cmpDoc && …}`; a `<style>` element hiding the controls of
+  a one-period company; `common_size` deleted from `statements` before the
+  composition is called) — the page laws pin each element's own text and the
+  KIND of its immediate parent. The gate has a SECOND FILE now,
+  `pages/cfo/__tests__/singleYearSharePage.test.tsx`: it mounts
+  `FinancialStatements.tsx` itself (router, providers, the app's query
+  defaults, the real `useActivePeriod` / `useComparatives` /
+  `useComparisonChoice` / `useRatioSurfaces`), the network mocked at the two
+  seams the page uses (`@supabase/supabase-js` createClient; fetch), over the
+  engine's committed bytes — `period_line_items.json` restores the one field
+  the pair fixtures trim, held to the engine by
+  `tests/engine/test_common_size_fe_fixture.py`. Seven states on the real
+  page: one period (P&L, balance sheet), the earliest of two years, a refused
+  comparison, a document, a later prior on the Ratios tab, and a document
+  that lists band verdicts under that direction.
+- *…and on a share divided in the browser four ways the import law did not
+  read*: inside a module already on `TRUSTED_MODULES`; in a new file
+  re-exported through one; in a new file reached by a dynamic `import()`;
+  and written without a `/` (`Math.exp(Math.log(a) - Math.log(b))`). Now:
+  every TRUSTED module holds the arithmetic it held when it was trusted, by
+  its text (`fixtures/sharePathTrustedArithmetic.json` — 77 sites over 33
+  modules; a difference is a thing to look at, then the pin is rewritten
+  with `SHARE_PATH_PIN=write`); a scanned or trusted module re-exports no
+  value from a module nobody scans; a share-path file and a trusted module
+  load nothing without an import declaration (`import()`, `require`,
+  `import.meta` beyond `.env`); and every use of `Math` beyond `abs`, `max`,
+  `min`, `sign` — and `toExponential` — is an arithmetic site.
+- *The Ratios tab believed a document's band lists whatever its direction*
+  (medium): `printBandMovements` read `band_movements.verdicts_withheld`
+  alone. The view carries the DOCUMENT's direction (`directionWithheld`,
+  read off `direction.order`); under it nothing is listed or counted as
+  improved / deteriorated, no delta keeps its adjective's colour, and a
+  crossing prints "not comparable" with the reason — the figures, both bands
+  and every delta's value as served. Not reachable with the engine this lane
+  ships (flag and direction are served together); it is what the first-round
+  engine served.
+- *The P&L blanked the period's own share on a row the document could not be
+  held to* (another book under the same id; a prior assembled on another
+  EBITDA definition) — the share cell went with the three comparison cells,
+  where "No comparison" and the balance sheet printed it. The share cell is
+  the period's own there too; a row with no engine line says why in its
+  share cell on every statement.
+- *Smaller.* The cash-flow tab's word for a refused prior is the bundle's
+  ("refuzat", it was the literal "refused"); the workspace upload card
+  (`UploadFlowHost`) resets the period its file landed on and the comparisons
+  that name it — the one upload path that reset neither; the page's comment
+  on the comparison's ask-once-more says "at most twice".
+
+#### engine (`common-size-single`), second review round — PLANT / RED / REVERT
+
+Runner: `specs-durable/single_period_share/plants_round2_engine.py`; record
+`plants_round2_engine.json` beside it. On a scratch copy of 8603ec3e (`git archive`), each plant
+ALONE, the gate's two files run after each.
+
+**BASELINE** — exit `0`: `31 passed`.
+
+| PLANT | result |
+|---|---|
+| PF1 the pre-flight accepts every period served without the block (the first fix round's behaviour) | `2 failed, 29 passed` |
+| PF2 a pre-flight that required the block and saw none is green (no vacuity check) | `1 failed, 30 passed` |
+| PF3 naming ANY period accepts every withheld one | `1 failed, 30 passed` |
+| PF4 a block whose base takes a share and no other line does is lawful (every row absent) | `1 failed, 30 passed` |
+| PF5 `bases` need not state the base row's own amount | `1 failed, 30 passed` |
+| PF6 a share written as a string is lawful | `1 failed, 30 passed` |
+| PF7 the base rows need not be rows of the block | `1 failed, 30 passed` |
+| PF8 the run prints GREEN over a vacuous pre-flight (the verdict line ignores the exit code) | `1 failed, 30 passed` |
+| EV1 a margin refused under the rule's FLOOR reason is served as a share | `1 failed, 30 passed` |
+| EV2 the margin rule is asked before the base (two reasons inside one statement) | `1 failed, 30 passed` |
+| AT1 the attention composer judges every statement delta itself, whatever the direction | `1 failed, 30 passed` |
+| AT2 the improvement slot does not say the verdicts are withheld | `1 failed, 30 passed` |
+| AT3 ratio-band candidates are read under a withheld direction (a document that lists them is believed) | `1 failed, 30 passed` |
+| AT4 a document that does not say which way time runs is believed to run forwards | `1 failed, 30 passed` |
+| AT5 only a LATER prior is withheld (an unreadable order is judged) | `1 failed, 30 passed` |
+| PI1 Piotroski's year-over-year checks are judged against a later period | `4 failed, 27 passed` |
+| PI2 the Piotroski block is not told the direction | `4 failed, 27 passed` |
+| PI3 the Piotroski block does not say why checks 5-9 are not judged | `4 failed, 27 passed` |
+| BR1 the liabilities + equity bridge walks to a refused total equity | `2 failed, 29 passed` |
+| BR2 only the CURRENT period's refused equity refuses the bridge | `2 failed, 29 passed` |
+| BR3 the refused bridge still serves the refused period's total | `2 failed, 29 passed` |
+| BR4 the refused bridge does not say why | `2 failed, 29 passed` |
+
+**RED** — every plant exits `1`, each planted ALONE, the planted file restored from the bytes read
+before the plant and its sha256 compared after each. **REVERT** — exit `0`: `31 passed`.
+Verdict: proven RED, twenty-two of twenty-two.
+
+EV1 is the reviewer's own plant: it was GREEN at cc852dea (`61 passed` over the gate's two files and
+`test_margin_meaning.py`; record `plants_round2_before.json`).
+
+
+#### frontend (`single-year-share`, both files), second review round — PLANT / RED / REVERT
+
+Runner: `specs-durable/single_period_share/plants_round2_frontend.py`; record
+`plants_round2_frontend.json` beside it. On a scratch copy of 49b65492, each plant ALONE, the gate's
+two files run ONE AT A TIME after each (first `singleYearShare.test.tsx`, then
+`singleYearSharePage.test.tsx` — the result column gives them in that order). I2 and I3 also CREATE a
+file (`frontend/lib/xBrowserShare.ts`), removed after.
+
+**BASELINE** — exit `0`: `111 passed (111)` and `8 passed (8)`.
+
+| PLANT | result |
+|---|---|
+| V1 PAGE: the notes inside a `<div>`, under a condition (`> 2`) — the parent is still an element | `111 passed (111)` · `4 failed, 4 passed (8)` |
+| V1b PAGE: the notes inside a `<div>`, never rendered (`false &&`) | `111 passed (111)` · `4 failed, 4 passed (8)` |
+| V2 PAGE: the P&L statement (provider and view) is rendered only with a document | `111 passed (111)` · `3 failed, 5 passed (8)` |
+| V3 PAGE: a `<style>` element hides the controls of a one-period company | `111 passed (111)` · `2 failed, 6 passed (8)` |
+| V4 PAGE: `common_size` is deleted from `statements` before the composition is called when there is no document | `111 passed (111)` · `5 failed, 3 passed (8)` |
+| I1 the division inside an ALREADY-TRUSTED module (lib/changeKind), called from the cells | `1 failed, 110 passed (111)` · `8 passed (8)` |
+| I2 the division in a new file, RE-EXPORTED through a trusted module (lib/changeKind) | `1 failed, 110 passed (111)` · `8 passed (8)` |
+| I3 the division in a new file, reached by a DYNAMIC import (top-level await) — no import declaration | `1 failed, 110 passed (111)` · `8 passed (8)` |
+| I4 the division written without `/` in the scanned file itself (exp of a difference of logs) | `1 failed, 110 passed (111)` · `8 passed (8)` |
+| I5 a division added to a trusted module that already divides (lib/money), with no caller yet | `1 failed, 110 passed (111)` · `8 passed (8)` |
+| RT1 the Ratios tab reads the ratio block's flag alone (a document that lists verdicts is believed) | `3 failed, 108 passed (111)` · `1 failed, 7 passed (8)` |
+| RT2 the view is not told the document's direction | `3 failed, 108 passed (111)` · `1 failed, 7 passed (8)` |
+| RT3 an order that cannot be read is not a withheld direction | `1 failed, 110 passed (111)` · `8 passed (8)` |
+| RT4 a crossing stays a crossing in the table under a withheld direction (the lists alone are emptied) | `2 failed, 109 passed (111)` · `1 failed, 7 passed (8)` |
+| RT5 a delta keeps its adjective's colour under a withheld direction | `2 failed, 109 passed (111)` · `1 failed, 7 passed (8)` |
+| RT6 the lists stay filled under a withheld direction (the sentence is printed over them) | `2 failed, 109 passed (111)` · `8 passed (8)` |
+| D1 the P&L blanks the share cell with the comparison cells on a row the document cannot be held to | `2 failed, 109 passed (111)` · `8 passed (8)` |
+| D2 a row with no engine line says nothing in its share cell (a bare gap) | `2 failed, 109 passed (111)` · `8 passed (8)` |
+| CF1 the cash-flow tab prints the literal "refused" on a Romanian screen | `1 failed, 110 passed (111)` · `8 passed (8)` |
+| U1 the workspace upload card resets neither the period nor its comparisons | `1 failed, 110 passed (111)` · `8 passed (8)` |
+
+**RED** — every plant exits `1`, each planted ALONE, the planted files restored from the bytes read
+before the plant and their sha256 compared after each. **REVERT** — exit `0`: `111 passed (111)` and `8 passed (8)`.
+Verdict: proven RED, twenty of twenty.
+
+V1 – V4 are the second reviewer's page plants and I1 – I4 its import plants, as planted there.
+REPRODUCED FIRST, at cc852dea, with the reviewer's own runner on a scratch copy (record
+`plants_round2_before_frontend.json`): V1b, V2, V3, V4, I1, I2, I3 and I4 each left BOTH gate files
+of that commit green (`106 passed` and `26 passed`). V1 – V4 are still green on the first file — its
+text laws read what they were told to read — and RED on the second, which mounts the page: that is
+the repair. A page law that fails waits out its `waitFor` (120 s a test), so a red run of the second
+file takes minutes; a green one seconds. (The runner was stopped by the harness's time limit after
+the last plant was restored; the REVERT run was made alone, on the same scratch copy.)
+
+
+**After the repair it reds on** (beyond the lists of the first fix round,
+which stand): the pre-flight green with a period served without the block
+and not named, or with no lawful block at all, or printing GREEN over a
+vacuous run, or accepting every withheld period for one name, or passing a
+block that is lawful in shape and empty in substance; a margin refused under
+either of the rule's reasons served as a share; the margin rule asked before
+the base; the attention document judging a statement line, reading a
+ratio-band candidate or filling its improvement slot under a later or
+unreadable prior, or believing a document that does not say which way time
+runs; Piotroski's year-over-year checks judged against a later period, or
+withheld without the reason; the liabilities + equity bridge walked to a
+refused total equity, refused for one side only, serving the refused total
+or giving no reason. On the page — THE REAL ONE: the notes or the controls
+under any condition or wrapper of the page's own, a statement tab not
+rendered without a document, the share block withheld from the composition,
+the controls hidden by a style; a use of `Math` beyond abs / max / min /
+sign, a dynamic import or an unscanned re-export on the share path; any
+arithmetic added to, changed in or removed from a trusted module without
+its pin; the Ratios tab reading the ratio block's flag without the
+document's direction (lists, counts, a crossing or an adjective's colour
+under a direction that serves none); the P&L's share cell blanked on a row
+the document cannot be held to; a share gap with no reason on a row with no
+engine line; the literal "refused" on the cash-flow tab; the workspace
+upload card resetting no period.
+
+**CANNOT SEE** (this round's own limits):
+
+- **what a TRUSTED module itself imports**: the arithmetic of the 33 trusted
+  modules is pinned and their re-exports are read, but a division two
+  modules away — reached through a new function with no arithmetic of its
+  own in a trusted module — is not followed; and no law by value can see a
+  division that reproduces the served fraction to the printed decimal. The
+  share path's own files hold no arithmetic at all;
+- **a real browser**: the second file is the real page under jsdom — layout,
+  the sticky bar's height and the phone breakpoint are not looked at; nor is
+  the upload flow driven (the upload card's reset is held by its text);
+- **production**: the pre-flight's `main()` is driven over the gate's served
+  world. How many stored periods are served without the block, or without
+  canonical rows, is unknown until it runs inside the new image — and a
+  withheld period there now needs the operator's `--accept-withheld`;
+- **what the command bar PRINTS** for an attention item under a later prior
+  (the served document carries no verdict and no improvement; the bar's own
+  gates hold its rendering, and it still labels the comparison "vs prior");
+- **the exports** (report, workbook, PDF): their band lists read the served
+  block through `lib/executiveSummary.ts`, not through the Ratios tab's
+  view — a document that lists verdicts under a withheld direction is not
+  re-read there (the engine no longer serves one); their share column is
+  their own (S8);
+- **`ratios.piotroski` has no reader** in the frontend today: the law holds
+  the served block;
+- **the Band movement box and the page's note both give the reason** on the
+  Ratios tab under a later prior (the box also says where the bands are) —
+  said twice, left as it is;
+- **response bytes across processes**: `statements.subAggregates` is built in
+  hash order (two processes with different seeds serve the same JSON in a
+  different key order — on main too). Not this lane's block; every block of
+  the lane is byte-stable.
