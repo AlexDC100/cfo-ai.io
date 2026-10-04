@@ -21,10 +21,40 @@
 //
 // No new dependency: dehydrate/hydrate ship with @tanstack/react-query.
 
-import { dehydrate, hydrate } from "@tanstack/react-query";
+import { dehydrate, hydrate, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { queryClient } from "./queryClient";
 
-const STORAGE_KEY = "cfoai-query-cache-v1";
+// THE VERSION IS THE BUSTER. A persisted blob is whatever the engine served
+// when it was written, and nothing in this app refetches a hydrated query
+// that no page mounts in the first seconds (see the restore step below) — so
+// a payload can outlive the engine that served it by days. When a release
+// changes what a served document CARRIES and the page reads the new part,
+// bump the version: the first boot of the new bundle hydrates nothing and
+// every query is asked of the engine again.
+//   v2 (2026-10-04): GET /api/period carries `statements.common_size` (one
+//   period's shares) and the comparatives document carries `direction` and
+//   the canonical balance-sheet shares. A v1 blob holds neither, and the
+//   share box would have read "not available" over a payload the engine no
+//   longer serves.
+const STORAGE_KEY = "cfoai-query-cache-v2";
+/** Every earlier version's key — removed at boot, never read: a blob nobody
+ *  hydrates would otherwise sit in the same quota for good. */
+const RETIRED_STORAGE_KEYS = ["cfoai-query-cache-v1"];
+
+/** When this page session started. A query answered before it was hydrated
+ *  from disk, not asked by this session. */
+export const QUERY_SESSION_STARTED_AT = Date.now();
+
+/**
+ * The answer cached under `queryKey` was NOT fetched by this page session —
+ * it came off the disk. A page that finds such an answer missing a part the
+ * engine now serves asks once more (`invalidateQueries`); the refetched
+ * answer is this session's, so the question is asked exactly once.
+ */
+export function answeredBeforeThisSession(client: QueryClient, queryKey: QueryKey): boolean {
+  const updatedAt = client.getQueryState(queryKey)?.dataUpdatedAt ?? 0;
+  return updatedAt > 0 && updatedAt < QUERY_SESSION_STARTED_AT;
+}
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // localStorage quota is ~5MB; leave headroom for chat history + prefs +
 // the aicfo.* run caches that share the same origin.
@@ -93,6 +123,13 @@ function writeNow(): void {
  * first render) and start mirroring cache changes back to storage.
  */
 export function setupQueryPersistence(): void {
+  // ── Retired versions ────────────────────────────────────────────────
+  try {
+    for (const key of RETIRED_STORAGE_KEYS) localStorage.removeItem(key);
+  } catch {
+    /* storage unavailable — nothing to remove */
+  }
+
   // ── Restore ─────────────────────────────────────────────────────────
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

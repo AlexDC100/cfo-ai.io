@@ -193,6 +193,29 @@ export interface MoversDto {
   improved: MoverDto[];
   deteriorated: MoverDto[];
   below_floor: number;
+  /** Why NO line is called improved / deteriorated ("prior_is_later",
+   *  "period_order_unknown"), or null when verdicts are served. Absent on an
+   *  engine that predates the field. */
+  verdicts_withheld?: string | null;
+}
+
+/** Which way time runs between the two periods — the engine's reading of
+ *  their two closes (src/engine/comparatives/analysis.py `time_direction`).
+ *  The page takes the order from HERE and never compares the dates itself. */
+export type ComparisonOrder = "prior_is_earlier" | "prior_is_later" | "same_close" | "unknown";
+
+export interface ComparisonDirectionDto {
+  order: ComparisonOrder;
+  current_period_end: string | null;
+  prior_period_end: string | null;
+  /** False when the comparison period closes LATER, or the order cannot be
+   *  read: every figure, delta, bridge and share is served, and no line is
+   *  called improved or deteriorated. */
+  verdicts_served: boolean;
+  reason: string | null;
+  /** The engine's English diagnostic — never printed; the page words its own
+   *  sentence from `order`. */
+  note: string;
 }
 
 export interface PriorCanonicalBsDto {
@@ -216,6 +239,9 @@ export interface ComparativesResponse {
     reason: string;
   };
   coverage_source: { current: string; prior: string };
+  /** Absent on an engine that predates the field (then the page says nothing
+   *  about the order, as before). */
+  direction?: ComparisonDirectionDto | null;
   columns: ComparativeColumnDto[];
   common_size: CommonSizeRowDto[];
   bridges: { pl: BridgeDto; bs_assets: BridgeDto; bs_liabilities_equity: BridgeDto };
@@ -578,6 +604,22 @@ export function noPriorStateOf(input: {
   return { currentEnd, missingEnd: wanted !== null && !closesThatMonth ? wanted : null, earlier };
 }
 
+/**
+ * The previous-year close the company has NO balance for — the month the
+ * comparison notice names — whatever the reader chose in "Compare with".
+ * Null when a balance closing that month is on file (at any length), when
+ * the close on screen cannot be read, and when the company's periods are not
+ * known yet (an empty list is "not known", never "nothing uploaded").
+ */
+export function missingPreviousYearEnd(
+  periods: readonly OrgPeriod[],
+  currentId: string | null,
+  currentEnd?: string | null,
+): string | null {
+  if (periods.length === 0) return null;
+  return noPriorStateOf({ periods, currentId, currentEnd, stored: null, priorId: null })?.missingEnd ?? null;
+}
+
 // ── Cells the views may paint ────────────────────────────────────────
 
 export interface ComparativeCell {
@@ -739,6 +781,32 @@ export function servedEbitdaDefinition(statements: unknown): string | null {
   return typeof v === "string" && v.trim() ? v : null;
 }
 
+/** The engine line a statement row names: the P&L table's mapping for a
+ *  row's bucket, or the key itself when the row already carries a full
+ *  engine key ("pl.ebitda", "bs.row.cash_operating"). */
+export function engineKeyForRow(rowKey: string | undefined): string | undefined {
+  if (!rowKey) return undefined;
+  return PL_ROW_TO_KEY[rowKey] ?? (rowKey.includes(".") ? rowKey : undefined);
+}
+
+/**
+ * THE PARITY GUARD'S COMPARISON — the amount a row shows IS the engine's
+ * current figure for its line, to the cent. One comparison for both
+ * documents: the two-period cells below and the period's own share
+ * (lib/commonSize.ts) are held to the same rule, so neither can print the
+ * engine's figure beside a number built another way. A row with no readable
+ * figure claims none and is not refused; a row that shows a number for a
+ * line the engine reports absent is built another way.
+ */
+export function rowIsEngineFigure(
+  rowAmount: number | null | undefined,
+  engineCurrent: number | null,
+): boolean {
+  if (typeof rowAmount !== "number" || !Number.isFinite(rowAmount)) return true;
+  if (engineCurrent === null) return Math.abs(rowAmount) < PARITY_FLOOR;
+  return Math.abs(Math.abs(rowAmount) - Math.abs(engineCurrent)) < PARITY_FLOOR;
+}
+
 /**
  * THE PARITY GUARD. A row may carry the engine's cells only if the number
  * the row shows IS the engine's current figure for that line. Otherwise
@@ -757,8 +825,8 @@ export function cellForRow(
   rowAmount: number | null | undefined,
   definition?: RowDefinition | null,
 ): CellOutcome {
-  if (!cells || !rowKey) return { kind: "unmapped" };
-  const key = PL_ROW_TO_KEY[rowKey] ?? (rowKey.includes(".") ? rowKey : undefined);
+  if (!cells) return { kind: "unmapped" };
+  const key = engineKeyForRow(rowKey);
   if (!key) return { kind: "unmapped" };
   const cell = cells.get(key);
   if (!cell) return { kind: "unmapped" };
@@ -773,18 +841,8 @@ export function cellForRow(
       };
     }
   }
-  if (typeof rowAmount !== "number" || !Number.isFinite(rowAmount)) {
-    return { kind: "cell", cell };
-  }
-  if (cell.current === null) {
-    // The engine reports the current side absent; a row that shows a
-    // number for it is built another way.
-    return Math.abs(rowAmount) < PARITY_FLOOR
-      ? { kind: "cell", cell }
-      : { kind: "definition_differs", rowAmount, engineCurrent: null, key };
-  }
-  if (Math.abs(Math.abs(rowAmount) - Math.abs(cell.current)) >= PARITY_FLOOR) {
-    return { kind: "definition_differs", rowAmount, engineCurrent: cell.current, key };
+  if (!rowIsEngineFigure(rowAmount, cell.current)) {
+    return { kind: "definition_differs", rowAmount: rowAmount as number, engineCurrent: cell.current, key };
   }
   return { kind: "cell", cell };
 }

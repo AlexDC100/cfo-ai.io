@@ -1,0 +1,1874 @@
+// "% DIN VENITURI" WORKS FOR ONE YEAR — AND THE COMPARISON SAYS WHAT IT IS.
+//
+// OWNER RULING (2026-10-04): "'% din venituri' must work for a single year
+// without a comparison. Engine change, with a gate."
+//
+// INCIDENT. The statement tabs' share column ("% of revenue" on the P&L, "%
+// of total assets" on the balance sheet) was painted from the engine's
+// two-period comparatives document — so a company with one year on file, or
+// its earliest year on screen, could not see what share of turnover each
+// line is; the morning's hotfix switched the box off with the other three.
+// And the balance-sheet share was never an engine figure at all: the tab
+// divided each row by total assets in the browser.
+//
+// LAW.
+//  S4  The share column is not a comparison column. With NO document on
+//      screen — no prior resolves, the reader chose "No comparison", the
+//      company has one period, the request was refused or failed — the P&L
+//      and the balance sheet offer the share box, ENABLED, and paint ONE
+//      extra column from the period's own served block
+//      (`statements.common_size`): every printed string is the served
+//      fraction through `formatShare`, in the reader's language. The other
+//      three boxes stay off. A row carries the share only if the amount it
+//      shows IS the block's, to the cent. A line with no share says why and
+//      never prints 0 %. A payload without the block switches the box off
+//      with a reason and computes nothing. The reader's stored columns are
+//      read, never written, by any state. With a document on screen the
+//      columns are the document's, and its share IS the block's (one figure
+//      per page) — on the balance sheet too, where nothing is divided now.
+//  S5  A comparison period that closes LATER reads backwards: one sentence
+//      says so, no line is listed as improved / deteriorated, and the bridge
+//      names each period by its own month — never "prior" for a later one.
+//  S6  A refused or failed request is said ONCE under the tab bar on every
+//      tab that has the controls; "try again" asks once more (no loop); the
+//      comparison boxes are off with the reason meanwhile.
+//  S7  "No prior" is said one way: the Ratios tab at most once, the
+//      cash-flow card in the informal register, its action naming the month.
+//
+// Fails on: the share box off, or no column, with a served block and no
+// document (the ruling); a share cell that is not `formatShare(served
+// share)`; a share printed in the other language's number shape; a row
+// built another way carrying the engine's share; 0 % (or any figure) on a
+// refused / absent / no-base line; a crash or a computed share on a payload
+// without the block; a state that writes the stored columns; the document's
+// share differing from the block's for a key; a division, a multiplication
+// or a rounding in a file on the share path; verdict lists under a later
+// comparison period, or "prior" / "anterior" on its bridge; a refusal or a
+// failure with no sentence on a tab, or said twice; an automatic retry; the
+// Ratios tab repeating the sentence; a formal-register sentence.
+//
+// What it cannot see: the dashboard page itself (it needs the router,
+// Supabase and the period queries) — its composition is mirrored by the
+// `Dashboard` harness below and its wiring is held by reading its source;
+// whether the ENGINE's shares are right (gate common-size-single holds the
+// identity over the corpus; the fixtures here are its bytes); the balance
+// sheet's Δ %, which is still the browser's classifier over the row's own
+// two figures (the engine serves no percentage for a canonical row); the
+// exported report / workbook / PDF's own share column, the command bar and
+// the Ratios tab's figures (out of scope, S8); a legacy (non-canonical)
+// balance sheet, which has no engine line and so no share at all; arithmetic
+// hidden behind a function imported from an unscanned file.
+// Plant log: docs/engine_book/gates.md, "single-year-share".
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, hydrate } from "@tanstack/react-query";
+import ts from "typescript";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import i18n from "@/i18n";
+import en from "@/i18n/locales/en.json";
+import ro from "@/i18n/locales/ro.json";
+import { TestProviders, renderWithProviders } from "@/test/renderWithProviders";
+import { foreignNumber } from "@/test/numberLanguage";
+
+import pairJson from "@/lib/__tests__/fixtures/comparatives/pair_served.json";
+import laterJson from "@/lib/__tests__/fixtures/comparatives/pair_prior_later.json";
+import periodsJson from "@/lib/__tests__/fixtures/comparatives/period_common_size.json";
+import constructedJson from "@/lib/__tests__/fixtures/oneEbitda/constructed_books.json";
+
+// ── A company: the committed pair's own two periods (the engine's ids) ──
+const ORG = "0c0a0000-0000-4000-8000-00000000c0a1";
+const P25 = "period-agras-fy2025";
+const P24 = "period-carniprod-fy2024";
+
+vi.mock("@/lib/supabase", () => ({
+  getSupabase: () => ({
+    auth: { getSession: async () => ({ data: { session: { access_token: "tok", user: { id: "u1" } } } }) },
+    // The app's providers mirror a preference through an RPC; nothing here
+    // reads the answer.
+    rpc: async () => ({ data: null, error: null }),
+  }),
+  currentOrgId: async () => "0c0a0000-0000-4000-8000-00000000c0a1",
+}));
+
+const {
+  COMPARATIVES_NO_PRIOR_NOTE_ID,
+  COMPARATIVES_OUTCOME_NOTE_ID,
+  COMPARATIVES_SHARE_NOTE_ID,
+  ComparativesControls,
+  ComparativesNoPriorNote,
+  ComparativesSummary,
+  ComparisonOutcomeNote,
+  PENDING_NOTE_DELAY_MS,
+  RatioCompareCtx,
+} = await import("@/components/cfo/ComparativesPanel");
+const { ComparativeProvider } = await import("@/components/cfo/ComparativeCells");
+const { PLStatementView } = await import("@/components/cfo/PLStatementView");
+const { BSStatementView } = await import("@/components/cfo/BSStatementView");
+const { CashFlowStatementView } = await import("@/components/cfo/CashFlowStatementView");
+const { RatiosTabContent } = await import("@/components/cfo/ratios/RatiosTab");
+const { BandMovementLists } = await import("@/components/cfo/ratios/BandMovementLists");
+const { RatioComparisonTable } = await import("@/components/cfo/ratios/RatioComparisonTable");
+const {
+  comparisonChoiceOf,
+  formatPts,
+  formatShare,
+  missingPreviousYearEnd,
+  rowIsEngineFigure,
+  useComparatives,
+} = await import("@/lib/comparatives");
+const { readCommonSize, shareForRow, shareOfferOf } = await import("@/lib/commonSize");
+const {
+  columnBoxesOf,
+  comparisonBackwardsOf,
+  comparisonBlockOf,
+  comparisonNoteOf,
+  comparisonSaidByPage,
+  priorIsEarlier,
+} = await import("@/lib/comparisonState");
+const { ratioSurfacesOf } = await import("@/lib/useRatioSurfaces");
+const { buildRatioCompareView, readRatioTable, servedCreditEnvelopes } = await import("@/lib/ratioCompareView");
+const { pickPLBuilder } = await import("@/lib/buildPlStatement");
+const { buildBSStatement } = await import("@/lib/buildBsStatement");
+const { buildCashFlowStatement } = await import("@/lib/buildCashFlowStatement");
+const { altmanRatio, computeRatios } = await import("@/lib/financialReport");
+const { computeCreditScore } = await import("@/lib/financialValuation");
+const { ComparativesViewProvider, useComparativesView, readComparativesView } = await import(
+  "@/stores/comparativesView"
+);
+const { QUERY_SESSION_STARTED_AT, answeredBeforeThisSession, setupQueryPersistence } = await import(
+  "@/lib/queryPersist"
+);
+const { queryClient: appQueryClient } = await import("@/lib/queryClient");
+
+type ComparativesResponse = import("@/lib/comparatives").ComparativesResponse;
+type ComparativesFetch = import("@/lib/comparatives").ComparativesFetch;
+type Statements = import("@/lib/financialReport").Statements;
+type CanonicalBs = import("@/lib/financialReport").CanonicalBs;
+type ApiLineItem = import("@/lib/plStructure").ApiLineItem;
+type ShareOffer = import("@/lib/commonSize").ShareOffer;
+
+type Tab = "overview" | "pl" | "balance_sheet" | "cash_flow" | "ratios";
+const TABS: readonly Tab[] = ["overview", "pl", "balance_sheet", "cash_flow", "ratios"];
+type Lang = "en" | "ro";
+
+interface ServedRow { key: string; statement: "PL" | "BS"; current: number | null; share: number | null; status: string }
+interface Body {
+  statements: Statements & {
+    canonical_bs?: CanonicalBs;
+    common_size?: { schema: string; rows: ServedRow[] };
+    assembled_pl: Record<string, unknown>;
+    incomeStatement: Record<string, number>;
+  };
+  assembled_metrics: Record<string, unknown>;
+  metrics: { name: string; value: number | null }[];
+  line_items?: ApiLineItem[];
+}
+interface Pair { current_body: Body; comparatives: ComparativesResponse }
+
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+/** Dec 2025 on screen, Dec 2024 as the prior — and the 2025 body. */
+const forward = (): Pair => clone(pairJson) as unknown as Pair;
+/** Dec 2024 on screen, Dec 2025 as the "prior" — and the 2024 body. */
+const later = (): Pair => clone(laterJson) as unknown as Pair;
+const body25 = (): Body => forward().current_body;
+const body24 = (): Body => later().current_body;
+/** A book whose EBITDA the engine refused (served bytes). */
+const refusedBody = (): Body =>
+  clone((constructedJson as unknown as Record<string, Body>).g6_uncleared);
+
+interface Row { id: string; start: string; end: string }
+const Y25: Row = { id: P25, start: "2025-01-01", end: "2025-12-31" };
+const Y24: Row = { id: P24, start: "2024-01-01", end: "2024-12-31" };
+const TWO_YEARS = [Y25, Y24];
+const companyOf = (rows: Row[]) => ({
+  orgId: ORG,
+  periods: rows.map((r) => ({
+    period_id: r.id,
+    period_label: r.end,
+    period_start: r.start,
+    period_end: r.end,
+    documents: [{ id: `doc-${r.id}` }],
+  })),
+});
+
+/** What the engine answers for a pair; undefined = not answered yet. */
+type Answers = (cur: string, prior: string) => ComparativesFetch | undefined;
+const SERVED: Answers = (cur, prior) =>
+  cur === P25 && prior === P24
+    ? { kind: "ok", data: forward().comparatives }
+    : cur === P24 && prior === P25
+      ? { kind: "ok", data: later().comparatives }
+      : undefined;
+
+let cellsChecked = 0;
+let statesChecked = 0;
+const retried = vi.fn();
+
+/**
+ * WHAT THE DASHBOARD COMPOSES for one tab (pages/cfo/FinancialStatements.tsx):
+ * the reader's stored choice → the one rule for the prior → the fetch sorted
+ * once (`ratioSurfacesOf`) → the controls, the two notes, and the statement
+ * wrapped in the provider with the period's own block. The page's own wiring
+ * is held by the source laws at the foot of this file.
+ */
+function Dashboard({
+  tab,
+  body,
+  rows,
+  currentId,
+  answers = SERVED,
+}: {
+  tab: Tab;
+  body: Body;
+  rows: Row[];
+  currentId: string;
+  answers?: Answers;
+}) {
+  const view = useComparativesView();
+  const currentEnd = rows.find((r) => r.id === currentId)?.end ?? null;
+  const choice = comparisonChoiceOf(
+    { currentId, currentEnd, currentOrgId: ORG, activeOrgId: ORG, stored: view.view.priorPeriodId },
+    companyOf(rows),
+  );
+  const statements = body.statements;
+  const metricsByName: Record<string, number | null> = {};
+  for (const m of body.metrics ?? []) metricsByName[m.name] = typeof m.value === "number" ? m.value : null;
+  const surfaces = ratioSurfacesOf({
+    assembledMetrics: body.assembled_metrics,
+    statements,
+    metricsByName,
+    currentLabel: statements.periodLabel ?? "",
+    periodId: currentId,
+    priorId: choice.priorId,
+    comparatives: { data: choice.priorId ? answers(currentId, choice.priorId) : undefined },
+  });
+  const doc = surfaces.cmpDoc;
+  const commonSize = readCommonSize(statements);
+  const offer = shareOfferOf(tab, commonSize, !!statements.canonical_bs);
+  const note = comparisonNoteOf(surfaces.comparison, doc);
+  const five = choice.periods.length > 1;
+  return (
+    <>
+      {choice.periods.length >= 1 && (
+        <ComparativesControls
+          periods={choice.periods}
+          currentId={currentId}
+          currentEnd={currentEnd}
+          autoPick={choice.autoPick}
+          priorId={choice.priorId}
+          currency={statements.currency}
+          columns={tab !== "overview"}
+          share={offer}
+          outcome={surfaces.comparison}
+        />
+      )}
+      {five && (
+        <ComparativesNoPriorNote
+          periods={choice.periods}
+          currentId={currentId}
+          currentEnd={currentEnd}
+          priorId={choice.priorId}
+          uploadHref={`/workspace?period=${currentId}`}
+        />
+      )}
+      {five && (
+        <ComparisonOutcomeNote
+          note={note}
+          doc={doc}
+          onRetry={retried}
+          verdicts={tab === "pl" || tab === "balance_sheet"}
+        />
+      )}
+      {tab === "pl" && (
+        <ComparativeProvider doc={doc} columns={view.view.columns} statement="PL" currency={statements.currency} commonSize={commonSize}>
+          <PLStatementView
+            hideGuide
+            statement={pickPLBuilder(
+              { lineItems: body.line_items ?? [], entity: "E", period: statements.periodLabel, currency: statements.currency },
+              statements,
+            )}
+          />
+        </ComparativeProvider>
+      )}
+      {tab === "balance_sheet" && statements.canonical_bs && (
+        <ComparativeProvider doc={doc} columns={view.view.columns} statement="BS" currency={statements.currency} commonSize={commonSize}>
+          <BSStatementView
+            hideGuide
+            periodId={currentId}
+            statement={buildBSStatement({
+              lineItems: [],
+              entity: "E",
+              asOf: statements.periodLabel ?? "",
+              comparativeDate: doc ? doc.prior.label : "Opening",
+              currency: statements.currency,
+              canonicalBs: statements.canonical_bs,
+              priorCanonicalBs: doc?.prior_canonical_bs ?? null,
+            })}
+          />
+        </ComparativeProvider>
+      )}
+      {doc && (tab === "pl" || tab === "balance_sheet") && (
+        <ComparativesSummary doc={doc} statement={tab === "pl" ? "PL" : "BS"} currency={statements.currency} />
+      )}
+    </>
+  );
+}
+
+const mount = (props: Parameters<typeof Dashboard>[0]) => (
+  <ComparativesViewProvider orgId={ORG}>
+    <Dashboard {...props} />
+  </ComparativesViewProvider>
+);
+
+async function language(lang: Lang): Promise<void> {
+  await act(async () => {
+    await i18n.changeLanguage(lang);
+  });
+}
+
+const storeView = (v: { priorPeriodId: string | null | "none"; columns?: Partial<Record<string, boolean>> }) =>
+  window.localStorage.setItem(
+    "cfo:comparatives-view:v2:" + ORG,
+    JSON.stringify({
+      priorPeriodId: v.priorPeriodId,
+      columns: { prior: true, delta: true, deltaPct: true, share: true, ...(v.columns ?? {}) },
+    }),
+  );
+
+// ── What is on screen ─────────────────────────────────────────────────
+const controls = () => screen.queryByTestId("comparatives-controls");
+const box = (k: string) => screen.queryByTestId(`comparatives-col-${k}`) as HTMLInputElement | null;
+const boxKeys = () =>
+  (screen.queryAllByTestId(/^comparatives-col-/) as HTMLInputElement[]).map((b) => b.dataset.testid!.slice(17));
+const noPriorNotice = () => screen.queryByTestId("comparatives-no-prior");
+const outcomeNote = () => screen.queryByTestId("comparatives-outcome");
+const shareOnlyCells = () => [...document.querySelectorAll<HTMLElement>('[data-cmp="share-only"]')];
+const cellOf = (key: string) =>
+  document.querySelector<HTMLElement>(`[data-cmp="share-only"][data-cmp-key="${key}"]`);
+const plHeader = () => screen.queryByTestId("cmp-col-header");
+const bundleOf = (lang: Lang) => (lang === "en" ? en : ro) as unknown as Record<string, unknown>;
+const text = (lang: Lang, key: string): string => {
+  const v = key
+    .split(".")
+    .reduce<unknown>((n, p) => (n && typeof n === "object" ? (n as Record<string, unknown>)[p] : undefined), bundleOf(lang));
+  if (typeof v !== "string") throw new Error(`${lang}.json has no string at ${key}`);
+  return v;
+};
+const servedRows = (b: Body): Map<string, ServedRow> =>
+  new Map((b.statements.common_size?.rows ?? []).map((r) => [r.key, r]));
+
+/** No sentence on screen is an untranslated key. */
+function noRawKeys(): void {
+  const seen = document.body.cloneNode(true) as HTMLElement;
+  for (const el of seen.querySelectorAll("script, style")) el.remove();
+  expect(seen.textContent ?? "").not.toMatch(/statements\.cmp\.|\{\{|\}\}/);
+}
+
+/** A clean browser, in Pro mode: every statement row is on screen (Simple
+ *  mode opens totals-first — it has a law of its own below). */
+function resetStorage(mode: "pro" | "simple" = "pro"): void {
+  window.localStorage.clear();
+  window.localStorage.setItem("cfo-view-mode-v1", mode);
+}
+
+beforeEach(async () => {
+  resetStorage();
+  retried.mockClear();
+  await i18n.changeLanguage("en");
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+afterAll(async () => {
+  await i18n.changeLanguage("en");
+  // eslint-disable-next-line no-console
+  console.log(`GATE-WORK single-year-share cells=${cellsChecked} states=${statesChecked}`);
+});
+
+// ── The fixtures are the subject ──────────────────────────────────────
+
+describe("the fixtures are the engine's bytes, and they carry the subject", () => {
+  it("both period bodies carry statements.common_size (common_size/1) with P&L, registry and canonical rows", () => {
+    for (const [name, b] of [["Dec 2025", body25()], ["Dec 2024", body24()]] as const) {
+      const block = readCommonSize(b.statements);
+      expect(block, `${name}: no share block — every law below is vacuous`).not.toBeNull();
+      expect(block!.schema).toBe("common_size/1");
+      const keys = [...block!.rows.keys()];
+      expect(keys.filter((k) => k.startsWith("pl.")).length).toBeGreaterThanOrEqual(20);
+      expect(keys.filter((k) => k.startsWith("bs.row.")).length).toBeGreaterThanOrEqual(40);
+      expect(block!.rows.get("bs.total.assets")?.share).toBe(1);
+      expect(block!.rows.get("pl.revenue")?.share).toBe(1);
+      statesChecked += 1;
+    }
+  });
+
+  it("the stand-alone fixture is the same block as the one on each period body", () => {
+    const periods = (periodsJson as unknown as {
+      periods: Record<string, { common_size: { rows: ServedRow[] } }>;
+    }).periods;
+    for (const [id, b] of [[P25, body25()], [P24, body24()]] as const) {
+      expect(periods[id].common_size.rows, id).toEqual(b.statements.common_size!.rows);
+      statesChecked += 1;
+    }
+  });
+
+  it("the single period's share IS the comparison's: current_share on the 2025 screen, prior_share for 2024", () => {
+    const doc = forward().comparatives;
+    const cur = servedRows(body25());
+    const pri = servedRows(body24());
+    let both = 0;
+    for (const r of doc.common_size) {
+      if (cur.has(r.key)) {
+        expect(cur.get(r.key)!.share, `${r.key}: block vs document, current`).toBe(r.current_share);
+        both += 1;
+      }
+      if (pri.has(r.key)) {
+        expect(pri.get(r.key)!.share, `${r.key}: block vs document, prior`).toBe(r.prior_share);
+        both += 1;
+      }
+    }
+    expect(both).toBeGreaterThanOrEqual(200);
+    cellsChecked += both;
+  });
+});
+
+// ── S4: the incident state ────────────────────────────────────────────
+
+/** Hand-written, so the expectation is not the printer's own output. */
+const BY_HAND: Record<"pl" | "balance_sheet", Record<string, Record<Lang, string>>> = {
+  pl: {
+    "pl.revenue": { en: "100.0%", ro: "100,0%" },
+    "pl.cogs": { en: "60.8%", ro: "60,8%" },
+    "pl.ebitda": { en: "5.0%", ro: "5,0%" },
+  },
+  balance_sheet: {
+    "bs.total.assets": { en: "100.0%", ro: "100,0%" },
+    "bs.row.cash_operating": { en: "2.3%", ro: "2,3%" },
+    "bs.section.current_assets": { en: "24.7%", ro: "24,7%" },
+  },
+};
+const SHARE_LABEL: Record<"pl" | "balance_sheet", Record<Lang, string>> = {
+  pl: { en: "% of revenue", ro: "% din venituri" },
+  balance_sheet: { en: "% of total assets", ro: "% din total active" },
+};
+
+/** Every share cell on screen is the served fraction through the one
+ *  printer, in `lang`'s number shape. Returns how many printed a share. */
+function everyShareCellIsServed(b: Body, lang: Lang): number {
+  const served = servedRows(b);
+  let printed = 0;
+  for (const cell of shareOnlyCells()) {
+    const key = cell.getAttribute("data-cmp-key");
+    const status = cell.getAttribute("data-share-status");
+    const shown = cell.textContent ?? "";
+    if (status === "share") {
+      const row = served.get(key!);
+      expect(row, `${key}: a share on screen for a key the engine did not serve`).toBeDefined();
+      expect(row!.status, key!).toBe("share");
+      expect(shown, key!).toBe(formatShare(row!.share, lang));
+      expect(foreignNumber(shown, lang), `${key}: "${shown}" is not a ${lang} number`).toBeNull();
+      printed += 1;
+    } else {
+      // No share: a word or the gap glyph — never a figure, never 0 %.
+      expect(shown, `${key ?? "unmapped"} (${status})`).not.toMatch(/\d/);
+    }
+    cellsChecked += 1;
+  }
+  return printed;
+}
+
+describe("S4 the incident state — the company's earliest year on screen, AUTO selected", () => {
+  for (const lang of ["ro", "en"] as const) {
+    for (const tab of ["pl", "balance_sheet"] as const) {
+      it(`${lang} · ${tab}: the share box is on, the other three are off, and ONE column is printed from the served block`, async () => {
+        const b = body24();
+        renderWithProviders(mount({ tab, body: b, rows: TWO_YEARS, currentId: P24 }));
+        await language(lang);
+
+        expect(controls()!.getAttribute("data-comparison")).toBe("no-prior");
+        const notice = noPriorNotice();
+        expect(notice, "the comparison is on, compares nothing, and says nothing").not.toBeNull();
+        expect(boxKeys()).toEqual(["prior", "delta", "deltaPct", "share"]);
+        for (const k of ["prior", "delta", "deltaPct"]) {
+          expect(box(k)!.disabled, `${k} is enabled with nothing compared`).toBe(true);
+          expect(box(k)!.checked, `${k} is ticked with no such column on screen`).toBe(false);
+          expect(box(k)!.getAttribute("aria-describedby")).toBe(COMPARATIVES_NO_PRIOR_NOTE_ID);
+          expect(box(k)!.closest("label")!.getAttribute("title")).toBe(text(lang, "statements.cmp.columnsDisabled"));
+        }
+        // THE RULING: the share box is the reader's own, with no comparison.
+        expect(box("share")!.disabled, "the share box is off with a served block").toBe(false);
+        expect(box("share")!.checked).toBe(true);
+        expect(box("share")!.getAttribute("aria-describedby")).toBeNull();
+        expect(box("share")!.closest("label")!.getAttribute("title")).toBeNull();
+        expect(box("share")!.closest("label")!.textContent).toBe(SHARE_LABEL[tab][lang]);
+        // The group is not "all off", and carries no reason of its own.
+        const group = screen.getByTestId("comparatives-columns");
+        expect(group.getAttribute("data-disabled")).toBe("false");
+        expect(group.getAttribute("title")).toBeNull();
+
+        // ONE extra column — the share — and no comparison cell.
+        const statement = screen.getByTestId(tab === "pl" ? "pl-statement" : "bs-statement");
+        expect(statement.getAttribute("data-share-only")).toBe("true");
+        expect(statement.getAttribute("data-comparative")).toBeNull();
+        expect(document.querySelectorAll(".cmp-cell--prior").length).toBe(0);
+        if (tab === "pl") {
+          const header = [...plHeader()!.children].map((c) => c.textContent);
+          expect(header).toEqual(["", b.statements.periodLabel, SHARE_LABEL.pl[lang]]);
+        } else {
+          expect(screen.getByTestId("bs-share-header").textContent).toBe(SHARE_LABEL.balance_sheet[lang]);
+          expect(statement.querySelectorAll(".bs-col-header .cmp-cells > span").length).toBe(1);
+        }
+
+        const printed = everyShareCellIsServed(b, lang);
+        expect(printed, "no share printed").toBeGreaterThanOrEqual(tab === "pl" ? 14 : 40);
+        for (const [key, words] of Object.entries(BY_HAND[tab])) {
+          expect(cellOf(key)?.textContent, key).toBe(words[lang]);
+        }
+        noRawKeys();
+        statesChecked += 1;
+      });
+    }
+  }
+
+  it("every canonical balance-sheet row, subtotal and total on screen prints its served share", () => {
+    const b = body24();
+    renderWithProviders(mount({ tab: "balance_sheet", body: b, rows: TWO_YEARS, currentId: P24 }));
+    const served = servedRows(b);
+    const cbs = b.statements.canonical_bs!;
+    const onScreen = new Set(shareOnlyCells().map((c) => c.getAttribute("data-cmp-key")));
+    let rows = 0;
+    for (const r of cbs.rows) {
+      const key = `bs.row.${r.id}`;
+      expect(onScreen.has(key), `${key} has no share cell`).toBe(true);
+      expect(cellOf(key)!.textContent).toBe(formatShare(served.get(key)!.share, "en"));
+      rows += 1;
+    }
+    expect(rows).toBeGreaterThanOrEqual(40);
+    for (const key of ["bs.total.assets", "bs.total.equity_plus_liabilities"]) {
+      expect(cellOf(key)?.textContent, key).toBe("100.0%");
+    }
+    expect([...onScreen].filter((k) => k?.startsWith("bs.section.")).length).toBeGreaterThanOrEqual(5);
+    // …and the served fraction is the figure the tab used to divide itself
+    // (the row's own amount over total assets): nothing changed on screen.
+    const total = served.get("bs.total.assets")!.current!;
+    for (const r of cbs.rows) {
+      const share = served.get(`bs.row.${r.id}`)!.share!;
+      expect(Math.abs(share - r.amount / Math.abs(total)), r.id).toBeLessThan(5e-7);
+    }
+    cellsChecked += rows;
+  });
+
+  it("unticking the share box removes the column; ticking it brings it back — and only `share` is written", () => {
+    storeView({ priorPeriodId: null, columns: { deltaPct: false } });
+    renderWithProviders(mount({ tab: "pl", body: body24(), rows: TWO_YEARS, currentId: P24 }));
+    expect(shareOnlyCells().length).toBeGreaterThan(0);
+
+    fireEvent.click(box("share")!);
+    expect(readComparativesView(ORG).columns).toEqual({ prior: true, delta: true, deltaPct: false, share: false });
+    expect(box("share")!.checked).toBe(false);
+    expect(shareOnlyCells()).toEqual([]);
+    expect(plHeader()).toBeNull();
+    expect(screen.getByTestId("pl-statement").getAttribute("data-share-only")).toBeNull();
+
+    fireEvent.click(box("share")!);
+    expect(readComparativesView(ORG).columns).toEqual({ prior: true, delta: true, deltaPct: false, share: true });
+    expect(shareOnlyCells().length).toBeGreaterThan(0);
+    statesChecked += 2;
+  });
+
+  it("Simple mode (totals first) carries the column too: every headline row prints its served share", () => {
+    for (const tab of ["pl", "balance_sheet"] as const) {
+      resetStorage("simple");
+      const b = body24();
+      const r = renderWithProviders(mount({ tab, body: b, rows: TWO_YEARS, currentId: P24 }));
+      expect(everyShareCellIsServed(b, "en"), tab).toBeGreaterThanOrEqual(tab === "pl" ? 7 : 6);
+      for (const key of tab === "pl" ? ["pl.revenue", "pl.ebitda", "pl.net_income"] : ["bs.total.assets", "bs.section.current_assets"]) {
+        expect(cellOf(key), `${tab} ${key}`).not.toBeNull();
+      }
+      r.unmount();
+      statesChecked += 1;
+    }
+  });
+
+  it("a tab with no share column of its own (cash flow, ratios): all four boxes are off, as before", () => {
+    for (const tab of ["cash_flow", "ratios"] as const) {
+      const r = renderWithProviders(mount({ tab, body: body24(), rows: TWO_YEARS, currentId: P24 }));
+      expect(boxKeys()).toEqual(["prior", "delta", "deltaPct", "share"]);
+      for (const k of boxKeys()) expect(box(k)!.disabled && !box(k)!.checked, `${tab} ${k}`).toBe(true);
+      const group = screen.getByTestId("comparatives-columns");
+      expect(group.getAttribute("data-disabled")).toBe("true");
+      expect(group.getAttribute("title")).toBe(text("en", "statements.cmp.columnsDisabled"));
+      r.unmount();
+      statesChecked += 1;
+    }
+  });
+});
+
+// ── S4: the row guard ─────────────────────────────────────────────────
+
+describe("S4 the row guard — a row built another way carries no engine share", () => {
+  it("P&L: a cost-of-sales row showing another amount is blank, with the reason; its neighbours keep theirs", async () => {
+    const b = body24();
+    // The row's own figure moves; the engine's block does not.
+    b.statements.incomeStatement.costOfGoodsSold += 1000;
+    for (const k of ["cogs", "cost_of_goods_sold"]) {
+      if (typeof b.statements.assembled_pl[k] === "number") (b.statements.assembled_pl[k] as number) += 1000;
+    }
+    renderWithProviders(mount({ tab: "pl", body: b, rows: TWO_YEARS, currentId: P24 }));
+    await language("ro");
+    const cogs = cellOf("pl.cogs")!;
+    expect(cogs.getAttribute("data-share-status")).toBe("definition-differs");
+    expect(cogs.textContent).toBe("—");
+    expect(cogs.querySelector(".cmp-cell")!.getAttribute("title")).toBe(text("ro", "statements.cmp.share.definitionDiffers"));
+    expect(cellOf("pl.revenue")!.textContent).toBe("100,0%");
+    statesChecked += 1;
+  });
+
+  it("balance sheet: a row whose amount is not the block's is blank; the rule is the comparison's own guard", () => {
+    const b = body24();
+    const row = b.statements.canonical_bs!.rows.find((r) => r.id === "cash_operating")!;
+    row.amount += 1;
+    renderWithProviders(mount({ tab: "balance_sheet", body: b, rows: TWO_YEARS, currentId: P24 }));
+    const cell = cellOf("bs.row.cash_operating")!;
+    expect(cell.getAttribute("data-share-status")).toBe("definition-differs");
+    expect(cell.textContent).toBe("—");
+    // One guard, both documents: half a cent, and absent is not a number.
+    expect(rowIsEngineFigure(100, 100.004)).toBe(true);
+    expect(rowIsEngineFigure(100, 100.006)).toBe(false);
+    expect(rowIsEngineFigure(-100, 100)).toBe(true);
+    expect(rowIsEngineFigure(0, null)).toBe(true);
+    expect(rowIsEngineFigure(5, null)).toBe(false);
+    expect(rowIsEngineFigure(null, 5)).toBe(true);
+    const block = readCommonSize(body24().statements);
+    expect(shareForRow(block, "ebitda", body24().statements.assembled_pl.ebitda as number).kind).toBe("share");
+    expect(shareForRow(block, "ebitda", 1).kind).toBe("definition_differs");
+    expect(shareForRow(block, "aRowNoEngineLineIs", 1).kind).toBe("unmapped");
+    expect(shareForRow(null, "ebitda", 1).kind).toBe("unmapped");
+    statesChecked += 9;
+  });
+});
+
+// ── S3 / S4: a line with no share says why ────────────────────────────
+
+describe("S4 a line with no share says why — never 0 %", () => {
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang}: a book whose EBITDA the engine refused prints the word, with the reason, on every refused line`, async () => {
+      const b = refusedBody();
+      const refused = (b.statements.common_size!.rows).filter((r) => r.status === "refused").map((r) => r.key);
+      expect(refused).toContain("pl.ebitda");
+      renderWithProviders(mount({ tab: "pl", body: b, rows: [Y25], currentId: P25 }));
+      await language(lang);
+      const cell = cellOf("pl.ebitda")!;
+      expect(cell.getAttribute("data-share-status")).toBe("refused");
+      expect(cell.textContent).toBe(text(lang, "statements.cmp.refused"));
+      expect(cell.querySelector(".cmp-cell")!.getAttribute("title")).toBe(text(lang, "statements.cmp.share.refused"));
+      let seen = 0;
+      for (const c of shareOnlyCells()) {
+        if (c.getAttribute("data-share-status") !== "refused") continue;
+        expect(refused).toContain(c.getAttribute("data-cmp-key"));
+        expect(c.textContent).not.toMatch(/\d/);
+        seen += 1;
+      }
+      expect(seen).toBeGreaterThanOrEqual(2);
+      // The lines the engine did serve still print.
+      expect(cellOf("pl.revenue")!.textContent).toBe(lang === "ro" ? "100,0%" : "100.0%");
+      everyShareCellIsServed(b, lang);
+      noRawKeys();
+      statesChecked += 1;
+    });
+  }
+
+  it("a base below the zero floor gives no line of that statement a share — constructed: no committed book has the shape", async () => {
+    const b = body24();
+    for (const r of b.statements.common_size!.rows) {
+      // The engine's shape for no base: status no_base, share null — and a
+      // planted 0 in `share`, which the reader must drop.
+      if (r.statement === "PL") Object.assign(r, { status: "no_base", share: 0 });
+    }
+    renderWithProviders(mount({ tab: "pl", body: b, rows: TWO_YEARS, currentId: P24 }));
+    await language("ro");
+    const cells = shareOnlyCells().filter((c) => c.getAttribute("data-cmp-key"));
+    expect(cells.length).toBeGreaterThanOrEqual(8);
+    for (const c of cells) {
+      expect(c.getAttribute("data-share-status")).toBe("no_base");
+      expect(c.textContent).toBe("fără bază");
+      expect(c.querySelector(".cmp-cell")!.getAttribute("title")).toBe(text("ro", "statements.cmp.share.noBasePl"));
+    }
+    expect(document.body.textContent).not.toMatch(/\b0[.,]0%/);
+    statesChecked += 1;
+  });
+
+  it("the reader takes a share only under the share status, and never guesses a shape", () => {
+    const rows = (over: Partial<ServedRow>[]) => ({
+      common_size: {
+        schema: "common_size/1",
+        bases: {},
+        rows: over.map((o) => ({ key: "pl.x", statement: "PL", base_key: "pl.revenue", current: 5, share: 0.5, status: "share", note: "", ...o })),
+      },
+    });
+    const one = (o: Partial<ServedRow>) => readCommonSize(rows([o]))!.rows.get(o.key ?? "pl.x");
+    expect(one({})!.share).toBe(0.5);
+    for (const status of ["no_base", "absent", "refused", "not_disclosed_at_this_detail_level", "a_status_of_tomorrow"]) {
+      expect(one({ status })!.share, status).toBeNull();
+      statesChecked += 1;
+    }
+    expect(one({ status: "a_status_of_tomorrow" })!.status).toBe("unknown");
+    expect(one({ share: Number.NaN })!.share).toBeNull();
+    expect(one({ share: "0.5" as unknown as number })!.share).toBeNull();
+    // Not a block: nothing is read, nothing is computed.
+    expect(readCommonSize(null)).toBeNull();
+    expect(readCommonSize({})).toBeNull();
+    expect(readCommonSize({ common_size: null })).toBeNull();
+    expect(readCommonSize({ common_size: { schema: "share_of_wallet/1", rows: [] } })).toBeNull();
+    expect(readCommonSize({ common_size: { schema: "common_size/1", rows: "many" } })).toBeNull();
+    const skipped = readCommonSize(rows([{ key: "" }, { statement: "CF" as "PL" }, { key: "pl.kept" }]))!;
+    expect([...skipped.rows.keys()]).toEqual(["pl.kept"]);
+    statesChecked += 9;
+  });
+});
+
+// ── S4: "No comparison", and a one-period company ─────────────────────
+
+describe("S4 the share box alone — the reader chose no comparison, or the company has one period", () => {
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang}: "No comparison": no notice, the share box alone on the P&L and the balance sheet, the column printed`, async () => {
+      for (const tab of ["pl", "balance_sheet"] as const) {
+        storeView({ priorPeriodId: "none" });
+        const b = body25();
+        const r = renderWithProviders(mount({ tab, body: b, rows: TWO_YEARS, currentId: P25 }));
+        await language(lang);
+        expect(controls()!.getAttribute("data-comparison")).toBe("off");
+        expect(screen.getByTestId("comparatives-prior-select")).not.toBeNull();
+        expect(noPriorNotice()).toBeNull();
+        expect(outcomeNote()).toBeNull();
+        expect(boxKeys()).toEqual(["share"]);
+        expect(box("share")!.disabled).toBe(false);
+        expect(box("share")!.checked).toBe(true);
+        expect(box("share")!.closest("label")!.textContent).toBe(SHARE_LABEL[tab][lang]);
+        expect(everyShareCellIsServed(b, lang)).toBeGreaterThanOrEqual(tab === "pl" ? 14 : 40);
+        noRawKeys();
+        r.unmount();
+        statesChecked += 1;
+      }
+    });
+  }
+
+  it('"No comparison" on a tab with no share column: no boxes, as before', () => {
+    for (const tab of ["cash_flow", "ratios", "overview"] as const) {
+      storeView({ priorPeriodId: "none" });
+      const r = renderWithProviders(mount({ tab, body: body25(), rows: TWO_YEARS, currentId: P25 }));
+      expect(boxKeys(), tab).toEqual([]);
+      expect(screen.queryByTestId("comparatives-columns")).toBeNull();
+      r.unmount();
+      statesChecked += 1;
+    }
+  });
+
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang}: a company with ONE period: no picker, no notice, the share box alone — and the column`, async () => {
+      for (const tab of ["pl", "balance_sheet"] as const) {
+        const b = body25();
+        const r = renderWithProviders(mount({ tab, body: b, rows: [Y25], currentId: P25 }));
+        await language(lang);
+        expect(controls(), "a one-period company has no share box").not.toBeNull();
+        expect(controls()!.getAttribute("data-comparison")).toBe("single");
+        expect(screen.queryByTestId("comparatives-prior-select"), "a picker with nothing to pick").toBeNull();
+        expect(noPriorNotice(), "a notice where nothing claims a comparison").toBeNull();
+        expect(boxKeys()).toEqual(["share"]);
+        expect(box("share")!.disabled).toBe(false);
+        expect(box("share")!.checked).toBe(true);
+        expect(everyShareCellIsServed(b, lang)).toBeGreaterThanOrEqual(tab === "pl" ? 14 : 40);
+        noRawKeys();
+        r.unmount();
+        statesChecked += 1;
+      }
+    });
+  }
+
+  it("a one-period company on a tab with no share column renders no controls at all, as before", () => {
+    for (const tab of ["overview", "cash_flow", "ratios"] as const) {
+      const r = renderWithProviders(mount({ tab, body: body25(), rows: [Y25], currentId: P25 }));
+      expect(controls(), tab).toBeNull();
+      r.unmount();
+      statesChecked += 1;
+    }
+  });
+});
+
+// ── S4: a payload without the block ───────────────────────────────────
+
+describe("S4 a payload without the block — the box is off with a reason, and nothing is computed", () => {
+  const withoutBlock = (b: Body): Body => {
+    delete (b.statements as unknown as Record<string, unknown>).common_size;
+    return b;
+  };
+
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang}: the share box alone is off, unticked, and says why beside it; no column`, async () => {
+      for (const [rows, stored] of [[[Y25], null], [TWO_YEARS, "none"]] as const) {
+        for (const tab of ["pl", "balance_sheet"] as const) {
+          if (stored) storeView({ priorPeriodId: stored });
+          const r = renderWithProviders(mount({ tab, body: withoutBlock(body25()), rows: [...rows], currentId: P25 }));
+          await language(lang);
+          expect(boxKeys()).toEqual(["share"]);
+          expect(box("share")!.disabled, "a share box is on with no block to paint it from").toBe(true);
+          expect(box("share")!.checked).toBe(false);
+          const why = screen.getByTestId("comparatives-share-unavailable");
+          expect(why.textContent).toBe(text(lang, "statements.cmp.share.notServed"));
+          expect(why.id).toBe(COMPARATIVES_SHARE_NOTE_ID);
+          expect(box("share")!.getAttribute("aria-describedby")).toBe(COMPARATIVES_SHARE_NOTE_ID);
+          expect(shareOnlyCells()).toEqual([]);
+          expect(document.querySelectorAll(".cmp-cell").length).toBe(0);
+          // The reader's choice is not written over.
+          expect(readComparativesView(ORG).columns.share).toBe(true);
+          noRawKeys();
+          r.unmount();
+          resetStorage();
+          statesChecked += 1;
+        }
+      }
+    });
+  }
+
+  it("with no prior and no block the four boxes are off, as the hotfix left them", () => {
+    renderWithProviders(mount({ tab: "pl", body: withoutBlock(body24()), rows: TWO_YEARS, currentId: P24 }));
+    for (const k of ["prior", "delta", "deltaPct", "share"]) expect(box(k)!.disabled && !box(k)!.checked, k).toBe(true);
+    expect(screen.queryByTestId("comparatives-share-unavailable")).toBeNull();
+    expect(shareOnlyCells()).toEqual([]);
+    statesChecked += 1;
+  });
+
+  it("what a tab can paint: the P&L from any block; the balance sheet only from canonical rows it renders", () => {
+    const block = readCommonSize(body25().statements);
+    expect(shareOfferOf("pl", block, true)).toEqual({ base: "PL", served: true });
+    expect(shareOfferOf("pl", null, true)).toEqual({ base: "PL", served: false });
+    expect(shareOfferOf("balance_sheet", block, true)).toEqual({ base: "BS", served: true });
+    expect(shareOfferOf("balance_sheet", block, false)).toEqual({ base: "BS", served: false });
+    const registryOnly = readCommonSize({
+      common_size: {
+        schema: "common_size/1",
+        rows: body25().statements.common_size!.rows.filter((r) => !/^bs\.(row|section|total)\./.test(r.key)),
+      },
+    });
+    expect(shareOfferOf("balance_sheet", registryOnly, true)).toEqual({ base: "BS", served: false });
+    for (const tab of ["overview", "cash_flow", "ratios", "valuation"]) expect(shareOfferOf(tab, block, true)).toBeNull();
+    statesChecked += 9;
+  });
+});
+
+// ── S4: with a document, nothing changed — and one figure per page ────
+
+describe("S4 with a comparison document — the columns are the document's, and its share is the block's", () => {
+  const docShare = (cells: HTMLElement) => {
+    const share = [...cells.querySelectorAll<HTMLElement>(":scope > .cmp-cell")].at(-1)!;
+    return { text: share.childNodes[0]?.textContent ?? "", pts: share.querySelector(".cmp-cell--pts")?.textContent?.trim() ?? null };
+  };
+
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang} · P&L: four columns, and every share cell prints the document's current_share — the block's own figure`, async () => {
+      const p = forward();
+      renderWithProviders(mount({ tab: "pl", body: p.current_body, rows: TWO_YEARS, currentId: P25 }));
+      await language(lang);
+      expect(controls()!.getAttribute("data-comparison")).toBe("on");
+      expect(boxKeys()).toEqual(["prior", "delta", "deltaPct", "share"]);
+      for (const k of boxKeys()) expect(box(k)!.disabled === false && box(k)!.checked).toBe(true);
+      expect(screen.getByTestId("pl-statement").getAttribute("data-comparative")).toBe(P24);
+      expect(screen.getByTestId("pl-statement").getAttribute("data-share-only")).toBeNull();
+      expect(plHeader()!.children.length).toBe(6);
+      expect(shareOnlyCells()).toEqual([]);
+
+      const block = servedRows(p.current_body);
+      const doc = new Map(p.comparatives.common_size.map((r) => [r.key, r]));
+      let printed = 0;
+      for (const cells of document.querySelectorAll<HTMLElement>('.cmp-cells[data-cmp="compared"][data-cmp-key]')) {
+        const key = cells.getAttribute("data-cmp-key")!;
+        const row = doc.get(key)!;
+        if (row.current_share === null) continue;
+        const shown = docShare(cells);
+        expect(shown.text, key).toBe(formatShare(row.current_share, lang));
+        expect(shown.pts, key).toBe(formatPts(row.delta_pts, lang));
+        // ONE FIGURE PER PAGE: the document's share is the period's own.
+        expect(block.get(key)!.share, key).toBe(row.current_share);
+        printed += 1;
+      }
+      expect(printed).toBeGreaterThanOrEqual(14);
+      cellsChecked += printed;
+      statesChecked += 1;
+    });
+
+    it(`${lang} · balance sheet: Δ % and share; the share is the document's canonical share and change in points — nothing divided`, async () => {
+      const p = forward();
+      renderWithProviders(mount({ tab: "balance_sheet", body: p.current_body, rows: TWO_YEARS, currentId: P25 }));
+      await language(lang);
+      const statement = screen.getByTestId("bs-statement");
+      expect(statement.getAttribute("data-comparative")).toBe(P24);
+      expect(statement.querySelectorAll(".bs-col-header .cmp-cells > span").length).toBe(2);
+      const block = servedRows(p.current_body);
+      const doc = new Map(p.comparatives.common_size.map((r) => [r.key, r]));
+      let printed = 0;
+      let gone = 0;
+      for (const cells of statement.querySelectorAll<HTMLElement>('.cmp-cells[data-cmp="bs"]')) {
+        const key = cells.getAttribute("data-cmp-key");
+        expect(key, "a canonical row with no engine share key").not.toBeNull();
+        const row = doc.get(key!)!;
+        const shown = docShare(cells);
+        if (row.current_share === null) {
+          // A line only the prior period carries: no share, never 0 %.
+          expect(shown.text, key!).toBe("—");
+          gone += 1;
+          continue;
+        }
+        expect(shown.text, key!).toBe(formatShare(row.current_share, lang));
+        expect(shown.pts, key!).toBe(formatPts(row.delta_pts, lang));
+        expect(block.get(key!)!.share, key!).toBe(row.current_share);
+        expect(foreignNumber(shown.text, lang)).toBeNull();
+        printed += 1;
+      }
+      expect(printed).toBeGreaterThanOrEqual(45);
+      expect(gone).toBeGreaterThanOrEqual(4);
+      cellsChecked += printed + gone;
+      statesChecked += 1;
+    });
+  }
+
+  it("the share a row prints is the same string with the document and without it", () => {
+    const withDoc = new Map<string, string>();
+    const p = forward();
+    for (const tab of ["pl", "balance_sheet"] as const) {
+      const r = renderWithProviders(mount({ tab, body: p.current_body, rows: TWO_YEARS, currentId: P25 }));
+      for (const cells of document.querySelectorAll<HTMLElement>(".cmp-cells[data-cmp-key]")) {
+        const d = docShare(cells);
+        if (/\d/.test(d.text)) withDoc.set(cells.getAttribute("data-cmp-key")!, d.text);
+      }
+      r.unmount();
+      storeView({ priorPeriodId: "none" });
+      const alone = renderWithProviders(mount({ tab, body: p.current_body, rows: TWO_YEARS, currentId: P25 }));
+      let same = 0;
+      for (const c of shareOnlyCells()) {
+        if (c.getAttribute("data-share-status") !== "share") continue;
+        const key = c.getAttribute("data-cmp-key")!;
+        expect(c.textContent, `${key}: one figure on the page with a comparison, another without`).toBe(withDoc.get(key));
+        same += 1;
+      }
+      expect(same).toBeGreaterThanOrEqual(tab === "pl" ? 14 : 45);
+      cellsChecked += same;
+      alone.unmount();
+      resetStorage();
+    }
+  });
+
+  it("a balance-sheet row whose amount is not the block's carries no share with a document either", () => {
+    const p = forward();
+    p.current_body.statements.canonical_bs!.rows.find((r) => r.id === "cash_operating")!.amount += 1;
+    renderWithProviders(mount({ tab: "balance_sheet", body: p.current_body, rows: TWO_YEARS, currentId: P25 }));
+    const cells = document.querySelector<HTMLElement>('.cmp-cells[data-cmp-key="bs.row.cash_operating"]')!;
+    expect(cells.getAttribute("data-share-status")).toBe("definition-differs");
+    expect(docShare(cells).text).toBe("—");
+    statesChecked += 1;
+  });
+
+  it("a document from an engine that serves no canonical share: the balance-sheet cell is blank — never computed", () => {
+    const answers: Answers = () => {
+      const doc = forward().comparatives;
+      doc.common_size = doc.common_size.filter((r) => !/^bs\.(row|section|total)\./.test(r.key));
+      return { kind: "ok", data: doc };
+    };
+    renderWithProviders(mount({ tab: "balance_sheet", body: body25(), rows: TWO_YEARS, currentId: P25, answers }));
+    const cells = [...document.querySelectorAll<HTMLElement>('.cmp-cells[data-cmp="bs"]')];
+    expect(cells.length).toBeGreaterThanOrEqual(45);
+    for (const c of cells) {
+      expect(c.getAttribute("data-share-status")).toBe("unmapped");
+      expect(docShare(c).text).toBe("—");
+    }
+    statesChecked += 1;
+  });
+});
+
+// ── S4: the stored columns survive ────────────────────────────────────
+
+describe("S4 the reader's stored columns are the same key in every state, and no state writes them", () => {
+  it("document → no prior → no comparison → one period → no block: read, never written", () => {
+    const stored = { prior: true, delta: false, deltaPct: true, share: true };
+    storeView({ priorPeriodId: null, columns: stored });
+    const at = (props: Parameters<typeof Dashboard>[0]) => mount(props);
+    const r = renderWithProviders(at({ tab: "pl", body: body25(), rows: TWO_YEARS, currentId: P25 }));
+    expect(boxKeys().map((k) => box(k)!.checked)).toEqual([true, false, true, true]);
+
+    r.rerender(at({ tab: "pl", body: body24(), rows: TWO_YEARS, currentId: P24 }));
+    expect(boxKeys().map((k) => [box(k)!.disabled, box(k)!.checked])).toEqual([
+      [true, false], [true, false], [true, false], [false, true],
+    ]);
+    expect(readComparativesView(ORG).columns).toEqual(stored);
+
+    r.rerender(at({ tab: "pl", body: body24(), rows: [Y24], currentId: P24 }));
+    expect(boxKeys()).toEqual(["share"]);
+    expect(readComparativesView(ORG).columns).toEqual(stored);
+
+    const bare = body24();
+    delete (bare.statements as unknown as Record<string, unknown>).common_size;
+    r.rerender(at({ tab: "pl", body: bare, rows: [Y24], currentId: P24 }));
+    expect(box("share")!.checked).toBe(false);
+    expect(readComparativesView(ORG).columns).toEqual(stored);
+
+    r.rerender(at({ tab: "pl", body: body25(), rows: TWO_YEARS, currentId: P25 }));
+    expect(boxKeys().map((k) => box(k)!.checked)).toEqual([true, false, true, true]);
+    expect(readComparativesView(ORG).columns).toEqual(stored);
+    statesChecked += 5;
+  });
+
+  it("the boxes, as a function: every comparison state × what the tab can paint × the stored share", () => {
+    const columns = (share: boolean) => ({ prior: true, delta: false, deltaPct: true, share });
+    const offers: (ShareOffer | null)[] = [null, { base: "PL", served: true }, { base: "BS", served: false }];
+    for (const share of [true, false]) {
+      for (const offer of offers) {
+        // A comparison on screen, or on its way: all four, as stored.
+        expect(columnBoxesOf({ block: null, share: offer, columns: columns(share) })).toEqual([
+          { key: "prior", enabled: true, checked: true, reason: null },
+          { key: "delta", enabled: true, checked: false, reason: null },
+          { key: "deltaPct", enabled: true, checked: true, reason: null },
+          { key: "share", enabled: true, checked: share, reason: null },
+        ]);
+        for (const [block, reason] of [["no_prior", "no_prior"], ["refused", "no_document"], ["failed", "no_document"]] as const) {
+          const boxes = columnBoxesOf({ block, share: offer, columns: columns(share) });
+          expect(boxes.slice(0, 3).map((b) => [b.enabled, b.checked, b.reason])).toEqual([
+            [false, false, reason], [false, false, reason], [false, false, reason],
+          ]);
+          expect(boxes[3]).toEqual(
+            offer?.served
+              ? { key: "share", enabled: true, checked: share, reason: null }
+              : { key: "share", enabled: false, checked: false, reason },
+          );
+        }
+        expect(columnBoxesOf({ block: "off", share: offer, columns: columns(share) })).toEqual(
+          offer === null
+            ? []
+            : offer.served
+              ? [{ key: "share", enabled: true, checked: share, reason: null }]
+              : [{ key: "share", enabled: false, checked: false, reason: "share_not_served" }],
+        );
+        statesChecked += 5;
+      }
+    }
+    const blockOf = (stored: string | null | "none", priorId: string | null, kind: string, hasOtherPeriods = true) =>
+      comparisonBlockOf({ stored, priorId, outcome: { kind } as never, hasOtherPeriods });
+    expect(blockOf(null, P24, "served")).toBeNull();
+    expect(blockOf(null, P24, "pending")).toBeNull();
+    expect(blockOf(null, null, "none")).toBe("no_prior");
+    expect(blockOf("none", null, "none")).toBe("off");
+    expect(blockOf(null, P24, "refused")).toBe("refused");
+    expect(blockOf(null, P24, "failed")).toBe("failed");
+    expect(blockOf(null, null, "none", false)).toBe("off");
+    statesChecked += 7;
+  });
+});
+
+// ── S5: a later "prior" reads backwards ───────────────────────────────
+
+describe("S5 a comparison period that closes LATER reads backwards — and is said to", () => {
+  const SENTENCE: Record<Lang, Record<"verdicts" | "plain", string>> = {
+    en: {
+      verdicts:
+        "The comparison period (Dec 2025) closes after the period on screen (Dec 2024), so every change reads backwards in time and nothing is called improved or deteriorated.",
+      plain:
+        "The comparison period (Dec 2025) closes after the period on screen (Dec 2024), so every change reads backwards in time.",
+    },
+    ro: {
+      verdicts:
+        "Perioada de comparație (dec. 2025) se încheie după perioada afișată (dec. 2024), așa că fiecare diferență se citește înapoi în timp și nimic nu este numit îmbunătățit sau deteriorat.",
+      plain:
+        "Perioada de comparație (dec. 2025) se încheie după perioada afișată (dec. 2024), așa că fiecare diferență se citește înapoi în timp.",
+    },
+  };
+
+  it("the fixture: the engine says the prior is later and serves no verdict", () => {
+    const doc = later().comparatives;
+    expect(doc.direction?.order).toBe("prior_is_later");
+    expect(doc.movers.verdicts_withheld).toBe("prior_is_later");
+    expect(doc.movers.improved).toEqual([]);
+    expect(doc.movers.top.length).toBeGreaterThan(0);
+    expect(comparisonBackwardsOf(doc)).toBe("prior_is_later");
+    expect(priorIsEarlier(doc)).toBe(false);
+    expect(comparisonBackwardsOf(forward().comparatives)).toBeNull();
+    expect(priorIsEarlier(forward().comparatives)).toBe(true);
+    statesChecked += 1;
+  });
+
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang}: one sentence under the controls on every tab — with the verdict clause where the movers are`, async () => {
+      for (const tab of TABS) {
+        storeView({ priorPeriodId: P25 });
+        const r = renderWithProviders(mount({ tab, body: body24(), rows: TWO_YEARS, currentId: P24 }));
+        await language(lang);
+        expect(controls()!.getAttribute("data-comparison")).toBe("on");
+        expect(noPriorNotice()).toBeNull();
+        const note = outcomeNote();
+        expect(note, `${tab}: a comparison that reads backwards, and no word about it`).not.toBeNull();
+        expect(note!.getAttribute("data-outcome")).toBe("backwards");
+        expect(note!.getAttribute("data-order")).toBe("prior_is_later");
+        expect(note!.textContent).toBe(SENTENCE[lang][tab === "pl" || tab === "balance_sheet" ? "verdicts" : "plain"]);
+        expect(screen.getAllByTestId("comparatives-outcome").length).toBe(1);
+        noRawKeys();
+        r.unmount();
+        resetStorage();
+        statesChecked += 1;
+      }
+    });
+
+    it(`${lang}: no improved / deteriorated list, and the bridge names each period by its own month`, async () => {
+      for (const tab of ["pl", "balance_sheet"] as const) {
+        storeView({ priorPeriodId: P25 });
+        const r = renderWithProviders(mount({ tab, body: body24(), rows: TWO_YEARS, currentId: P24 }));
+        await language(lang);
+        const summary = screen.getByTestId(`comparatives-summary-${tab === "pl" ? "pl" : "bs"}`);
+        expect(summary.getAttribute("data-verdicts")).toBe("withheld");
+        expect(screen.queryByTestId("cmp-improved"), "an improved list under a later comparison period").toBeNull();
+        expect(screen.queryByTestId("cmp-deteriorated")).toBeNull();
+        // The movers themselves — the figures — are still listed.
+        expect(within(screen.getByTestId("cmp-movers")).queryAllByRole("listitem").length).toBeGreaterThan(0);
+        const [prior, current] = lang === "ro" ? ["dec. 2025", "dec. 2024"] : ["Dec 2025", "Dec 2024"];
+        const from = screen.getAllByTestId("cmp-bridge-from").map((e) => e.textContent ?? "");
+        const to = screen.getAllByTestId("cmp-bridge-to").map((e) => e.textContent ?? "");
+        expect(from.length).toBe(tab === "pl" ? 1 : 2);
+        for (const s of from) {
+          expect(s.endsWith(` — ${prior}`), s).toBe(true);
+          expect(s, "a later period called prior").not.toMatch(/prior|anterior|current|curent/i);
+        }
+        for (const s of to) {
+          expect(s.endsWith(` — ${current}`), s).toBe(true);
+          expect(s).not.toMatch(/prior|anterior|current|curent/i);
+        }
+        r.unmount();
+        resetStorage();
+        statesChecked += 1;
+      }
+    });
+  }
+
+  it("forward: no sentence, the lists as served, the bridge says prior / current", async () => {
+    const p = forward();
+    for (const lang of ["en", "ro"] as const) {
+      const r = renderWithProviders(mount({ tab: "pl", body: p.current_body, rows: TWO_YEARS, currentId: P25 }));
+      await language(lang);
+      expect(outcomeNote()).toBeNull();
+      expect(screen.getByTestId("comparatives-summary-pl").getAttribute("data-verdicts")).toBe("served");
+      const names = (id: string) => [...screen.getByTestId(id).querySelectorAll("li")].map((li) => li.textContent);
+      expect(names("cmp-improved")).toEqual(p.comparatives.movers.improved.filter((m) => m.statement === "PL").map((m) => m.label));
+      expect(names("cmp-deteriorated")).toEqual(
+        p.comparatives.movers.deteriorated.filter((m) => m.statement === "PL").map((m) => m.label),
+      );
+      expect(names("cmp-improved").length).toBeGreaterThan(0);
+      expect(screen.getByTestId("cmp-bridge-from").textContent).toMatch(lang === "ro" ? / — anterior$/ : / — prior$/);
+      expect(screen.getByTestId("cmp-bridge-to").textContent).toMatch(lang === "ro" ? / — curent$/ : / — current$/);
+      // The floor is the served fraction through the one printer, and the
+      // base is named in the reader's language (it read "din % din venituri").
+      const floor = formatShare(p.comparatives.movers.materiality_floor, lang)!;
+      expect(foreignNumber(floor, lang)).toBeNull();
+      expect(screen.getByTestId("cmp-movers").textContent).toContain(
+        text(lang, "statements.cmp.belowFloor")
+          .replace("{{n}}", String(p.comparatives.movers.below_floor))
+          .replace("{{floor}}", floor)
+          .replace("{{base}}", lang === "ro" ? "venituri" : "revenue"),
+      );
+      r.unmount();
+
+      // The balance sheet's movers: each materiality is the served fraction.
+      const bs = renderWithProviders(mount({ tab: "balance_sheet", body: p.current_body, rows: TWO_YEARS, currentId: P25 }));
+      await language(lang);
+      const top = p.comparatives.movers.top.filter((m) => m.statement === "BS");
+      expect(top.length).toBeGreaterThan(0);
+      for (const m of top) {
+        const row = document.querySelector<HTMLElement>(`[data-mover="${m.key}"]`)!;
+        expect(row.textContent, m.key).toContain(
+          `${formatShare(m.materiality, lang)} ${lang === "ro" ? "din total active" : "of total assets"}`,
+        );
+        cellsChecked += 1;
+      }
+      bs.unmount();
+      statesChecked += 2;
+    }
+  });
+
+  it("a document that lists verdicts under a later comparison period is not believed", () => {
+    storeView({ priorPeriodId: P25 });
+    const answers: Answers = () => {
+      const doc = later().comparatives;
+      doc.movers.improved = forward().comparatives.movers.improved;
+      doc.movers.deteriorated = forward().comparatives.movers.deteriorated;
+      doc.movers.verdicts_withheld = null;
+      return { kind: "ok", data: doc };
+    };
+    renderWithProviders(mount({ tab: "pl", body: body24(), rows: TWO_YEARS, currentId: P24, answers }));
+    expect(screen.queryByTestId("cmp-improved")).toBeNull();
+    expect(screen.queryByTestId("cmp-deteriorated")).toBeNull();
+    statesChecked += 1;
+  });
+
+  it("an order the engine could not read: its own sentence, no verdict — constructed: no committed pair has the shape", async () => {
+    storeView({ priorPeriodId: P25 });
+    const answers: Answers = () => {
+      const doc = later().comparatives;
+      doc.direction = { ...doc.direction!, order: "unknown", reason: "period_order_unknown" };
+      return { kind: "ok", data: doc };
+    };
+    for (const lang of ["en", "ro"] as const) {
+      const r = renderWithProviders(mount({ tab: "pl", body: body24(), rows: TWO_YEARS, currentId: P24, answers }));
+      await language(lang);
+      expect(outcomeNote()!.getAttribute("data-order")).toBe("unknown");
+      expect(outcomeNote()!.textContent).toBe(text(lang, "statements.cmp.backwardsUnknown"));
+      expect(screen.queryByTestId("cmp-improved")).toBeNull();
+      r.unmount();
+      statesChecked += 1;
+    }
+  });
+
+  it("the order is the ENGINE's: a document with no `direction` says nothing, and no date is compared here", () => {
+    const doc = later().comparatives;
+    delete doc.direction;
+    expect(comparisonBackwardsOf(doc)).toBeNull();
+    expect(priorIsEarlier(doc)).toBe(true);
+    expect(comparisonNoteOf({ kind: "served" }, doc)).toBeNull();
+    const same = forward().comparatives;
+    same.direction = { ...same.direction!, order: "same_close" };
+    expect(comparisonBackwardsOf(same)).toBeNull();
+    expect(priorIsEarlier(same)).toBe(false);
+    const garbled = forward().comparatives;
+    (garbled.direction as unknown as { order: string }).order = "sideways";
+    expect(comparisonBackwardsOf(garbled)).toBeNull();
+    statesChecked += 3;
+  });
+});
+
+// ── S6: the request's outcome, on every tab ───────────────────────────
+
+describe("S6 the comparison request's outcome is said on every tab that has the controls", () => {
+  const refused: Answers = () => ({ kind: "refused", code: "period_not_servable", message: "period 'x' has no figures" });
+  const failed = (status: number): Answers => () => ({ kind: "error", status });
+
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang}: a REFUSAL — the code's sentence, once, on each of the five tabs; the comparison boxes off`, async () => {
+      for (const tab of TABS) {
+        const b = body25();
+        const r = renderWithProviders(mount({ tab, body: b, rows: TWO_YEARS, currentId: P25, answers: refused }));
+        await language(lang);
+        const note = outcomeNote();
+        expect(note, `${tab}: the engine refused, one column on screen, and no word why`).not.toBeNull();
+        expect(note!.getAttribute("data-outcome")).toBe("refused");
+        expect(note!.id).toBe(COMPARATIVES_OUTCOME_NOTE_ID);
+        expect(note!.textContent).toBe(
+          `${text(lang, "statements.cmp.refusedTitle")}: ${text(lang, "statements.cmp.refusedNotServable")}`,
+        );
+        // The engine's message (it can carry a raw period id) is not printed.
+        expect(document.body.textContent).not.toContain("period 'x'");
+        expect(screen.getAllByTestId("comparatives-refused").length, `${tab}: said twice`).toBe(1);
+        expect(noPriorNotice()).toBeNull();
+        expect(controls()!.getAttribute("data-comparison")).toBe("refused");
+        if (tab === "overview") {
+          expect(boxKeys()).toEqual([]);
+        } else {
+          for (const k of ["prior", "delta", "deltaPct"]) {
+            expect(box(k)!.disabled && !box(k)!.checked, `${tab} ${k}`).toBe(true);
+            expect(box(k)!.getAttribute("aria-describedby")).toBe(COMPARATIVES_OUTCOME_NOTE_ID);
+          }
+          const offered = tab === "pl" || tab === "balance_sheet";
+          expect(box("share")!.disabled, `${tab} share`).toBe(!offered);
+          if (offered) expect(everyShareCellIsServed(b, lang)).toBeGreaterThanOrEqual(tab === "pl" ? 14 : 40);
+          const title = (offered ? box("prior")!.closest("label")! : screen.getByTestId("comparatives-columns")).getAttribute("title");
+          expect(title).toBe(text(lang, "statements.cmp.columnsNoDocument"));
+        }
+        noRawKeys();
+        r.unmount();
+        statesChecked += 1;
+      }
+    });
+
+    it(`${lang}: a FAILED request — a sentence and "try again", on each of the five tabs`, async () => {
+      for (const tab of TABS) {
+        for (const status of [502, 0]) {
+          const r = renderWithProviders(mount({ tab, body: body25(), rows: TWO_YEARS, currentId: P25, answers: failed(status) }));
+          await language(lang);
+          const note = outcomeNote();
+          expect(note, `${tab}: the request failed and nothing is said`).not.toBeNull();
+          expect(note!.getAttribute("data-outcome")).toBe("failed");
+          expect(note!.getAttribute("data-status")).toBe(String(status));
+          expect(note!.textContent).toContain(text(lang, "statements.cmp.failedTitle"));
+          expect(screen.getByTestId("comparatives-failed-body").textContent).toBe(
+            status > 0
+              ? text(lang, "statements.cmp.failedBody").replace("{{status}}", String(status))
+              : text(lang, "statements.cmp.failedBodyNoResponse"),
+          );
+          const retry = screen.getByTestId("comparatives-retry");
+          expect(retry.textContent).toBe(text(lang, "statements.cmp.failedRetry"));
+          expect(retried).not.toHaveBeenCalled();
+          fireEvent.click(retry);
+          expect(retried).toHaveBeenCalledTimes(1);
+          retried.mockClear();
+          expect(controls()!.getAttribute("data-comparison")).toBe("failed");
+          if (tab !== "overview") {
+            for (const k of ["prior", "delta", "deltaPct"]) expect(box(k)!.disabled && !box(k)!.checked).toBe(true);
+          }
+          expect(screen.getAllByTestId("comparatives-outcome").length).toBe(1);
+          noRawKeys();
+          r.unmount();
+          statesChecked += 1;
+        }
+      }
+    });
+  }
+
+  it("the outcome is sorted ONCE, where the fetch is: none, pending, refused, failed, served", () => {
+    const p = forward();
+    const outcome = (priorId: string | null, comparatives: Parameters<typeof ratioSurfacesOf>[0]["comparatives"]) =>
+      ratioSurfacesOf({
+        assembledMetrics: p.current_body.assembled_metrics,
+        statements: p.current_body.statements,
+        metricsByName: {},
+        currentLabel: "Dec 2025",
+        periodId: P25,
+        priorId,
+        comparatives,
+      });
+    expect(outcome(null, {}).comparison).toEqual({ kind: "none" });
+    expect(outcome(P24, {}).comparison).toEqual({ kind: "pending" });
+    expect(outcome(P24, { data: { kind: "refused", code: "same_period", message: "m" } }).comparison).toEqual({
+      kind: "refused", code: "same_period",
+    });
+    expect(outcome(P24, { data: { kind: "error", status: 401 } }).comparison).toEqual({ kind: "failed", status: 401 });
+    expect(outcome(P24, { isError: true }).comparison).toEqual({ kind: "failed", status: 0 });
+    expect(outcome(P24, { data: { kind: "ok", data: p.comparatives } }).comparison).toEqual({ kind: "served" });
+    // …and the exports are built under the same outcome.
+    expect(outcome(P24, { data: { kind: "error", status: 502 } }).statementsForExport?.comparison).toEqual({
+      kind: "failed", status: 502,
+    });
+    // The note is a pure reading of it.
+    expect(comparisonNoteOf({ kind: "none" }, null)).toBeNull();
+    expect(comparisonNoteOf({ kind: "pending" }, null)).toEqual({ kind: "pending" });
+    expect(comparisonNoteOf({ kind: "refused", code: "c" }, null)).toEqual({ kind: "refused", code: "c" });
+    expect(comparisonNoteOf({ kind: "failed", status: 0 }, null)).toEqual({ kind: "failed", status: 0 });
+    expect(comparisonNoteOf({ kind: "served" }, p.comparatives)).toBeNull();
+    statesChecked += 12;
+  });
+
+  it(`a request in flight is quiet: nothing before ${PENDING_NOTE_DELAY_MS} ms, the loading sentence after, gone when answered`, () => {
+    vi.useFakeTimers();
+    const r = render(<ComparisonOutcomeNote note={{ kind: "pending" }} />);
+    expect(outcomeNote(), "a sentence that would flicker").toBeNull();
+    act(() => { vi.advanceTimersByTime(PENDING_NOTE_DELAY_MS - 1); });
+    expect(outcomeNote()).toBeNull();
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(outcomeNote()!.getAttribute("data-outcome")).toBe("pending");
+    expect(outcomeNote()!.textContent).toBe(text("en", "statements.cmp.loading"));
+    r.rerender(<ComparisonOutcomeNote note={null} />);
+    expect(outcomeNote()).toBeNull();
+    // A new request starts the wait again.
+    r.rerender(<ComparisonOutcomeNote note={{ kind: "pending" }} />);
+    expect(outcomeNote()).toBeNull();
+    statesChecked += 4;
+  });
+
+  it('"try again" asks the engine once more — and nothing asks on its own', async () => {
+    const calls: string[] = [];
+    let fail = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        calls.push(String(input));
+        if (fail) return new Response("bad gateway", { status: 502 });
+        return new Response(JSON.stringify(forward().comparatives), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    // The APP's own query defaults — retry and all.
+    const client = new QueryClient({ defaultOptions: appQueryClient.getDefaultOptions() });
+    function Page() {
+      const query = useComparatives(P25, P24, ORG);
+      const p = body25();
+      const s = ratioSurfacesOf({
+        assembledMetrics: p.assembled_metrics,
+        statements: p.statements,
+        metricsByName: {},
+        currentLabel: "Dec 2025",
+        periodId: P25,
+        priorId: P24,
+        comparatives: query,
+      });
+      return (
+        <ComparisonOutcomeNote
+          note={comparisonNoteOf(s.comparison, s.cmpDoc)}
+          doc={s.cmpDoc}
+          onRetry={() => { void query.refetch(); }}
+          retrying={query.isFetching}
+        />
+      );
+    }
+    render(<QueryClientProvider client={client}><Page /></QueryClientProvider>);
+    await waitFor(() => expect(outcomeNote()?.getAttribute("data-outcome")).toBe("failed"));
+    expect(outcomeNote()!.getAttribute("data-status")).toBe("502");
+    // No retry loop: past the client's own retry delay, still one request.
+    await act(async () => { await new Promise((res) => setTimeout(res, 1300)); });
+    expect(calls.length, "the comparison was asked again with nobody asking").toBe(1);
+
+    fail = false;
+    fireEvent.click(screen.getByTestId("comparatives-retry"));
+    await waitFor(() => expect(outcomeNote()).toBeNull());
+    expect(calls.length).toBe(2);
+    expect(calls[1]).toBe(calls[0]);
+    statesChecked += 2;
+  });
+});
+
+// ── S7: one way to say "no prior" ─────────────────────────────────────
+
+describe('S7 "no prior" is said one way', () => {
+  function ratiosTab(said: boolean) {
+    const p = forward();
+    const statements = p.current_body.statements;
+    const metricsByName: Record<string, number | null> = {};
+    for (const m of p.current_body.metrics) metricsByName[m.name] = typeof m.value === "number" ? m.value : null;
+    const ratios = computeRatios(
+      statements,
+      { ebitdaMargin: metricsByName.ebitda_margin ?? null, netMargin: metricsByName.net_margin ?? null },
+      metricsByName,
+    );
+    const env = servedCreditEnvelopes(p.current_body.assembled_metrics, statements, metricsByName);
+    const credit = computeCreditScore(statements, env.credit, env.piotroski, env.metricsByName);
+    const view = buildRatioCompareView({
+      periodTable: readRatioTable(p.current_body.assembled_metrics),
+      comparativesDoc: null,
+      currentLabel: "Dec 2025",
+    })!;
+    return renderWithProviders(
+      <RatioCompareCtx.Provider value={view}>
+        <RatiosTabContent ratios={ratios} statements={statements} altman={altmanRatio(credit)} comparisonSaidByPage={said} />
+      </RatioCompareCtx.Provider>,
+    );
+  }
+
+  it("the Ratios tab says it ONCE on its own, and not at all when the page already does", () => {
+    const own = ratiosTab(false);
+    expect(screen.getAllByTestId("ratio-prior-state").length).toBe(1);
+    expect(within(screen.getByTestId("band-movements")).getByTestId("ratio-prior-state")).not.toBeNull();
+    expect(within(screen.getByTestId("ratio-compare-table")).queryByTestId("ratio-prior-state")).toBeNull();
+    own.unmount();
+    ratiosTab(true);
+    expect(screen.queryAllByTestId("ratio-prior-state"), "the page's notice and the tab both say it").toEqual([]);
+    statesChecked += 2;
+  });
+
+  it("the two components say it only when asked; the table on its own still explains its missing columns", () => {
+    const view = buildRatioCompareView({
+      periodTable: readRatioTable(body25().assembled_metrics),
+      comparativesDoc: null,
+      currentLabel: "Dec 2025",
+    })!;
+    const a = renderWithProviders(<BandMovementLists view={view} stateNote={false} />);
+    expect(screen.queryByTestId("ratio-prior-state")).toBeNull();
+    expect(screen.getByTestId("band-movements")).not.toBeNull();
+    a.unmount();
+    const b = renderWithProviders(<RatioComparisonTable view={view} />);
+    expect(screen.getAllByTestId("ratio-prior-state").length).toBe(1);
+    b.unmount();
+    renderWithProviders(<RatioComparisonTable view={view} stateNote={false} />);
+    expect(screen.queryByTestId("ratio-prior-state")).toBeNull();
+    statesChecked += 3;
+  });
+
+  it("what the page says for itself: the no-prior notice, or a refused / failed / pending request", () => {
+    expect(comparisonSaidByPage(true, null)).toBe(true);
+    expect(comparisonSaidByPage(false, { kind: "refused", code: "c" })).toBe(true);
+    expect(comparisonSaidByPage(false, { kind: "failed", status: 0 })).toBe(true);
+    expect(comparisonSaidByPage(false, { kind: "pending" })).toBe(true);
+    // The reader's own "No comparison", a served document, a backwards one:
+    // the page says nothing about a MISSING prior — the tab says it.
+    expect(comparisonSaidByPage(false, null)).toBe(false);
+    expect(comparisonSaidByPage(false, { kind: "backwards", order: "prior_is_later" })).toBe(false);
+    statesChecked += 6;
+  });
+
+  function cashFlow(missingPriorLabel: string | null) {
+    const s = body24().statements as Body["statements"] & {
+      assembled_bs?: Record<string, number>;
+      assembled_cf?: Record<string, number>;
+    };
+    return renderWithProviders(
+      <CashFlowStatementView
+        hideGuide
+        uploadHref={`/workspace?period=${P24}`}
+        missingPriorLabel={missingPriorLabel}
+        statement={buildCashFlowStatement({
+          pl: s.assembled_pl as Record<string, number>,
+          bs: s.assembled_bs,
+          cf: s.assembled_cf,
+          lineItems: [],
+          entity: "E",
+          period: s.periodLabel ?? "",
+          currency: s.currency,
+          yearLabel: "2024",
+        })}
+      />,
+    );
+  }
+
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang}: the cash-flow card's action names the missing month — in the notice's own words`, async () => {
+      const month = lang === "ro" ? "dec. 2023" : "Dec 2023";
+      const card = cashFlow(month);
+      await language(lang);
+      expect(screen.getByTestId("cf-approximation-banner")).not.toBeNull();
+      const cta = screen.getByTestId("cf-upload-prior-cta");
+      expect(cta.getAttribute("href")).toBe(`/workspace?period=${P24}`);
+      // The example of two arbitrary years is gone beside a named month.
+      expect(screen.queryByTestId("cf-upload-prior-hint")).toBeNull();
+      const words = cta.textContent;
+      card.unmount();
+      // …the very words the notice's own upload action carries.
+      renderWithProviders(mount({ tab: "cash_flow", body: body24(), rows: TWO_YEARS, currentId: P24 }));
+      await language(lang);
+      expect(words).toBe(screen.getByTestId("comparatives-no-prior-upload").textContent);
+      expect(words).toBe(lang === "ro" ? "Încarcă balanța la dec. 2023" : "Upload the Dec 2023 balance");
+      statesChecked += 1;
+    });
+  }
+
+  it("with no month known the card keeps its general action and its example", async () => {
+    cashFlow(null);
+    await language("ro");
+    expect(screen.getByTestId("cf-upload-prior-cta").textContent).toBe(text("ro", "statements.cf.approximated.cta"));
+    expect(screen.getByTestId("cf-upload-prior-hint")).not.toBeNull();
+    statesChecked += 1;
+  });
+
+  it("the month the card names is the one the company has NO balance for — never one that is on file", () => {
+    const periods = (rows: Row[]) => companyOf(rows).periods;
+    expect(missingPreviousYearEnd(periods(TWO_YEARS), P24, Y24.end)).toBe("2023-12-31");
+    expect(missingPreviousYearEnd(periods([Y24]), P24, Y24.end)).toBe("2023-12-31");
+    // The year before is on file: nothing is missing.
+    expect(missingPreviousYearEnd(periods(TWO_YEARS), P25, Y25.end)).toBeNull();
+    // …even at another length.
+    const half: Row = { id: "half", start: "2024-07-01", end: "2024-12-31" };
+    expect(missingPreviousYearEnd(periods([Y25, half]), P25, Y25.end)).toBeNull();
+    // The company's periods are not known yet: "not known" is not "missing".
+    expect(missingPreviousYearEnd([], P24, Y24.end)).toBeNull();
+    expect(missingPreviousYearEnd(periods([Y24]), P24, null)).toBe("2023-12-31");
+    expect(missingPreviousYearEnd(periods([{ ...Y24, end: "" }]), P24, null)).toBeNull();
+    statesChecked += 7;
+  });
+
+  it("the card speaks to the reader as the rest of the app does (informal register)", () => {
+    const body = text("ro", "statements.cf.approximated.body");
+    expect(body).toContain("încarcă");
+    expect(body).not.toMatch(/încărcați|alegeți|vă rugăm|dumneavoastră/i);
+    statesChecked += 1;
+  });
+});
+
+// ── A payload that outlived the engine ────────────────────────────────
+
+describe("a browser holding a pre-deploy payload asks again", () => {
+  it("the persisted cache of the previous version is never hydrated, and is removed", () => {
+    vi.useFakeTimers();
+    const uid = "5e55-u1";
+    window.localStorage.setItem("sb-test-auth-token", JSON.stringify({ user: { id: uid } }));
+    const stale = new QueryClient();
+    stale.setQueryData(["period", "p-old"], { kind: "ok", data: { statements: {} } });
+    const blob = (key: string) =>
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({ at: Date.now(), uid, state: { mutations: [], queries: stale.getQueryCache().getAll().map((q) => ({ queryKey: q.queryKey, queryHash: q.queryHash, state: q.state })) } }),
+      );
+    blob("cfoai-query-cache-v1");
+    setupQueryPersistence();
+    expect(window.localStorage.getItem("cfoai-query-cache-v1"), "the retired blob still sits in the quota").toBeNull();
+    expect(appQueryClient.getQueryData(["period", "p-old"]), "a pre-deploy payload was hydrated").toBeUndefined();
+    // The current version IS hydrated — the premise of the bump.
+    blob("cfoai-query-cache-v2");
+    setupQueryPersistence();
+    expect(appQueryClient.getQueryData(["period", "p-old"])).toBeDefined();
+    appQueryClient.clear();
+    statesChecked += 3;
+  });
+
+  it("an answer off the disk is told apart from one this session fetched", () => {
+    const client = new QueryClient();
+    hydrate(client, {
+      mutations: [],
+      queries: [
+        {
+          queryKey: ["period", "from-disk"],
+          queryHash: JSON.stringify(["period", "from-disk"]),
+          state: { data: { kind: "ok" }, dataUpdatedAt: QUERY_SESSION_STARTED_AT - 60_000, status: "success" } as never,
+        },
+      ],
+    });
+    client.setQueryData(["period", "fetched-now"], { kind: "ok" });
+    expect(answeredBeforeThisSession(client, ["period", "from-disk"])).toBe(true);
+    expect(answeredBeforeThisSession(client, ["period", "fetched-now"])).toBe(false);
+    expect(answeredBeforeThisSession(client, ["period", "never-asked"])).toBe(false);
+    statesChecked += 3;
+  });
+});
+
+// ── The source: no browser arithmetic on the share path ───────────────
+
+const REPO = process.cwd();
+const read = (rel: string) => readFileSync(resolve(REPO, rel), "utf8");
+
+const ARITHMETIC = new Set([
+  ts.SyntaxKind.SlashToken,
+  ts.SyntaxKind.AsteriskToken,
+  ts.SyntaxKind.PercentToken,
+  ts.SyntaxKind.AsteriskAsteriskToken,
+  ts.SyntaxKind.SlashEqualsToken,
+  ts.SyntaxKind.AsteriskEqualsToken,
+  ts.SyntaxKind.PercentEqualsToken,
+  ts.SyntaxKind.AsteriskAsteriskEqualsToken,
+]);
+const ROUNDING_METHODS = new Set(["toFixed", "toPrecision"]);
+const ROUNDING_MATH = new Set(["round", "floor", "ceil", "trunc"]);
+
+interface Site { text: string; context: string }
+
+/** Every division, multiplication, remainder or power, and every rounding
+ *  call, in a source — read off the syntax tree, so a `/` in a comment, a
+ *  string, a class name or a closing tag is not one. `context` is the
+ *  nearest enclosing declaration, attribute or braced expression. */
+function arithmeticSites(source: string, name = "x.tsx"): Site[] {
+  const sf = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const flat = (n: ts.Node) => n.getText(sf).replace(/\s+/g, " ");
+  const contextOf = (n: ts.Node): string => {
+    for (let p: ts.Node | undefined = n; p; p = p.parent) {
+      if (ts.isVariableDeclaration(p) || ts.isJsxAttribute(p) || ts.isJsxExpression(p) || ts.isPropertyAssignment(p)) {
+        return flat(p);
+      }
+    }
+    return flat(n);
+  };
+  const out: Site[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isBinaryExpression(n) && ARITHMETIC.has(n.operatorToken.kind)) {
+      out.push({ text: flat(n), context: contextOf(n) });
+    } else if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+      const method = n.expression.name.text;
+      const on = n.expression.expression.getText(sf);
+      if (ROUNDING_METHODS.has(method) || (on === "Math" && ROUNDING_MATH.has(method))) {
+        out.push({ text: flat(n), context: contextOf(n) });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The share path: where a served amount or a served share is in hand. */
+const NO_ARITHMETIC = [
+  "frontend/lib/commonSize.ts",
+  "frontend/lib/comparisonState.ts",
+  "frontend/lib/useRatioSurfaces.ts",
+  "frontend/lib/bsStructure.ts",
+  "frontend/lib/buildBsStatement.ts",
+  "frontend/components/cfo/ComparativeCells.tsx",
+  "frontend/components/cfo/ComparativesPanel.tsx",
+  "frontend/components/cfo/PLStatementView.tsx",
+  "frontend/components/cfo/CashFlowStatementView.tsx",
+  "frontend/components/cfo/ratios/RatiosTab.tsx",
+  "frontend/components/cfo/ratios/BandMovementLists.tsx",
+  "frontend/components/cfo/ratios/RatioComparisonTable.tsx",
+];
+
+/** The other files this lane touched: every site they held before it, by
+ *  its text — and no other. A site that goes away is taken off the list. */
+const PINNED: Record<string, string[]> = {
+  // The three printers of a served fraction (`formatDeltaPct`,
+  // `formatShare`, `formatPts`) and one duration.
+  "frontend/lib/comparatives.ts": [
+    "5 * 60_000",
+    "v * 100",
+    "pct.toFixed(1)",
+    "(v * 100).toFixed(1)",
+    "v * 100",
+    "v.toFixed(1)",
+  ],
+  // The canonical status strip's "% of assets" readout (the one display
+  // computation its contract sanctions) and the AI lane's confidence.
+  "frontend/components/cfo/BSStatementView.tsx": [
+    "(Math.abs(m.difference as number) / Math.abs(m.totalAssets as number)) * 100",
+    "Math.abs(m.difference as number) / Math.abs(m.totalAssets as number)",
+    "pct.toFixed(2)",
+    "c * 100",
+    "Math.round(confidencePct(e.confidence))",
+  ],
+  // A duration, written as a product.
+  "frontend/lib/queryPersist.ts": ["24 * 60 * 60 * 1000", "24 * 60 * 60", "24 * 60"],
+};
+
+describe("the source — no share is divided, multiplied or rounded in the browser", () => {
+  it("the detector sees what it must, and nothing in a comment, a string or a tag", () => {
+    const seen = (src: string) => arithmeticSites(src).map((s) => s.text);
+    expect(seen("const a = closing / Math.abs(base);")).toEqual(["closing / Math.abs(base)"]);
+    expect(seen("const p = (cur - pri) * 100;")).toEqual(["(cur - pri) * 100"]);
+    expect(seen("const s = share.toFixed(1);")).toEqual(["share.toFixed(1)"]);
+    expect(seen("const r = Math.round(x);")).toEqual(["Math.round(x)"]);
+    expect(seen("let t = 1; t /= 3; t *= 2; const m = t % 2; const q = t ** 2;").length).toBe(4);
+    expect(seen("const x = <span title={`${a / b}`}>{c}</span>;")).toEqual(["a / b"]);
+    expect(
+      seen('// a / b * c\n/* x.toFixed(1) */\nconst s = "1 / 2 * 3"; const c = <br/>; const d = <i className="w-1/2">a / b</i>; const re = /a*b/;'),
+    ).toEqual([]);
+    statesChecked += 7;
+  });
+
+  it("the share path holds no arithmetic at all", () => {
+    for (const rel of NO_ARITHMETIC) {
+      expect(arithmeticSites(read(rel), rel).map((s) => s.text), rel).toEqual([]);
+      statesChecked += 1;
+    }
+  });
+
+  it("the other touched files hold the sites they held before this lane, and no new one", () => {
+    for (const [rel, pinned] of Object.entries(PINNED)) {
+      expect(arithmeticSites(read(rel), rel).map((s) => s.text), rel).toEqual(pinned);
+      statesChecked += 1;
+    }
+  });
+
+  it("the dashboard page computes nothing where it wires the comparison or the share", () => {
+    const page = read("frontend/pages/cfo/FinancialStatements.tsx");
+    const sites = arithmeticSites(page, "FinancialStatements.tsx");
+    // The page does hold arithmetic of its own (the detector is not blind)…
+    expect(sites.length).toBeGreaterThan(10);
+    // …none of it in a declaration, an attribute or an expression that
+    // names the comparison, the share block or anything built from them.
+    const WIRING = /\b(cmp[A-Z]\w*|commonSize|common_size|comparison\w*|ComparativeProvider|shareOfferOf|readCommonSize|current_share|prior_share|delta_pts)\b/;
+    const near = sites.filter((s) => WIRING.test(s.context));
+    expect(near.map((s) => s.context)).toEqual([]);
+    statesChecked += 1;
+  });
+});
+
+// ── The page hands every piece the one reading ────────────────────────
+
+describe("the dashboard — the share block, the outcome and the notes are wired once", () => {
+  const raw = read("frontend/pages/cfo/FinancialStatements.tsx");
+  const page = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  /** A self-closing element's whole tag (an arrow in a prop holds a `>`). */
+  const uses = (name: string) => page.match(new RegExp(`<${name}\\b[\\s\\S]*?/>`, "g")) ?? [];
+  /** An opening tag whose props hold no `>`. */
+  const opening = (name: string) => page.match(new RegExp(`<${name}\\b[^>]*>`, "g")) ?? [];
+  const FIVE = ["overview", "pl", "balance_sheet", "cash_flow", "ratios"];
+
+  it("the block is read once off the served statements, and both statement tabs' providers are handed it", () => {
+    expect(page).toMatch(/const commonSize = useMemo\(\(\) => readCommonSize\(statements\), \[statements\]\);/);
+    expect(page.match(/readCommonSize\(/g)?.length).toBe(1);
+    const providers = opening("ComparativeProvider");
+    expect(providers.length).toBe(3);
+    const withBlock = providers.filter((p) => /\bcommonSize=\{commonSize\}/.test(p));
+    expect(withBlock.map((p) => /statement="(PL|BS)"/.exec(p)?.[1]).sort()).toEqual(["BS", "PL"]);
+    // The cash flow has no share column: its provider is not handed the block.
+    const cf = page.slice(page.indexOf('<TabsContent value="cash_flow"'));
+    expect(/<ComparativeProvider\b[^>]*>/.exec(cf)![0]).not.toContain("commonSize");
+    statesChecked += 1;
+  });
+
+  it("the controls render for a one-period company too, and are handed what the tab can paint and the outcome", () => {
+    const ctl = uses("ComparativesControls");
+    expect(ctl.length).toBe(1);
+    expect(ctl[0]).toMatch(/\bshare=\{cmpShareOffer\}/);
+    expect(ctl[0]).toMatch(/\boutcome=\{cmpOutcome\}/);
+    const at = page.indexOf("<ComparativesControls");
+    const guard = page.slice(Math.max(0, at - 320), at);
+    expect(guard).toContain("cmpPeriods.length >= 1");
+    expect(page).toMatch(/shareOfferOf\(\s*activeTab,\s*commonSize,/);
+    // …and the no-prior notice still needs another period to speak of.
+    const noteAt = page.indexOf("<ComparativesNoPriorNote");
+    expect(page.slice(Math.max(0, noteAt - 320), noteAt)).toContain("cmpPeriods.length > 1");
+    statesChecked += 1;
+  });
+
+  it("ONE outcome note on the five tabs, fed by the one reading — and no per-tab copy of the refusal", () => {
+    const notes = uses("ComparisonOutcomeNote");
+    expect(notes.length).toBe(1);
+    expect(notes[0]).toMatch(/\bnote=\{cmpNote\}/);
+    expect(notes[0]).toMatch(/\bdoc=\{cmpDoc\}/);
+    expect(notes[0]).toMatch(/onRetry=\{\(\) => \{ void cmpQuery\.refetch\(\); \}\}/);
+    expect(notes[0]).toMatch(/verdicts=\{activeTab === "pl" \|\| activeTab === "balance_sheet"\}/);
+    const at = page.indexOf("<ComparisonOutcomeNote");
+    const guard = page.slice(Math.max(0, at - 320), at);
+    for (const tab of FIVE) expect(guard, tab).toContain(`activeTab === "${tab}"`);
+    // Below the sticky bar, after the no-prior notice.
+    expect(at).toBeGreaterThan(page.indexOf("<ComparativesNoPriorNote"));
+    expect(page).toMatch(/const cmpNote = useMemo\(\(\) => comparisonNoteOf\(cmpOutcome, cmpDoc\), \[cmpOutcome, cmpDoc\]\);/);
+    expect(page).toMatch(/comparison: cmpOutcome,/);
+    expect(page, "the refusal is printed per tab again").not.toMatch(/ComparativesRefusedNote/);
+    statesChecked += 1;
+  });
+
+  it("the Ratios tab and the cash-flow card are told what the page already says", () => {
+    expect(page).toMatch(/comparisonSaidByPage=\{comparisonSaidByPage\(cmpNoPrior !== null, cmpNote\)\}/);
+    const tab = read("frontend/components/cfo/ratios/RatiosTab.tsx");
+    expect(tab).toMatch(/<BandMovementLists view=\{view\} stateNote=\{!comparisonSaidByPage\} \/>/);
+    expect(tab).toMatch(/<RatioComparisonTable view=\{view\} highlightKey=\{evidenceKey\} stateNote=\{false\} \/>/);
+    expect(uses("CashFlowStatementView")[0]).toMatch(/missingPriorLabel=\{cmpMissingPriorLabel\}/);
+    expect(page).toMatch(/formatPeriodMonth\(missingPreviousYearEnd\(cmpPeriods, remotePeriod\.id, remotePeriod\.periodEnd\), cmpLocale\)/);
+    statesChecked += 1;
+  });
+
+  it("a period payload off the disk with no block is asked of the engine once more", () => {
+    const effect = /useEffect\(\(\) => \{\s*if \(!remotePeriod\.id \|\| remotePeriod\.source !== "upload" \|\| !statements \|\| commonSize\) return;\s*const key = periodQueryKey\(remotePeriod\.id\);\s*if \(!answeredBeforeThisSession\(queryClient, key\)\) return;\s*void queryClient\.invalidateQueries\(\{ queryKey: key \}\);/;
+    expect(page).toMatch(effect);
+    const persist = read("frontend/lib/queryPersist.ts");
+    expect(persist).toMatch(/const STORAGE_KEY = "cfoai-query-cache-v2";/);
+    expect(persist).toMatch(/const RETIRED_STORAGE_KEYS = \["cfoai-query-cache-v1"\];/);
+    statesChecked += 1;
+  });
+});
+
+// ── Both languages carry every sentence ───────────────────────────────
+
+describe("every new sentence exists in English and in Romanian", () => {
+  const KEYS: Record<string, string[]> = {
+    columnsNoDocument: [],
+    baseRevenue: [],
+    baseAssets: [],
+    failedTitle: [],
+    failedBody: ["status"],
+    failedBodyNoResponse: [],
+    failedRetry: [],
+    backwardsLater: ["prior", "current"],
+    backwardsLaterPlain: ["prior", "current"],
+    backwardsUnknown: [],
+    backwardsUnknownPlain: [],
+    "share.notServed": [],
+    "share.noBasePl": [],
+    "share.noBaseBs": [],
+    "share.absent": [],
+    "share.refused": [],
+    "share.notAtLevel": [],
+    "share.unavailable": [],
+    "share.definitionDiffers": [],
+  };
+
+  it("each key, with its placeholders, in both bundles — the two differ, and Romanian is informal", () => {
+    for (const [key, slots] of Object.entries(KEYS)) {
+      const e = text("en", `statements.cmp.${key}`);
+      const r = text("ro", `statements.cmp.${key}`);
+      expect(e.trim().length > 0 && r.trim().length > 0, key).toBe(true);
+      expect(r, `statements.cmp.${key} is the same string in both languages`).not.toBe(e);
+      for (const s of slots) {
+        expect(e, `en ${key}`).toContain(`{{${s}}}`);
+        expect(r, `ro ${key}`).toContain(`{{${s}}}`);
+      }
+      expect(r, `ro ${key}: formal register`).not.toMatch(/încărcați|alegeți|reîncărcați|vă rugăm|dumneavoastră/i);
+      statesChecked += 1;
+    }
+    // The bridge's end row is a label and a month: the same shape in both.
+    for (const lang of ["en", "ro"] as const) {
+      expect(text(lang, "statements.cmp.bridgePeriod")).toBe("{{label}} — {{period}}");
+    }
+  });
+});

@@ -8,6 +8,17 @@
 
 export type BSLineStyle = "item" | "subtotal" | "total" | "contra" | "note";
 
+// ── The engine's share keys for the canonical balance sheet ────────────
+// `statements.common_size` (and the comparison's `common_size`) serve the
+// share of total assets under the canonical object's own ids. The builder
+// stamps a row with its key and the view looks the served share up by it
+// (lib/commonSize.ts) — no share on this statement is computed in the
+// browser.
+export const bsRowShareKey = (rowId: string): string => `bs.row.${rowId}`;
+export const bsSectionShareKey = (sectionId: string): string => `bs.section.${sectionId}`;
+export const BS_TOTAL_ASSETS_SHARE_KEY = "bs.total.assets";
+export const BS_TOTAL_EQUITY_LIAB_SHARE_KEY = "bs.total.equity_plus_liabilities";
+
 export interface BSLine {
   /** Romanian account code(s), e.g. "215", "1621", "5121+5124+5311" */
   accountCode?: string;
@@ -37,6 +48,11 @@ export interface BSLine {
   /** Tooltip for the synthetic marker: reconciliation rationale · origin
    *  · timestamp, prebuilt by the canonical builder. */
   syntheticNote?: string;
+  /** The ENGINE's share key for this row (`bs.row.<canonical row id>`) —
+   *  what the "% of total assets" cell looks the served share up by
+   *  (lib/commonSize.ts). Set by the canonical builder only: a row built on
+   *  the legacy path has no engine line, and carries no share. */
+  shareKey?: string;
 }
 
 /**
@@ -89,6 +105,9 @@ export interface BSSection {
    *  this on the subtotal row so cross-page TraceableNumber clicks
    *  can land here. */
   subtotalBucket?: string;
+  /** The ENGINE's share key for the subtotal (`bs.section.<canonical
+   *  section id>`); canonical builder only — see `BSLine.shareKey`. */
+  subtotalShareKey?: string;
 }
 
 /** A two-period figure. `opening` and `delta` are ABSENT when the source

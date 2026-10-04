@@ -57,13 +57,20 @@ function Item({ row, rank, view }: { row: PrintedRatioRow; rank: number; view: R
   );
 }
 
-export function BandMovementLists({ view }: { view: RatioCompareView }) {
+export function BandMovementLists({ view, stateNote = true }: {
+  view: RatioCompareView;
+  /** Say why no prior is printed — the Ratios tab's ONE place for it. Off
+   *  when the page already says it under the tab bar (the no-prior notice,
+   *  or the outcome note for a refused / failed / pending request): the same
+   *  fact is not said twice on one screen. */
+  stateNote?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const printed = printBandMovements(view, i18n.language);
   if (!printed) {
     return (
       <section data-testid="band-movements" data-prior-state={view.prior.kind}>
-        <PriorStateNote view={view} />
+        {stateNote ? <PriorStateNote view={view} /> : null}
       </section>
     );
   }

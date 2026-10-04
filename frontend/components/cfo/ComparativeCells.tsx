@@ -7,13 +7,26 @@
 // their own amount. Outside a provider the component renders nothing, so
 // every view keeps its exact single-period markup when there is no prior.
 //
+// THE SHARE COLUMN IS NOT A COMPARISON COLUMN (owner ruling 2026-10-04:
+// "'% din venituri' must work for a single year without a comparison").
+// With NO document — no prior resolves, the reader chose "No comparison",
+// the company has one period, the request was refused or failed — the
+// provider hands down the period's OWN served shares
+// (`statements.common_size`, lib/commonSize.ts) and the rows paint ONE
+// extra column from it. Two contexts on purpose: `useComparativeContext`
+// keeps meaning "a document is on screen" (its `doc` is never null), and a
+// view asks `useShareOnlyContext` for the single-period column.
+//
 // WHAT A CELL MAY SAY. A number the engine served; the engine's own Δ %;
 // a share and its change in POINTS; or a word — "new", "no longer
 // present", "not disclosed at this detail level", "no base" — for the
 // case the engine refused. Never a zero standing in for an absence, never
-// a percentage the FE divided itself. A move from zero, to zero or across
-// sign carries the one classifier's words ("turned negative") in the Δ %
-// column, never a percent (plan_contract_v2 section 7, defect 0.4).
+// a percentage the FE divided itself: every share on the P&L and on the
+// balance sheet, with a document or without, is the engine's served
+// fraction through the one printer (`formatShare`). A move from zero, to
+// zero or across sign carries the one classifier's words ("turned
+// negative") in the Δ % column, never a percent (plan_contract_v2 section
+// 7, defect 0.4).
 import { createContext, useContext, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -22,10 +35,19 @@ import {
   formatDeltaPct,
   formatPts,
   formatShare,
+  rowIsEngineFigure,
+  type CommonSizeRowDto,
   type ComparativeCell,
   type ComparativesResponse,
   indexCells,
 } from "@/lib/comparatives";
+import {
+  shareForRow,
+  shareReasonKey,
+  shareWordKey,
+  type CommonSizeBlock,
+  type ShareOutcome,
+} from "@/lib/commonSize";
 import type { ComparativeColumns } from "@/stores/comparativesView";
 import { useAmountFormatter } from "@/stores/currency";
 import { MONEY_MISSING } from "@/lib/money";
@@ -40,6 +62,12 @@ import {
 export interface ComparativeContextValue {
   doc: ComparativesResponse;
   cells: Map<string, ComparativeCell>;
+  /** The document's common-size rows by key — the registry lines AND the
+   *  canonical balance-sheet rows (`bs.row.<id>` …), which have no column. */
+  shareRows: Map<string, CommonSizeRowDto>;
+  /** The period's own share block, when served: what a balance-sheet row's
+   *  amount is held against before the document's share is printed. */
+  block: CommonSizeBlock | null;
   columns: ComparativeColumns;
   /** "PL" | "BS" — which statement base the share column is against. */
   statement: "PL" | "BS";
@@ -48,23 +76,50 @@ export interface ComparativeContextValue {
 
 const Ctx = createContext<ComparativeContextValue | null>(null);
 
+/** The single-period share column: the period's own served block, and the
+ *  statement whose base the column is struck against. */
+export interface ShareOnlyContextValue {
+  block: CommonSizeBlock;
+  statement: "PL" | "BS";
+}
+
+const ShareOnlyCtx = createContext<ShareOnlyContextValue | null>(null);
+
+/** The columns of a single-period render: the share, and nothing else. */
+export const SHARE_ONLY_COLUMNS: ComparativeColumns = {
+  prior: false,
+  delta: false,
+  deltaPct: false,
+  share: true,
+};
+
 export function ComparativeProvider({
   doc,
   columns,
   statement,
   currency,
+  commonSize = null,
   children,
 }: {
   doc: ComparativesResponse | null;
   columns: ComparativeColumns;
   statement: "PL" | "BS";
   currency: string;
+  /** The period's own share block (`readCommonSize(statements)`), on the
+   *  tabs that have a share column — the P&L and the balance sheet. With no
+   *  document and the share box ticked, the rows paint the share from it. */
+  commonSize?: CommonSizeBlock | null;
   children: ReactNode;
 }) {
-  if (!doc) return <>{children}</>;
+  if (!doc) {
+    if (!commonSize || !columns.share) return <>{children}</>;
+    return <ShareOnlyCtx.Provider value={{ block: commonSize, statement }}>{children}</ShareOnlyCtx.Provider>;
+  }
   const value: ComparativeContextValue = {
     doc,
     cells: indexCells(doc),
+    shareRows: new Map(doc.common_size.map((r) => [r.key, r])),
+    block: commonSize,
     columns,
     statement,
     currency,
@@ -72,8 +127,14 @@ export function ComparativeProvider({
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** The two-period comparison on screen, or null. Its `doc` is never null. */
 export function useComparativeContext(): ComparativeContextValue | null {
   return useContext(Ctx);
+}
+
+/** The single-period share column, or null — never set beside a document. */
+export function useShareOnlyContext(): ShareOnlyContextValue | null {
+  return useContext(ShareOnlyCtx);
 }
 
 /** THE EBITDA DEFINITION the statement on screen is served on
@@ -136,6 +197,50 @@ function signClass(v: number | null): string {
 }
 
 /**
+ * ONE SHARE CELL of a single-period render: the served fraction through the
+ * one printer, or — for a line with no share — a word ("no base", "refused",
+ * "not disclosed at this detail level") or the gap glyph, each with the
+ * reason in the reader's language as its title. Never 0 % for an absence.
+ */
+function ShareOnlyCell({ outcome, statement }: { outcome: ShareOutcome; statement: "PL" | "BS" }) {
+  const { t, i18n } = useTranslation();
+  const gap = (title?: string) => (
+    <span className="cmp-cell cmp-cell--gap" title={title} aria-label={title}>
+      {MONEY_MISSING}
+    </span>
+  );
+  let cell: ReactNode;
+  let status = "unmapped";
+  if (outcome.kind === "share") {
+    status = "share";
+    cell = <span className="cmp-cell">{formatShare(outcome.share, i18n.language)}</span>;
+  } else if (outcome.kind === "none") {
+    status = outcome.status;
+    const reason = t(shareReasonKey(outcome.status, statement));
+    const wordKey = shareWordKey(outcome.status);
+    cell = wordKey
+      ? <span className="cmp-cell cmp-cell--word" title={reason}>{t(wordKey)}</span>
+      : gap(reason);
+  } else if (outcome.kind === "definition_differs") {
+    status = "definition-differs";
+    cell = gap(t("statements.cmp.share.definitionDiffers"));
+  } else {
+    // No engine line for this row: a blank cell, no claim.
+    cell = gap();
+  }
+  return (
+    <span
+      className="cmp-cells"
+      data-cmp="share-only"
+      data-share-status={status}
+      data-cmp-key={outcome.kind === "unmapped" ? undefined : outcome.key}
+    >
+      {cell}
+    </span>
+  );
+}
+
+/**
  * The cells for one row. `rowKey` is the row's `bucket` / `subtotalBucket`
  * (or a full engine key like "pl.ebitda"); `amount` is what the row shows,
  * which the parity guard compares against the engine's current figure. A
@@ -155,10 +260,15 @@ export function CmpCells({
   bs?: boolean;
 }) {
   const ctx = useComparativeContext();
+  const single = useShareOnlyContext();
   const currentDefinition = useContext(DefinitionCtx);
   const { t, i18n } = useTranslation();
   const fmt = useAmountFormatter(ctx?.currency ?? "RON");
-  if (!ctx) return null;
+  if (!ctx) {
+    // No document: the period's own share, or nothing at all.
+    if (!single) return null;
+    return <ShareOnlyCell outcome={shareForRow(single.block, rowKey, amount)} statement={single.statement} />;
+  }
   const outcome = cellForRow(ctx.cells, rowKey, amount, {
     currentDefinition,
     priorStatements: ctx.doc.prior_statements,
@@ -259,23 +369,31 @@ export function CmpCells({
 }
 
 /**
- * Balance-sheet cells: Δ % and share, computed from the row's OWN
- * opening/closing — both engine canonical figures, both built the same
- * way — against the two periods' total assets. Nothing here is divided
- * against a zero: an absent opening or a zero base yields the gap glyph
- * or a word, exactly as the engine's column model does.
+ * Balance-sheet cells: Δ % and share.
+ *
+ * THE SHARE IS THE ENGINE'S (2026-10-04). It used to be divided here —
+ * closing over total assets, a second division for the prior, a subtraction
+ * for the points — the one share on the page the engine never computed. The
+ * engine now serves it per canonical row: `shareKey` is the row's engine key
+ * (`bs.row.<id>`, `bs.section.<id>`, `bs.total.assets`, …), the cell prints
+ * the comparatives document's `current_share` and its change in points, and
+ * — with no document — the period's own block. A row with no engine key (the
+ * legacy, non-canonical build) carries no share: blank, never computed.
+ *
+ * The Δ % stays the one classifier's over the row's own opening and closing
+ * (lib/changeKind.ts): the engine serves no percentage for a canonical row.
  */
 export function BsCmpCells({
   opening,
   closing,
-  baseCurrent,
-  basePrior,
+  shareKey,
   absentWord,
 }: {
   opening: number | null | undefined;
   closing: number | null | undefined;
-  baseCurrent: number | null;
-  basePrior: number | null;
+  /** The row's engine share key; undefined on a row the engine has no line
+   *  for. */
+  shareKey?: string;
   /** The word for a line one period lacks — "new" (the prior period has
    *  no such line) or "no longer present" (the current period has none).
    *  The view knows which side was unfilled because a period lacked the
@@ -283,8 +401,12 @@ export function BsCmpCells({
   absentWord?: string;
 }) {
   const ctx = useComparativeContext();
+  const single = useShareOnlyContext();
   const { t, i18n } = useTranslation();
-  if (!ctx) return null;
+  if (!ctx) {
+    if (!single) return null;
+    return <ShareOnlyCell outcome={shareForRow(single.block, shareKey, closing)} statement="BS" />;
+  }
   const cols = ctx.columns;
   const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
   const gap = (title?: string) => (
@@ -312,23 +434,38 @@ export function BsCmpCells({
     pctNode = word(absentWord);
   }
 
-  let shareNode: ReactNode = gap();
-  if (isNum(closing) && isNum(baseCurrent) && Math.abs(baseCurrent) >= 0.005) {
-    const cur = closing / Math.abs(baseCurrent);
-    const pri = isNum(opening) && isNum(basePrior) && Math.abs(basePrior) >= 0.005
-      ? opening / Math.abs(basePrior) : null;
-    const pts = pri === null ? null : (cur - pri) * 100;
-    const shareText = formatShare(cur, i18n.language);
-    const ptsText = formatPts(pts, i18n.language);
-    shareNode = (
-      <span className="cmp-cell" title={ptsText ? `${shareText} (${ptsText})` : shareText ?? undefined}>
-        {shareText}
-        {ptsText && <span className={`cmp-cell--pts ${signClass(pts)}`}> {ptsText}</span>}
-      </span>
-    );
+  const row = shareKey ? ctx.shareRows.get(shareKey) : undefined;
+  let shareNode: ReactNode;
+  let shareStatus = "unmapped";
+  if (!row) {
+    // The document carries no share for this row (a row with no engine key,
+    // or an engine that predates the canonical shares): blank, not computed.
+    shareNode = gap(t("statements.cmp.share.unavailable"));
+  } else if (ctx.block && !rowIsEngineFigure(closing, ctx.block.rows.get(row.key)?.current ?? null)) {
+    // The row guard: the amount on the row is not the engine's for this key.
+    shareStatus = "definition-differs";
+    shareNode = gap(t("statements.cmp.share.definitionDiffers"));
+  } else {
+    shareStatus = row.status;
+    const shareText = formatShare(row.current_share, i18n.language);
+    const ptsText = formatPts(row.delta_pts, i18n.language);
+    const noShare =
+      row.status === "no_base"
+        ? "statements.cmp.share.noBaseBs"
+        : row.status === "absent_current" || row.status === "absent_both"
+          ? "statements.cmp.share.absent"
+          : "statements.cmp.share.unavailable";
+    shareNode = shareText === null
+      ? gap(t(noShare))
+      : (
+        <span className="cmp-cell" title={ptsText ? `${shareText} (${ptsText})` : shareText}>
+          {shareText}
+          {ptsText && <span className={`cmp-cell--pts ${signClass(row.delta_pts)}`}> {ptsText}</span>}
+        </span>
+      );
   }
   return (
-    <span className="cmp-cells" data-cmp="bs">
+    <span className="cmp-cells" data-cmp="bs" data-share-status={shareStatus} data-cmp-key={row?.key}>
       {cols.deltaPct && pctNode}
       {cols.share && shareNode}
     </span>

@@ -616,7 +616,29 @@
       "refusedNotInWorkspace": "The comparison period belongs to another company.",
       "refusedNotServable": "The comparison period has no analysed figures to compare.",
       "refusedGeneric": "These two periods can't be compared.",
-      "refused": "refused"
+      "refused": "refused",
+      "columnsNoDocument": "No comparison on screen — these columns appear once the comparison loads.",
+      "baseRevenue": "revenue",
+      "baseAssets": "total assets",
+      "bridgePeriod": "{{label}} — {{period}}",
+      "failedTitle": "The comparison could not be loaded.",
+      "failedBody": "The request failed (HTTP {{status}}), so this period is shown on its own.",
+      "failedBodyNoResponse": "No response arrived, so this period is shown on its own.",
+      "failedRetry": "Try again",
+      "backwardsLater": "The comparison period ({{prior}}) closes after the period on screen ({{current}}), so every change reads backwards in time and nothing is called improved or deteriorated.",
+      "backwardsLaterPlain": "The comparison period ({{prior}}) closes after the period on screen ({{current}}), so every change reads backwards in time.",
+      "backwardsUnknown": "The order of the two periods could not be read (a closing date is missing), so nothing is called improved or deteriorated.",
+      "backwardsUnknownPlain": "The order of the two periods could not be read (a closing date is missing), so a change may read backwards in time.",
+      "share": {
+        "notServed": "Shares are not available for this period.",
+        "noBasePl": "Net turnover is zero or missing in this period, so no line has a share of it.",
+        "noBaseBs": "Total assets are zero or missing in this period, so no line has a share of them.",
+        "absent": "This line is not reported in this period — absent, which is not zero.",
+        "refused": "The engine refused this figure, so it has no share.",
+        "notAtLevel": "Not disclosed at this detail level, so it has no share.",
+        "unavailable": "No share is served for this line.",
+        "definitionDiffers": "This row is built from the book's own buckets; the engine's line for it is defined differently, so no share is shown beside it."
+      }
     },
     "ratioCmp": {
       "unit": {

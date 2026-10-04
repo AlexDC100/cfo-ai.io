@@ -10,14 +10,37 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { bsDelta } from "@/lib/bsStructure";
-import { BsCmpCells, cmpColumnTemplate, useComparativeContext } from "./ComparativeCells";
+import {
+  BS_TOTAL_ASSETS_SHARE_KEY,
+  BS_TOTAL_EQUITY_LIAB_SHARE_KEY,
+  bsDelta,
+} from "@/lib/bsStructure";
+import {
+  BsCmpCells,
+  SHARE_ONLY_COLUMNS,
+  cmpColumnTemplate,
+  useComparativeContext,
+  useShareOnlyContext,
+} from "./ComparativeCells";
 import { sourceDocumentLine } from "@/lib/comparatives";
 
-/** COMPARATIVES — the two periods' total assets, the base every share
- *  cell is struck against. Threaded as a prop through BSSectionView →
- *  BSLineView; null outside a comparative render. */
-interface BsBases { cur: number | null; pri: number | null }
+/** Which extra columns the statement carries: the comparison's Δ % and
+ *  share (a document is on screen), the period's own share alone (no
+ *  document — `statements.common_size`), or none. One reading, used by the
+ *  header and every row, so they cannot disagree about the grid. */
+function useBsExtraColumns(): { on: boolean; compared: boolean; deltaPct: boolean; share: boolean } {
+  const cmp = useComparativeContext();
+  const single = useShareOnlyContext();
+  if (cmp) {
+    return {
+      on: cmp.columns.deltaPct || cmp.columns.share,
+      compared: true,
+      deltaPct: cmp.columns.deltaPct,
+      share: cmp.columns.share,
+    };
+  }
+  return { on: !!single, compared: false, deltaPct: false, share: !!single };
+}
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
 import { MONEY_MISSING } from "@/lib/money";
 import { canonicalMetaFromBs, type BSCanonicalMeta } from "@/lib/buildBsStatement";
@@ -81,16 +104,16 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
   const { t } = useTranslation();
   // COMPARATIVES — present when the dashboard wrapped this view with an
   // engine document. The BS already carries [opening][closing][Δ]; the
-  // comparative adds Δ % and share cells, struck against total assets.
+  // comparative adds Δ % and share cells. With NO document the share column
+  // alone is painted from the period's own served block. Either way the
+  // share is the engine's, looked up by the row's `shareKey` — nothing is
+  // struck against total assets here.
   const cmp = useComparativeContext();
-  const cmpOn = !!cmp && (cmp.columns.deltaPct || cmp.columns.share);
+  const extra = useBsExtraColumns();
+  const cmpOn = extra.on;
   const cmpStyle = cmpOn
-    ? ({ "--cmp-cols": cmpColumnTemplate(cmp!.columns, "bs") } as React.CSSProperties)
+    ? ({ "--cmp-cols": cmpColumnTemplate(cmp ? cmp.columns : SHARE_ONLY_COLUMNS, "bs") } as React.CSSProperties)
     : undefined;
-  const bases = {
-    cur: typeof statement.totalAssets.closing === "number" ? statement.totalAssets.closing : null,
-    pri: typeof statement.totalAssets.opening === "number" ? statement.totalAssets.opening : null,
-  };
   // THE DIAL — Simple collapsed state. Status strips, badges, totals and
   // section subtotals always render (honesty surfaces + headline rows);
   // only item/contra detail rows hide behind the toggle.
@@ -111,6 +134,7 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
         className={`bs-statement${cmpOn ? " bs-cmp" : ""}`}
         data-testid="bs-statement"
         data-comparative={cmp ? cmp.doc.prior.period_id : undefined}
+        data-share-only={!cmp && cmpOn ? "true" : undefined}
         style={cmpStyle}
       >
       <div className="bs-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -194,8 +218,8 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
         <span>Δ</span>
         {cmpOn && (
           <span className="cmp-cells">
-            {cmp!.columns.deltaPct && <span>{t("statements.cmp.colDeltaPct")}</span>}
-            {cmp!.columns.share && <span>{t("statements.cmp.colShareBs")}</span>}
+            {extra.deltaPct && <span>{t("statements.cmp.colDeltaPct")}</span>}
+            {extra.share && <span data-testid="bs-share-header">{t("statements.cmp.colShareBs")}</span>}
           </span>
         )}
       </div>
@@ -209,7 +233,6 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           currency={statement.currency}
           keyOnly={keyOnly}
           canonical={statement.canonical}
-          bases={bases}
         />
       ))}
       <div
@@ -244,8 +267,8 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           <BsCmpCells
             opening={statement.totalAssets.opening}
             closing={statement.totalAssets.closing}
-            baseCurrent={bases.cur}
-            basePrior={bases.pri}
+            // Canonical statements only: the legacy build has no engine line.
+            shareKey={statement.canonical ? BS_TOTAL_ASSETS_SHARE_KEY : undefined}
           />
         )}
       </div>
@@ -260,7 +283,6 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           currency={statement.currency}
           keyOnly={keyOnly}
           canonical={statement.canonical}
-          bases={bases}
         />
       ))}
       <div
@@ -294,8 +316,7 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           <BsCmpCells
             opening={statement.totalEquityLiab.opening}
             closing={statement.totalEquityLiab.closing}
-            baseCurrent={bases.cur}
-            basePrior={bases.pri}
+            shareKey={statement.canonical ? BS_TOTAL_EQUITY_LIAB_SHARE_KEY : undefined}
           />
         )}
       </div>
@@ -331,7 +352,6 @@ function BSSectionView({
   currency,
   keyOnly = false,
   canonical,
-  bases,
 }: {
   section: BSSection;
   currency: string;
@@ -343,11 +363,8 @@ function BSSectionView({
    *  rows render; item/contra/note detail hides. Synthetic reconciliation
    *  rows stay visible — an adjusting entry never hides from the reader. */
   keyOnly?: boolean;
-  /** COMPARATIVES — the two periods' total assets for the share cells. */
-  bases?: BsBases;
 }) {
-  const cmp = useComparativeContext();
-  const cmpOn = !!cmp && !!bases && (cmp.columns.deltaPct || cmp.columns.share);
+  const cmpOn = useBsExtraColumns().on;
   // Hook BEFORE the empty-section bail-out (2026-07-26): this used to sit
   // under it, so a re-render in which a section lost its lines ran one fewer
   // hook than the previous render and React threw "Rendered fewer hooks than
@@ -369,7 +386,7 @@ function BSSectionView({
     <div className="bs-section">
       {section.header && <div className="bs-section-header">{section.header}</div>}
       {visibleLines.map((line, i) => (
-        <BSLineView key={i} line={line} currency={currency} canonical={canonical} bases={bases} />
+        <BSLineView key={i} line={line} currency={currency} canonical={canonical} />
       ))}
       {section.subtotalLabel && (
         <>
@@ -431,8 +448,7 @@ function BSSectionView({
               <BsCmpCells
                 opening={section.subtotalOpening}
                 closing={section.subtotalClosing}
-                baseCurrent={bases!.cur}
-                basePrior={bases!.pri}
+                shareKey={section.subtotalShareKey}
               />
             )}
           </div>
@@ -446,23 +462,22 @@ function BSLineView({
   line,
   currency,
   canonical,
-  bases,
 }: {
   line: BSLine;
   currency: string;
   canonical?: BSCanonicalMeta;
-  bases?: BsBases;
 }) {
   const fmt = useAmountFormatter(currency);
   const { t } = useTranslation();
-  const cmp = useComparativeContext();
-  const cmpOn = !!cmp && !!bases && (cmp.columns.deltaPct || cmp.columns.share);
+  const extra = useBsExtraColumns();
+  const cmpOn = extra.on;
   // Under a comparative, an absent opening on a row that closes means the
   // prior book has no such line — "new", never a zero. The mirror case —
   // a prior opening on a row that does not close (the builder appends the
   // prior period's rows the current period no longer carries) — is "no
-  // longer present", never a 0 closing and never a −100%.
-  const absentWord = !cmpOn
+  // longer present", never a 0 closing and never a −100%. Only with a
+  // document: a single-period share column compares nothing.
+  const absentWord = !(cmpOn && extra.compared)
     ? undefined
     : typeof line.opening !== "number" && typeof line.closing === "number"
       ? t("statements.cmp.new")
@@ -516,8 +531,7 @@ function BSLineView({
             <BsCmpCells
               opening={line.opening}
               closing={line.closing}
-              baseCurrent={bases!.cur}
-              basePrior={bases!.pri}
+              shareKey={line.shareKey}
               absentWord={absentWord}
             />
           )}
@@ -620,8 +634,7 @@ function BSLineView({
         <BsCmpCells
           opening={line.opening}
           closing={line.closing}
-          baseCurrent={bases!.cur}
-          basePrior={bases!.pri}
+          shareKey={line.shareKey}
           absentWord={absentWord}
         />
       )}

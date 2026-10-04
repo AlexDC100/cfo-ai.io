@@ -616,7 +616,29 @@
       "refusedNotInWorkspace": "Perioada de comparație aparține altei companii.",
       "refusedNotServable": "Perioada de comparație nu are cifre analizate de comparat.",
       "refusedGeneric": "Aceste două perioade nu pot fi comparate.",
-      "refused": "refuzat"
+      "refused": "refuzat",
+      "columnsNoDocument": "Nicio comparație pe ecran — coloanele apar după ce se încarcă comparația.",
+      "baseRevenue": "venituri",
+      "baseAssets": "total active",
+      "bridgePeriod": "{{label}} — {{period}}",
+      "failedTitle": "Comparația nu a putut fi încărcată.",
+      "failedBody": "Cererea a eșuat (HTTP {{status}}), așa că perioada apare fără comparație.",
+      "failedBodyNoResponse": "Nu a sosit niciun răspuns, așa că perioada apare fără comparație.",
+      "failedRetry": "Încearcă din nou",
+      "backwardsLater": "Perioada de comparație ({{prior}}) se încheie după perioada afișată ({{current}}), așa că fiecare diferență se citește înapoi în timp și nimic nu este numit îmbunătățit sau deteriorat.",
+      "backwardsLaterPlain": "Perioada de comparație ({{prior}}) se încheie după perioada afișată ({{current}}), așa că fiecare diferență se citește înapoi în timp.",
+      "backwardsUnknown": "Ordinea celor două perioade nu a putut fi citită (lipsește o dată de închidere), așa că nimic nu este numit îmbunătățit sau deteriorat.",
+      "backwardsUnknownPlain": "Ordinea celor două perioade nu a putut fi citită (lipsește o dată de închidere), așa că o diferență se poate citi înapoi în timp.",
+      "share": {
+        "notServed": "Ponderile nu sunt disponibile pentru această perioadă.",
+        "noBasePl": "Cifra de afaceri netă este zero sau lipsește în această perioadă, deci nicio linie nu are o pondere din ea.",
+        "noBaseBs": "Totalul activelor este zero sau lipsește în această perioadă, deci nicio linie nu are o pondere din el.",
+        "absent": "Linia nu este raportată în această perioadă — lipsește, ceea ce nu înseamnă zero.",
+        "refused": "Motorul a refuzat această cifră, deci nu are pondere.",
+        "notAtLevel": "Nedezvăluit la acest nivel de detaliu, deci nu are pondere.",
+        "unavailable": "Pentru această linie nu este servită nicio pondere.",
+        "definitionDiffers": "Rândul este construit din conturile balanței; linia motorului pentru el e definită altfel, așa că nu afișăm o pondere lângă el."
+      }
     },
     "ratioCmp": {
       "unit": {
@@ -826,7 +848,7 @@
       "indirectMethod": "Metoda indirectă",
       "approximated": {
         "heading": "Flux de numerar aproximat",
-        "body": "Aceasta este o încărcare cu o singură perioadă, astfel încât mișcările capitalului de lucru și detaliile de finanțare nu pot fi calculate exact. Reconcilierea absoarbe conturile nemodelate. Pentru cifre exacte, încărcați și balanța anului precedent.",
+        "body": "Aceasta este o încărcare cu o singură perioadă, astfel încât mișcările capitalului de lucru și detaliile de finanțare nu pot fi calculate exact. Reconcilierea absoarbe conturile nemodelate. Pentru cifre exacte, încarcă și balanța anului precedent.",
         "cta": "Încarcă perioada anterioară",
         "hint": "ex. balanță FY2024 alături de FY2025"
       },

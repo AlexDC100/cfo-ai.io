@@ -35,7 +35,7 @@ import { RadarStrip } from "@/components/cfo/RadarStrip";
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
-import { formatDateTime } from "@/lib/locale";
+import { formatDateTime, useActiveLocale } from "@/lib/locale";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { Money } from "@/components/ui/Money";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -54,13 +54,22 @@ import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
 // COMPARATIVES — two periods side by side (engine document, FE cells).
 import { ComparativesViewProvider, useComparativesView } from "@/stores/comparativesView";
-import { bsOpeningFill, useComparatives, useComparisonChoice } from "@/lib/comparatives";
+import {
+  bsOpeningFill,
+  missingPreviousYearEnd,
+  noPriorStateOf,
+  useComparatives,
+  useComparisonChoice,
+} from "@/lib/comparatives";
+import { readCommonSize, shareOfferOf } from "@/lib/commonSize";
+import { answeredBeforeThisSession } from "@/lib/queryPersist";
+import { comparisonNoteOf, comparisonSaidByPage } from "@/lib/comparisonState";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import {
   ComparativesControls,
   ComparativesNoPriorNote,
-  ComparativesRefusedNote,
   ComparativesSummary,
+  ComparisonOutcomeNote,
   RatioCompareCtx,
 } from "@/components/cfo/ComparativesPanel";
 import { SectorBenchmarkCtx, useSectorBenchmark } from "@/components/cfo/benchmark/SectorBenchmarkSection";
@@ -757,7 +766,7 @@ function FinancialStatementsInner() {
   // rows are withheld (see `servedCreditEnvelopes`). One selection, passed
   // to all three readers, so no two surfaces score a period with
   // different models.
-  const { cmpDoc, cmpRefused, ratioCompareView, statementsForExport, creditEnvelopes } = useRatioSurfaces({
+  const { cmpDoc, cmpRefused, comparison: cmpOutcome, ratioCompareView, statementsForExport, creditEnvelopes } = useRatioSurfaces({
     assembledMetrics: remotePeriod.assembled_metrics,
     statements,
     metricsByName,
@@ -767,6 +776,62 @@ function FinancialStatementsInner() {
     comparatives: cmpQuery,
     sector: sectorQuery.data ?? null,
   });
+
+  // ── THE SHARE COLUMN, AND WHAT THE COMPARISON ON SCREEN IS ──────────
+  // "% of revenue" / "% of total assets" is not a comparison column (owner
+  // ruling 2026-10-04): with no document the P&L and the balance sheet paint
+  // it from the period's OWN served block, `statements.common_size`
+  // (lib/commonSize.ts). `cmpShareOffer` is what the tab on screen can paint
+  // from it — null on a tab with no share column of its own.
+  //
+  // `cmpNote` is the one sentence about the request's outcome (refused,
+  // failed, pending, or a comparison that reads backwards in time) and
+  // `cmpNoPrior` the state the no-prior notice speaks for; both are pure
+  // readings of the outcome `useRatioSurfaces` decided above
+  // (lib/comparisonState.ts). Nothing here computes a figure.
+  const cmpLocale = useActiveLocale();
+  const commonSize = useMemo(() => readCommonSize(statements), [statements]);
+  const cmpShareOffer = useMemo(
+    () =>
+      shareOfferOf(
+        activeTab,
+        commonSize,
+        (remotePeriod.lineItems?.length ?? 0) > 0 && !!statements?.canonical_bs,
+      ),
+    [activeTab, commonSize, remotePeriod.lineItems, statements],
+  );
+  // A PAYLOAD THAT OUTLIVED THE ENGINE THAT SERVED IT. A period answer
+  // hydrated from disk and carrying no share block is asked of the engine
+  // once more — the reader must not be told "shares are not available" over
+  // a payload the engine no longer serves. Once: the refetched answer is
+  // this session's own, and an engine that really serves no block is then
+  // believed (lib/queryPersist.ts).
+  useEffect(() => {
+    if (!remotePeriod.id || remotePeriod.source !== "upload" || !statements || commonSize) return;
+    const key = periodQueryKey(remotePeriod.id);
+    if (!answeredBeforeThisSession(queryClient, key)) return;
+    void queryClient.invalidateQueries({ queryKey: key });
+  }, [remotePeriod.id, remotePeriod.source, statements, commonSize, queryClient]);
+  const cmpNote = useMemo(() => comparisonNoteOf(cmpOutcome, cmpDoc), [cmpOutcome, cmpDoc]);
+  const cmpNoPrior = useMemo(
+    () =>
+      cmpPeriods.length > 1
+        ? noPriorStateOf({
+            periods: cmpPeriods,
+            currentId: remotePeriod.id,
+            currentEnd: remotePeriod.periodEnd,
+            stored: cmpView.view.priorPeriodId,
+            priorId: cmpPriorId,
+          })
+        : null,
+    [cmpPeriods, remotePeriod.id, remotePeriod.periodEnd, cmpView.view.priorPeriodId, cmpPriorId],
+  );
+  // The balance the company lacks for the previous year, as the notice names
+  // it — the cash-flow card's call to action asks for THAT one.
+  const cmpMissingPriorLabel = useMemo(
+    () => formatPeriodMonth(missingPreviousYearEnd(cmpPeriods, remotePeriod.id, remotePeriod.periodEnd), cmpLocale),
+    [cmpPeriods, remotePeriod.id, remotePeriod.periodEnd, cmpLocale],
+  );
 
   // The Overview's four key figures for the prior period — the same
   // builders as the tiles', over the prior's own served block (lib/
@@ -2070,9 +2135,12 @@ function FinancialStatementsInner() {
                 names the period it resolves to — the default. When AUTO
                 resolves to none (the company's earliest year on screen) the
                 picker names the balance that is missing and the column boxes
-                are off: `priorId` is what the page actually compares with. */}
+                are off: `priorId` is what the page actually compares with.
+                The share box follows what the tab can paint from the
+                period's own block (`share`), and a company with ONE period
+                gets that box alone — no picker, nothing to pick. */}
             {(activeTab === "overview" || activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
-              && cmpPeriods.length > 1 && statements && (
+              && cmpPeriods.length >= 1 && statements && (
               <ComparativesControls
                 periods={cmpPeriods}
                 currentId={remotePeriod.id}
@@ -2081,6 +2149,8 @@ function FinancialStatementsInner() {
                 priorId={cmpPriorId}
                 currency={statements.currency}
                 columns={activeTab !== "overview"}
+                share={cmpShareOffer}
+                outcome={cmpOutcome}
               />
             )}
           </div>
@@ -2096,6 +2166,20 @@ function FinancialStatementsInner() {
               currentEnd={remotePeriod.periodEnd}
               priorId={cmpPriorId}
               uploadHref={remotePeriod.id ? `/workspace?period=${encodeURIComponent(remotePeriod.id)}` : "/workspace"}
+            />
+          )}
+          {/* …and the comparison REQUEST's outcome, on the same five tabs: the
+              engine refused, the request failed (with "try again"), it is
+              still on its way, or the comparison period is the LATER one. */}
+          {hasPeriodLoaded
+            && (activeTab === "overview" || activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
+            && cmpPeriods.length > 1 && statements && (
+            <ComparisonOutcomeNote
+              note={cmpNote}
+              doc={cmpDoc}
+              onRetry={() => { void cmpQuery.refetch(); }}
+              retrying={cmpQuery.isFetching}
+              verdicts={activeTab === "pl" || activeTab === "balance_sheet"}
             />
           )}
 
@@ -2380,7 +2464,7 @@ function FinancialStatementsInner() {
         {/* P&L ──────────────────────────────────────────────────────────── */}
         {enabled.pl && statements && (
           <TabsContent value="pl" className="mt-6 space-y-8 min-h-[400px]">
-            <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="PL" currency={statements.currency}>
+            <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="PL" currency={statements.currency} commonSize={commonSize}>
               <PLStatementView
                 hideGuide
                 statement={pickPLBuilder(
@@ -2398,7 +2482,6 @@ function FinancialStatementsInner() {
                 )}
               />
             </ComparativeProvider>
-            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} />}
             {/* Server-emitted, period-keyed notes & recommendations
              *  rendered as part of the P&L tab. Honest empty-state when
              *  the engine produced none for this period — never filler. */}
@@ -2415,7 +2498,7 @@ function FinancialStatementsInner() {
         {enabled.balance_sheet && statements && (
           <TabsContent value="balance_sheet" className="mt-6 space-y-8 min-h-[400px]">
             {remotePeriod.lineItems && remotePeriod.lineItems.length > 0 ? (
-              <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="BS" currency={statements.currency}>
+              <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="BS" currency={statements.currency} commonSize={commonSize}>
               <BSStatementView
                 hideGuide
                 periodId={remotePeriod.id ?? searchParams.get("period")}
@@ -2462,7 +2545,6 @@ function FinancialStatementsInner() {
             ) : (
               <BalanceSheetTable statements={statements} />
             )}
-            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} />}
             <StatementNotes
               recommendations={remotePeriod.recommendations}
               alerts={remotePeriod.alerts}
@@ -2480,6 +2562,7 @@ function FinancialStatementsInner() {
               hideGuide
               prior={priorCf}
               uploadHref={remotePeriod.id ? `/workspace?period=${encodeURIComponent(remotePeriod.id)}` : "/workspace"}
+              missingPriorLabel={cmpMissingPriorLabel}
               statement={buildCashFlowStatement({
                 pl: (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl,
                 bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,
@@ -2513,6 +2596,7 @@ function FinancialStatementsInner() {
                 ratios={ratios}
                 statements={statements}
                 altman={heroCredit ? altmanRatio(heroCredit) : null}
+                comparisonSaidByPage={comparisonSaidByPage(cmpNoPrior !== null, cmpNote)}
               />
             </RatioCompareCtx.Provider>
             </SectorBenchmarkCtx.Provider>
