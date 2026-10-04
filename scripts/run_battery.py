@@ -522,15 +522,17 @@ def _engine_gates() -> List[Gate]:
         # restore): docs/engine_book/gates.md "rerun-data-loss".
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
-              "tests/engine/test_rerun_staged.py", "-q"],
-             work_junit=True, floor=134, units="tests",
+              "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py", "-q"],
+             work_junit=True, floor=155, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_the_refusal_is_one_answer_whatever_the_pin_names",
                        "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
                        "test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin",
                        "test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point",
                        "test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was",
-                       "test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result")),
+                       "test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result",
+                       "test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything",
+                       "test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl")),
         # … AND THE DOCS PANEL SAYS SO. The refusal is a CODE and nothing
         # else (no sentence, no period id, no document id); the panel used
         # to discard the body of every failed retry and say "Couldn't start
