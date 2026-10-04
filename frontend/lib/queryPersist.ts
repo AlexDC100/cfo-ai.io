@@ -90,6 +90,11 @@ function currentUserId(): string | null {
   return null;
 }
 
+/** A fetch that failed and said so as data (`{ kind: "error", … }`). */
+function isFailedAnswer(data: unknown): boolean {
+  return typeof data === "object" && data !== null && (data as { kind?: unknown }).kind === "error";
+}
+
 function writeNow(): void {
   const uid = currentUserId();
   try {
@@ -100,8 +105,12 @@ function writeNow(): void {
     }
     const state = dehydrate(queryClient, {
       // Only settled successes. Pending queries hold live promises (not
-      // serializable) and errors shouldn't replay on the next boot.
-      shouldDehydrateQuery: (q) => q.state.status === "success",
+      // serializable) and errors shouldn't replay on the next boot — nor a
+      // FAILURE that resolved as data: the period and the comparison fetches
+      // answer `{ kind: "error" }` instead of throwing, and a failed
+      // comparison persisted that way came back on the next boot as "the
+      // comparison could not be loaded" before anything had been asked.
+      shouldDehydrateQuery: (q) => q.state.status === "success" && !isFailedAnswer(q.state.data),
     });
     const blob: PersistedBlob = { at: Date.now(), uid, state };
     const serialized = JSON.stringify(blob);

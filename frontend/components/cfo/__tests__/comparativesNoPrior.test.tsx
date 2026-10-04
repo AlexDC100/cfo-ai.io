@@ -17,13 +17,21 @@
 //     next step: where a balance is uploaded, and the company's EARLIER
 //     periods (nearest first, at most three) one click away — never a later
 //     one, which would read the change backwards;
-//   · every column box is OFF (disabled, unticked): no column is on screen;
+//   · every COMPARISON column box (Prior, Δ, Δ %) is OFF (disabled,
+//     unticked): no such column is on screen — and the share box with them
+//     on a tab that has no share column of its own (cash flow, ratios);
+//     AMENDED 2026-10-04 by gate single-year-share: on the P&L and the
+//     balance sheet the share box stays the reader's own, because the share
+//     of turnover / of total assets is the period's own figure and needs no
+//     comparison (owner ruling: "'% din venituri' must work for a single
+//     year without a comparison");
 //   · AUTO never picks another period in its place, and the reader's stored
 //     columns are not overwritten by the state;
 //   · NO DOCUMENT OF ANOTHER PAIR IS ON SCREEN: stepping here from a period
 //     that was compared leaves no comparison behind (the app's query client
 //     keeps the previous result as a placeholder; the comparison does not).
-// And whenever a prior DOES resolve: no notice, no disabled box.
+// And whenever a prior DOES resolve and the engine serves the comparison: no
+// notice, no disabled box.
 //
 // Fails on: the notice not rendered (the incident), a box left enabled or
 // ticked with nothing compared, AUTO's label silent about the missing
@@ -36,9 +44,14 @@
 // What it cannot see: whether the engine's document, once a prior exists,
 // fills the columns (comparatives.test.ts, plCompareSubtotals.test.tsx); the
 // same-length rule itself (comparatives.test.ts owns it); a company with ONE
-// period, where the page renders no controls at all; the page's own render
-// condition around the controls (the wiring law below reads the source).
-// Plant log: docs/engine_book/gates.md, "compare-no-prior".
+// period — no picker and no notice there, the share box alone on the P&L and
+// the balance sheet (gate single-year-share owns it; the page used to render
+// no controls at all); a comparison that WAS requested and was refused or
+// failed, whose sentence is the outcome note's (single-year-share — the two
+// per-tab copies of the refusal are gone); the page's own render condition
+// around the controls (the wiring law below reads the source).
+// Plant log: docs/engine_book/gates.md, "compare-no-prior" and "compare-no-prior
+// — amended by single-year-share".
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -126,11 +139,16 @@ function Page({
   currentId,
   currentEnd,
   columns = true,
+  share = null,
 }: {
   rows: Row[];
   currentId: string;
   currentEnd: string | null;
   columns?: boolean;
+  /** What the tab on screen can paint from the period's own share block —
+   *  null on a tab with no share column of its own (cash flow, ratios),
+   *  which is what every law here models unless it says otherwise. */
+  share?: { base: "PL" | "BS"; served: boolean } | null;
 }) {
   const view = useComparativesView();
   const choice = comparisonChoiceOf(
@@ -148,6 +166,7 @@ function Page({
         priorId={choice.priorId}
         currency="RON"
         columns={columns}
+        share={share}
       />
       <ComparativesNoPriorNote
         periods={choice.periods}
@@ -331,7 +350,28 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
       expect(cols.getAttribute("data-disabled")).toBe("true");
       expect(cols.getAttribute("title")).toBe(w.disabled);
       noRawKeys();
-      statesChecked += 1;
+
+      // AMENDED 2026-10-04 (single-year-share). The above is a tab with no
+      // share column of its own. On the P&L and the balance sheet the three
+      // COMPARISON boxes are off as above, and the share box stays the
+      // reader's own: the period's shares need no comparison.
+      cleanup();
+      render(mount({ rows: TWO_YEARS, currentId: P24, currentEnd: "2024-12-31", share: { base: "PL", served: true } }));
+      const again = notice();
+      expect(again).not.toBeNull();
+      for (const b of boxes().slice(0, 3)) {
+        expect(b.disabled, `${b.dataset.testid} is enabled with nothing compared`).toBe(true);
+        expect(b.checked, `${b.dataset.testid} is ticked with no column on screen`).toBe(false);
+        expect(b.getAttribute("aria-describedby")).toBe(again!.id);
+        expect(b.closest("label")!.getAttribute("title")).toBe(w.disabled);
+      }
+      const share = screen.getByTestId("comparatives-col-share") as HTMLInputElement;
+      expect(share.disabled, "the share box is off although the tab can paint the period's own shares").toBe(false);
+      expect(share.checked).toBe(true);
+      expect(share.getAttribute("aria-describedby")).toBeNull();
+      expect(screen.getByTestId("comparatives-columns").getAttribute("data-disabled")).toBe("false");
+      noRawKeys();
+      statesChecked += 2;
     });
   }
 
@@ -389,7 +429,15 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
     expect(controls().getAttribute("data-comparison")).toBe("off");
     expect(notice()).toBeNull();
     expect(boxes()).toEqual([]);
-    statesChecked += 1;
+    // AMENDED 2026-10-04 (single-year-share): on a tab that can paint the
+    // period's own shares, the share box — alone — is still offered.
+    cleanup();
+    render(mount({ rows: TWO_YEARS, currentId: P24, currentEnd: "2024-12-31", share: { base: "PL", served: true } }));
+    expect(notice()).toBeNull();
+    expect(boxes().map((b) => [b.getAttribute("data-testid"), b.disabled, b.checked])).toEqual([
+      ["comparatives-col-share", false, true],
+    ]);
+    statesChecked += 2;
   });
 
   it("the previous year IS uploaded, as a half-year: never 'missing' — 'no period of the same length', and it is one click away", () => {

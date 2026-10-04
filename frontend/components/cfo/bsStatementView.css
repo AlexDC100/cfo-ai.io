@@ -355,3 +355,5 @@
   .bs-statement.bs-cmp .bs-col-header .cmp-cells { display: none; }
 }
 .bs-statement.bs-cmp { max-width: 1240px; }
+/* The share column alone (no comparison): the single-period width plus it. */
+.bs-statement.bs-cmp[data-share-only="true"] { max-width: 930px; }

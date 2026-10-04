@@ -1594,6 +1594,23 @@ describe("a browser holding a pre-deploy payload asks again", () => {
     statesChecked += 3;
   });
 
+  it("a failed answer is never written to disk: the next boot asks, it does not replay the failure", () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem("sb-test-auth-token", JSON.stringify({ user: { id: "5e55-u1" } }));
+    setupQueryPersistence();
+    appQueryClient.setQueryData(["comparatives", ORG, P25, P24], { kind: "error", status: 502 });
+    appQueryClient.setQueryData(["comparatives", ORG, P25, "refused"], { kind: "refused", code: "same_period", message: "m" });
+    appQueryClient.setQueryData(["period", P25], { kind: "ok", data: {} });
+    window.dispatchEvent(new Event("pagehide"));
+    const blob = JSON.parse(window.localStorage.getItem("cfoai-query-cache-v2") ?? "{}") as {
+      state?: { queries?: { queryKey: unknown[]; state: { data: { kind: string } } }[] };
+    };
+    const kinds = (blob.state?.queries ?? []).map((q) => q.state.data.kind).sort();
+    expect(kinds, "a failure was persisted").toEqual(["ok", "refused"]);
+    appQueryClient.clear();
+    statesChecked += 1;
+  });
+
   it("an answer off the disk is told apart from one this session fetched", () => {
     const client = new QueryClient();
     hydrate(client, {
