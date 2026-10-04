@@ -631,7 +631,9 @@ def _amount_ends(s: str, items: List[Dict[str, Any]], i: int, joined_right: bool
         if c == "-" and _is_letter(_at(s, j + 1)):
             return False
     elif c == "/":
-        if not _is_letter(_at(s, j + 1)):  # "RON 5.2M/an" is per year; "5/6" is not
+        # "RON 5.2M/an" is per year. "RON 5M/6M" is two amounts under one
+        # code, "EUR 2.5M/USD 2.7M" two currencies: neither ends at the slash.
+        if not _is_letter(_at(s, j + 1)) or _code_like(s, j + 1):
             return False
     elif not _is_space(c) and c not in _CLOSERS and c not in _JS_SPACE_SET:
         return False

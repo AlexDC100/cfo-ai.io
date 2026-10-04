@@ -2209,6 +2209,34 @@
      "reason": "open_amount"
     }
    ]
+  },
+  {
+   "id": "open-slash-before-a-number",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Plafonul este de RON 5M/6M, cu o dobândă de 5.5%.",
+   "expected": "Plafonul este de RON 5M/6M, cu o dobândă de 5,5%.",
+   "kept": [
+    {
+     "token": "RON 5M",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "open-slash-before-another-code",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Limita este de EUR 2.5M/USD pe tranzacție, adică 12.5% din plafon.",
+   "expected": "Limita este de EUR 2.5M/USD pe tranzacție, adică 12,5% din plafon.",
+   "kept": [
+    {
+     "token": "EUR 2.5M",
+     "reason": "open_amount"
+    }
+   ]
   }
  ]
 }

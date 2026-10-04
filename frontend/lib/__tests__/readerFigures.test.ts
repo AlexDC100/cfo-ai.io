@@ -736,6 +736,13 @@ describe("7 the language is the TEXT's — on positive evidence, never the UI's"
     expect(proseLanguageOf(english)).toBeNull();
     expect(displayModelText(english).text).toBe(english);
     expect(plainSpaces(displayModelText(english, { context: [enQuestion] }).text)).toBe("The cifra de afaceri netă for the year is 64,567,890 RON, and the variația stocurilor is inside EBITDA with this definition.");
+    // …and where the question is ROMANIAN it is not touched: its words lean English, the question says
+    // Romanian — reading it as Romanian would re-spell an English sentence's figures.
+    const roAsked = "Care este situația firmei și cum se compară cu anul trecut?";
+    expect(displayModelText(english, { context: [roAsked] })).toMatchObject({ text: english, lang: null });
+    expect(displayModelText(english, { fallback: "ro" }).text).toBe(english);
+    // POSITIVE CONTROL: read as Romanian, the pass WOULD move the code and swap the groups.
+    expect(normaliseFigures(english, "ro").text).not.toBe(english);
     // The same answer without the Romanian letters reads English by itself.
     expect(proseLanguageOf("The cifra de afaceri for the year is RON 64,567,890, and the stock variation is inside EBITDA with this definition.")).toBe("en");
     // One Romanian word is not evidence ("este" and "care" exist in other languages too).

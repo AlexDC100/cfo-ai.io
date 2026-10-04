@@ -536,7 +536,9 @@ function amountEnds(s: string, items: Item[], i: number, joinedRight: boolean): 
     // en / em dash there is a break in the sentence.
     if (c === "-" && isLetter(s[j + 1] ?? "")) return false;
   } else if (c === "/") {
-    if (!isLetter(s[j + 1] ?? "")) return false; // "RON 5.2M/an" is per year; "5/6" is not
+    // "RON 5.2M/an" is per year. "RON 5M/6M" is two amounts under one code,
+    // "EUR 2.5M/USD 2.7M" two currencies: neither ends at the slash.
+    if (!isLetter(s[j + 1] ?? "") || codeLike(s, j + 1)) return false;
   } else if (!isSpace(c) && !CLOSERS.includes(c) && !/\s/.test(c)) return false;
   if (isSpace(c)) {
     const d = s[j + 1] ?? "";
