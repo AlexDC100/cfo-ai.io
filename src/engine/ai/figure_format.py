@@ -127,7 +127,7 @@ HINT_EXAMPLES: Dict[str, Dict[str, str]] = {
 LEFT_REASONS = (
     "single_group", "bare_decimal", "bare_groups", "bare_magnitude", "two_currencies",
     "reference", "outline", "possible_date", "leading_zero", "possible_year", "tenor",
-    "glued", "proof_failed",
+    "glued", "open_amount", "code_before", "text_held", "proof_failed",
 )
 
 _CODES: Tuple[str, ...] = tuple(STANDARD["codes"])
@@ -141,11 +141,27 @@ _MAG_WORDS = tuple(
 )
 
 # Words after a figure that make it a quantity (never rewritten themselves).
-_UNIT_WORDS = (
+# A RATIO word says the number is not money at all ("12 zile", "3 ori"); a
+# MONEY word is a magnitude or a currency in words ("55 milioane", "5 lei").
+_RATIO_WORDS = (
     "zile", "zi", "days", "day", "ani", "years", "year", "luni", "months", "month", "ori", "times",
-    "pp", "p.p.", "puncte", "points", "milioane", "miliarde", "million", "millions", "billion",
-    "billions", "thousand", "lei", "leu", "euro", "euros", "dolari", "dollars",
+    "pp", "p.p.", "puncte", "points",
 )
+_MONEY_WORDS = (
+    "milioane", "miliarde", "million", "millions", "billion", "billions", "thousand", "lei", "leu",
+    "euro", "euros", "dolari", "dollars",
+)
+_UNIT_WORDS = _RATIO_WORDS + _MONEY_WORDS
+# A word that CONTINUES an amount — a magnitude the standard does not print
+# ("4.58 mil", "2.5 mld", "4.58 M", "3.2 trillion", "1 milion"). After a
+# code-first number one of these means the amount does not end at the number:
+# the code is never moved in between ("RON 4.58 mil" is not "4,58 RON mil").
+_MAG_LIKE = frozenset((
+    "mil", "mld", "mii", "mie", "mio", "mln", "mlrd", "mrd", "bn", "bln", "tn", "trn", "tril", "m",
+    "mm", "b", "k", "t", "milion", "milioane", "miliard", "miliarde", "trilion", "trilioane",
+    "million", "millions", "billion", "billions", "trillion", "trillions", "thousand", "thousands",
+    "hundred", "hundreds", "sute", "mn",
+))
 # A number after one of these is a reference, not a figure.
 _REF_STEMS = (
     "§", "art", "alin", "pct", "punct", "lit", "cap", "sec", "anex", "nota", "note", "tabel",
@@ -162,10 +178,24 @@ _DATE_WORDS = (
 _RATE_WORDS = ("curs", "cursul", "cursului", "rata", "rate", "paritate", "paritatea", "fx", "kurs")
 _RANGE_JOINERS = (" și ", " si ", " and ", " to ", " la ", " până la ", " pana la ")
 _RANGE_OPENERS = ("între", "intre", "between", "from", "la")
+# What can stand between two numbers of ONE expression ("40 și 55 milioane",
+# "10, 12 sau 15 mil."). "la" joins only after a range opener ("de la 1.5 la
+# 2.5"): "RON 5.2M la 31.12" is an amount and a date.
+_JOIN_WORDS = ("și", "si", "and", "to", "sau", "or", "ori", "respectiv", "&", "până la", "pana la")
 _TENOR_WORDS = ("robor", "euribor", "libor", "sofr", "ircc", "saron", "estr", "€str")
 
 _SIGNS = ("-", "−", "+")
 _DASHES = ("-", "–", " - ", " – ")
+_DASH_CHARS = ("-", "\u2013", "\u2014", "\u2212")
+# What may stand right after an amount that has ended: closing punctuation.
+# Anything else against the number — a symbol, a bracket that opens, "=",
+# "+" — and the amount is not read to its end.
+_CLOSERS = frozenset(".,;:!?)]}\"'\u00bb\u201d\u2019\u2026*_|")
+_APOSTROPHES = ("'", "\u2019")
+# What may stand between a code and the number it was written before without
+# making it another sentence: spaces, a sign, an approximation mark, an
+# opening bracket, markdown emphasis ("RON  5", "RON (5)", "**RON** 5").
+_LOOSE_BETWEEN = frozenset(" \u00a0\u202f\t-\u2212+\u2013\u2014~\u2248(*_")
 
 #: What the browser's `\s` matches (the twin's regexes use it).
 _JS_SPACE = "\t\n\x0b\x0c\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
@@ -241,7 +271,11 @@ def _shape(tok: str, lang: str) -> str:
         if re.fullmatch(r"[1-9][0-9]{0,2}%s[0-9]{3}" % d, tok):
             return "single_group"
         return "foreign_decimal"
-    return "native_or_plain"
+    # The text's own notation (the marks change places), or a plain integer.
+    if re.fullmatch(r"[0-9]+|[0-9]{1,3}(?:%s[0-9]{3})+(?:%s[0-9]+)?|[0-9]+%s[0-9]+" % (d, g, g), tok):
+        return "native_or_plain"
+    # "77,4,2025", "12.5.999,99": a number in NEITHER notation — never touched.
+    return "not_a_number"
 
 
 def _swap(tok: str, lang: str) -> str:
@@ -276,8 +310,10 @@ def _anchored_by(anchors: Sequence[float], reading: Tuple[float, int]) -> bool:
 
 def _read_tail(s: str, i: int) -> Dict[str, Any]:
     """What stands right AFTER the number that ends at `i`: a magnitude, a
-    unit, a currency."""
-    t: Dict[str, Any] = {"mag": None, "mag_len": 0, "unit": False, "currency": None, "currency_len": 0}
+    unit, a currency. `ratio`: the unit says the number is not money;
+    `glued_unit`: the unit is written against the number ("2.3pp", "82.4/100")."""
+    t: Dict[str, Any] = {"mag": None, "mag_len": 0, "unit": False, "ratio": False, "glued_unit": False,
+                         "currency": None, "currency_len": 0}
     j = i
     for g, key in _MAG_GLUED:
         nxt = _at(s, j + len(g))
@@ -292,15 +328,25 @@ def _read_tail(s: str, i: int) -> Dict[str, Any]:
     j += t["mag_len"]
     c = _at(s, j)
     if c in ("%", "‰", "×") and c != "" or (c == "x" and not _is_letter(_at(s, j + 1))):
-        t["unit"] = True
+        t["unit"] = t["ratio"] = True
         return t
+    if not t["mag"]:
+        # "2.3pp", "82.4/100": a unit written against the number.
+        if s.startswith("pp", j) and not _is_letter(_at(s, j + 2)):
+            t["unit"] = t["ratio"] = t["glued_unit"] = True
+            return t
+        after = _at(s, j + 4)
+        if (s.startswith("/100", j) and not _is_digit(after) and not _is_letter(after)
+                and not (after in (".", ",") and after != "" and _is_digit(_at(s, j + 5)))):
+            t["unit"] = t["ratio"] = t["glued_unit"] = True
+            return t
     k = j
     if _is_space(_at(s, k)):
         k += 1
     elif _at(s, k) not in _SYMBOL_CODE:
         return t
     if _at(s, k) == "%":
-        t["unit"] = True
+        t["unit"] = t["ratio"] = True
         return t
     de = 3 if (s.startswith("de", k) and _is_space(_at(s, k + 2))) else 0  # "64.567.890 de lei"
     at = k + de
@@ -311,12 +357,15 @@ def _read_tail(s: str, i: int) -> Dict[str, Any]:
                 t["currency"], t["currency_len"] = code, at + 3 - j
                 return t
         nxt = _at(s, at + 1)
-        if _at(s, at) in _SYMBOL_CODE and not _is_letter(nxt) and not _is_digit(nxt):
+        # ("5 €$3": a symbol against another symbol is not this number's)
+        if (_at(s, at) in _SYMBOL_CODE and not _is_letter(nxt) and not _is_digit(nxt)
+                and nxt not in _SYMBOL_CODE):
             t["currency"], t["currency_len"] = _SYMBOL_CODE[_at(s, at)], at + 1 - j
             return t
     for w in _UNIT_WORDS:
         if s.startswith(w, at) and not _is_letter(_at(s, at + len(w))):
             t["unit"] = True
+            t["ratio"] = w in _RATIO_WORDS
             return t
     return t
 
@@ -358,9 +407,32 @@ def _starts_with_any(word: str, stems: Sequence[str]) -> bool:
     return False
 
 
+def _code_like(s: str, k: int) -> bool:
+    """Three ASCII capitals standing as a word at `k` — the shape of an ISO
+    currency code ("CAD", "AUD", "MXN"), whichever it is."""
+    if k < 0 or k + 3 > len(s):
+        return False
+    for c in s[k:k + 3]:
+        if not ("A" <= c <= "Z"):
+            return False
+    after, before = _at(s, k + 3), _at(s, k - 1)
+    return not (_is_letter(after) or _is_digit(after) or _is_letter(before) or _is_digit(before))
+
+
+def _figure_follows(s: str, k: int) -> bool:
+    """Does a number start at `k`, after at most one space and one sign?"""
+    if _is_space(_at(s, k)):
+        k += 1
+    if _at(s, k) in _SIGNS and _at(s, k) != "":
+        k += 1
+    return _is_digit(_at(s, k))
+
+
 def _read_head(s: str, i: int, floor: int) -> Dict[str, Any]:
     """A currency written BEFORE the number that starts at `i` (never
-    reaching back past `floor`, the end of the previous figure)."""
+    reaching back past `floor`, the end of the previous figure). `stays`:
+    where a code or bare symbol starts that is read but NOT this figure's to
+    move (after a rate word; a "$" the reply itself names another dollar for)."""
     j, sign = i, ""
     if j > floor and _at(s, j - 1) in _SIGNS:
         sign = s[j - 1]
@@ -373,16 +445,42 @@ def _read_head(s: str, i: int, floor: int) -> Dict[str, Any]:
         # "US$", "C$", "$B$2": a symbol with a letter, a digit or another
         # symbol before it is not this standard's to name.
         if _is_letter(b) or _is_digit(b) or b in _SYMBOL_CODE:
-            return {"currency": None, "start": i, "sign": "", "evidence_only": True}
-        return {"currency": _SYMBOL_CODE[s[k - 1]], "start": k - 1, "sign": sign, "evidence_only": False}
+            return {"currency": None, "start": i, "sign": "", "evidence_only": True, "stays": None}
+        # "CAD $7.5M": the reply itself says which dollar — it is not named USD.
+        if _is_space(b) and _code_like(s, k - 5):
+            return {"currency": None, "start": i, "sign": "", "evidence_only": True, "stays": k - 1}
+        return {"currency": _SYMBOL_CODE[s[k - 1]], "start": k - 1, "sign": sign, "evidence_only": False,
+                "stays": None}
     if k - 3 >= floor:
         code = s[k - 3:k]
         before = _at(s, k - 4)
         if code in _CODES and not _is_letter(before) and not _is_digit(before) and before != "/":
             if _word_before(s, k - 3) in _RATE_WORDS:
-                return {"currency": None, "start": i, "sign": "", "evidence_only": True}
-            return {"currency": code, "start": k - 3, "sign": sign, "evidence_only": False}
-    return {"currency": None, "start": i, "sign": "", "evidence_only": False}
+                return {"currency": None, "start": i, "sign": "", "evidence_only": True, "stays": k - 3}
+            return {"currency": code, "start": k - 3, "sign": sign, "evidence_only": False, "stays": None}
+    return {"currency": None, "start": i, "sign": "", "evidence_only": False, "stays": None}
+
+
+def _loose_head(s: str, st: int, floor: int) -> Optional[int]:
+    """Where a product code or a bare symbol starts that still stands BEFORE
+    the number at `st` with something the strict reader does not cross in
+    between (two spaces, a tab, an en dash, a bracket, emphasis marks) — or
+    None. It is never moved; it is COUNTED, so the report says what the
+    reader still sees."""
+    k, n = st, 0
+    while k > floor and n < 8 and s[k - 1] in _LOOSE_BETWEEN:
+        k -= 1
+        n += 1
+    if k > floor and _at(s, k - 1) in _SYMBOL_CODE:
+        b = _at(s, k - 2)
+        if _is_letter(b) or _is_digit(b) or (b in _SYMBOL_CODE and b != ""):
+            return None
+        return k - 1
+    if k - 3 >= floor and s[k - 3:k] in _CODES:
+        before = _at(s, k - 4)
+        if not _is_letter(before) and not _is_digit(before) and before != "/":
+            return k - 3
+    return None
 
 
 def _at_line_start(s: str, at: int) -> bool:
@@ -412,8 +510,239 @@ def _sentence_ends(rest: str) -> bool:
     return n >= 1 and unicodedata.category(rest[n]) == "Lu"
 
 
+def _full_end(it: Dict[str, Any]) -> int:
+    """Where the figure ends: its number, its magnitude, its code."""
+    return it["e"] + it["tail"]["mag_len"] + it["tail"]["currency_len"]
+
+
+def _own_start(s: str, it: Dict[str, Any]) -> int:
+    """Where the figure starts: its code (when one is written before it), its sign."""
+    st = it["head"]["start"] if it["head"]["currency"] else it["s"]
+    if st > it["floor"] and _at(s, st - 1) in _SIGNS:
+        st -= 1
+    return st
+
+
+def _connective(gap: str, opener: bool) -> Optional[str]:
+    """What stands between two numbers when they may be ONE expression:
+    "group" (a space or an apostrophe: "64 567 890", "1'234'567"), "dash" (a
+    range: "1.5-2.5M", "10 – 12"), "list" (a comma, a joining word:
+    "40 și 55 milioane") — or None: they are two sentences' worth apart."""
+    g = gap.replace(NBSP, " ").replace(" ", " ").lower()
+    # Nothing in between: only the second number's own sign ("1.5-2.5").
+    if g == "":
+        return "dash"
+    if g == " " or g in _APOSTROPHES:
+        return "group"
+    for d in _DASH_CHARS:
+        if g in (d, " " + d + " ", " " + d, d + " "):
+            return "dash"
+    if g in (",", ", ", ";", "; "):
+        return "list"
+    for w in _JOIN_WORDS:
+        if g in (" " + w + " ", ", " + w + " ", "; " + w + " "):
+            return "list"
+    # "la" joins a range only after an opener ("de la 1.5 la 2.5 mil."); on
+    # its own it is weak: "RON 5.2M la 31.12" is an amount and a date.
+    if g == " la ":
+        return "list" if opener else "weak"
+    return None
+
+
+def _has_magnitude(s: str, it: Dict[str, Any]) -> bool:
+    """Does this number carry a magnitude of any spelling — one the standard
+    prints, a word, or a letter the standard does not read ("14.30m")?"""
+    if not it["ok"] or it["tail"]["mag"] or (it["tail"]["unit"] and not it["tail"]["ratio"]):
+        return True
+    j = it["e"]
+    if not _is_space(_at(s, j)):
+        return False
+    m = j + 1
+    while _is_letter(_at(s, m)):
+        m += 1
+    return s[j + 1:m].lower() in _MAG_LIKE
+
+
+def _separate(it: Dict[str, Any]) -> bool:
+    """A figure that stands on its own: its own currency, or a ratio's unit."""
+    return bool(it["ok"] and (it["head"]["currency"] or it["head"]["evidence_only"]
+                              or it["tail"]["currency"] or it["tail"]["ratio"]))
+
+
+def _amount_ends(s: str, items: List[Dict[str, Any]], i: int, joined_right: bool) -> bool:
+    """Does the amount a code-first number opens provably END at that number
+    (and its magnitude)? Only then is the code moved behind it. It does NOT
+    when the number goes on ("64 567 890", "1'234'567"), when a magnitude the
+    standard does not print follows ("4.58 mil", "1 milion", "4.58 M"), when
+    another currency is named beside it ("$7.5M CAD"), or when the next
+    number belongs to the same expression — a range or a list that shares
+    the code and, usually, the magnitude ("EUR 1.5-2.5M", "EUR 40 și 55
+    milioane")."""
+    it = items[i]
+    j = it["e"] + it["tail"]["mag_len"]
+    c = _at(s, j)
+    if c == "":
+        # The segment ends at the amount: closed, unless what follows is a
+        # span this pass never enters (the amount runs into it).
+        if joined_right:
+            return False
+    elif c in _APOSTROPHES and _is_digit(_at(s, j + 1)):
+        return False
+    elif c in _DASH_CHARS:
+        if _is_letter(_at(s, j + 1)):      # "EUR 5-year", "RON 3-lunar"
+            return False
+    elif not _is_space(c) and c not in _CLOSERS and c not in _JS_SPACE_SET:
+        return False
+    if _is_space(c):
+        d = _at(s, j + 1)
+        if _is_digit(d) or (d in _SYMBOL_CODE and d != ""):
+            return False
+        if d == "(" and _code_like(s, j + 2) and _at(s, j + 5) == ")":
+            return False
+        if _is_letter(d):
+            if _code_like(s, j + 1):
+                return False
+            m = j + 1
+            while _is_letter(_at(s, m)):
+                m += 1
+            if s[j + 1:m].lower() in _MAG_LIKE:
+                return False
+    if i + 1 < len(items):
+        nx = items[i + 1]
+        opener = _word_before(s, _own_start(s, it)) in _RANGE_OPENERS
+        kind = _connective(s[j:_own_start(s, nx)], opener)
+        if kind in ("dash", "group"):
+            return False
+        if kind == "list" and (opener or not _separate(nx)):
+            return False
+        if kind == "weak" and not _separate(nx) and _has_magnitude(s, nx):
+            return False
+    return True
+
+
+def _number_before_code(s: str, q: int) -> bool:
+    """Does a NUMBER — bare, or with a magnitude of any spelling ("31.12",
+    "3M", "31.12m", "0.19 milioane") — stand right before the code at `q`?
+    Then the code has two possible owners."""
+    i = q
+    if i > 0 and _is_space(s[i - 1]):
+        i -= 1
+    de = s[max(0, i - 3):i] == " de"                # "0.19 milioane de RON 5"
+    if de:
+        i -= 3
+    end = i
+    while i > 0 and end - i < 10 and (_is_letter(s[i - 1]) or s[i - 1] == "."):
+        i -= 1
+    word = s[i:end].lower()
+    while word.endswith("."):
+        word = word[:-1]
+    spaced = bool(word) and i > 0 and _is_space(s[i - 1])
+    if spaced:
+        i -= 1
+    if not _is_digit(_at(s, i - 1)):
+        return False
+    if word == "":
+        return not de
+    if word in _MAG_LIKE or word in _MONEY_WORDS:
+        return True
+    # A letter or two written AGAINST the digits ("31.12m", "4.58T") is a
+    # magnitude of some spelling; a short WORD after a space ("și", "la") is not.
+    return not spaced and not de and len(word) <= 2
+
+
+def _freeze_from(s: str, items: List[Dict[str, Any]], i: int) -> None:
+    """Leave the expression that starts at item `i` exactly as written: the
+    item and every number the same expression goes on to."""
+    last = i
+    while last + 1 < len(items) and last - i < 8:
+        nx = items[last + 1]
+        kind = _connective(s[_full_end(items[last]):_own_start(s, nx)], True)
+        if kind is None or (kind in ("list", "weak") and _separate(nx)):
+            break
+        last += 1
+    for k in range(i, last + 1):
+        items[k]["frozen"] = True
+    items[i]["open_token"] = s[_own_start(s, items[i]):_full_end(items[last])]
+
+
+# THE RUN-TIME PROOF's own reading of a text (never the rule set's tables: a
+# rule that reads "Bn" as a million must not be able to prove itself).
+_PROOF_MARKS = frozenset("-−+%‰×")
+_PROOF_GLUED = (("Bn", "B"), ("bn", "B"), ("K", "K"), ("k", "K"), ("M", "M"), ("B", "B"))
+_PROOF_WORDS = (("mil.", "M"), ("mld.", "B"), ("mii", "K"))
+_PROOF_CODES = ("RON", "EUR", "USD")
+_PROOF_SYMBOLS = {"€": "EUR", "$": "USD"}
+
+
+def _structure(s: str) -> Tuple[str, Tuple[Tuple[str, str, str], ...]]:
+    """What must not change besides the digits: every sign and ratio mark, in
+    order; and for each number, in order, the magnitude beside it, the
+    currency written before it and the currency written after it."""
+    marks = "".join(c for c in s if c in _PROOF_MARKS)
+    figures: List[Tuple[str, str, str]] = []
+    for m in _NUM.finditer(s):
+        st, j = m.start(), m.end()
+        mag = ""
+        for g, key in _PROOF_GLUED:
+            nxt = _at(s, j + len(g))
+            if s.startswith(g, j) and not _is_letter(nxt) and not _is_digit(nxt):
+                mag, j = key, j + len(g)
+                break
+        if not mag and _is_space(_at(s, j)):
+            for w, key in _PROOF_WORDS:
+                if s.startswith(w, j + 1) and not _is_letter(_at(s, j + 1 + len(w))):
+                    mag, j = key, j + 1 + len(w)
+                    break
+        if _is_space(_at(s, j)):
+            j += 1
+        after = ""
+        nxt = _at(s, j + 3)
+        if s[j:j + 3] in _PROOF_CODES and not _is_letter(nxt) and not _is_digit(nxt):
+            # (a code after a plain year and right before a figure is the figure's)
+            if mag or not _YEAR.fullmatch(m.group(0)) or not _figure_follows(s, j + 3):
+                after = s[j:j + 3]
+        elif _at(s, j) in _PROOF_SYMBOLS:
+            nxt = _at(s, j + 1)
+            if not _is_letter(nxt) and not _is_digit(nxt):
+                after = _PROOF_SYMBOLS[s[j]]
+        b = st
+        if b > 0 and s[b - 1] in _SIGNS:
+            b -= 1
+        if b > 0 and _is_space(s[b - 1]):
+            b -= 1
+        before = ""
+        if b > 0 and s[b - 1] in _PROOF_SYMBOLS:
+            before = _PROOF_SYMBOLS[s[b - 1]]
+        elif b >= 3 and s[b - 3:b] in _PROOF_CODES:
+            pre = _at(s, b - 4)
+            if not _is_letter(pre) and not _is_digit(pre):
+                before = s[b - 3:b]
+        figures.append((mag, before, after))
+    return marks, tuple(figures)
+
+
+def _structure_held(before: str, after: str) -> bool:
+    """THE RUN-TIME PROOF beyond the digits: the signs and ratio marks are
+    the same characters in the same order; every number keeps its magnitude;
+    and a currency is bound to the number it was bound to — written before
+    it or after it, never beside another one."""
+    marks_a, figures_a = _structure(before)
+    marks_b, figures_b = _structure(after)
+    if marks_a != marks_b or len(figures_a) != len(figures_b):
+        return False
+    for (mag_a, pre_a, post_a), (mag_b, pre_b, post_b) in zip(figures_a, figures_b):
+        if mag_a != mag_b:
+            return False
+        if sorted(c for c in (pre_a, post_a) if c) != sorted(c for c in (pre_b, post_b) if c):
+            return False
+    return True
+
+
 def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
-                       anchors: Sequence[float]) -> Tuple[str, int]:
+                       anchors: Sequence[float], joined: Tuple[bool, bool] = (False, False)) -> Tuple[str, int]:
+    """`joined`: a span this pass never enters stands right before / right
+    after `s` AND meets it with a digit (a date, a clock time) — so a number
+    at that edge of `s` may be a piece of it."""
     left: List[Tuple[str, str]] = []
     fd = _notation(lang)["fd"]
     native = STANDARD["languages"][lang]
@@ -421,26 +750,78 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
     floor = 0
     for m in _NUM.finditer(s):
         st, en = m.start(), m.end()
+        tok = m.group(0)
         prev = _at(s, st - 1)
         head = _read_head(s, st, floor)
         glued = _is_letter(prev) or (prev in ("_", "#", "/", "\\", "^") and prev != "")
         tail = _read_tail(s, en)
         nxt = _at(s, en)
         ok = (not glued
-              and not (_is_letter(nxt) and not tail["mag"]
+              and not (_is_letter(nxt) and not tail["mag"] and not tail["glued_unit"]
                        and not (nxt == "x" and not _is_letter(_at(s, en + 1))))
-              and nxt != "/" and nxt != "^")
+              and (nxt != "/" or tail["glued_unit"]) and nxt != "^")
+        # A number that TOUCHES a span this pass never enters is a piece of
+        # it ("1,234:99" holds the clock time "34:99"; "01.02.1.234" a date):
+        # not a number of its own.
+        if (joined[0] and s[:st] in ("", ".", ",")) or (joined[1] and s[en:] in ("", ".", ",")):
+            ok = False
+        shape = _shape(tok, lang)
+        if shape == "not_a_number":
+            ok = False
+        # A CODE BETWEEN TWO NUMBERS ("31.12 RON 5.2M", "3M RON 5.2M") has two
+        # possible owners. After a plain year it is the next figure's ("În
+        # 2025 RON 413.7M"); otherwise neither number may take it as evidence
+        # and neither is touched.
+        contested = False
+        if tail["currency"] and _figure_follows(s, en + tail["mag_len"] + tail["currency_len"]):
+            if not tail["mag"] and not head["currency"] and _YEAR.fullmatch(tok):
+                tail = dict(tail, currency=None, currency_len=0)
+            else:
+                contested = True
         items.append({
-            "s": st, "e": en, "tok": m.group(0), "shape": _shape(m.group(0), lang),
-            "head": head, "tail": tail, "ok": ok,
+            "s": st, "e": en, "tok": tok, "shape": shape,
+            "head": head, "tail": tail, "ok": ok, "floor": floor,
+            "contested": contested, "frozen": False, "open_token": None,
             # Something beside the number says it is a figure.
             "adjacent": bool(head["currency"] or head["evidence_only"] or tail["currency"]
                              or tail["unit"] or tail["mag"]),
         })
         floor = en + tail["mag_len"] + tail["currency_len"]
+
+    # WHAT IS LEFT EXACTLY AS WRITTEN, as one expression (`open_amount`):
+    for i, it in enumerate(items):
+        # … a code between two numbers, seen from the first …
+        if it["contested"] and not it["frozen"]:
+            hi = min(i + 1, len(items) - 1)
+            it["frozen"] = items[hi]["frozen"] = True
+            it["open_token"] = s[_own_start(s, it):_full_end(items[hi])]
+        # … and from the second: only a dash in between ("31.12-RON 5.2M"),
+        # or a number with a magnitude the standard does not read right
+        # before the code ("31.12m USD 5", "0.19 milioane USD 1.5M").
+        if i > 0 and it["head"]["currency"] and not it["frozen"]:
+            prev = items[i - 1]
+            pe, p = _full_end(prev), _own_start(s, it)
+            year = (prev["e"] == pe and not prev["head"]["currency"] and bool(_YEAR.fullmatch(prev["tok"]))
+                    and s[pe:it["head"]["start"]] in (" ", NBSP, "\u202f"))
+            if (p == pe or (p - pe == 1 and s[pe] in _DASH_CHARS)
+                    or (not year and _number_before_code(s, it["head"]["start"]))):
+                it["frozen"] = True
+                if not prev["frozen"]:
+                    prev["frozen"] = True
+                    prev["open_token"] = s[_own_start(s, prev):_full_end(it)]
+                elif it["open_token"] is None and prev["open_token"] is None:
+                    it["open_token"] = s[p:_full_end(it)]
+    for i, it in enumerate(items):
+        # … a code-first amount that is not read to its end.
+        if (not it["frozen"] and it["ok"] and it["head"]["currency"] and not it["tail"]["currency"]
+                and not it["tail"]["unit"] and not _amount_ends(s, items, i, joined[1])):
+            _freeze_from(s, items, i)
+
     # A range: "1.2-1.5%", "între 8.5 și 13.2%" — the first number takes the
     # second one's evidence. The joiner word counts only after a range opener.
     for a, b in zip(items, items[1:]):
+        if a["frozen"] or b["frozen"]:
+            continue
         between = s[a["e"]:b["s"]]
         dash = between in _DASHES
         word = between in _RANGE_JOINERS and _word_before(s, a["s"]) in _RANGE_OPENERS
@@ -450,8 +831,16 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
     out, rewritten = s, 0
     for it in reversed(items):
         tok, head, tail = it["tok"], it["head"], it["tail"]
+        if it["frozen"]:
+            # Left ENTIRELY as written. A lone group inside it is still named:
+            # it has two readings wherever it stands.
+            if it["ok"] and it["shape"] == "single_group":
+                left.append((tok, "single_group"))
+            if it["open_token"] is not None:
+                left.append((it["open_token"], "open_amount"))
+            continue
         if not it["ok"]:
-            if it["shape"] != "native_or_plain":
+            if it["shape"] not in ("native_or_plain", "not_a_number"):
                 left.append((tok, "glued"))
             continue
         # A single three-digit group has two values: left ENTIRELY as written.
@@ -464,7 +853,10 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
         before = _word_before(s, ws)
         num, num_changed = tok, False
         if it["shape"] == "foreign_full":
-            list_like = bool(_LIST_LIKE.fullmatch(tok))
+            # A run of groups with no decimal part ("28,281,291", "401,404,408")
+            # reads the same as a LIST (accounts 28, 281 and 291): it is a
+            # figure only with something beside it, or a handed figure.
+            list_like = bool(_LIST_LIKE.fullmatch(tok)) or fd not in tok
             if (not list_like or it["adjacent"]
                     or (not _starts_with_any(before, _REF_STEMS)
                         and _anchored_by(anchors, _reading(tok, fd)))):
@@ -536,6 +928,19 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
         # A code before a percentage or a multiple ("EUR 30%") is not that
         # number's denomination.
         move_head = bool(head["currency"]) and not two and not tail["unit"]
+        # A CODE THAT STAYS BEFORE THE FIGURE is counted (`code_before`), so
+        # the report says what the reader still sees: one that is not this
+        # number's to move, one after a rate word, one the strict reader does
+        # not reach ("RON  5", "RON (5)", "**RON** 5").
+        stays: Optional[int] = None
+        if head["currency"]:
+            stays = None if (move_head or two) else head["start"]
+        elif head["stays"] is not None:
+            stays = head["stays"]
+        elif not head["evidence_only"]:
+            stays = _loose_head(s, it["s"], it["floor"])
+        if stays is not None:
+            left.append((s[stays:it["e"]], "code_before"))
         if not (num_changed or mag_changed or tail_changed or move_head):
             continue
         frm = head["start"] if move_head else it["s"]
@@ -554,8 +959,9 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
         out = out[:frm] + piece + lost_stop + out[to + stop:]
         rewritten += 1
 
-    # THE RUN-TIME PROOF: no digit added, dropped or reordered.
-    if _digits_of(out) != _digits_of(s):
+    # THE RUN-TIME PROOF: no digit added, dropped or reordered; no sign, no
+    # ratio mark, no magnitude and no currency binding changed.
+    if _digits_of(out) != _digits_of(s) or not _structure_held(s, out):
         left_out.append((s[:40], "proof_failed"))
         return s, 0
     left_out.extend(reversed(left))
@@ -582,17 +988,28 @@ def normalise_figures(text: Any, lang: str,
         parts: List[str] = []
         rewritten, at = 0, 0
         for m in _PROTECTED.finditer(text):
-            seg, n = _normalise_segment(text[at:m.start()], lang, left, handed)
+            seg, n = _normalise_segment(text[at:m.start()], lang, left, handed,
+                                        (_is_digit(_at(text, at - 1)) and at > 0, _is_digit(_at(text, m.start()))))
             parts.append(seg)
             parts.append(m.group(0))
             rewritten += n
             at = m.end()
-        seg, n = _normalise_segment(text[at:], lang, left, handed)
+        seg, n = _normalise_segment(text[at:], lang, left, handed,
+                                    (_is_digit(_at(text, at - 1)) and at > 0, False))
         parts.append(seg)
         out = "".join(parts)
         # The proof again, over the whole text (each segment already passed).
         if _digits_of(out) != _digits_of(text):
             return text, {"rewritten": 0, "left": [(text[:40], "proof_failed")]}
+        # NEVER HALF A TEXT. A lone three-digit group ("386,102") is read by
+        # the notation of the figures around it. Rewriting those and leaving
+        # it would make it the one token still in the other notation — read
+        # a thousand times smaller, or larger, than the model wrote it. So a
+        # text that holds one is returned whole, exactly as it was written:
+        # every figure in it still reads the way it did.
+        if rewritten + n and any(why == "single_group" for _token, why in left):
+            left.append(("", "text_held"))
+            return text, report
         report["rewritten"] = rewritten + n
         return out, report
     except Exception:  # noqa: BLE001 — a formatter must never break the text it formats

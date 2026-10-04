@@ -81,7 +81,7 @@ export type FigureLang = "ro" | "en";
 export type LeftReason =
   | "single_group" | "bare_decimal" | "bare_groups" | "bare_magnitude" | "two_currencies"
   | "reference" | "outline" | "possible_date" | "leading_zero" | "possible_year" | "tenor"
-  | "glued" | "proof_failed"
+  | "glued" | "open_amount" | "code_before" | "text_held" | "proof_failed"
   // displayModelText only: the text's language could not be told, so nothing was read.
   | "language_unknown";
 
@@ -92,6 +92,7 @@ const NBSP = "\u00a0";
 const NARROW_NBSP = "\u202f";
 const MINUS = "\u2212"; // "−", the typographic minus sign
 const EN_DASH = "\u2013";
+const EM_DASH = "\u2014";
 const EURO = "\u20ac";
 
 /** THE STANDARD AS DATA — equal to tests/engine/fixtures/ai_figures/
@@ -126,11 +127,27 @@ const MAG_GLUED: readonly (readonly [string, Magnitude])[] = [["Bn", "B"], ["bn"
 const MAG_WORDS: readonly (readonly [string, Magnitude])[] = (["M", "B", "K"] as const).map((key) => [FIGURE_STANDARD.languages.ro.magnitudes[key], key] as const);
 
 // Words after a figure that make it a quantity (never rewritten themselves).
-const UNIT_WORDS = [
+// A RATIO word says the number is not money at all ("12 zile", "3 ori"); a
+// MONEY word is a magnitude or a currency in words ("55 milioane", "5 lei").
+const RATIO_WORDS = [
   "zile", "zi", "days", "day", "ani", "years", "year", "luni", "months", "month", "ori", "times",
-  "pp", "p.p.", "puncte", "points", "milioane", "miliarde", "million", "millions", "billion", "billions", "thousand",
-  "lei", "leu", "euro", "euros", "dolari", "dollars",
+  "pp", "p.p.", "puncte", "points",
 ];
+const MONEY_WORDS = [
+  "milioane", "miliarde", "million", "millions", "billion", "billions", "thousand", "lei", "leu",
+  "euro", "euros", "dolari", "dollars",
+];
+const UNIT_WORDS = [...RATIO_WORDS, ...MONEY_WORDS];
+// A word that CONTINUES an amount — a magnitude the standard does not print
+// ("4.58 mil", "2.5 mld", "4.58 M", "3.2 trillion", "1 milion"). After a
+// code-first number one of these means the amount does not end at the number:
+// the code is never moved in between ("RON 4.58 mil" is not "4,58 RON mil").
+const MAG_LIKE: ReadonlySet<string> = new Set([
+  "mil", "mld", "mii", "mie", "mio", "mln", "mlrd", "mrd", "bn", "bln", "tn", "trn", "tril", "m",
+  "mm", "b", "k", "t", "milion", "milioane", "miliard", "miliarde", "trilion", "trilioane",
+  "million", "millions", "billion", "billions", "trillion", "trillions", "thousand", "thousands",
+  "hundred", "hundreds", "sute", "mn",
+]);
 // A number after one of these is a reference, not a figure.
 const REF_STEMS = [
   "§", "art", "alin", "pct", "punct", "lit", "cap", "sec", "anex", "nota", "note", "tabel", "table", "figur", "fig",
@@ -145,10 +162,24 @@ const DATE_WORDS = [
 const RATE_WORDS = ["curs", "cursul", "cursului", "rata", "rate", "paritate", "paritatea", "fx", "kurs"];
 const RANGE_JOINERS = [" și ", " si ", " and ", " to ", " la ", " până la ", " pana la "];
 const RANGE_OPENERS = ["între", "intre", "between", "from", "la"]; // "de la 1.5 la 2.5 mil."
+// What can stand between two numbers of ONE expression ("40 și 55 milioane",
+// "10, 12 sau 15 mil."). "la" joins only after a range opener ("de la 1.5 la
+// 2.5"): "RON 5.2M la 31.12" is an amount and a date.
+const JOIN_WORDS = ["și", "si", "and", "to", "sau", "or", "ori", "respectiv", "&", "până la", "pana la"];
 const TENOR_WORDS = ["robor", "euribor", "libor", "sofr", "ircc", "saron", "estr", `${EURO}str`];
 
 const SIGNS = ["-", MINUS, "+"];
 const DASHES = ["-", EN_DASH, " - ", ` ${EN_DASH} `];
+const DASH_CHARS = ["-", EN_DASH, EM_DASH, MINUS];
+const APOSTROPHES = ["'", "\u2019"];
+// What may stand right after an amount that has ended: closing punctuation.
+// Anything else against the number — a symbol, a bracket that opens, "=",
+// "+" — and the amount is not read to its end.
+const CLOSERS = ".,;:!?)]}\"'\u00bb\u201d\u2019\u2026*_|";
+// What may stand between a code and the number it was written before without
+// making it another sentence: spaces, a sign, an approximation mark, an
+// opening bracket, markdown emphasis ("RON  5", "RON (5)", "**RON** 5").
+const LOOSE_BETWEEN = ` ${NBSP}${NARROW_NBSP}\t-${MINUS}+${EN_DASH}${EM_DASH}~\u2248(*_`;
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
 // A Unicode LETTER on ONE UTF-16 unit: "×" and "÷" are not letters.
@@ -189,7 +220,7 @@ function notation(lang: FigureLang): Notation {
   return { fg: foreign.group, fd: foreign.decimal, ng: native.group, nd: native.decimal };
 }
 
-type Shape = "foreign_full" | "foreign_decimal" | "single_group" | "native_or_plain";
+type Shape = "foreign_full" | "foreign_decimal" | "single_group" | "native_or_plain" | "not_a_number";
 
 function shapeOf(tok: string, lang: FigureLang): Shape {
   const { fg, fd } = notation(lang);
@@ -202,7 +233,10 @@ function shapeOf(tok: string, lang: FigureLang): Shape {
     if (new RegExp(`^[1-9]\\d{0,2}${D}\\d{3}$`).test(tok)) return "single_group";
     return "foreign_decimal";
   }
-  return "native_or_plain";
+  // The text's own notation (the marks change places), or a plain integer.
+  if (new RegExp(`^(?:\\d+|\\d{1,3}(?:${D}\\d{3})+(?:${G}\\d+)?|\\d+${G}\\d+)$`).test(tok)) return "native_or_plain";
+  // "77,4,2025", "12.5.999,99": a number in NEITHER notation — never touched.
+  return "not_a_number";
 }
 
 /** The token in `lang`'s marks: separators exchanged one character at a time
@@ -240,12 +274,19 @@ function anchoredBy(anchors: readonly number[], r: Reading): boolean {
   return false;
 }
 
-interface Tail { mag: Magnitude | null; magLen: number; unit: boolean; currency: string | null; currencyLen: number }
+interface Tail {
+  mag: Magnitude | null; magLen: number; unit: boolean;
+  /** The unit says the number is not money ("%", "x", "zile"). */
+  ratio: boolean;
+  /** The unit is written against the number ("2.3pp", "82.4/100"). */
+  gluedUnit: boolean;
+  currency: string | null; currencyLen: number;
+}
 
 /** What stands right AFTER the number that ends at `i`: a magnitude, a unit,
  *  a currency. */
 function readTail(s: string, i: number): Tail {
-  const t: Tail = { mag: null, magLen: 0, unit: false, currency: null, currencyLen: 0 };
+  const t: Tail = { mag: null, magLen: 0, unit: false, ratio: false, gluedUnit: false, currency: null, currencyLen: 0 };
   let j = i;
   for (const [g, key] of MAG_GLUED) {
     const next = s[j + g.length] ?? "";
@@ -257,10 +298,18 @@ function readTail(s: string, i: number): Tail {
     }
   }
   j += t.magLen;
-  if (s[j] === "%" || s[j] === "\u2030" || s[j] === "\u00d7" || (s[j] === "x" && !isLetter(s[j + 1] ?? ""))) { t.unit = true; return t; }
+  if (s[j] === "%" || s[j] === "‰" || s[j] === "×" || (s[j] === "x" && !isLetter(s[j + 1] ?? ""))) { t.unit = t.ratio = true; return t; }
+  if (!t.mag) {
+    // "2.3pp", "82.4/100": a unit written against the number.
+    if (s.startsWith("pp", j) && !isLetter(s[j + 2] ?? "")) { t.unit = t.ratio = t.gluedUnit = true; return t; }
+    const after = s[j + 4] ?? "";
+    if (s.startsWith("/100", j) && !isDigit(after) && !isLetter(after) && !((after === "." || after === ",") && isDigit(s[j + 5] ?? ""))) {
+      t.unit = t.ratio = t.gluedUnit = true; return t;
+    }
+  }
   let k = j;
   if (isSpace(s[k] ?? "")) k += 1; else if (!isSymbol(s[k] ?? "")) return t;
-  if (s[k] === "%") { t.unit = true; return t; }
+  if (s[k] === "%") { t.unit = t.ratio = true; return t; }
   const de = s.startsWith("de", k) && isSpace(s[k + 2] ?? "") ? 3 : 0; // "64.567.890 de lei"
   const at = k + de;
   if (de === 0) {
@@ -269,13 +318,19 @@ function readTail(s: string, i: number): Tail {
       if (s.startsWith(code, at) && !isLetter(next) && !isDigit(next)) { t.currency = code; t.currencyLen = at + 3 - j; return t; }
     }
     const next = s[at + 1] ?? "";
-    if (isSymbol(s[at] ?? "") && !isLetter(next) && !isDigit(next)) { t.currency = SYMBOL_CODE[s[at]]; t.currencyLen = at + 1 - j; return t; }
+    // ("5 €$3": a symbol against another symbol is not this number's)
+    if (isSymbol(s[at] ?? "") && !isLetter(next) && !isDigit(next) && !isSymbol(next)) { t.currency = SYMBOL_CODE[s[at]]; t.currencyLen = at + 1 - j; return t; }
   }
-  for (const w of UNIT_WORDS) if (s.startsWith(w, at) && !isLetter(s[at + w.length] ?? "")) { t.unit = true; return t; }
+  for (const w of UNIT_WORDS) if (s.startsWith(w, at) && !isLetter(s[at + w.length] ?? "")) { t.unit = true; t.ratio = RATIO_WORDS.includes(w); return t; }
   return t;
 }
 
-interface Head { currency: string | null; start: number; sign: string; evidenceOnly: boolean }
+interface Head {
+  currency: string | null; start: number; sign: string; evidenceOnly: boolean;
+  /** Where a code or bare symbol starts that is read but NOT this figure's
+   *  to move (after a rate word; a "$" the reply names another dollar for). */
+  stays: number | null;
+}
 
 function wordBefore(s: string, at: number): string {
   let j = at;
@@ -306,6 +361,22 @@ function startsWithAny(word: string, stems: readonly string[]): boolean {
   return stems.some((st) => bare === st || (st.length >= 3 && bare.startsWith(st)) || word === st + ".");
 }
 
+/** Three ASCII capitals standing as a word at `k` — the shape of an ISO
+ *  currency code ("CAD", "AUD", "MXN"), whichever it is. */
+function codeLike(s: string, k: number): boolean {
+  if (k < 0 || k + 3 > s.length) return false;
+  for (let n = k; n < k + 3; n++) if (!(s[n] >= "A" && s[n] <= "Z")) return false;
+  const after = s[k + 3] ?? "", before = s[k - 1] ?? "";
+  return !(isLetter(after) || isDigit(after) || isLetter(before) || isDigit(before));
+}
+
+/** Does a number start at `k`, after at most one space and one sign? */
+function figureFollows(s: string, k: number): boolean {
+  if (isSpace(s[k] ?? "")) k += 1;
+  if (SIGNS.includes(s[k] ?? "")) k += 1;
+  return isDigit(s[k] ?? "");
+}
+
 /** A currency written BEFORE the number that starts at `i` (never reaching
  *  back past `floor`, the end of the previous figure). */
 function readHead(s: string, i: number, floor: number): Head {
@@ -317,29 +388,245 @@ function readHead(s: string, i: number, floor: number): Head {
     const b = s[k - 2] ?? "";
     // "US$", "C$", "$B$2": a symbol with a letter, a digit or another symbol
     // before it is not this standard's to name.
-    if (isLetter(b) || isDigit(b) || isSymbol(b)) return { currency: null, start: i, sign: "", evidenceOnly: true };
-    return { currency: SYMBOL_CODE[s[k - 1]], start: k - 1, sign, evidenceOnly: false };
+    if (isLetter(b) || isDigit(b) || isSymbol(b)) return { currency: null, start: i, sign: "", evidenceOnly: true, stays: null };
+    // "CAD $7.5M": the reply itself says which dollar — it is not named USD.
+    if (isSpace(b) && codeLike(s, k - 5)) return { currency: null, start: i, sign: "", evidenceOnly: true, stays: k - 1 };
+    return { currency: SYMBOL_CODE[s[k - 1]], start: k - 1, sign, evidenceOnly: false, stays: null };
   }
   if (k - 3 >= floor) {
     const code = s.slice(k - 3, k);
     const before = s[k - 4] ?? "";
     if (CODES.includes(code) && !isLetter(before) && !isDigit(before) && before !== "/") {
-      if (RATE_WORDS.includes(wordBefore(s, k - 3))) return { currency: null, start: i, sign: "", evidenceOnly: true };
-      return { currency: code, start: k - 3, sign, evidenceOnly: false };
+      if (RATE_WORDS.includes(wordBefore(s, k - 3))) return { currency: null, start: i, sign: "", evidenceOnly: true, stays: k - 3 };
+      return { currency: code, start: k - 3, sign, evidenceOnly: false, stays: null };
     }
   }
-  return { currency: null, start: i, sign: "", evidenceOnly: false };
+  return { currency: null, start: i, sign: "", evidenceOnly: false, stays: null };
+}
+
+/** Where a product code or a bare symbol starts that still stands BEFORE the
+ *  number at `st` with something the strict reader does not cross in between
+ *  (two spaces, a tab, an en dash, a bracket, emphasis marks) — or null. It
+ *  is never moved; it is COUNTED, so the report says what the reader sees. */
+function looseHead(s: string, st: number, floor: number): number | null {
+  let k = st, n = 0;
+  while (k > floor && n < 8 && LOOSE_BETWEEN.includes(s[k - 1])) { k -= 1; n += 1; }
+  if (k > floor && isSymbol(s[k - 1])) {
+    const b = s[k - 2] ?? "";
+    if (isLetter(b) || isDigit(b) || isSymbol(b)) return null;
+    return k - 1;
+  }
+  if (k - 3 >= floor && CODES.includes(s.slice(k - 3, k))) {
+    const before = s[k - 4] ?? "";
+    if (!isLetter(before) && !isDigit(before) && before !== "/") return k - 3;
+  }
+  return null;
 }
 
 function atLineStart(s: string, at: number): boolean {
   let i = at;
   while (i > 0 && s[i - 1] !== "\n") i--;
-  return /^[\s#>*\u2022\-]*$/.test(s.slice(i, at));
+  return /^[\s#>*•\-]*$/.test(s.slice(i, at));
 }
 
-interface Item { s: number; e: number; tok: string; shape: Shape; head: Head; tail: Tail; adjacent: boolean; ok: boolean }
+interface Item {
+  s: number; e: number; tok: string; shape: Shape; head: Head; tail: Tail; adjacent: boolean; ok: boolean;
+  floor: number; contested: boolean; frozen: boolean; openToken: string | null;
+}
 
-function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anchors: readonly number[]): { text: string; rewritten: number } {
+/** Where the figure ends: its number, its magnitude, its code. */
+const fullEnd = (it: Item) => it.e + it.tail.magLen + it.tail.currencyLen;
+
+/** Where the figure starts: its code (when one is written before it), its sign. */
+function ownStart(s: string, it: Item): number {
+  let st = it.head.currency ? it.head.start : it.s;
+  if (st > it.floor && SIGNS.includes(s[st - 1])) st -= 1;
+  return st;
+}
+
+/** What stands between two numbers when they may be ONE expression: "group"
+ *  (a space or an apostrophe: "64 567 890", "1'234'567"), "dash" (a range:
+ *  "1.5-2.5M", "10 – 12"), "list" (a comma, a joining word: "40 și 55
+ *  milioane") — or null: they are two sentences' worth apart. */
+function connective(gap: string, opener: boolean): "group" | "dash" | "list" | "weak" | null {
+  const g = gap.split(NBSP).join(" ").split(NARROW_NBSP).join(" ").toLowerCase();
+  // Nothing in between: only the second number's own sign ("1.5-2.5").
+  if (g === "") return "dash";
+  if (g === " " || APOSTROPHES.includes(g)) return "group";
+  for (const d of DASH_CHARS) if (g === d || g === ` ${d} ` || g === ` ${d}` || g === `${d} `) return "dash";
+  if (g === "," || g === ", " || g === ";" || g === "; ") return "list";
+  for (const w of JOIN_WORDS) {
+    if (g === ` ${w} ` || g === `, ${w} ` || g === `; ${w} `) return "list";
+  }
+  // "la" joins a range only after an opener ("de la 1.5 la 2.5 mil."); on its
+  // own it is weak: "RON 5.2M la 31.12" is an amount and a date.
+  if (g === " la ") return opener ? "list" : "weak";
+  return null;
+}
+
+/** Does this number carry a magnitude of any spelling — one the standard
+ *  prints, a word, or a letter the standard does not read ("14.30m")? */
+function hasMagnitude(s: string, it: Item): boolean {
+  if (!it.ok || it.tail.mag || (it.tail.unit && !it.tail.ratio)) return true;
+  const j = it.e;
+  if (!isSpace(s[j] ?? "")) return false;
+  let m = j + 1;
+  while (isLetter(s[m] ?? "")) m += 1;
+  return MAG_LIKE.has(s.slice(j + 1, m).toLowerCase());
+}
+
+/** A figure that stands on its own: its own currency, or a ratio's unit. */
+const separate = (it: Item) => it.ok && !!(it.head.currency || it.head.evidenceOnly || it.tail.currency || it.tail.ratio);
+
+/** Does the amount a code-first number opens provably END at that number (and
+ *  its magnitude)? Only then is the code moved behind it. It does NOT when
+ *  the number goes on ("64 567 890", "1'234'567"), when a magnitude the
+ *  standard does not print follows ("4.58 mil", "1 milion", "4.58 M"), when
+ *  another currency is named beside it ("$7.5M CAD"), or when the next number
+ *  belongs to the same expression — a range or a list that shares the code
+ *  and, usually, the magnitude ("EUR 1.5-2.5M", "EUR 40 și 55 milioane"). */
+function amountEnds(s: string, items: Item[], i: number, joinedRight: boolean): boolean {
+  const it = items[i];
+  const j = it.e + it.tail.magLen;
+  const c = s[j] ?? "";
+  if (c === "") {
+    // The segment ends at the amount: closed, unless what follows is a span
+    // this pass never enters (the amount runs into it).
+    if (joinedRight) return false;
+  } else if (APOSTROPHES.includes(c) && isDigit(s[j + 1] ?? "")) return false;
+  else if (DASH_CHARS.includes(c)) {
+    if (isLetter(s[j + 1] ?? "")) return false; // "EUR 5-year", "RON 3-lunar"
+  } else if (!isSpace(c) && !CLOSERS.includes(c) && !/\s/.test(c)) return false;
+  if (isSpace(c)) {
+    const d = s[j + 1] ?? "";
+    if (isDigit(d) || isSymbol(d)) return false;
+    if (d === "(" && codeLike(s, j + 2) && s[j + 5] === ")") return false;
+    if (isLetter(d)) {
+      if (codeLike(s, j + 1)) return false;
+      let m = j + 1;
+      while (isLetter(s[m] ?? "")) m += 1;
+      if (MAG_LIKE.has(s.slice(j + 1, m).toLowerCase())) return false;
+    }
+  }
+  if (i + 1 < items.length) {
+    const nx = items[i + 1];
+    const opener = RANGE_OPENERS.includes(wordBefore(s, ownStart(s, it)));
+    const kind = connective(s.slice(j, ownStart(s, nx)), opener);
+    if (kind === "dash" || kind === "group") return false;
+    if (kind === "list" && (opener || !separate(nx))) return false;
+    if (kind === "weak" && !separate(nx) && hasMagnitude(s, nx)) return false;
+  }
+  return true;
+}
+
+/** Does a NUMBER — bare, or with a magnitude of any spelling ("31.12", "3M",
+ *  "31.12m", "0.19 milioane") — stand right before the code at `q`? Then the
+ *  code has two possible owners. */
+function numberBeforeCode(s: string, q: number): boolean {
+  let i = q;
+  if (i > 0 && isSpace(s[i - 1])) i -= 1;
+  const de = s.slice(Math.max(0, i - 3), i) === " de"; // "0.19 milioane de RON 5"
+  if (de) i -= 3;
+  const end = i;
+  while (i > 0 && end - i < 10 && (isLetter(s[i - 1]) || s[i - 1] === ".")) i -= 1;
+  const word = s.slice(i, end).toLowerCase().replace(/\.+$/, "");
+  const spaced = word !== "" && i > 0 && isSpace(s[i - 1]);
+  if (spaced) i -= 1;
+  if (!isDigit(s[i - 1] ?? "")) return false;
+  if (word === "") return !de;
+  if (MAG_LIKE.has(word) || MONEY_WORDS.includes(word)) return true;
+  // A letter or two written AGAINST the digits ("31.12m", "4.58T") is a
+  // magnitude of some spelling; a short WORD after a space ("și", "la") is not.
+  return !spaced && !de && word.length <= 2;
+}
+
+/** Leave the expression that starts at item `i` exactly as written: the item
+ *  and every number the same expression goes on to. */
+function freezeFrom(s: string, items: Item[], i: number): void {
+  let last = i;
+  while (last + 1 < items.length && last - i < 8) {
+    const nx = items[last + 1];
+    const kind = connective(s.slice(fullEnd(items[last]), ownStart(s, nx)), true);
+    if (kind === null || ((kind === "list" || kind === "weak") && separate(nx))) break;
+    last += 1;
+  }
+  for (let k = i; k <= last; k++) items[k].frozen = true;
+  items[i].openToken = s.slice(ownStart(s, items[i]), fullEnd(items[last]));
+}
+
+// THE RUN-TIME PROOF's own reading of a text (never the rule set's tables: a
+// rule that reads "Bn" as a million must not be able to prove itself).
+const PROOF_MARKS = `-${MINUS}+%‰×`;
+const PROOF_GLUED: readonly (readonly [string, string])[] = [["Bn", "B"], ["bn", "B"], ["K", "K"], ["k", "K"], ["M", "M"], ["B", "B"]];
+const PROOF_WORDS: readonly (readonly [string, string])[] = [["mil.", "M"], ["mld.", "B"], ["mii", "K"]];
+const PROOF_CODES = ["RON", "EUR", "USD"];
+const PROOF_SYMBOLS: Record<string, string> = { [EURO]: "EUR", $: "USD" };
+const proofSymbol = (c: string) => (c !== "" && Object.prototype.hasOwnProperty.call(PROOF_SYMBOLS, c) ? PROOF_SYMBOLS[c] : "");
+
+/** What must not change besides the digits: every sign and ratio mark, in
+ *  order; and for each number, in order, the magnitude beside it, the
+ *  currency written before it and the currency written after it. */
+function structureOf(s: string): { marks: string; figures: [string, string, string][] } {
+  let marks = "";
+  for (const c of s) if (PROOF_MARKS.includes(c)) marks += c;
+  const figures: [string, string, string][] = [];
+  const NUM = /\d[\d.,]*\d|\d/g;
+  let m: RegExpExecArray | null;
+  while ((m = NUM.exec(s)) !== null) {
+    const st = m.index;
+    let j = st + m[0].length, mag = "";
+    for (const [g, key] of PROOF_GLUED) {
+      const next = s[j + g.length] ?? "";
+      if (s.startsWith(g, j) && !isLetter(next) && !isDigit(next)) { mag = key; j += g.length; break; }
+    }
+    if (!mag && isSpace(s[j] ?? "")) {
+      for (const [w, key] of PROOF_WORDS) {
+        if (s.startsWith(w, j + 1) && !isLetter(s[j + 1 + w.length] ?? "")) { mag = key; j += 1 + w.length; break; }
+      }
+    }
+    if (isSpace(s[j] ?? "")) j += 1;
+    let after = "";
+    const code = s.slice(j, j + 3);
+    if (PROOF_CODES.includes(code) && !isLetter(s[j + 3] ?? "") && !isDigit(s[j + 3] ?? "")) {
+      // (a code after a plain year and right before a figure is the figure's)
+      if (mag || !/^(?:19|20)\d\d$/.test(m[0]) || !figureFollows(s, j + 3)) after = code;
+    } else if (proofSymbol(s[j] ?? "") && !isLetter(s[j + 1] ?? "") && !isDigit(s[j + 1] ?? "")) after = proofSymbol(s[j]);
+    let b = st;
+    if (b > 0 && SIGNS.includes(s[b - 1])) b -= 1;
+    if (b > 0 && isSpace(s[b - 1])) b -= 1;
+    let before = "";
+    if (b > 0 && proofSymbol(s[b - 1])) before = proofSymbol(s[b - 1]);
+    else if (b >= 3 && PROOF_CODES.includes(s.slice(b - 3, b))) {
+      const pre = s[b - 4] ?? "";
+      if (!isLetter(pre) && !isDigit(pre)) before = s.slice(b - 3, b);
+    }
+    figures.push([mag, before, after]);
+  }
+  return { marks, figures };
+}
+
+/** THE RUN-TIME PROOF beyond the digits: the signs and ratio marks are the
+ *  same characters in the same order; every number keeps its magnitude; and a
+ *  currency is bound to the number it was bound to — written before it or
+ *  after it, never beside another one. (An object so a law can blind it and
+ *  watch what it alone was holding.) */
+export const figureProof = {
+  structureHeld(before: string, after: string): boolean {
+    const a = structureOf(before), b = structureOf(after);
+    if (a.marks !== b.marks || a.figures.length !== b.figures.length) return false;
+    for (let i = 0; i < a.figures.length; i++) {
+      const [magA, preA, postA] = a.figures[i], [magB, preB, postB] = b.figures[i];
+      if (magA !== magB) return false;
+      if ([preA, postA].filter(Boolean).sort().join("|") !== [preB, postB].filter(Boolean).sort().join("|")) return false;
+    }
+    return true;
+  },
+};
+
+/** `joined`: a span this pass never enters stands right before / right after
+ *  `s` AND meets it with a digit (a date, a clock time) — so a number at that
+ *  edge of `s` may be a piece of it. */
+function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anchors: readonly number[], joined: readonly [boolean, boolean] = [false, false]): { text: string; rewritten: number } {
   const left: LeftToken[] = [];
   const NUM = /\d[\d.,]*\d|\d/g;
   const { fd } = notation(lang);
@@ -352,20 +639,70 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     const prev = s[st - 1] ?? "";
     const head = readHead(s, st, floor);
     const glued = isLetter(prev) || prev === "_" || prev === "#" || prev === "/" || prev === "\\" || prev === "^";
-    const tail = readTail(s, en);
+    let tail = readTail(s, en);
     const next = s[en] ?? "";
-    const ok = !glued && !(isLetter(next) && !tail.mag && !(next === "x" && !isLetter(s[en + 1] ?? ""))) && next !== "/" && next !== "^";
+    let ok = !glued && !(isLetter(next) && !tail.mag && !tail.gluedUnit && !(next === "x" && !isLetter(s[en + 1] ?? ""))) && (next !== "/" || tail.gluedUnit) && next !== "^";
+    // A number that TOUCHES a span this pass never enters is a piece of it
+    // ("1,234:99" holds the clock time "34:99"; "01.02.1.234" a date): not a
+    // number of its own.
+    const lead = s.slice(0, st), rest = s.slice(en);
+    if ((joined[0] && (lead === "" || lead === "." || lead === ",")) || (joined[1] && (rest === "" || rest === "." || rest === ","))) ok = false;
+    const shape = shapeOf(m[0], lang);
+    if (shape === "not_a_number") ok = false;
+    // A CODE BETWEEN TWO NUMBERS ("31.12 RON 5.2M", "3M RON 5.2M") has two
+    // possible owners. After a plain year it is the next figure's ("În 2025
+    // RON 413.7M"); otherwise neither number may take it as evidence and
+    // neither is touched.
+    let contested = false;
+    if (tail.currency && figureFollows(s, en + tail.magLen + tail.currencyLen)) {
+      if (!tail.mag && !head.currency && /^(?:19|20)\d\d$/.test(m[0])) tail = { ...tail, currency: null, currencyLen: 0 };
+      else contested = true;
+    }
     items.push({
-      s: st, e: en, tok: m[0], shape: shapeOf(m[0], lang), head, tail, ok,
+      s: st, e: en, tok: m[0], shape, head, tail, ok, floor, contested, frozen: false, openToken: null,
       // Something beside the number says it is a figure.
       adjacent: !!(head.currency || head.evidenceOnly || tail.currency || tail.unit || tail.mag),
     });
     floor = en + tail.magLen + tail.currencyLen;
   }
+
+  // WHAT IS LEFT EXACTLY AS WRITTEN, as one expression (`open_amount`):
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    // … a code between two numbers, seen from the first …
+    if (it.contested && !it.frozen) {
+      const hi = Math.min(i + 1, items.length - 1);
+      it.frozen = items[hi].frozen = true;
+      it.openToken = s.slice(ownStart(s, it), fullEnd(items[hi]));
+    }
+    // … and from the second: only a dash in between ("31.12-RON 5.2M"), or a
+    // number with a magnitude the standard does not read right before the
+    // code ("31.12m USD 5", "0.19 milioane USD 1.5M").
+    if (i > 0 && it.head.currency && !it.frozen) {
+      const prev = items[i - 1];
+      const pe = fullEnd(prev), p = ownStart(s, it);
+      const between = s.slice(pe, it.head.start);
+      const year = prev.e === pe && !prev.head.currency && /^(?:19|20)\d\d$/.test(prev.tok) && (between === " " || between === NBSP || between === NARROW_NBSP);
+      if (p === pe || (p - pe === 1 && DASH_CHARS.includes(s[pe])) || (!year && numberBeforeCode(s, it.head.start))) {
+        it.frozen = true;
+        if (!prev.frozen) {
+          prev.frozen = true;
+          prev.openToken = s.slice(ownStart(s, prev), fullEnd(it));
+        } else if (it.openToken === null && prev.openToken === null) it.openToken = s.slice(p, fullEnd(it));
+      }
+    }
+  }
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    // … a code-first amount that is not read to its end.
+    if (!it.frozen && it.ok && it.head.currency && !it.tail.currency && !it.tail.unit && !amountEnds(s, items, i, joined[1])) freezeFrom(s, items, i);
+  }
+
   // A range: "1.2-1.5%", "între 8.5 și 13.2%" — the first number takes the
   // second one's evidence. The joiner word counts only after a range opener.
   for (let i = 0; i + 1 < items.length; i++) {
     const a = items[i], b = items[i + 1];
+    if (a.frozen || b.frozen) continue;
     const between = s.slice(a.e, b.s);
     const dash = DASHES.includes(between);
     const word = RANGE_JOINERS.includes(between) && RANGE_OPENERS.includes(wordBefore(s, a.s));
@@ -375,8 +712,15 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
   let out = s, rewritten = 0;
   for (let i = items.length - 1; i >= 0; i--) {
     const it = items[i];
+    if (it.frozen) {
+      // Left ENTIRELY as written. A lone group inside it is still named: it
+      // has two readings wherever it stands.
+      if (it.ok && it.shape === "single_group") left.push({ token: it.tok, reason: "single_group" });
+      if (it.openToken !== null) left.push({ token: it.openToken, reason: "open_amount" });
+      continue;
+    }
     if (!it.ok) {
-      if (it.shape !== "native_or_plain") left.push({ token: it.tok, reason: "glued" });
+      if (it.shape !== "native_or_plain" && it.shape !== "not_a_number") left.push({ token: it.tok, reason: "glued" });
       continue;
     }
     // A single three-digit group has two values: left ENTIRELY as written.
@@ -393,7 +737,10 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     };
     let num = it.tok, numChanged = false;
     if (it.shape === "foreign_full") {
-      const listLike = /^\d{3}(?:[.,]\d{3})+$/.test(it.tok);
+      // A run of groups with no decimal part ("28,281,291", "401,404,408")
+      // reads the same as a LIST (accounts 28, 281 and 291): it is a figure
+      // only with something beside it, or a handed figure.
+      const listLike = /^\d{3}(?:[.,]\d{3})+$/.test(it.tok) || !it.tok.includes(fd);
       if (!listLike || it.adjacent || (!startsWithAny(before(), REF_STEMS) && anchoredBy(anchors, reading(it.tok, fd)))) {
         num = figureSwap.swap(it.tok, lang); numChanged = true;
       } else { left.push({ token: it.tok, reason: "bare_groups" }); continue; }
@@ -440,6 +787,15 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     // A code before a percentage or a multiple ("EUR 30%") is not that
     // number's denomination.
     const moveHead = !!it.head.currency && !two && !it.tail.unit;
+    // A CODE THAT STAYS BEFORE THE FIGURE is counted (`code_before`), so the
+    // report says what the reader still sees: one that is not this number's
+    // to move, one after a rate word, one the strict reader does not reach
+    // ("RON  5", "RON (5)", "**RON** 5").
+    let stays: number | null = null;
+    if (it.head.currency) stays = moveHead || two ? null : it.head.start;
+    else if (it.head.stays !== null) stays = it.head.stays;
+    else if (!it.head.evidenceOnly) stays = looseHead(s, it.s, it.floor);
+    if (stays !== null) left.push({ token: s.slice(stays, it.e), reason: "code_before" });
     if (!numChanged && !magChanged && !tailChanged && !moveHead) continue;
     const from = moveHead ? it.head.start : it.s;
     const to = it.e + it.tail.magLen + (it.tail.currency && !two ? it.tail.currencyLen : 0);
@@ -454,8 +810,9 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     out = out.slice(0, from) + piece + lostStop + out.slice(to + stop);
     rewritten += 1;
   }
-  // THE RUN-TIME PROOF: no digit added, dropped or reordered.
-  if (digitsOf(out) !== digitsOf(s)) { leftOut.push({ token: s.slice(0, 40), reason: "proof_failed" }); return { text: s, rewritten: 0 }; }
+  // THE RUN-TIME PROOF: no digit added, dropped or reordered; no sign, no
+  // ratio mark, no magnitude and no currency binding changed.
+  if (digitsOf(out) !== digitsOf(s) || !figureProof.structureHeld(s, out)) { leftOut.push({ token: s.slice(0, 40), reason: "proof_failed" }); return { text: s, rewritten: 0 }; }
   for (let i = left.length - 1; i >= 0; i--) leftOut.push(left[i]);
   return { text: out, rewritten };
 }
@@ -473,15 +830,25 @@ export function normaliseFigures(text: string, lang: FigureLang, anchors: readon
     const rx = protectedSpans(text);
     let m: RegExpExecArray | null;
     while ((m = rx.exec(text)) !== null) {
-      const seg = normaliseSegment(text.slice(at, m.index), lang, left, handed);
+      const seg = normaliseSegment(text.slice(at, m.index), lang, left, handed, [at > 0 && isDigit(text[at - 1] ?? ""), isDigit(m[0][0] ?? "")]);
       out += seg.text + m[0];
       rewritten += seg.rewritten;
       at = m.index + m[0].length;
     }
-    const seg = normaliseSegment(text.slice(at), lang, left, handed);
+    const seg = normaliseSegment(text.slice(at), lang, left, handed, [at > 0 && isDigit(text[at - 1] ?? ""), false]);
     out += seg.text;
     // The proof again, over the whole text (each segment already passed).
     if (digitsOf(out) !== digitsOf(text)) return { text, rewritten: 0, left: [{ token: text.slice(0, 40), reason: "proof_failed" }] };
+    // NEVER HALF A TEXT. A lone three-digit group ("386,102") is read by the
+    // notation of the figures around it. Rewriting those and leaving it would
+    // make it the one token still in the other notation — read a thousand
+    // times smaller, or larger, than the model wrote it. So a text that holds
+    // one is returned whole, exactly as it was written: every figure in it
+    // still reads the way it did.
+    if (rewritten + seg.rewritten > 0 && left.some((l) => l.reason === "single_group")) {
+      left.push({ token: "", reason: "text_held" });
+      return { text, rewritten: 0, left };
+    }
     return { text: out, rewritten: rewritten + seg.rewritten, left };
   } catch {
     // A formatter must never break the text it formats.
@@ -495,50 +862,91 @@ export const RO_FUNCTION_WORDS: ReadonlySet<string> = new Set([
   "și", "în", "este", "sunt", "iar", "pentru", "din", "sau", "că", "cu", "prin", "dar", "fost", "față", "după",
   "între", "către", "această", "acest", "aceste", "care",
 ]);
+/** The Romanian function words NO other narration language uses. "este" and
+ *  "dar" are everyday Spanish and Portuguese ("este ejercicio", "puede dar"),
+ *  "care" is Italian, "cu" Portuguese, "sau" and "din" are words elsewhere:
+ *  those count as evidence only beside one of these. Without one a text is
+ *  never Romanian — a Spanish reply read as Romanian had its "12,3M" turned
+ *  into "12,3 mil.", which is twelve THOUSAND in Spanish. */
+export const RO_DISTINCTIVE_WORDS: ReadonlySet<string> = new Set([
+  "și", "în", "sunt", "iar", "pentru", "că", "prin", "fost", "față", "după", "între", "către", "această", "acest",
+  "aceste",
+]);
 export const EN_FUNCTION_WORDS: ReadonlySet<string> = new Set([
   "the", "and", "with", "this", "that", "from", "which", "your", "for", "have", "has", "were", "their",
   "its", "than", "between",
 ]);
 
-/** The language `text` is WRITTEN in — Romanian-only function words against
- *  English ones — or null when it cannot be told (too short, mixed, or
- *  another language: an Italian or Spanish sentence shares "care", "este" or
- *  "con" with nothing here by accident, which is why one word is not enough). */
-export function proseLanguageOf(text: string | null | undefined): FigureLang | null {
-  if (typeof text !== "string" || !text) return null;
-  const tokens = text.toLowerCase().match(/\p{L}+/gu) ?? [];
-  let ro = 0, en = 0;
-  const roSeen = new Set<string>();
-  for (const t of tokens) {
-    if (RO_FUNCTION_WORDS.has(t)) { ro++; roSeen.add(t); }
-    else if (EN_FUNCTION_WORDS.has(t)) en++;
-  }
-  const roOk = roSeen.size >= 2 || (roSeen.size === 1 && !roSeen.has("este") && !roSeen.has("care") && ro >= 2);
-  if (roOk && ro >= 2 && (en === 0 || (ro >= 3 && ro >= 2 * en))) return "ro";
-  if (en >= 2 && (ro === 0 || (en >= 3 && en >= 2 * ro))) return "en";
-  // Comma-below ș / ț and ă are Romanian's alone among the languages a
-  // narration is written in (the cedilla forms are not read: Turkish has them).
-  if (en === 0 && /[ăĂșȘțȚ]/.test(text)) return "ro";
-  return null;
+/** How many function words make a text's own language STRONG evidence — it
+ *  then wins over what a caller says. Fewer is thin: it is followed when
+ *  nothing contradicts it, and never against the question the text answers. */
+const STRONG_EVIDENCE = 4;
+
+interface ProseEvidence {
+  /** The language the text reads as, or null. */
+  lang: FigureLang | null;
+  strong: boolean;
+  /** English by its function words, but the text holds Romanian letters (ă,
+   *  ș, ț): undecided — English only with the context's agreement. */
+  lean: FigureLang | null;
 }
 
-/** The language a model's text is SHOWN in: its own prose; else the first
- *  context TEXT whose language can be read (the question it answers, then
- *  earlier messages — nearest first); else `fallback`, a language the caller
- *  KNOWS (the one Explain asked for, a briefing's `ro` stamp). NEVER the UI
- *  language. null: the text is not to be touched. */
+function proseEvidence(text: string | null | undefined): ProseEvidence {
+  const none: ProseEvidence = { lang: null, strong: false, lean: null };
+  if (typeof text !== "string" || !text) return none;
+  const tokens = text.toLowerCase().match(/\p{L}+/gu) ?? [];
+  let ro = 0, en = 0, distinctive = false;
+  const roSeen = new Set<string>();
+  for (const t of tokens) {
+    if (RO_FUNCTION_WORDS.has(t)) { ro++; roSeen.add(t); if (RO_DISTINCTIVE_WORDS.has(t)) distinctive = true; }
+    else if (EN_FUNCTION_WORDS.has(t)) en++;
+  }
+  // Comma-below ș / ț and ă are Romanian's alone among the languages a
+  // narration is written in (the cedilla forms are not read: Turkish has them).
+  const romanianLetters = /[ăĂșȘțȚ]/.test(text);
+  if (distinctive && ro >= 2 && (en === 0 || (ro >= 3 && ro >= 2 * en))) return { lang: "ro", strong: ro >= STRONG_EVIDENCE, lean: null };
+  if (en >= 2 && (ro === 0 || (en >= 3 && en >= 2 * ro))) {
+    // A Romanian reply written as labels ("- Marjă: 11,25%") has no function
+    // word at all; one English gloss in it ("free cash flow from the
+    // operations") must not make it English and its right figures wrong.
+    return romanianLetters ? { ...none, lean: "en" } : { lang: "en", strong: en >= STRONG_EVIDENCE, lean: null };
+  }
+  if (en === 0 && romanianLetters) return { lang: "ro", strong: false, lean: null };
+  return none;
+}
+
+/** The language `text` is WRITTEN in — Romanian function words (one of them
+ *  Romanian's alone) against English ones — or null when it cannot be told:
+ *  too short, mixed, another language, or English words around Romanian
+ *  letters. */
+export function proseLanguageOf(text: string | null | undefined): FigureLang | null {
+  return proseEvidence(text).lang;
+}
+
+/** The language a model's text is SHOWN in. Its own prose when that is strong
+ *  evidence. Otherwise what the caller says — the first context TEXT whose
+ *  language can be read (the question it answers, then earlier messages,
+ *  nearest first), else `fallback`, a language the caller KNOWS (the one
+ *  Explain asked for, a briefing's `ro` stamp) — and thin evidence of its own
+ *  is followed only where the caller does not say otherwise: a text whose few
+ *  words point one way while the question points the other is not touched.
+ *  NEVER the UI language. null: the text is not to be touched. */
 export function figureLanguageOf(
   text: string,
   context: readonly (string | null | undefined)[] = [],
   fallback: FigureLang | null = null,
 ): FigureLang | null {
-  const own = proseLanguageOf(text);
-  if (own) return own;
+  const own = proseEvidence(text);
+  if (own.lang && own.strong) return own.lang;
+  let said: FigureLang | null = null;
   for (const c of context) {
     const l = proseLanguageOf(c);
-    if (l) return l;
+    if (l) { said = l; break; }
   }
-  return fallback === "ro" || fallback === "en" ? fallback : null;
+  if (!said) said = fallback === "ro" || fallback === "en" ? fallback : null;
+  if (own.lang) return said === null || said === own.lang ? own.lang : null;
+  if (own.lean) return said === own.lean ? own.lean : null;
+  return said;
 }
 
 /** For each turn of a conversation, oldest first: the language of the

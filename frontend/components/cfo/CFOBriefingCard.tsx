@@ -160,7 +160,11 @@ export function CFOBriefingCard({
   const liveLang = live ? live.lang : null;
   const shownText = useMemo(() => {
     if (!text) return "";
-    const stamp = liveLang ?? (baseLanguage ?? "").slice(0, 2).toLowerCase();
+    const stamp = (liveLang ?? baseLanguage ?? "").slice(0, 2).toLowerCase();
+    // A narration the engine says is in ANOTHER language (es, pt, de, …) is
+    // shown as served: the product defines a figure format for Romanian and
+    // English only, and a Spanish "12,3M" is not ours to re-spell.
+    if (stamp && stamp !== "ro" && stamp !== "en") return text;
     const known = stamp === "ro" ? "ro" : stamp === "en" && liveLang !== null ? "en" : null;
     return displayModelText(text, { fallback: known }).text;
   }, [text, liveLang, baseLanguage]);
