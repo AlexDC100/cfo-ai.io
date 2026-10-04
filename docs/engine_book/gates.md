@@ -20599,25 +20599,25 @@ a committed fixture that is not the engine's bytes.
   (the share box with no comparison, the parity guard, a payload without the
   block, the persisted query cache of a browser that holds a pre-deploy
   payload);
-- **the other verdicts of the same surface under a later prior** — the
-  two-period ratio block (`ratios.band_movements.improved / deteriorated`,
-  each row's `delta.favourable`, the band-crossing findings) and the command
+- **the other verdicts of the same surface under a later prior** — CLOSED
+  for the two-period ratio block by the fix round (below): `ratios.
+  band_movements`, each row's `delta.favourable` and the band findings read
+  the direction now, and the swap law holds them. STILL OPEN: the command
   bar's "what changed" lines (`engine.attention.now`, through
-  `analysis.line_verdict`, when a later prior is requested) still judge
-  current − later. `direction` sits at the top of the document for them to
-  read; neither reads it yet. Outside this lane's scope (the Ratios tab and
-  the command bar) — reported for the owner's ruling;
+  `analysis.line_verdict`, when a later prior is requested) judge current −
+  later — out of scope (the command bar), for the owner's ruling;
 - `same_close` (two periods that close the same day, at different lengths):
   verdicts are served, as ruled — time does not run backwards there, and
   nothing says it runs forwards either;
 - a pair with a ONE-SIDED refusal: the document serves no share on either
   side of the refused line (the existing pair law, held here), while the
-  clean period's own block carries its share. With a document on screen the
-  page prints the document's — a blank cell beside a figure the engine does
-  serve for that period;
+  clean period's own block carries its share. (The page prints the period's
+  own share there since the fix round — the frontend gate holds it.)
 - a period with no canonical object (a pre-bs_v2 envelope): its block carries
   the registry lines alone, so the balance-sheet tab's rows have no engine
-  share there;
+  share there. The pre-flight names such periods (`no canonical
+  balance-sheet rows`) and the page switches the share box off with its
+  reason (fix round);
 - the P&L tab's per-account rows: no engine line is the same figure by
   definition (`PL_ROW_TO_KEY`, "DELIBERATELY UNKEYED"), so they carry no share
   in either state;
@@ -20962,10 +20962,12 @@ language.
 **CANNOT SEE:**
 
 - **the dashboard page itself.** It needs the router, Supabase and the period
-  queries, so the gate renders a harness that composes what the page composes
-  and holds the page's own wiring by reading its source (regular expressions
-  over `FinancialStatements.tsx`: a harmless rename reds it, a guard added
-  around the controls would pass it). The rendered page is checked live after
+  queries. Until the fix round (below) the gate rendered a harness that
+  RE-IMPLEMENTED what the page composes and held the page by regular
+  expressions — five defects planted in the page left it green. The
+  composition is shared code now, rendered by the page and by the gate; what
+  the page keeps is held to its exact text. What feeds the composition (the
+  queries) is still not exercised; the rendered page is checked live after
   the deploy;
 - **whether the engine's shares are right** — `common-size-single` holds the
   identity over the corpus; the fixtures here are its bytes;
@@ -20975,22 +20977,22 @@ language.
   and not on the scanned list;
 - **arithmetic behind an import**: a file on the share path calling a
   function of an unscanned module that divides. The detector reads operators
-  and rounding calls in the listed files, not their callees;
+  and rounding calls in the listed files, not their callees. NARROWED by the
+  fix round: a share-path file may import a value only from a scanned module
+  or one on a pinned list, so a NEW helper is red; arithmetic added to a
+  module already trusted is still unseen;
 - **a legacy (non-canonical) balance sheet**: its rows have no engine key, so
-  they carry no share in either state — with a document the cell is blank
-  where the browser used to divide. No committed fixture has the shape; every
-  stored period is expected to carry the canonical object;
-- **a document from an engine that predates the canonical shares**: the
-  balance-sheet share cells are blank until the backend is deployed (the gate
-  holds that they are blank and not computed, not that the deploy order is
-  kept);
-- **a one-sided refusal** with a document on screen: the document serves no
-  share on either side of the refused line while the clean period's own block
-  has one; the page prints the document's (blank). For the owner;
-- **the Ratios tab under a later comparison period**: its band movements and
-  each row's "favourable" are still the engine's, judged current − later. The
-  page says "every change reads backwards in time" there and does NOT say
-  that no verdict is given, because on that tab one still is;
+  they carry no share in either state. Since the fix round the tab has no
+  share column there at all — the box is off with its reason, with a
+  comparison or without (held on a constructed legacy body; no committed
+  fixture has the shape);
+- **a document from an engine that predates the canonical shares**: since
+  the fix round the balance-sheet cell prints the period's own share and no
+  points (the document adds only points);
+- **a one-sided refusal** with a document on screen — CLOSED by the fix
+  round: the page prints the period's own share, with no points;
+- **the Ratios tab under a later comparison period** — CLOSED by the fix
+  round: the engine withholds its band verdicts and the tab says so once;
 - **the cash-flow card's claim** ("for exact figures, upload the prior
   year"): the engine marks every cash flow approximated today whatever is
   uploaded. The card's register and its action's label are held, not its
@@ -21006,3 +21008,340 @@ language.
   amount, as the comparison's cells always did) — by eye, not by a gate;
 - the `title` reasons as a screen reader announces them; the pending note's
   timing under a real network.
+
+### single-period-share — the fix round (2026-10-04, after the pre-deploy review)
+
+Two reviewers read the lane before the deploy (an engine lens and a frontend
+lens). Each finding below was reproduced first; none was wrong. What changed,
+and the law that now holds it:
+
+**ENGINE (`common-size-single`).**
+
+- *A share of a refused figure was served.* On the constructed book with no
+  account 121 whose sheet does not balance without the year's result
+  (`unanchored_unbalanced`, through the real `GET /api/period`): the block
+  served `bs.total_equity`, `bs.section.equity` at 0.47619 and
+  `bs.total.equity_plus_liabilities` at 0.595238 of total assets — the equity
+  ratio the same body's ratio table refuses — and `pl.net_income` as "the
+  period did not report Net income" under `net_income_refusal`. Now:
+  `lines.refusal_of` honours `assembled_pl.net_income_refusal` (by its
+  `fields`) and `assembled_bs.total_equity_refusal`; `columns.disclose_side`
+  asks for the refusal BEFORE it reads the value (the refused equity is still
+  in its field: it is what the equity rows sum to); `analysis.
+  canonical_side_lines` refuses the equity section's subtotal and the equity
+  + liabilities total (`CANONICAL_EQUITY_KEYS`) with the period's own reason.
+  The equity ROWS keep their shares (posted balances). **This moves two
+  lines of the two-period `columns` on such a book**: `bs.total_equity` from
+  `compared` (with a delta) to `refused`, `pl.net_income` from `absent_*` to
+  `refused` — one reader for both documents, so the comparison's column and
+  the period's own share cannot disagree about what the period said.
+- *A margin the engine refuses was served as a share.* On the corpus
+  developer (`statements.margin_meaning.status = not_meaningful`; the ratio
+  table serves its margins null with `margin_not_meaningful`) the block
+  served `pl.ebitda` at 3.393432 and `pl.net_income` at -4.937036 of
+  turnover — those refused margins, to the digit. The pack's own rule is
+  "every surface that prints a margin over turnover asks that module first"
+  (`packs/ratios/margin_meaning.yaml`). A RESULT line's share of turnover IS
+  a margin: the registry declares it (`LineSpec.margin` — gross profit,
+  EBITDA, EBIT and net income by the ratio table's key; profit before tax and
+  the net result before the stock variation in words, the table having no
+  row for them), and the share asks the rule first (`lines.
+  share_withheld_of`, the very verdict `statements.margin_meaning` is built
+  from). One verdict a period: under a refusing verdict every result line
+  carries status `margin_not_meaningful`, its amount, no share and the
+  rule's reason — in the period's own block and on that period's side of any
+  comparison; the other period keeps its own share and no change in points
+  is struck. Cost lines, turnover and the balance sheet are untouched.
+  **Decision taken in the fix round (the review asked for an owner ruling):**
+  yes, result-line shares fall under the margin rule — it is the pack's
+  existing law, and the refusal is the reversible direction. It changes what
+  the developer's P&L share column prints with a comparison on screen too
+  (the four cells main printed are words now). Gate `margin-meaning`'s sweep
+  is amended for it (below).
+- *A later-prior document said `verdicts_served: false` and served sixteen
+  verdicts*: `ratios.band_movements.improved / deteriorated`, their
+  findings, and `delta.favourable` on the ratio rows. `ratio_compare.
+  compare_ratio_tables` now takes the direction's reason
+  (`verdicts_withheld`): an improved / deteriorated delta keeps its value and
+  loses the adjective (`reason_code` = the reason); a band crossing becomes
+  `not_comparable` under the reason, so it stays in the partition
+  (`improved + deteriorated + unchanged + not_comparable == both_sides`);
+  no band finding is built; `band_movements.verdicts_withheld` names the
+  reason. Both sides' values, bands and ladders, every delta's value, and the
+  rows that held their band are the forward document's. `engine.attention`'s
+  ratio-band candidates read the (now empty) `improved` list, so the command
+  bar lists no backwards band crossing either.
+- *The gate stayed green on three defects planted in its own laws.* A date
+  order read off the YEARS (the route world closed its books a year apart);
+  canonical shares served on a pair the comparison refuses (no incomparable
+  pair anywhere); a changed zero floor (no boundary witness). The truth table
+  now carries same-year and one-day-apart closes and the world a same-year
+  pair through the route; an incomparable pair is held offline and through
+  the route (a period with no line items: every row, registry and canonical,
+  both orientations); the floor is witnessed at 0.004, 0.005 and 0.01.
+- *Smaller.* The prior's share block no longer rides `prior_statements`
+  (about 19 KB a document, read by nothing — the document's `prior_share` is
+  the contract). `scripts/check_served_periods.py --require-common-size`
+  names two outcomes that are NOT failures — `block withheld: no assembled
+  statements` (the engine attaches none there, by design) and `no canonical
+  balance-sheet rows` (a period with no `canonical_bs`: lawful, and its
+  balance-sheet tab has no share to print — the count the operator needs
+  before the frontend ships) — checks the status vocabulary (held equal to
+  the engine's) and rejects a key twice.
+
+**FRONTEND (`single-year-share`).**
+
+- *The gate rendered a harness that re-implemented the page's composition.*
+  Five defects planted in `FinancialStatements.tsx` itself — the outcome note
+  never rendered, the notes needing three periods, no controls for a
+  one-period company, the P&L provider handed no share column without a
+  document, the balance-sheet offer forced off — left 100 tests green. The
+  composition is `frontend/lib/comparisonSurface.ts` (`comparisonSurfaceOf`,
+  `statementComparisonOf`) and `frontend/components/cfo/ComparisonSurface.tsx`
+  (`<ComparisonControlsBar>`, `<ComparisonNotes>`, `<StatementComparison>`)
+  now. The page renders those three elements over one call; the gate's
+  `Dashboard` renders the SAME code over the engine's committed bytes. What
+  is left in the page is held to its whole text (the syntax tree, whitespace
+  folded): the one call and its argument object, each element with its
+  props, each element's parent (an element, never a `cond && …` expression),
+  and no `<ComparativesControls>`, `<ComparativeProvider>` or second reading
+  (`readCommonSize`, `shareOfferOf`, …) in the page at all. And a share-path
+  file may import a VALUE only from a scanned module or from one on the
+  list it imported before (`TRUSTED_MODULES`): a division moved behind a
+  helper in a new file is a new import, and red.
+- *A stale comparison painted the previous book's shares.* After a month is
+  replaced under the same period id, every path reset the period query and
+  none the comparison (one comparatives request in total; 47 of 51
+  balance-sheet share cells printed the previous book's share beside the new
+  amount; main printed the on-screen book's). Two repairs: `lib/
+  periodReset.ts` `resetPeriodAnswers` resets the period AND every
+  comparison that names it on either side, and all six reset sites use it;
+  and every share cell prints THE PERIOD'S OWN block share, held to the
+  row's amount, in every state — the document adds only the change in
+  points, when its `current_share` IS that share (a served equality). A
+  payload with no block has no share column.
+- So *a pair-level refusal no longer blanks a share the period has* (a line
+  the other period refused, a pair the engine will not compare): the cell
+  prints the period's own share with no points.
+- *The Ratios tab listed "12 deteriorated" under a later comparison period.*
+  The engine withholds them (above); `BandMovementLists` prints one sentence
+  for the withheld state and never the lists, the counts or "no ratio
+  crossed a band". The outcome note's verdict clause is said on Ratios too
+  (`VERDICT_TABS`); the first box is "Comparison", not "Prior", under an
+  order that is not forward. The report's and the workbook's own sentence
+  for an empty list (`lib/executiveSummary.ts`) follows: over a withheld
+  direction it reads "no ratio is listed: … no direction is given to a
+  change", not "no ratio moved up a band" — the one line of the exports this
+  round touches, because the engine change would otherwise have made it
+  false.
+- *A balance sheet with no canonical rows, and a payload with no block*: the
+  share box is off with ITS reason ("Shares are not available for this
+  period.") in every comparison state — never ticked over blank cells, never
+  blamed on a missing prior — and the statement is handed no share column
+  (`statementComparisonOf`).
+- *The share column was painted with no box while the company's period list
+  was unknown.* The controls no longer wait for the list: the share box is
+  there whenever the column is.
+- *Words.* A refused line says "refused" whatever the row shows (the engine
+  serves it no `current`; the statement may still print the figure the
+  refusal stands beside); a refused margin says "not meaningful" /
+  "nesemnificativ" with its reason; a refused comparison's boxes do not say
+  "once the comparison loads".
+- *A comparison off the disk with no `direction`* (a blob written against
+  an older engine) is asked of the engine once more, as a period payload
+  without its block is.
+
+**AMENDED LAWS OF OTHER GATES** (each exactly where this round changes it):
+
+- `compare-no-prior` — its two page-wiring laws read that the prior, the
+  periods and the close reach `<ComparativesControls>` and
+  `<ComparativesNoPriorNote>` through the composition (`comparisonSurfaceOf`
+  in the page, `surface.*` in `ComparisonSurface.tsx`), and that ONE list of
+  tabs decides both. Its 126-render loop test carries an explicit 60 s limit
+  (it timed out at the default 5 s on a loaded machine; no expectation
+  changed). 26 tests, same names; `states=193`.
+- `margin-meaning` — `sweep_failures`: on the developer the rule also moves
+  `statements.common_size` — exactly the six result lines (a list WRITTEN in
+  the gate and held equal to the registry's declaration), their share /
+  status / note, never their amount, never another row (plants MM1 – MM3
+  below). MM1 stayed GREEN on its first run: the sweep read which lines are
+  margins off the registry the plant had changed, so it agreed with the
+  defect. The list is the gate's own now, and MM1 – MM3 were run again.
+- `pages/cfo/__tests__/dashboardDefaultComparison.test.tsx` — "offers the
+  picker on the Overview" reads the composition's tab list.
+- The `provenance-census` entry of `ComparativeCells.tsx` is re-measured
+  (11 → 10 figure sites: one share cell component for every state).
+
+#### engine (`common-size-single`, and `margin-meaning` for MM1 – MM3) — PLANT / RED / REVERT
+
+Runner: `specs-durable/single_period_share/plants_fix_round.py engine`; record
+`plants_fix_engine.json` beside it. Each plant runs the gate it names (the two files of
+`common-size-single`; `tests/engine/test_margin_meaning.py` for MM1 – MM3); the baseline and the
+revert run all three files.
+
+**BASELINE** — exit `0`: `61 passed`.
+
+| PLANT | result |
+|---|---|
+| X1 the order of two closes is read off the YEARS, not the dates | `2 failed, 27 passed` |
+| X3 canonical shares are served on a pair the comparison refuses | `3 failed, 26 passed` |
+| X5 the zero floor is one unit of currency, not half a cent | `1 failed, 28 passed` |
+| R1 the per-side reader takes the value before it asks for a refusal | `2 failed, 27 passed` |
+| R2 the registry does not read the equity refusal (total equity takes a share) | `2 failed, 27 passed` |
+| R3 a refused net result reads as an absent one ("did not report") | `2 failed, 27 passed` |
+| R4 the canonical equity subtotal and grand total take a share under a refused equity | `2 failed, 27 passed` |
+| R5 the grand total is not held to the refused equity (59.5 % of total assets) | `1 failed, 28 passed` |
+| R6 a refused canonical line reads absent in the pair (the reason is lost) | `2 failed, 27 passed` |
+| M1 the share does not ask the margin rule (a refused margin is served as a share) | `3 failed, 26 passed` |
+| M2 the comparison's side does not carry the rule (the document serves the margin) | `4 failed, 25 passed` |
+| M3 EBITDA is not declared a margin line | `1 failed, 28 passed` |
+| M4 profit before tax is not declared a margin line (-493.7 % beside a refused net margin) | `1 failed, 28 passed` |
+| M5 a withheld share loses the line's amount (the row guard has nothing to hold) | `4 failed, 25 passed` |
+| M6 a side the rule refuses blanks the OTHER period's share too | `4 failed, 25 passed` |
+| B1 the ratio block is not told which way time runs (band verdicts under a later prior) | `4 failed, 25 passed` |
+| B2 a withheld delta keeps its adjective | `4 failed, 25 passed` |
+| B3 a withheld crossing is still served as a crossing (the lists and the findings with it) | `4 failed, 25 passed` |
+| B4 the verdicts are withheld AFTER the partition (the lists are already built) | `4 failed, 25 passed` |
+| B5 withholding takes the delta's value with it | `4 failed, 25 passed` |
+| B6 the block does not say its verdicts are withheld | `4 failed, 25 passed` |
+| B7 a band that held is dropped with the crossings | `4 failed, 25 passed` |
+| D1 the prior's share block rides the document a second time | `2 failed, 27 passed` |
+| P1 the pre-flight fails a period whose block the engine withholds by design | `1 failed, 28 passed` |
+| P2 the pre-flight accepts any status string | `1 failed, 28 passed` |
+| P3 the pre-flight accepts a key twice | `1 failed, 28 passed` |
+| P4 the pre-flight does not name a period with no canonical rows | `1 failed, 28 passed` |
+| P5 the pre-flight's status vocabulary drifts from the engine's | `1 failed, 28 passed` |
+| MM1 the rule blanks a COST line's share too (operating expenses declared a margin) | `1 failed, 31 passed` |
+| MM2 the rule takes the line's AMOUNT with the share | `1 failed, 31 passed` |
+| MM3 the share rows do not follow the rule (the developer's margins are served as shares) | `1 failed, 31 passed` |
+
+**RED** — every plant exits `1`, each planted ALONE, the planted file(s) restored from memory and
+their bytes compared with the original after each. **REVERT** — exit `0`: `61 passed`.
+Verdict: proven RED, thirty-one of thirty-one.
+
+
+#### frontend (`single-year-share`; with `compare-no-prior` where the plant is in the page's wiring) — PLANT / RED / REVERT
+
+Runner: `specs-durable/single_period_share/plants_fix_round.py frontend`; record
+`plants_fix_frontend.json` beside it. E3 also CREATES a file (`frontend/lib/shareHelper.ts`),
+removed after. E6, E8, E9b, W1 and W2 run both gate files (131 tests); the others the new gate
+(105 tests; 106 for V5, whose law — the exports' sentence — was added after the first 28 ran,
+with its own baseline of 132). The baseline and the revert run both.
+
+**BASELINE** — exit `0`: `131 passed`.
+
+| PLANT | result |
+|---|---|
+| E8 the page never renders the outcome and no-prior notes | `1 failed, 130 passed` |
+| E6 the notes need THREE periods (a two-period company gets no notice) | `15 failed, 116 passed` |
+| E9 no controls for a one-period company (the share box is gone) | `10 failed, 95 passed` |
+| E10 the P&L provider is handed no share column whenever there is no document (the ruling undone) | `25 failed, 80 passed` |
+| E10b the same, planted in the page: the provider is handed a surface with no block | `1 failed, 104 passed` |
+| E11 the page tells the composition the balance sheet is never canonical (box off) | `1 failed, 104 passed` |
+| E9b the page renders the controls under a condition of its own | `1 failed, 130 passed` |
+| E3 the balance-sheet share is divided behind a helper in a new, unscanned file | `1 failed, 104 passed` |
+| S1 the balance-sheet cell prints the DOCUMENT's share (another book's, after a same-id replace) | `3 failed, 102 passed` |
+| S2 the document's change in points is printed beside a share it does not describe | `2 failed, 103 passed` |
+| S3 resetting a period leaves its comparisons in the cache | `2 failed, 103 passed` |
+| S4 only the comparison OF the period is reset, not one WITH it as the comparison period | `1 failed, 104 passed` |
+| S5 a path that resets a period goes back to the bare reset | `1 failed, 104 passed` |
+| N1 the reader has no word for the margin status (the cell is a bare gap) | `3 failed, 102 passed` |
+| N2 a refused line is held to the row's amount first ("built another way") | `2 failed, 103 passed` |
+| O1 with a document the P&L cell prints the document's share (blank under a pair refusal) | `1 failed, 104 passed` |
+| L1 a tab that cannot paint its share column is handed one anyway (blank cells) | `6 failed, 99 passed` |
+| L2 the share box is ticked over a column the tab cannot paint | `5 failed, 100 passed` |
+| L3 the share box blames the missing prior for shares that are not served | `4 failed, 101 passed` |
+| L4 a refused comparison's boxes say the comparison is still loading | `2 failed, 103 passed` |
+| V1 the Ratios tab prints its lists ("no ratio crossed a band") under a later prior | `3 failed, 102 passed` |
+| V2 the reader does not see that the engine withheld the band verdicts | `3 failed, 102 passed` |
+| V3 the verdict clause is not said on the Ratios tab | `1 failed, 104 passed` |
+| V4 a later period's box is still labelled "Prior" | `2 failed, 103 passed` |
+| H1 a comparison off the disk with no direction is never asked again | `1 failed, 104 passed` |
+| H2 the page drops the ask-once-more effect for the comparison | `1 failed, 104 passed` |
+| W1 the composition is handed no prior (the controls say on, the request is made with another) | `2 failed, 129 passed` |
+| W2 the shared notes hand the notice no prior | `5 failed, 126 passed` |
+| V5 the report and the workbook say "no ratio moved up a band" over a withheld direction | `1 failed, 105 passed` |
+
+**RED** — every plant exits `1`, each planted ALONE, the planted file(s) restored from memory and
+their bytes compared with the original after each. **REVERT** — exit `0`: `132 passed` (the 131 of the baseline and V5's law).
+Verdict: proven RED, twenty-nine of twenty-nine.
+
+
+#### the ORIGINAL plants, replayed — PLANT / RED / REVERT
+
+The fix round rewrote the frontend gate's harness, the share cells, the controls' reasons and the
+per-side reader. A law proven RED before a refactor is not thereby proven after it, so every plant
+of the lane's first records (`plants_engine.json`, `plants_frontend.json`) was planted again, ALONE,
+against the code as it stands (runner `specs-durable/single_period_share/plants_replay.py`; records
+`plants_replay_{engine,new,old}.json`):
+
+- `common-size-single`, 25 plants against the engine gate: baseline `29 passed`, **25 of 25 RED**, revert `29 passed`; re-targeted (the code their anchor stood on was rewritten — the same defect, planted where the code is now): E7.
+  (Two invocations: the first stopped at E22 on a RUNNER error — it planted every match of E22's pattern where the original runner plants the first; fixed, and E22 – E25 ran in a second invocation with its own baseline and revert.)
+- `single-year-share`, 61 plants against the new frontend gate: baseline `106 passed`, **61 of 61 RED**, revert `106 passed`; re-targeted (the code their anchor stood on was rewritten — the same defect, planted where the code is now): F1, F5, F6, F13, F14, F15, F27, F28, F30, F36, F41, F49, F51, F53, F54, F55.
+- `compare-no-prior`, 26 + the 3 amended plants against both frontend gate files: baseline `132 passed`, **29 of 29 RED**, revert `132 passed`; re-targeted (the code their anchor stood on was rewritten — the same defect, planted where the code is now): P7, P8, P22, A1, A2.
+
+Verdict: proven RED, 115 of 115.
+
+
+**After the repair it reds on** (beyond the lists above, which stand):
+a refused figure taking a share — total equity, the canonical equity
+subtotal or the equity + liabilities total under a refused equity, the net
+result under its refusal — or reading "absent"; the value read before the
+refusal; a result line's share served where the period's margin rule
+refuses, or withheld where it does not; a cost line, turnover or a
+balance-sheet line withheld by it, or a withheld line losing its amount; the
+other period's share blanked by one period's refused margin; the ratio block
+serving an improved / deteriorated delta, a crossing, a list or a finding
+under a later or unreadable prior, or losing a value, a band or a held band
+with them; the date order read off the years; a share on any row of an
+incomparable pair; a zero floor other than half a cent; the prior's block
+riding the document again; the pre-flight failing a withheld block, passing
+an unknown status or a duplicate key, or not naming a period with no
+canonical rows. On the page: any condition of the composition changed (in
+the shared code — by behaviour; in the page — by its text); a document's
+share printed where it is not the period's own, or its points beside a
+share it does not describe; a period reset that leaves a comparison behind;
+a share column handed to a tab that cannot paint it, or a ticked box over
+it; a new local import into a share-path file; the Ratios tab listing or
+colouring a verdict under a withheld direction, or saying "no ratio crossed
+a band" there.
+
+**CANNOT SEE** (the fix round's own limits; the two lists above are edited
+where the round closed an entry):
+
+- **the command bar's "what changed" lines under a later prior**
+  (`engine.attention.now`, through `analysis.line_verdict`): they still
+  judge current − later when a later prior is requested. The bar's
+  ratio-band lines no longer do (they read the withheld list). Out of scope
+  (S8) — for the owner;
+- **profit lines the margin rule does not reach**: `pl.net_financial_result`
+  is a result too and keeps its share of turnover; and every COST line's
+  share on a book whose turnover is incidental (the developer's operating
+  expenses read 17,995.1 % of turnover). The rule as written refuses
+  margins — results over turnover — not the base; whether the whole "% of
+  turnover" column should fall silent on such a book is the owner's to rule;
+- **the exported report / workbook / PDF**: under a later prior they print
+  the ratio block as served — the counts "moved up a band 0, moved down 0 …
+  not comparable N" and each crossing under "not comparable" with the
+  reason; only the empty-list sentence is held here. Their share column is
+  their own (S8), and so is whether they should say anything more about the
+  order;
+- **a refused line's title** is the page's general sentence for a refusal,
+  not the engine's refusal words for that line;
+- **what feeds the composition in the page**: the period query, the
+  comparison query, the company's period list and `useRatioSurfaces` are
+  mocked nowhere and rendered nowhere in this gate — the page's call is held
+  by its text, its inputs' names by other gates (`compare-no-prior`,
+  `ratioCompareTab`);
+- **arithmetic added to a module the share path already imports**
+  (`lib/money`, `lib/changeKind`, …): the import law reds a NEW module, not
+  a new line in a trusted one;
+- **how many stored periods have no canonical balance sheet, or no block**:
+  the pre-flight counts them inside the new image; it was not run here (no
+  production access);
+- **a negative base** is still taken in absolute value, and a DERIVED line
+  cannot be absent (`pl.capitalized_own_work` reads share 0.0 on a book that
+  posts no 72x) — as the two-period document always did;
+- line items with no account code (the re-assembly skips them: the registry
+  rows then read a disclosed zero); no stored period is known to have the
+  shape.
