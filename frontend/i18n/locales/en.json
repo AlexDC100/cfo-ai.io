@@ -1,4 +1,8 @@
 {
+  "period": {
+    "unavailableTitle": "That period isn't available",
+    "unavailableBody": "It was deleted or belongs to another account. We opened this company's own data instead."
+  },
   "sidebar": {
     "workspaces": "Workspaces",
     "workflow": "Workflow",

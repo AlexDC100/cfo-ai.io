@@ -1,4 +1,8 @@
 {
+  "period": {
+    "unavailableTitle": "Perioada aceea nu este disponibilă",
+    "unavailableBody": "A fost ștearsă sau aparține altui cont. Am deschis în schimb datele acestei companii."
+  },
   "sidebar": {
     "workspaces": "Spații de lucru",
     "workflow": "Flux de lucru",

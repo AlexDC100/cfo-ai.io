@@ -5010,3 +5010,45 @@ Edge Function; the front proxy.
 **Order, for whoever installs a working backend key: this image first, the
 key second.** On an image without it, the moment the key works every
 anonymous POST to that route is a paid Opus call.
+
+---
+
+## 36. What a browser remembers as a company's period is one it was served (2026-10-04)
+
+Branch `fix/period-verdict-not-found` (frontend only). Found on the live
+site right after `release/r-trust` shipped — and not caused by it.
+
+**The incident.** The signed-in dashboard of a company with two analysed
+years said "nothing analysed here yet". The browser's remembered period for
+(user, company) was a period of another account's workspace: opened once by
+URL, answered 404, and written down anyway by `useActivePeriodFallback` ("a
+uuid in the URL is proof the org has this period"). Every bare `/dashboard`,
+`/chat` and `/benchmark` of that company went back to it. The chat called
+itself grounded on it — the morning's "the period is `<uuid>`" answer (§34)
+was this, not only a label defect. A customer reaches it through any link to
+a period they cannot read: a deleted month, a colleague's link, a second
+account.
+
+**The rule.** `hooks/usePeriodVerdictKeeper` (mounted once by `AppShell`):
+- a period is remembered for the active company only when its payload
+  LANDED and names that company — read from the query cache's own entry for
+  the URL's period, never from the placeholder `useActivePeriod` is handed
+  while a new period loads;
+- a period the engine answers "not found" is forgotten wherever it is
+  remembered, the reader is told once, and `period` / `org` are dropped from
+  the URL so the page opens the company's own period;
+- once per period id, three per page life — a recovery never loops (the
+  auth-lock flood of 2026-09-26 is the reason for the budget);
+- a transport error says nothing about a period.
+`useActivePeriodFallback` writes only what the engine's lookup answered.
+`buildWorkspaceSnapshot` returns nothing for a period that was not found or
+has not landed: the chat then says it has no workspace loaded.
+
+Gate `period-verdict-served` (18 tests, fifteen plants). **A cache entry
+written from what the reader ASKED FOR, instead of what they were SERVED, is
+a persisted wrong answer** — the same class as §24 (a persisted failed
+upload replaced the dashboard) and the benchmark cache of 2026-09-20.
+
+**For whoever verifies on the live site with a customer's browser:** never
+open a period id of another account by URL in the owner's signed-in
+session. Until this ships, that one navigation dead-ends their dashboard.

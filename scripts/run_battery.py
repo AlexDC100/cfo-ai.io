@@ -2682,6 +2682,38 @@ def _engine_gates() -> List[Gate]:
                        "every write to profiles in the frontend's source is an update",
                        "the scan itself: an upsert, an insert and a multi-line chain are seen",
                        "the repository's schema gives profiles a select and an update policy, and no insert policy")),
+        # ── period-verdict-served (production, 2026-10-04) ───────────────
+        # A signed-in reader's dashboard said "nothing analysed here yet"
+        # over a company with two analysed years, and the chat, grounded
+        # in it, said its period was a row id. The browser's remembered
+        # period for the company was one the reader cannot read: it had
+        # been opened once by URL, and useActivePeriodFallback wrote it
+        # down from the URL alone. The gate: a period is remembered for
+        # the active company only when its payload landed and names that
+        # company; one answered "not found" is forgotten everywhere, the
+        # reader is told once and the page re-opens on the company's own
+        # period — once per period, a few per page life (no loop); a
+        # transport error and a period still loading are neither; the
+        # chat is grounded only in a served period. Blind to: the
+        # engine's own answer (stubbed); a `?period=` page outside the
+        # shell. Plant log: docs/engine_book/gates.md.
+        Gate("period-verdict-served",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/hooks/__tests__/periodVerdictKeeper.test.tsx",
+              "frontend/hooks/__tests__/useActivePeriodFallback.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=18,
+             units="period-memory tests",
+             canaries=("GATE-WORK period-verdict-served checks=",
+                       "the bare dashboard recovers to the company's own",
+                       "a stale link is not written down",
+                       "no loop: the lookup answers the same unreadable period",
+                       "the recovery budget of a page life is a number, and it holds",
+                       "a transport error is not 'not found'",
+                       "another company's period is not this company's",
+                       "a period still loading is neither served nor missing",
+                       "not found, or nothing landed: no snapshot",
+                       "the fallback hook remembers only what the engine's lookup answered")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,

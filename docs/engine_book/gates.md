@@ -28739,3 +28739,101 @@ where the feed is read at `www.bnr.ro`; the release reads it at
 census went RED on `GET /api/fx-rates [anonymous]` — `curs.bnr.ro` was not
 declared — which is the gate doing its job on a textually clean merge. The
 host is declared now, with what is asked of it; 83 passed.
+
+
+## period-verdict-served
+
+**The incident (production, 2026-10-04).** After the deploy of `release/r-trust`
+the signed-in dashboard of a company holding two analysed years said "Nimic
+analizat aici încă" (nothing analysed here yet). Read before anything was
+changed: the URL carried a period of ANOTHER ACCOUNT's workspace; the engine
+answered it 404 (correctly); the browser's stored memory for (this user,
+this company) — `cfoai:v1:period-verdict:<uid>:<org>` — held that id. It had
+been opened once by URL that morning (by the coordinator, while reading the
+comparison incident), and `useActivePeriodFallback` wrote it down at once:
+"a real (uuid) period in the URL is proof the org has at least this period".
+From then on every bare `/dashboard`, `/chat` and `/benchmark` of that
+company was canonicalized to it. It was not the deploy: the chat test four
+hours earlier had already been "grounded" in that id, which is why the
+assistant answered that the period "is `<uuid>` (an internal identifier)".
+The one cached entry was removed in that browser; the dashboard then opened
+the company's own December.
+
+**A customer reaches the same state** with any link to a period they cannot
+read: a month deleted since the link was made, a colleague's or an
+accountant's link from another workspace, a second account of their own.
+
+**The rule.** `hooks/usePeriodVerdictKeeper`, mounted once by the shell:
+the URL's period is remembered for the active company only when the query
+cache's OWN entry for it is a served payload naming that company; a "not
+found" forgets the id wherever it is remembered (`forgetPeriodVerdictFor`),
+tells the reader once ("That period isn't available" / "Perioada aceea nu
+este disponibilă") and drops `period` and `org` from the URL — the page's
+fallback then opens the company's own period. Once per period id, and at
+most `PERIOD_RECOVERY_BUDGET` (3) times in a page life. The fallback hook
+writes only what the engine's lookup answered. `buildWorkspaceSnapshot`
+returns nothing for a period that was not found or has not landed, so the
+chat says it has no workspace loaded.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/hooks/__tests__/periodVerdictKeeper.test.tsx frontend/hooks/__tests__/useActivePeriodFallback.test.tsx --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **18** (measured 18: 14 + 4; `GATE-WORK period-verdict-served checks=38`) |
+| canary | `GATE-WORK period-verdict-served checks=` and the titles named in `scripts/run_battery.py` |
+
+The laws run the REAL hooks (`useActivePeriodFallback`, `useActivePeriod`,
+the keeper) over the app's own query defaults (previous data kept as a
+placeholder) with the engine stubbed at `fetch`: the incident (a remembered
+unreadable period → one request for it, one lookup, the company's own
+period, the reader told once, the memory corrected); a stale link is not
+written down while it loads nor after it fails; it is forgotten for every
+company that held it; no loop when the lookup answers the same unreadable id
+(one recovery, one request, the page left alone); the budget of three; a 500
+forgets and recovers nothing; the company's own period is remembered when
+its payload lands and not before; another company's period is not remembered
+for the active one, and is for its own once that company is active; stepping
+from a not-found period to a slow real one — the previous "not found" is not
+the new period's answer; the chat snapshot of a not-found or unlanded period
+is undefined, of a served one a snapshot; the fallback hook's only writes are
+the lookup's; the shell mounts the keeper once; both sentences in both
+languages.
+
+**What it cannot see.** The engine's answer (stubbed). A page carrying
+`?period=` that does not mount the shell. The cached "not found" itself: it
+is left to the query client's staleness rule, so a reader given access to a
+period within that window still sees it as unavailable until then.
+`useActivePeriod` can still report `notFound` for a moment from the previous
+period's placeholder (the keeper does not read it; other readers do).
+
+### period-verdict-served — PLANT / RED / REVERT (2026-10-04, branch `fix/period-verdict-not-found`)
+
+Runner: `specs-durable/period_verdict_served/plants.py` (the keeper's file
+only for the runner's count; the battery entry runs both files); record
+`plants.json` beside it.
+
+**BASELINE** — exit `0`: `14 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the fallback hook remembers the URL's period at once | `6 failed, 8 passed` |
+| P2 a not-found period is not forgotten (the dead end stays) | `4 failed, 10 passed` |
+| P3 a not-found period is forgotten but the page is left on it | `6 failed, 8 passed` |
+| P4 the recovery keeps the dead period in the URL | `6 failed, 8 passed` |
+| P5 the recovery repeats for the same period (a loop) | `2 failed, 12 passed` |
+| P6 the page-life budget is not enforced | `1 failed, 13 passed` |
+| P7 the reader is not told | `3 failed, 11 passed` |
+| P8 a transport error is treated as not found | `1 failed, 13 passed` |
+| P9 another company's period is remembered for the active one | `2 failed, 12 passed` |
+| P10 a served period of the active company is never remembered | `4 failed, 10 passed` |
+| P11 the keeper reads the placeholder (the previous period's answer) instead of the cache's own entry | `3 failed, 11 passed` |
+| P12 the shell does not mount the keeper | `1 failed, 13 passed` |
+| P13 the chat calls a not-found period its grounding | `1 failed, 13 passed` |
+| P14 the chat calls a period that has not landed its grounding | `1 failed, 13 passed` |
+| P15 the Romanian sentence is missing | `1 failed, 13 passed` |
+
+Every PLANT is RED. **REVERT** — exit `0`: `14 passed`.
+
+After the repair this gate fails on: a period remembered from the URL alone;
+the dead end (a remembered unreadable period re-opened); a recovery that
+repeats; another company's period remembered for this one; a loading period
+read as missing; a not-found period handed to the assistant as grounding.

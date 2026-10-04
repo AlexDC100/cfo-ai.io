@@ -132,6 +132,12 @@ export function snapshotPeriodLine(
 
 export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string | undefined {
   if (!p.id) return undefined;
+  // A period the engine did not serve is no grounding: one it answered "not
+  // found", and one whose payload has not landed (no statements, no metric).
+  // The chat then says it has no workspace loaded — it used to call itself
+  // grounded on a bare "Period:" line and answer about a row id.
+  if (p.notFound) return undefined;
+  if (!p.statements && !(p.metrics && p.metrics.length > 0)) return undefined;
 
   const lines: string[] = [];
   // THE ENGINE'S CREDIT READ — the one reader the Risks tab, the hero and
