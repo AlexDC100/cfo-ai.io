@@ -1,7 +1,7 @@
 {
   "schema": "engine_proof/1",
   "generated_by": "scripts/build_engine_proof.py",
-  "measured_at": "2026-10-03",
+  "measured_at": "2026-10-04",
   "scope": "full",
   "subjects_note": "Subjects are DISTINCT real Romanian trial balances, counted by the content of their rows — a committed copy and its local twin are one book. No company is named and no company's figure is published here.",
   "real_books_total": 8,
@@ -13,7 +13,7 @@
       "packs"
     ],
     "tree_files": 558,
-    "tree_sha256": "1e3f6b2bc6152afc3550174dbf6ca200e9de14a958bb055450f80a9731af7cfd"
+    "tree_sha256": "59a79880fb8318fcb476da9d2c67b2ae80f6b62d00a68c95d5cda49ee0dcc2fd"
   },
   "checks": [
     {
@@ -35,7 +35,7 @@
       },
       "passed": true,
       "corpus_complete": true,
-      "measured_at": "2026-10-03"
+      "measured_at": "2026-10-04"
     },
     {
       "id": "balance_sheet_closes",
@@ -53,7 +53,7 @@
       },
       "passed": true,
       "corpus_complete": false,
-      "measured_at": "2026-10-03"
+      "measured_at": "2026-10-04"
     },
     {
       "id": "net_income_equals_121",
@@ -67,7 +67,7 @@
       },
       "passed": true,
       "corpus_complete": true,
-      "measured_at": "2026-10-03"
+      "measured_at": "2026-10-04"
     },
     {
       "id": "turnover_equals_filing",
@@ -85,7 +85,7 @@
       },
       "passed": true,
       "corpus_complete": false,
-      "measured_at": "2026-10-03"
+      "measured_at": "2026-10-04"
     },
     {
       "id": "ebitda_variants_agree",
@@ -102,7 +102,7 @@
       },
       "passed": true,
       "corpus_complete": false,
-      "measured_at": "2026-10-03"
+      "measured_at": "2026-10-04"
     }
   ],
   "formats": {
