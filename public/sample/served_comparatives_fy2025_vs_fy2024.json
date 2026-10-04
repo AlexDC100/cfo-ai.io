@@ -1835,6 +1835,486 @@
    "prior_share": null,
    "statement": "BS",
    "status": "not_disclosed_at_this_detail_level"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.047385,
+   "delta_pts": -0.4215,
+   "key": "bs.row.ppe_land",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.0516,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.250682,
+   "delta_pts": -2.2298,
+   "key": "bs.row.ppe_buildings",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.272981,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.497744,
+   "delta_pts": 3.3807,
+   "key": "bs.row.ppe_machinery_equipment",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.463937,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.016574,
+   "delta_pts": -0.1474,
+   "key": "bs.row.ppe_furniture_office",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.018048,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.014945,
+   "delta_pts": null,
+   "key": "bs.row.ppe_under_construction",
+   "note": "2024-12-31 did not report PPE under construction; absent, which is not zero — no change is computed against it",
+   "prior_share": null,
+   "statement": "BS",
+   "status": "absent_prior"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": -0.334673,
+   "delta_pts": -2.5692,
+   "key": "bs.row.accumulated_depreciation_ppe",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": -0.308981,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.009511,
+   "delta_pts": 0.1488,
+   "key": "bs.row.intangibles_other",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.008023,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": -0.006676,
+   "delta_pts": -0.0656,
+   "key": "bs.row.accumulated_amortization_intangibles",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": -0.00602,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.029426,
+   "delta_pts": -0.383,
+   "key": "bs.row.cash_operating",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.033257,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.005239,
+   "delta_pts": -0.0893,
+   "key": "bs.row.cash_fx",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.006132,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.210004,
+   "delta_pts": -0.0367,
+   "key": "bs.row.ar_trade_gross",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.210371,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.00855,
+   "delta_pts": -0.0443,
+   "key": "bs.row.ar_doubtful_gross",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.008992,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": -0.007226,
+   "delta_pts": -0.0165,
+   "key": "bs.row.ar_provisions",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": -0.007061,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.00321,
+   "delta_pts": 0.0713,
+   "key": "bs.row.ar_supplier_advances",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.002497,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.04969,
+   "delta_pts": 0.3897,
+   "key": "bs.row.inventory_raw_materials",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.045793,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.0061,
+   "delta_pts": -0.1345,
+   "key": "bs.row.inventory_consumables",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.007445,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.004752,
+   "delta_pts": 0.075,
+   "key": "bs.row.inventory_wip",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.004002,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.164115,
+   "delta_pts": 0.4826,
+   "key": "bs.row.inventory_finished_goods",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.159289,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.009646,
+   "delta_pts": 0.07,
+   "key": "bs.row.inventory_merchandise_resale",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.008946,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.018847,
+   "delta_pts": 0.0295,
+   "key": "bs.row.inventory_packaging",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.018552,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.002155,
+   "delta_pts": -0.0042,
+   "key": "bs.row.prepaid_expenses_st",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.002197,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.061142,
+   "delta_pts": -0.5439,
+   "key": "bs.row.share_capital",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.066581,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.012228,
+   "delta_pts": -0.1088,
+   "key": "bs.row.legal_reserves",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.013316,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.0321,
+   "delta_pts": -0.2855,
+   "key": "bs.row.other_reserves",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.034955,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.297369,
+   "delta_pts": -0.4458,
+   "key": "bs.row.retained_earnings_prior_years",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.301827,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.059852,
+   "delta_pts": 2.1213,
+   "key": "bs.row.current_year_profit",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.038639,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.007647,
+   "delta_pts": 0.2998,
+   "key": "bs.row.provisions_lt",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.004649,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.223168,
+   "delta_pts": 1.7434,
+   "key": "bs.row.lt_debt_bank",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.205734,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.021614,
+   "delta_pts": -1.2409,
+   "key": "bs.row.lt_debt_other",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.034023,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.151584,
+   "delta_pts": 0.1759,
+   "key": "bs.row.ap_trade",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.149825,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.007405,
+   "delta_pts": 0.0898,
+   "key": "bs.row.ap_tax",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.006507,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.014333,
+   "delta_pts": 0.0491,
+   "key": "bs.row.ap_personnel_salaries",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.013842,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.009066,
+   "delta_pts": 0.031,
+   "key": "bs.row.ap_personnel_social",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.008756,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.00092,
+   "delta_pts": -0.0082,
+   "key": "bs.row.ap_other",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.001002,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.068785,
+   "delta_pts": -0.9447,
+   "key": "bs.row.st_debt_bank",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.078232,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.00107,
+   "delta_pts": -0.1011,
+   "key": "bs.row.customer_advances",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.002081,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.004204,
+   "delta_pts": 0.0125,
+   "key": "bs.row.accrued_expenses",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.004078,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.027514,
+   "delta_pts": -0.844,
+   "key": "bs.row.government_grants_deferred",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.035954,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.495493,
+   "delta_pts": -0.4095,
+   "key": "bs.section.non_current_assets",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.499588,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.502352,
+   "delta_pts": 0.4137,
+   "key": "bs.section.current_assets",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.498215,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.002155,
+   "delta_pts": -0.0042,
+   "key": "bs.section.prepaid_expenses",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.002197,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.462691,
+   "delta_pts": 0.7374,
+   "key": "bs.section.equity",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.455317,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.007647,
+   "delta_pts": 0.2998,
+   "key": "bs.section.provisions",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.004649,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.244782,
+   "delta_pts": 0.5025,
+   "key": "bs.section.non_current_liabilities",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.239757,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.257366,
+   "delta_pts": -0.6957,
+   "key": "bs.section.current_liabilities",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.264323,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 0.027514,
+   "delta_pts": -0.844,
+   "key": "bs.section.deferred_income",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 0.035954,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 1.0,
+   "delta_pts": 0.0,
+   "key": "bs.total.assets",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 1.0,
+   "statement": "BS",
+   "status": "compared"
+  },
+  {
+   "base_key": "bs.total.assets",
+   "current_share": 1.0,
+   "delta_pts": 0.0,
+   "key": "bs.total.equity_plus_liabilities",
+   "note": "share of bs.total.assets in both periods",
+   "prior_share": 1.0,
+   "statement": "BS",
+   "status": "compared"
   }
  ],
  "comparability": {
@@ -1882,6 +2362,14 @@
   "period_id": "11111111-1111-4111-8111-000020251231",
   "period_start": "2025-01-01",
   "source_document": null
+ },
+ "direction": {
+  "current_period_end": "2025-12-31",
+  "note": "",
+  "order": "prior_is_earlier",
+  "prior_period_end": "2024-12-31",
+  "reason": null,
+  "verdicts_served": true
  },
  "movers": {
   "bases": {
@@ -2083,7 +2571,8 @@
     "status": "compared",
     "verdict": null
    }
-  ]
+  ],
+  "verdicts_withheld": null
  },
  "prior": {
   "company_name": "CONSERVE EXEMPLU FICTIV SRL",
@@ -9198,7 +9687,8 @@
      "band": "watch",
      "key": "quick_ratio"
     }
-   ]
+   ],
+   "verdicts_withheld": null
   },
   "composites": [
    {

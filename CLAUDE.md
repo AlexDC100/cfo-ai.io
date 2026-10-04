@@ -5138,6 +5138,15 @@ served without the block unless named with `--accept-withheld`, exit 2 when
 no period serves a lawful one. **Read every NOTE before shipping; do not
 override a substance failure.**
 
+**The public sample moves with the engine.** `/sample` publishes what the
+engine serves for a fictional company, byte for byte (gate `public-sample`):
+a served payload that gains a block makes the committed files stale, and
+the release battery reds until `scripts/build_public_sample.py` is run and
+committed (three served documents and the page's data here; the report and
+its PDF did not change). The block's per-line notes are on the sample's
+label EXCLUSIONS with their reason — how a line states its share, like the
+comparison's own notes — not on the uncertainty-label list.
+
 **Not done (S8, and the reviewers' residue):** the exported report /
 workbook / PDF's own share column; the command bar still labels a later
 comparison "vs prior"; printer conventions on shares (ungrouped

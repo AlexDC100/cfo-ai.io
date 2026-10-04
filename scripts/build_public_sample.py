@@ -834,6 +834,10 @@ LABEL_EXCLUSIONS: Tuple[Tuple[str, str], ...] = (
      "how each line of the two-year comparison states its change — printed with the comparison, line by line"),
     (r"^comparatives:/ratios/",
      "refused ratio sides of the comparison: the current year's are labels; the prior year's are printed in the two-year table"),
+    (r"^/statements/common_size/rows/\d+/note$",
+     "how each line of the single-year share column states its share, or why it takes none (a line the year did not "
+     "report; a subdivision below the book's detail level, which is the label `detail_level`) — printed with the "
+     "column, line by line, as the two-year comparison's own notes are"),
 )
 
 
