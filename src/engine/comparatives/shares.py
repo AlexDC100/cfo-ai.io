@@ -30,11 +30,16 @@ WHAT A LINE WITHOUT A SHARE SAYS. Never 0 %:
   no_base       the line is reported, and the base it would be a share OF
                 is absent, refused, or below the zero floor — which holds
                 for EVERY line of that statement, the base line included
+                (asked FIRST: a statement with no base has one reason, not
+                two — until 2026-10-04 a turnover under half a cent gave
+                its result lines `margin_not_meaningful` and every other
+                line `no_base`)
   margin_not_meaningful
-                the line is reported and its share of turnover is a MARGIN
-                the period's margin rule refuses (a result over a turnover
-                that is an incidental line of the book): the ratio table
-                refuses that margin with this code, and so does the share
+                the line is reported, its base is there, and its share of
+                turnover is a MARGIN the period's margin rule refuses (a
+                result over a turnover that is an incidental line of the
+                book): the ratio table refuses that margin with this code,
+                and so does the share
 
 Jurisdiction-blind like the rest of the package: nothing here names a
 country, a chart or an account.
@@ -74,6 +79,7 @@ __all__ = [
     "SIDE_STATUSES",
     "SideLine",
     "SideShare",
+    "has_base",
     "take_share",
     "served_share",
     "side_lines",
@@ -144,13 +150,20 @@ class SideShare:
     note: str
 
 
+def has_base(base: Optional[float]) -> bool:
+    """THE ZERO FLOOR, in one place: a base is a denominator only when it
+    is there and at or above the floor. A base that rounds to zero is a
+    zero base."""
+    return base is not None and abs(base) >= ZERO_FLOOR
+
+
 def take_share(value: Optional[float], base: Optional[float]) -> Optional[float]:
     """THE DIVISION. None — never 0.0 — when either operand is missing or
     the base is below the zero floor: a base that rounds to zero is a zero
     base, not a denominator."""
-    if value is None or base is None or abs(base) < ZERO_FLOOR:
+    if value is None or not has_base(base):
         return None
-    return value / abs(base)
+    return value / abs(base)  # type: ignore[arg-type]
 
 
 def served_share(raw: Optional[float]) -> Optional[float]:
@@ -225,19 +238,21 @@ def side_shares(lines: Sequence[SideLine]) -> Tuple[SideShare, ...]:
             out.append(SideShare(line=line, raw=None, share=None,
                                  status=line.disclosure, note=line.note))
             continue
-        if line.share_withheld:
-            # Asked BEFORE the division: a refused margin is never taken
-            # and then hidden.
-            out.append(SideShare(line=line, raw=None, share=None,
-                                 status=STATUS_NOT_MEANINGFUL, note=line.share_withheld))
-            continue
         base_line = by_key.get(line.base_key)
         base = None if base_line is None else base_line.value
-        raw = take_share(line.value, base)
-        if raw is not None:
+        if has_base(base):
+            if line.share_withheld:
+                # Asked BEFORE the division: a refused margin is never
+                # taken and then hidden.
+                out.append(SideShare(line=line, raw=None, share=None,
+                                     status=STATUS_NOT_MEANINGFUL, note=line.share_withheld))
+                continue
+            raw = take_share(line.value, base)
             out.append(SideShare(line=line, raw=raw, share=served_share(raw),
                                  status=STATUS_SHARE, note="share of %s" % line.base_key))
             continue
+        # NO BASE — the one reason every reported line of the statement
+        # gives, the base line and the margin lines included.
         if base_line is None:
             why = "%s is not a line of this period" % (line.base_key or "the statement base")
         elif base is None:

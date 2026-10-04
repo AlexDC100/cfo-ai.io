@@ -129,6 +129,15 @@ this block did not read the direction: a document that said
 `verdicts_served: false` listed twelve ratios as deteriorated — the twelve
 the forward document lists as improved — with a high-severity finding.
 
+The Piotroski block reads the same reason. Its checks 5-9 are year-over-year
+verdicts ("ROA improving", "long-term debt declining", …): judged against a
+period that closes LATER they are each the opposite of the forward
+document's result, and the nine-point score is built on them. Under a
+withheld direction the current side is evaluated WITHOUT a prior — checks
+1-4 as the period serves them, checks 5-9 `uncertain`, the score capped at
+four exactly as the prior side's is — and `current_reason` names the
+direction's code with the five checks it withheld.
+
 Pure over its inputs: no clock, no I/O, deterministic JSON.
 """
 from __future__ import annotations
@@ -635,8 +644,15 @@ def _piotroski_views(statements: Mapping[str, Any]) -> Dict[str, Optional[float]
     }
 
 
+#: The Piotroski checks that compare two periods (checks 5-9): each is a
+#: verdict about time, withheld with the direction.
+PIOTROSKI_YEAR_OVER_YEAR = ("roa_improving", "debt_declining", "no_share_issuance",
+                            "margin_improving", "asset_turnover_improving")
+
+
 def _piotroski_block(cur_st: Mapping[str, Any], pri_st: Mapping[str, Any],
-                     checks: Optional[PiotroskiChecks]) -> Dict[str, Any]:
+                     checks: Optional[PiotroskiChecks],
+                     verdicts_withheld: Optional[str] = None) -> Dict[str, Any]:
     prior_served = pri_st.get("assembled_piotroski")
     block: Dict[str, Any] = {
         "current": None,
@@ -662,7 +678,11 @@ def _piotroski_block(cur_st: Mapping[str, Any], pri_st: Mapping[str, Any],
         net_income_statutory=cur["net_income_statutory"],
         total_assets=cur["total_assets"],
         cash_from_operating=cur["cash_from_operating"],
-        prior={k: v for k, v in pri.items() if v is not None},
+        # A WITHHELD DIRECTION HANDS THE CHECKS NO PRIOR: "improving" judged
+        # against a period that closes later reads backwards (ROA that FELL
+        # over time passed "ROA improving"). Checks 5-9 are then `uncertain`
+        # and the score caps at four — the evaluator's own no-prior shape.
+        prior=None if verdicts_withheld is not None else {k: v for k, v in pri.items() if v is not None},
         currency=currency,
         current={k: cur[k] for k in ("revenue", "long_term_debt", "share_capital", "operating_ebit")
                  if cur[k] is not None},
@@ -684,6 +704,8 @@ def _piotroski_block(cur_st: Mapping[str, Any], pri_st: Mapping[str, Any],
     else:
         block["current_checks_1_4_source"] = "composer"
     block["current"] = evaluated
+    if verdicts_withheld is not None:
+        block["current_reason"] = {"code": verdicts_withheld, "inputs": list(PIOTROSKI_YEAR_OVER_YEAR)}
     return block
 
 
@@ -897,7 +919,7 @@ def compare_ratio_tables(
         "rows": rows,
         "composites": composites,
         "subscores": subscores,
-        "piotroski": _piotroski_block(cur_st, pri_st, piotroski_checks),
+        "piotroski": _piotroski_block(cur_st, pri_st, piotroski_checks, verdicts_withheld),
         "credit": {"current": copy.deepcopy(cur_t["credit"]), "prior": copy.deepcopy(pri_t["credit"])},
         "band_movements": {
             "rank_basis": {

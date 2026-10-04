@@ -48,6 +48,16 @@ WHAT THIS GATE HOLDS
       direction is `prior_is_later`, every verdict is null and both lists
       are empty, every column's delta is the exact negative, the bridges
       close as before, the ranking and every figure are what they were.
+      NO BLOCK OF THE DOCUMENT, AND NO DOCUMENT COMPOSED FROM IT, judges
+      the movement: the ratio block's deltas, crossings, lists and findings,
+      its Piotroski year-over-year checks and nine-point score, and the
+      attention document the command bar reads (GET …/attention) — no
+      statement line "improved" or "deteriorated", no improvement slot.
+  S6  THE PRE-FLIGHT CANNOT PASS ON NOTHING. `check_served_periods.py
+      --require-common-size` is red when a period is served without the
+      block and the operator did not name it, and red when no period
+      serves a lawful block at all — through the real route, with the
+      serve-time re-assembly failing on every period.
 
 WHAT IT REDS ON, AFTER THE REPAIR (TC-11): a second division site (the
 single block computed its own way, or the two-period row no longer taking
@@ -56,17 +66,24 @@ the two documents; the block attached before a later step changes a figure
 it read; the block missing, renamed, re-keyed or persisted; a share served
 under any status but `share`, or 0.0 for an absent / refused line or under
 a zero base; a canonical row measured against a base other than the
-canonical total; verdicts served on a later or unreadable prior; a
-withheld verdict taking a figure, a delta, a bridge step or a share with it.
+canonical total; verdicts served on a later or unreadable prior — by the
+movers, the ratio block (band movements, findings, Piotroski checks 5-9),
+or the attention document; a withheld verdict taking a figure, a delta, a
+bridge step or a share with it; a margin the rule refuses under EITHER of
+its reasons (the share threshold, the one-unit floor) served as a share; a
+statement with no base giving two reasons; a liabilities + equity bridge
+walked to a refused total equity; the pre-flight green with a period
+served without the block and not named, or with no lawful block at all, or
+on a block that is lawful in shape and empty in substance.
 
 WHAT IT CANNOT SEE: whether the page prints the block (the frontend gate
-`single-year-share`); the Ratios tab's own band movements and the command
-bar's "what changed" lines under a later prior (`ratios.band_movements`,
-`engine.attention` — neither reads `direction` yet; out of this lane's
-scope, reported to the owner); the exported report / workbook's own share
-column; whether a share is the RIGHT economic reading of a line (a
-negative base is taken in absolute value, as the two-period document
-always did).
+`single-year-share`); what the command bar PRINTS for an attention item
+(the frontend's cmdbar gates — this gate holds the served document); the
+exported report / workbook's own share column; whether a share is the
+RIGHT economic reading of a line (a negative base is taken in absolute
+value, as the two-period document always did); production — the
+pre-flight's `main()` is driven here over the gate's own served world,
+never over a stored period.
 
 WITNESSES. Every shape is a corpus book except three, constructed on a
 copy of one and said so where they are built: a refused EBITDA on a book
@@ -480,6 +497,19 @@ def test_a_refusal_beside_a_figure_still_in_its_field_refuses_the_line():
                 STATUS_REFUSED, None, None, None), r
             assert "planted reason" in r.note, r.note
         _hold_identity("refused-equity", doc_rows, _block(cur), _block(pri))
+        # THE WALK TO THAT TOTAL IS REFUSED TOO: the liabilities + equity
+        # bridge ends on liabilities + the refused equity. No step, no
+        # residual, the refused period's total not served, the other's kept;
+        # the assets walk is untouched.
+        side = "current" if cur is env else "prior"
+        assets, le = A.bs_bridge(cur, pri)
+        clean_assets, clean_le = A.bs_bridge(clean if cur is env else cur, pri if cur is env else clean)
+        assert clean_le.closes and assets == clean_assets and assets.closes, (clean_le.reason, assets.reason)
+        assert (le.closes, le.steps, le.residual) == (False, (), None), le
+        assert "total equity is refused for the %s period" % side in le.reason and "planted reason" in le.reason
+        mine, theirs = (le.current_total, le.prior_total) if side == "current" else (le.prior_total, le.current_total)
+        kept = clean_le.prior_total if side == "current" else clean_le.current_total
+        assert mine is None and theirs == kept and theirs is not None, (mine, theirs, kept)
 
     # (b) a refused net result, by the refusal's own `fields` — with the
     # number still in the field, and with the field null.
@@ -561,6 +591,59 @@ def test_a_margin_the_rule_refuses_is_not_served_as_a_share_offline():
             # The COLUMN is not a margin: the amount and its movement stand.
             assert cols[key].status == STATUS_COMPARED and cols[key].delta is not None, cols[key]
 
+    # THE RULE'S OTHER REASON — THE FLOOR. CONSTRUCTED (no corpus book has a
+    # turnover under one unit of currency; the developer above is refused
+    # under the SHARE threshold): a clean book with a turnover of half a
+    # unit. That is a base (it is above the half-cent zero floor) — and a
+    # margin over it is one the rule refuses as `turnover_below_floor`. The
+    # six result lines carry no share and say the FLOOR's sentence; turnover
+    # itself and every cost line keep theirs.
+    pack_floor = float(MM.margin_meaning_pack().floor)
+    assert ZERO_FLOOR < 0.5 < pack_floor, pack_floor
+    floored = copy.deepcopy(normal)
+    floored["statements"]["assembled_pl"]["revenue"] = 0.5
+    verdict, _inputs = MM.period_verdict(floored["statements"])
+    assert verdict.refused and verdict.reason == MM.REASON_FLOOR, (verdict.status, verdict.reason)
+    dev_verdict, _inputs = MM.period_verdict(developer["statements"])
+    assert dev_verdict.reason == MM.REASON_SHARE  # the corpus witness is the other branch
+    floor_words = MM.refusal_display(verdict, floored["statements"].get("currency"))["en"]
+    assert floor_words != MM.refusal_display(dev_verdict, developer["statements"].get("currency"))["en"]
+    rows = _rows(_block(floored))
+    floor_lines = 0
+    for key in MARGIN_LINES:
+        row = rows[key]
+        assert alone[key]["status"] == SHARE, key  # the same line, on the unaltered book
+        assert (row["status"], row["share"]) == (NOT_MEANINGFUL, None) and row["current"] is not None, row
+        assert floor_words in row["note"] and MARGIN_LINES[key] in row["note"], row["note"]
+        floor_lines += 1
+    assert floor_lines == 6
+    assert (rows["pl.revenue"]["status"], rows["pl.revenue"]["share"]) == (SHARE, 1.0)
+    kept = [r for r in rows.values() if r["statement"] == "PL" and r["key"] not in MARGIN_LINES
+            and r["current"] is not None]
+    assert len(kept) >= 8, len(kept)
+    for r in kept:
+        assert r["status"] == SHARE and r["share"] == round(r["current"] / 0.5, shares.SHARE_DP) + 0.0, r
+    # …and the balance sheet does not hear of it.
+    assert [r for k, r in rows.items() if r["statement"] == "BS"] == [
+        r for k, r in alone.items() if r["statement"] == "BS"]
+
+    # A TURNOVER UNDER HALF A CENT IS NO BASE — and a statement with no base
+    # has ONE reason. CONSTRUCTED. The margin rule refuses here too (any
+    # non-zero turnover under its floor), but the base is asked first: every
+    # reported P&L line, the result lines and turnover itself included, is
+    # `no_base`. (Until 2026-10-04 the six result lines said
+    # `margin_not_meaningful` and the rest `no_base`.)
+    tiny = copy.deepcopy(normal)
+    tiny["statements"]["assembled_pl"]["revenue"] = 0.003
+    assert MM.period_verdict(tiny["statements"])[0].refused
+    rows = _rows(_block(tiny))
+    reported = [r for r in rows.values() if r["statement"] == "PL" and r["current"] is not None]
+    assert len(reported) >= 15 and set(MARGIN_LINES) <= set(r["key"] for r in reported)
+    for r in reported:
+        assert (r["status"], r["share"]) == (NO_BASE, None), r
+        assert ("%.3f zero floor" % ZERO_FLOOR) in r["note"], r["note"]
+    print("GATE-WORK common-size-single margin_floor_lines=%d no_base_lines=%d" % (floor_lines, len(reported)))
+
 
 def test_the_zero_floor_is_half_a_cent_on_both_sides_of_it():
     """`take_share`'s floor, witnessed at the boundary (CONSTRUCTED: the
@@ -573,6 +656,7 @@ def test_the_zero_floor_is_half_a_cent_on_both_sides_of_it():
     assert shares.take_share(1.0, 0.01) == 100.0 and shares.take_share(1.0, -0.01) == 100.0
     assert shares.take_share(0.0, 0.01) == 0.0
     clean = _corpus_books()["saga_10_col_agras"]
+    witnessed = 0
     for base, want in ((0.004, NO_BASE), (0.01, SHARE)):
         env = copy.deepcopy(clean)
         env["statements"]["assembled_bs"]["total_assets"] = base
@@ -585,6 +669,8 @@ def test_the_zero_floor_is_half_a_cent_on_both_sides_of_it():
                 assert r["share"] == round(r["current"] / base, shares.SHARE_DP) + 0.0, r
             else:
                 assert r["share"] is None and ("%.3f zero floor" % ZERO_FLOOR) in r["note"], r
+        witnessed += len(registry)
+    print("GATE-WORK common-size-single zero_floor_lines=%d" % witnessed)
 
 
 def test_a_pair_that_is_not_comparable_serves_no_share_on_any_row_offline():
@@ -786,8 +872,13 @@ def world():
     pairs += [(LEGACY, present[0]), (present[0], LEGACY)]
     pairs += [(HALF_YEAR, second), (second, HALF_YEAR)]
     pairs += [(second, NO_LINE_ITEMS), (NO_LINE_ITEMS, second)]
+    # "Ce contează acum" (GET …/attention) with an EXPLICIT comparison, as
+    # the command bar asks when the reader's stored choice is not the auto
+    # pick: every ordered pair of the real books, and the same-year pair.
+    attention_pairs = [(a, b) for a, b in itertools.permutations(present, 2)]
+    attention_pairs += [(HALF_YEAR, second), (second, HALF_YEAR)]
     bearer = D.mint_jwt(USER)
-    bodies, raw, raw_again, docs = {}, {}, {}, {}
+    bodies, raw, raw_again, docs, attention, unassembled = {}, {}, {}, {}, {}, {}
     with RA.installed(double):
         RA.seed_metrics(app, double, [_pid(l) for l in persisted], ORG, bearer)
         for label in persisted:
@@ -800,13 +891,36 @@ def world():
             resp = RA.get(app, "/api/period/%s/comparatives?prior=%s" % (_pid(cur), _pid(pri)), bearer, ORG)
             assert resp.status_code == 200, (cur, pri, resp.status_code, resp.text[:400])
             docs[(cur, pri)] = resp.json()
+        for cur, pri in attention_pairs:
+            resp = RA.get(app, "/api/period/%s/attention?prior=%s" % (_pid(cur), _pid(pri)), bearer, ORG)
+            assert resp.status_code == 200, (cur, pri, resp.status_code, resp.text[:400])
+            attention[(cur, pri)] = resp.json()
         stored = [dict(r) for r in double.rows("financial_periods")]
+        # THE SAME PERIODS ON AN IMAGE WHOSE SERVE-TIME RE-ASSEMBLY FAILS —
+        # the failure GET /api/period catches as non-fatal: every period
+        # still answers 200, with no assembled statements and so no block.
+        # (What a pack unreadable on a new image did on 2026-09-20.)
+        from engine.api import pipeline as P
+
+        def _fails(*_a, **_k):
+            raise RuntimeError("planted: the serve-time re-assembly fails on this image")
+
+        mp = pytest.MonkeyPatch()
+        try:
+            mp.setattr(P, "_assemble_with_statutory_anchor", _fails)
+            for label in persisted:
+                resp = RA.get(app, "/api/period/%s" % _pid(label), bearer, ORG)
+                assert resp.status_code == 200, (label, resp.status_code, resp.text[:400])
+                unassembled[label] = resp.json()
+        finally:
+            mp.undo()
     # `bodies` holds the periods that ARE a whole book; the one without line
     # items is served too (`every`) and has laws of its own.
     every = dict(bodies)
     del bodies[NO_LINE_ITEMS]
     return types.SimpleNamespace(bodies=bodies, every=every, raw=raw, raw_again=raw_again, docs=docs,
-                                 stored=stored, closes=closes, present=present)
+                                 stored=stored, closes=closes, present=present,
+                                 attention=attention, unassembled=unassembled)
 
 
 def test_get_period_serves_the_block_on_every_corpus_book_schema_exact(world):
@@ -1023,6 +1137,27 @@ def test_a_refused_equity_and_a_refused_net_result_take_no_share_through_the_rou
                 STATUS_REFUSED, None, None, None), r
         _hold_identity("constructed", doc["common_size"],
                        cur["statements"]["common_size"], pri["statements"]["common_size"])
+        # ONE ANSWER PER DOCUMENT: the bridge that would end on liabilities
+        # + the refused equity is refused with the equity's own reason — the
+        # document used to refuse the three equity lines above and still walk
+        # a closing bridge to 250,000 (50,000 of liabilities + the refused
+        # 200,000). The assets walk closes as before.
+        side, other = ("current", "prior") if cur is body else ("prior", "current")
+        le = doc["bridges"]["bs_liabilities_equity"]
+        assert (le["closes"], le["steps"], le["residual"]) == (False, [], None), le
+        assert le["%s_total" % side] is None, le
+        assert le["%s_total" % other] == crows["bs.total.equity_plus_liabilities"]["current"], le
+        assert ("total equity is refused for the %s period" % side) in le["reason"], le["reason"]
+        assert eq_refusal["code"] in le["reason"] and eq_refusal["text_en"] in le["reason"], le["reason"]
+        assert doc["bridges"]["bs_assets"]["closes"] is True
+    # A refused NET RESULT alone does not refuse that walk: on the book that
+    # balances without the result, equity is complete and the bridge closes.
+    doc = json.loads(json.dumps(C.compare_payloads(
+        whole, clean, current_row={"id": "p-cur", "period_end": "2025-12-31"},
+        prior_row={"id": "p-pri", "period_end": "2024-12-31"})))
+    assert doc["bridges"]["bs_liabilities_equity"]["closes"] is True, doc["bridges"]["bs_liabilities_equity"]["reason"]
+    print("GATE-WORK common-size-single refused_lines=%d refused_equity_bridges=2"
+          % (len(("bs.total_equity",) + A.CANONICAL_EQUITY_KEYS) + 1))
 
 
 def test_a_margin_the_rule_refuses_is_not_served_as_a_share_through_the_route(world):
@@ -1064,6 +1199,7 @@ def test_a_margin_the_rule_refuses_is_not_served_as_a_share_through_the_route(wo
         if row["key"] in MARGIN_LINES:
             assert (row["status"], row["current_share"], row["delta_pts"]) == (NOT_MEANINGFUL, None, None), row
             assert row["prior_share"] == alone[row["key"]]["share"] and row["prior_share"] is not None
+    print("GATE-WORK common-size-single margin_lines_withheld=%d" % (refusing * len(MARGIN_LINES)))
 
 
 def _steps(bridge):
@@ -1090,11 +1226,35 @@ def _negated(text):
     return text
 
 
+#: Piotroski's checks 5-9: each compares the two periods ("improving",
+#: "declining"), so each is a verdict about time.
+PIOTROSKI_YOY = ("roa_improving", "debt_declining", "no_share_issuance",
+                 "margin_improving", "asset_turnover_improving")
+
+
+def _no_piotroski_verdict(doc, reason):
+    """The Piotroski block of a document that serves no verdict: checks 5-9
+    are not judged, the score counts checks 1-4 only (capped at four, as the
+    prior side's always is), and the block says why."""
+    pio = doc["ratios"]["piotroski"]
+    cur = pio["current"]
+    assert isinstance(cur, dict), pio["current_reason"]
+    assert [c["key"] for c in cur["checks"][4:]] == list(PIOTROSKI_YOY), [c["key"] for c in cur["checks"]]
+    for check in cur["checks"][4:]:
+        assert check["result"] == "uncertain", check
+    assert cur["has_prior_period"] is False
+    first_four = sum(1 for c in cur["checks"][:4] if c["result"] == "pass")
+    assert cur["score"] in (None, first_four) and (cur["score"] or 0) <= 4, (cur["score"], first_four)
+    assert pio["current_reason"] == {"code": reason, "inputs": list(PIOTROSKI_YOY)}, pio["current_reason"]
+
+
 def _no_ratio_verdict(doc, reason):
     """THE RATIO BLOCK OF A DOCUMENT THAT SERVES NO VERDICT: no ratio is
     listed improved or deteriorated, no delta carries the adjective, no band
-    crossing and no band finding is served — and every movable entry is still
-    in the partition. Returns the keys withheld under `reason`."""
+    crossing and no band finding is served, no Piotroski check is judged
+    against the other period — and every movable entry is still in the
+    partition. Returns the keys withheld under `reason`."""
+    _no_piotroski_verdict(doc, reason)
     bm = doc["ratios"]["band_movements"]
     assert bm["verdicts_withheld"] == reason, bm["verdicts_withheld"]
     assert bm["improved"] == [] and bm["deteriorated"] == [] and bm["findings"] == [], (
@@ -1137,7 +1297,7 @@ def _ratio_figures_are_the_forward_ones_swapped(fwd, back, reason):
 def test_a_later_prior_serves_every_figure_and_no_verdict(world):
     """S5 through the real route, on every ordered pair of the real books:
     one orientation runs forward, its swap backwards."""
-    swaps = forward_verdicts = band_verdicts = band_findings = ratio_adjectives = 0
+    swaps = forward_verdicts = band_verdicts = band_findings = ratio_adjectives = yoy_judged = 0
     for a, b in itertools.combinations(world.present, 2):
         earlier, later = sorted((a, b), key=lambda cid: world.closes[cid])
         fwd, back = world.docs[(later, earlier)], world.docs[(earlier, later)]
@@ -1206,18 +1366,29 @@ def test_a_later_prior_serves_every_figure_and_no_verdict(world):
         band_verdicts += len(crossed)
         band_findings += len(fbm["findings"])
         ratio_adjectives += _ratio_figures_are_the_forward_ones_swapped(fwd, back, "prior_is_later")
+        # PIOTROSKI: forwards the year-over-year checks ARE judged (and no
+        # reason is given); backwards (held in `_no_ratio_verdict`) none is,
+        # and checks 1-4 are the on-screen period's own served ones.
+        fpio, bpio = fwd["ratios"]["piotroski"], back["ratios"]["piotroski"]
+        assert fpio["current_reason"] is None and fpio["current"]["has_prior_period"] is True
+        yoy_judged += sum(1 for c in fpio["current"]["checks"][4:] if c["result"] in ("pass", "fail"))
+        assert bpio["current"]["checks"][:4] == \
+            world.bodies[earlier]["statements"]["assembled_piotroski"]["checks"][:4], (earlier, later)
         swaps += 1
     assert swaps >= 6 and forward_verdicts >= 20, (swaps, forward_verdicts)
     # …and the forward documents DO carry what the backward ones withhold.
     assert band_verdicts >= 20 and band_findings >= 20 and ratio_adjectives >= 60, (
         band_verdicts, band_findings, ratio_adjectives)
+    assert yoy_judged >= 3 * swaps, (yoy_judged, swaps)
+    from engine.comparatives import ratio_compare as RC
+    assert RC.PIOTROSKI_YEAR_OVER_YEAR == PIOTROSKI_YOY
     # two periods that close the same day: time does not run backwards
     for cid in world.present:
         doc = world.docs[(cid, cid + DP.CONDENSED)]
         assert doc["direction"]["order"] == "same_close" and doc["direction"]["verdicts_served"] is True
         assert doc["movers"]["verdicts_withheld"] is None
-    print("GATE-WORK common-size-single swaps=%d forward_verdicts=%d band_verdicts=%d"
-          % (swaps, forward_verdicts, band_verdicts))
+    print("GATE-WORK common-size-single swaps=%d forward_verdicts=%d band_verdicts=%d piotroski_yoy_withheld=%d"
+          % (swaps, forward_verdicts, band_verdicts, yoy_judged))
 
 
 def test_a_later_prior_inside_the_same_year_serves_no_verdict(world):
@@ -1237,6 +1408,7 @@ def test_a_later_prior_inside_the_same_year_serves_no_verdict(world):
     crossed = set(fbm["improved"]) | set(fbm["deteriorated"])
     assert crossed and _no_ratio_verdict(back, "prior_is_later") == crossed
     assert _ratio_figures_are_the_forward_ones_swapped(fwd, back, "prior_is_later") >= 5
+    print("GATE-WORK common-size-single same_year_crossings_withheld=%d" % len(crossed))
 
 
 def test_a_pair_the_engine_will_not_compare_serves_no_share_through_the_route(world):
@@ -1247,6 +1419,7 @@ def test_a_pair_the_engine_will_not_compare_serves_no_share_through_the_route(wo
     second = world.present[1]
     own = sum(1 for r in world.every[second]["statements"]["common_size"]["rows"] if r["share"] is not None)
     assert own >= 80
+    incomparable = 0
     for pair in ((second, NO_LINE_ITEMS), (NO_LINE_ITEMS, second)):
         doc = world.docs[pair]
         assert doc["comparability"]["comparable"] is False, doc["comparability"]
@@ -1257,6 +1430,8 @@ def test_a_pair_the_engine_will_not_compare_serves_no_share_through_the_route(wo
             assert (r["status"], r["current_share"], r["prior_share"], r["delta_pts"]) == (
                 STATUS_INCOMPARABLE, None, None, None), r
             assert r["note"] == doc["comparability"]["reason"]
+        incomparable += len(rows)
+    print("GATE-WORK common-size-single incomparable_rows=%d" % incomparable)
 
 
 def test_an_unreadable_close_serves_no_verdict(world):
@@ -1301,6 +1476,114 @@ def test_an_unreadable_close_serves_no_verdict(world):
     doc = C.compare_payloads(world.bodies[cur], world.bodies[pri],
                              current_row={"id": _pid(cur)}, prior_row={"id": _pid(pri)})
     assert doc["direction"]["order"] == "prior_is_earlier"
+    print("GATE-WORK common-size-single unreadable_close_crossings_withheld=%d" % len(crossed))
+
+
+def _attention_serves_no_verdict(doc, cmp, reason):
+    """THE ATTENTION DOCUMENT OF A COMPARISON THAT SERVES NO VERDICT: no
+    statement line is "improved" or "deteriorated" — on an item or among the
+    candidates it considered — no ratio-band candidate is read, and the
+    improvement slot is empty and says why. The movement slot still holds
+    the largest material movement, with the document's own column. Returns
+    1 when a movement item is served."""
+    assert doc["mode"] == "with_prior", doc["mode"]
+    for item in doc["items"]:
+        assert item["slot"] != "improvement" and item["family"] != "ratio_band", (item["slot"], item["key"])
+        assert item["verdict"] not in ("improved", "deteriorated"), (item["slot"], item["key"], item["verdict"])
+        if item["family"] == "statement_line":
+            assert item["verdict"] is None, (item["key"], item["verdict"])
+    assert {"slot": "improvement", "reason": {"code": "verdicts_withheld", "inputs": [reason]}} in doc["unfilled"], (
+        doc["unfilled"])
+    assert doc["considered"]["ratio_bands"] == []
+    # A SIZE IS NOT A VERDICT: the movement slot ranks as it always did.
+    eligible = [c for c in doc["considered"]["statement_lines"] if c["eligible"]]
+    movement = [i for i in doc["items"] if i["slot"] == "movement"]
+    assert len(movement) == (1 if eligible else 0), (len(movement), len(eligible))
+    for item in movement:
+        assert item["materiality"]["share"] == max(c["materiality"]["share"] for c in eligible)
+        column = next(c for c in cmp["columns"] if c["key"] == item["key"])
+        assert item["figure"]["column"] == column and column["delta"] is not None
+    return len(movement)
+
+
+def test_the_attention_document_judges_no_movement_backwards(world):
+    """S5 for the document the command bar reads, through the real route
+    (GET /api/period/{id}/attention?prior=…) on every ordered pair of the
+    real books and the same-year pair. Forwards a statement line IS judged
+    and the improvement slot is filled from the judged lines; backwards
+    nothing is. (Until 2026-10-04 `engine.attention` judged every delta
+    itself: on an earlier period compared with a later one, a turnover that
+    fell over time was served as the period's "improvement".)"""
+    from engine.attention import compose_attention
+    from engine.attention import now as NOW
+
+    second = world.present[1]
+    pairs = [tuple(sorted((a, b), key=lambda cid: world.closes[cid]))
+             for a, b in itertools.combinations(world.present, 2)]
+    pairs.append((HALF_YEAR, second))
+    backwards = forward_verdicts = forward_improvements = movements = 0
+    for earlier, later in pairs:
+        assert world.closes[earlier] < world.closes[later]
+        fwd, back = world.attention[(later, earlier)], world.attention[(earlier, later)]
+        fcmp, bcmp = world.docs[(later, earlier)], world.docs[(earlier, later)]
+        assert fcmp["direction"]["verdicts_served"] is True and bcmp["direction"]["reason"] == "prior_is_later"
+        assert NOW.verdicts_withheld_of(fcmp) is None and NOW.verdicts_withheld_of(bcmp) == "prior_is_later"
+        movements += _attention_serves_no_verdict(back, bcmp, "prior_is_later")
+        backwards += 1
+        # FORWARDS: every statement item carries the adjective of its own
+        # served delta, and no slot is empty for want of a direction.
+        for item in fwd["items"]:
+            if item["family"] != "statement_line":
+                continue
+            delta = item["figure"]["column"]["delta"]
+            assert item["verdict"] == A.line_verdict(item["key"], float(delta)), (item["key"], item["verdict"])
+            assert item["verdict"] in ("improved", "deteriorated")
+            forward_verdicts += 1
+            forward_improvements += item["slot"] == "improvement"
+        assert all((u["reason"] or {}).get("code") != "verdicts_withheld" for u in fwd["unfilled"]), fwd["unfilled"]
+    assert backwards >= 7 and movements >= 5, (backwards, movements)
+    assert forward_verdicts >= backwards and forward_improvements >= 2, (forward_verdicts, forward_improvements)
+
+    # AN UNREADABLE ORDER (CONSTRUCTED: every stored period has a close) and
+    # A DOCUMENT THAT DOES NOT SAY WHICH WAY TIME RUNS are not believed to
+    # run forwards. Composed over the served bodies, as the route composes.
+    cur, pri = world.present[1], world.present[0]
+    served = world.attention[(cur, pri)]
+    cb, pb = copy.deepcopy(world.bodies[cur]), copy.deepcopy(world.bodies[pri])
+    for body in (cb, pb):
+        body["period"]["period_end"] = None
+    unknown = json.loads(json.dumps(C.compare_payloads(
+        cb, pb, current_row={"id": _pid(cur)}, prior_row={"id": _pid(pri)})))
+    assert unknown["direction"]["reason"] == "period_order_unknown"
+    silent = copy.deepcopy(world.docs[(cur, pri)])
+    del silent["direction"]
+    assert NOW.verdicts_withheld_of(silent) == NOW.DIRECTION_UNREADABLE == "period_order_unknown"
+    assert NOW.verdicts_withheld_of(None) == NOW.DIRECTION_UNREADABLE
+    for cmp in (unknown, silent):
+        doc = json.loads(json.dumps(compose_attention(
+            world.bodies[cur], prior=served["prior"], comparatives=cmp)))
+        _attention_serves_no_verdict(doc, cmp, "period_order_unknown")
+    # A DOCUMENT THAT LISTS BAND VERDICTS UNDER A DIRECTION THAT SERVES NONE
+    # IS NOT BELIEVED (CONSTRUCTED: the shape the engine served before the
+    # ratio block read the direction — the forward document's ratio block
+    # under an unreadable order). No ratio-band candidate is even read.
+    forward_ratios = world.docs[(cur, pri)]["ratios"]
+    assert forward_ratios["band_movements"]["improved"], "the forward pair lists no improved ratio"
+    lying = copy.deepcopy(unknown)
+    lying["ratios"] = copy.deepcopy(forward_ratios)
+    believed = json.loads(json.dumps(compose_attention(
+        world.bodies[cur], prior=served["prior"], comparatives=world.docs[(cur, pri)])))
+    assert believed["considered"]["ratio_bands"], "the forward document's band candidates are read"
+    doc = json.loads(json.dumps(compose_attention(world.bodies[cur], prior=served["prior"], comparatives=lying)))
+    _attention_serves_no_verdict(doc, lying, "period_order_unknown")
+    # …and the same call over the served document judges, as the route did.
+    again = json.loads(json.dumps(compose_attention(
+        world.bodies[cur], prior=served["prior"], comparatives=world.docs[(cur, pri)])))
+    assert [(i["slot"], i["key"], i["verdict"]) for i in again["items"] if i["family"] == "statement_line"] == [
+        (i["slot"], i["key"], i["verdict"]) for i in served["items"] if i["family"] == "statement_line"]
+    assert any(i["verdict"] in ("improved", "deteriorated") for i in again["items"])
+    print("GATE-WORK common-size-single attention_backwards=%d attention_forward_verdicts=%d"
+          % (backwards, forward_verdicts))
 
 
 def test_no_block_is_attached_to_a_payload_whose_assembly_did_not_run(world, monkeypatch):
@@ -1415,14 +1698,54 @@ def test_the_deploy_preflight_reads_the_block_and_prints_no_figure(world):
 
     assert "appears twice" in broken(a_key_twice)
 
-    # TWO NAMED OUTCOMES THAT ARE NOT FAILURES. (1) The engine withholds the
-    # block from a body with no assembled statements, on purpose: required
-    # or not, that period is listed and the run stays green.
+    # LAWFUL IN SUBSTANCE, not only in shape. Each of these passed the
+    # pre-flight until 2026-10-04.
+    def every_row_absent(st):
+        for r in st["common_size"]["rows"]:
+            if r["key"] not in ("pl.revenue", "bs.total_assets"):
+                r.update(status=DISCLOSURE_ABSENT, share=None, current=None)
+
+    assert "no other PL line" in broken(every_row_absent)
+
+    def one_row_only(st):
+        st["common_size"]["rows"] = [r for r in st["common_size"]["rows"] if r["key"] == "pl.cogs"]
+
+    assert "holds no pl.revenue row (the PL base line)" in broken(one_row_only)
+
+    def no_balance_sheet_base_row(st):
+        st["common_size"]["rows"] = [r for r in st["common_size"]["rows"] if r["key"] != "bs.total_assets"]
+
+    assert "holds no bs.total_assets row (the BS base line)" in broken(no_balance_sheet_base_row)
+
+    def a_base_that_is_not_its_row(st):
+        st["common_size"]["bases"]["PL"]["value"] = 1.0
+
+    assert "bases.PL.value is not the pl.revenue row's own amount" in broken(a_base_that_is_not_its_row)
+
+    def a_share_in_words(st):
+        next(r for r in st["common_size"]["rows"] if r["key"] == "pl.cogs")["share"] = "12%"
+
+    problem = broken(a_share_in_words)
+    assert "pl.cogs" in problem and "not a number" in problem and "12" not in problem, problem
+    # A period with NO line items serves a block of absent lines and no base:
+    # lawful (nothing was reported, and it says so), not "empty in substance".
+    assert gate.common_size_problem(world.every[NO_LINE_ITEMS]) is None
+
+    # TWO NAMED OUTCOMES. (1) The engine withholds the block from a body
+    # with no assembled statements, on purpose. NOT required: listed, green.
+    # REQUIRED: red — a re-assembly that breaks on the image under test
+    # serves this very body — unless the operator named the period.
     unassembled = copy.deepcopy(stripped)
     unassembled["statements"]["assembled_pl"] = None
     assert gate.common_size_withheld(unassembled) and not gate.common_size_withheld(stripped)
     assert not gate.common_size_withheld(body)
-    assert gate._judge(pid, 200, unassembled, require_common_size=True) is None
+    assert gate._judge(pid, 200, unassembled) is None
+    assert gate._judge(pid, 200, unassembled, require_common_size=True) == gate.WITHHELD_NOT_ACCEPTED
+    assert gate._judge(pid, 200, unassembled, require_common_size=True, accept_withheld={pid}) is None
+    # …naming a period accepts THAT shape only: a body with both statements
+    # and no block is a failure whoever was named.
+    assert "no statements.common_size" in gate._judge(
+        pid, 200, stripped, require_common_size=True, accept_withheld={pid})
     # (2) A period with no canonical balance sheet gets the registry lines
     # only: lawful, and its balance-sheet tab has no share to print.
     legacy = copy.deepcopy(body)
@@ -1435,8 +1758,110 @@ def test_the_deploy_preflight_reads_the_block_and_prints_no_figure(world):
     legacy["period"] = dict(legacy["period"], id=other)
     served = dict((b["period"]["id"], b) for b in world.bodies.values())
     served[pid], served[other] = unassembled, legacy
-    report = gate.check_periods(rows, lambda p: (200, served[p]), require_common_size=True)
-    assert report["failed"] == 0 and gate.exit_code(report) == 0, report["failures"]
-    assert report["common_size"]["withheld"] == {"outcome": gate.WITHHELD_NO_ASSEMBLED, "periods": [pid]}
-    assert report["common_size"]["no_canonical_rows"] == {"outcome": gate.NO_CANONICAL_ROWS, "periods": [other]}
-    assert report["common_size"]["lawful"] == len(rows) - 1
+    for accepted, failed in (((), 1), ((pid,), 0), ((pid, "p-not-a-period"), 0), (("p-not-a-period",), 1)):
+        report = gate.check_periods(rows, lambda p: (200, served[p]), require_common_size=True,
+                                    accept_withheld=accepted)
+        assert report["failed"] == failed and gate.exit_code(report) == (1 if failed else 0), report["failures"]
+        cs = report["common_size"]
+        assert cs["withheld"] == {"outcome": gate.WITHHELD_NO_ASSEMBLED, "periods": [pid]}
+        assert cs["no_canonical_rows"] == {"outcome": gate.NO_CANONICAL_ROWS, "periods": [other]}
+        assert cs["lawful"] == len(rows) - 1
+        assert cs["accepted"] == ([pid] if pid in accepted else [])
+        assert cs["accepted_unused"] == (["p-not-a-period"] if "p-not-a-period" in accepted else [])
+        if failed:
+            assert [f["period_id"] for f in report["failures"]] == [pid]
+            assert report["failures"][0]["problem"] == gate.WITHHELD_NOT_ACCEPTED
+            assert "--accept-withheld" in report["failures"][0]["problem"]
+    # Not required: the same run is green and the period is still listed.
+    report = gate.check_periods(rows, lambda p: (200, served[p]))
+    assert report["failed"] == 0 and gate.exit_code(report) == 0
+    assert report["common_size"]["withheld"]["periods"] == [pid]
+
+
+def _run_preflight(gate, monkeypatch, capsys, rows, served, argv):
+    """`main()` of the pre-flight over a served world: the listing and the
+    fetch are the gate's own bodies (no database), the boot check is a no-op
+    (its own gate holds it), everything after — judging, counting, the exit
+    code and the printed verdict — is the script's."""
+    from engine import boot_verify
+
+    monkeypatch.setattr(boot_verify, "verify_config", lambda: None)
+    monkeypatch.setattr(gate, "_list_periods", lambda admin, org, limit: list(rows))
+    monkeypatch.setattr(gate, "_served_fetch", lambda: (lambda pid: (200, served[pid])))
+    capsys.readouterr()
+    code = gate.main(argv)
+    return code, capsys.readouterr().out
+
+
+def test_the_deploy_preflight_cannot_pass_on_nothing(world, monkeypatch, capsys):
+    """S6. THE IMAGE WHOSE SERVE-TIME RE-ASSEMBLY FAILS, through the real
+    route: every period answers 200 with no assembled statements and no
+    block. Until 2026-10-04 `--require-common-size` printed "lawful on 0 of
+    N periods — REQUIRED … GREEN — every stored period serves" and exited 0
+    there: the engine withholds the block from such a body by design, and
+    the pre-flight took "by design" for every period at once."""
+    gate = _preflight()
+    assert set(world.unassembled) == set(world.every)
+    for label, body in world.unassembled.items():
+        st = body["statements"]
+        # (the re-assembled P&L is gone; a balance sheet the stored envelope
+        # carries may still ride along — the block needs both)
+        assert "common_size" not in st and st.get("assembled_pl") is None, label
+        assert gate.common_size_withheld(body), label
+        # …while the same period on the image that assembles serves it.
+        assert gate.common_size_problem(world.every[label]) is None, label
+    rows = [{"id": b["period"]["id"], "org_id": ORG, "period_end": None} for b in world.unassembled.values()]
+    broken = dict((b["period"]["id"], b) for b in world.unassembled.values())
+    whole = dict((b["period"]["id"], b) for b in world.every.values())
+    ids = sorted(broken)
+    n = len(ids)
+    assert n >= 10 and sorted(whole) == ids
+
+    # (1) EVERY period withheld, none named: every one is red.
+    code, out = _run_preflight(gate, monkeypatch, capsys, rows, broken, ["--require-common-size"])
+    assert code == 1 and "GREEN" not in out, out
+    assert ("lawful on 0 of %d periods — REQUIRED" % n) in out and ("RED — %d period(s) fail to serve" % n) in out
+    assert out.count(gate.WITHHELD_NOT_ACCEPTED) == n and "NOTE" not in out, out
+    # (2) …and naming every one of them does not make a pre-flight that saw
+    # no block green: it proved nothing (exit 2, vacuous).
+    code, out = _run_preflight(gate, monkeypatch, capsys, rows, broken,
+                               ["--require-common-size", "--accept-withheld", ",".join(ids)])
+    assert code == 2 and "GREEN" not in out, out
+    assert ("RED — %s (vacuous)" % gate.NO_LAWFUL_BLOCK) in out
+    assert ("NOTE %s — %d period(s) ACCEPTED" % (gate.WITHHELD_NO_ASSEMBLED, n)) in out
+    # (3) ONE period's re-assembly breaks on the new image, the rest serve:
+    # red, the period named with what to do.
+    one = dict(whole)
+    one[ids[0]] = broken[ids[0]]
+    code, out = _run_preflight(gate, monkeypatch, capsys, rows, one, ["--require-common-size"])
+    assert code == 1 and "GREEN" not in out and "RED — 1 period(s) fail to serve" in out, out
+    assert ("RED  %s  " % ids[0]) in out and gate.WITHHELD_NOT_ACCEPTED in out and "NOTE" not in out
+    # (4) …the operator looked at it and named it: green, and the run says
+    # which period it passed without the block. Two flags, or one with commas.
+    for argv in (["--accept-withheld", ids[0]], ["--accept-withheld", "%s, p-not-a-period" % ids[0]],
+                 ["--accept-withheld", "p-not-a-period", "--accept-withheld", ids[0]]):
+        code, out = _run_preflight(gate, monkeypatch, capsys, rows, one, ["--require-common-size"] + argv)
+        assert code == 0 and "GREEN — every stored period serves" in out, out
+        assert ("lawful on %d of %d periods — REQUIRED" % (n - 1, n)) in out
+        assert ("NOTE %s — 1 period(s) ACCEPTED: %s" % (gate.WITHHELD_NO_ASSEMBLED, ids[0])) in out
+        assert ("named 1 period(s) that are not withheld in this run: p-not-a-period" in out) == (
+            "p-not-a-period" in " ".join(argv))
+    # (5) Named, and the period serves the block after all: nothing is
+    # accepted that is not there — the name is reported as unused.
+    code, out = _run_preflight(gate, monkeypatch, capsys, rows, whole,
+                               ["--require-common-size", "--accept-withheld", ids[0]])
+    assert code == 0 and ("lawful on %d of %d periods" % (n, n)) in out
+    assert "ACCEPTED" not in out and ("not withheld in this run: %s" % ids[0]) in out
+    # (6) WITHOUT the requirement the run is what it always was: the block
+    # is counted, a withheld period is a NOTE, and the run is green.
+    code, out = _run_preflight(gate, monkeypatch, capsys, rows, broken, [])
+    assert code == 0 and ("lawful on 0 of %d periods" % n) in out and "REQUIRED" not in out
+    assert ("NOTE %s — %d period(s): " % (gate.WITHHELD_NO_ASSEMBLED, n)) in out
+    # …and the flag that accepts means nothing without the one that requires.
+    with pytest.raises(SystemExit):
+        gate.main(["--accept-withheld", ids[0]])
+    capsys.readouterr()
+    # No figure of any book reaches the deploy log.
+    for text in (out,):
+        assert not re.search(r"\d{4,}\.\d", text), text
+    print("GATE-WORK common-size-single preflight_unassembled_periods=%d" % n)

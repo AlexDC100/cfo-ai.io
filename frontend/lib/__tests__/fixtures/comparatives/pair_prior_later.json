@@ -9674,43 +9674,52 @@
        "result": "pass"
       },
       {
-       "detail": "19.16% -> 1.14%",
+       "detail": "Prior-period data unavailable for YoY comparison.",
        "key": "roa_improving",
        "label": "ROA improving year-over-year",
-       "result": "fail"
+       "result": "uncertain"
       },
       {
-       "detail": "1,440,419 -> 0 RON",
+       "detail": "Prior-period data unavailable for YoY comparison.",
        "key": "debt_declining",
        "label": "Long-term debt declining",
-       "result": "pass"
+       "result": "uncertain"
       },
       {
-       "detail": "8,795,850 -> 50,000 RON",
+       "detail": "Prior-period data unavailable for YoY comparison.",
        "key": "no_share_issuance",
        "label": "No share issuance",
-       "result": "pass"
+       "result": "uncertain"
       },
       {
-       "detail": "8.03% -> 1.57%",
+       "detail": "Prior-period data unavailable for YoY comparison.",
        "key": "margin_improving",
        "label": "Operating margin improving",
-       "result": "fail"
+       "result": "uncertain"
       },
       {
-       "detail": "2.818x -> 0.751x",
+       "detail": "Prior-period data unavailable for YoY comparison.",
        "key": "asset_turnover_improving",
        "label": "Asset turnover improving",
-       "result": "fail"
+       "result": "uncertain"
       }
      ],
-     "disclosure": null,
-     "has_prior_period": true,
-     "score": 6,
+     "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
+     "has_prior_period": false,
+     "score": 4,
      "score_max": 9
     },
     "current_checks_1_4_source": "served_assembled_piotroski",
-    "current_reason": null,
+    "current_reason": {
+     "code": "prior_is_later",
+     "inputs": [
+      "roa_improving",
+      "debt_declining",
+      "no_share_issuance",
+      "margin_improving",
+      "asset_turnover_improving"
+     ]
+    },
     "excluded_from_band_movements": true,
     "prior": {
      "checks": [

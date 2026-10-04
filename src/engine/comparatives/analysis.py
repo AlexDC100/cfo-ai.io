@@ -819,7 +819,16 @@ def bs_bridge(cur_env, pri_env, table=None):
     still gets two honest bridges rather than one that hides the gap.
     `table` is accepted for signature symmetry with `pl_bridge`; the
     canonical object carries its own presence (a row id is there or it
-    is not)."""
+    is not).
+
+    A period that REFUSES total equity (`lines.equity_refusal_of`: short by
+    a refused year's result) refuses the liabilities + equity walk, by name
+    and with the reason — as a refused EBITDA refuses the P&L walk. That
+    walk's end total IS liabilities + the refused equity: until 2026-10-04
+    the same document refused `bs.total_equity`, `bs.section.equity` and
+    `bs.total.equity_plus_liabilities` and still walked a closing bridge to
+    that very total. The refused period's total is not served; the other
+    period's is. The assets walk is untouched."""
     cur = _canonical_rows(cur_env)
     pri = _canonical_rows(pri_env)
     if cur is None or pri is None:
@@ -830,6 +839,22 @@ def bs_bridge(cur_env, pri_env, table=None):
     assets = _row_walk("total assets", cur_rows, pri_rows,
                        cur_tot.get("assets"), pri_tot.get("assets"),
                        lambda sec: sec in _BS_ASSET_SECTIONS)
+    refused = [(side, r) for side, r in (("current", equity_refusal_of(cur_env)),
+                                        ("prior", equity_refusal_of(pri_env))) if r is not None]
+    if refused:
+        sides = set(side for side, _r_ in refused)
+
+        def _total(side, totals):  # type: (str, Dict[str, float]) -> Optional[float]
+            value = totals.get("equity_plus_liabilities")
+            return None if side in sides or value is None else _r(value)
+
+        return assets, Bridge(
+            statement="BS", from_label="liabilities + equity", to_label="liabilities + equity",
+            prior_total=_total("prior", pri_tot), current_total=_total("current", cur_tot),
+            steps=(), residual=None, closes=False,
+            reason="bridge refused: total equity is refused for %s" % "; ".join(
+                "the %s period (%s: %s)" % (side, r.get("code"), r.get("text_en") or "")
+                for side, r in refused))
     le = _row_walk("liabilities + equity", cur_rows, pri_rows,
                    cur_tot.get("equity_plus_liabilities"), pri_tot.get("equity_plus_liabilities"),
                    lambda sec: sec not in _BS_ASSET_SECTIONS)
