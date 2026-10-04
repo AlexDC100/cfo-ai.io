@@ -3106,6 +3106,17 @@ def _own_periods_or_refuse_rerun(document_id: Any, org_id: Any) -> List[Dict[str
 #      says the last re-run did not finish (`documents.error`,
 #      `RERUN_FAILED_PREFIX`).
 #
+# THE SAME FOR A RUN THAT DOES NOT NARRATE (hand-over item 3). A non-Romanian
+# document's run ends in the AI lane's exit, which stores the statements and
+# nothing else. It is staged like every other re-run and goes through the
+# same takeover — told what it is: the month's briefing is kept and marked
+# `BRIEFING_STALE_NOT_RENARRATED`, its recommendations and its alerts stay
+# where they are (`_run_pipeline_stages`, the lane's exit). A staged re-run
+# tells the extract stage to RE-EXTRACT — the lane's cache is the period row
+# the reset used to delete — and one that now reads as a public-records
+# summary is refused before any write (`RERUN_NOT_A_TRIAL_BALANCE`): that exit
+# would leave the month without its document.
+#
 # THE TAKEOVER IS A SEQUENCE, NOT A TRANSACTION, so it has a COMMIT POINT.
 # Before the first statement that touches the month — and after every delete
 # that touches only the staged id — the staged row's marker gets
@@ -3149,6 +3160,11 @@ RERUN_FAILED_PREFIX = "rerun_failed: "
 RERUN_INTERRUPTED = "interrupted_replacing"
 #: … the file now reads as a month that already has another analysis.
 RERUN_MONTH_TAKEN = "rerun_month_taken"
+#: … the file now reads as a public-records summary (a few figures per year,
+#: no accounts): there is no analysis to replace the month's with. The Docs
+#: panel has no sentence of its own for it — the row says the re-run did not
+#: finish and the previous analysis is still the one served, which is true.
+RERUN_NOT_A_TRIAL_BALANCE = "rerun_not_a_trial_balance"
 
 #: document id -> the id of its OWN period, for a claimed Docs-panel re-run
 #: the route handed off as staged. In process memory on purpose: it only
@@ -4103,6 +4119,13 @@ NARRATION_UNAVAILABLE_CODES = ("no_api_key", "sdk_missing", "provider_error",
 #: narration could not be STORED (the database refused the write) keeps the
 #: month's briefing, and says so.
 BRIEFING_STALE_WRITE_REFUSED = "write_refused"
+
+#: … and when the run narrated NOTHING, by design: the AI lane (non-Romanian
+#: documents) replaces a month's statements and never narrates. The month's
+#: briefing — written for the statements it just replaced, on an explicit,
+#: metered request — is kept and says so. NOT one of the codes above: no
+#: narration failed, and `narration_unavailable_code` never returns it.
+BRIEFING_STALE_NOT_RENARRATED = "not_renarrated"
 
 #: Provider error text as a stored body BEGINS with it: the SDK's own
 #: `str(e)` of a status error ("Error code: 400 - {…}"). Applied with
@@ -7420,6 +7443,17 @@ def _run_pipeline_stages(document_id: str) -> str:
         _journal_hooks.on_run_started(doc, industry=org.get("industry_display_name") or org.get("industry_key"))
 
         _progress("extracting", pipeline_started_at=_now_iso())
+        if staged_of is not None:
+            # "RE-RUN ANALYSIS" RE-EXTRACTS. For a non-Romanian document the
+            # AI lane's cache is the period row itself (`ai_lane._cache_
+            # lookup`): the reset this entry used to make deleted that row,
+            # which is what guaranteed the miss. A staged re-run leaves the
+            # row where it is — so an unchanged file would answer from the
+            # cache and the re-run would be a silent no-op. The lane's own
+            # switch, in memory only: never stored, never in the journal's
+            # copy of the row (`on_run_started` above already took it). The
+            # workspace's plan gate still runs before the lane.
+            doc["force_reextract"] = True
         parsed = stage_extract(doc)
         # RUN JOURNAL — FRONTEND_DONE (deterministic parse / ai-lane /
         # llm-fallback all complete here, whatever lane ran).
@@ -7437,6 +7471,18 @@ def _run_pipeline_stages(document_id: str) -> str:
         # The `documents.detected_type` column has a CHECK constraint so we
         # tag the doc via `briefing.kind` instead — the FE filters by that.
         if (parsed or {}).get("detected_type") == "public_records_summary":
+            if staged_of is not None:
+                # A RE-RUN of a document that owns a month now reads as a
+                # public-records summary. This exit ends by marking the
+                # document analysed with NO period — over a month that still
+                # names it as its source, serving an analysis its own
+                # document no longer points at. A re-run never ends by
+                # leaving its month without its document's analysis: it is
+                # refused BEFORE anything is written, the month and its
+                # document stay as they were, and the row says the re-run did
+                # not finish (`_staged_rerun_failed`). A first upload of such
+                # a file is unchanged.
+                raise PlainRefusal(RERUN_NOT_A_TRIAL_BALANCE)
             persisted = False
             try:
                 with _supabase.admin() as admin_client:
@@ -7529,8 +7575,19 @@ def _run_pipeline_stages(document_id: str) -> str:
             _journal_hooks.on_pass_done(doc, assembled)
             period_id = stage_persist(doc, parsed, assembled, staged_rerun_of=staged_of)
             # G4 — a same-month re-upload (or a staged re-run) becomes the
-            # month only now.
-            period_id = _finalize_same_month_takeover(doc, period_id)
+            # month only now. THE LANE NARRATES NOTHING: it stores no
+            # briefing, no recommendations and no alerts — so its takeover
+            # must never replace the month's with none (hand-over 2026-10-04,
+            # item 3: called with no arguments, it deleted the month's alerts
+            # and stamped a kept briefing with a narration code that never
+            # happened). For EVERY AI-lane run, a re-run or a same-month
+            # re-upload: the month's briefing is kept and marked
+            # `not_renarrated`, its recommendations (a user's statuses,
+            # owners, due dates) and its alerts stay where they are.
+            period_id = _finalize_same_month_takeover(
+                doc, period_id,
+                narration_unavailable=BRIEFING_STALE_NOT_RENARRATED,
+                keep_recommendations=True, keep_alerts=True)
             _analysed(
                 duration_ms=int((time.time() - t0) * 1000),
                 period_id=period_id,

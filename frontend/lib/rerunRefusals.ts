@@ -84,7 +84,10 @@ export function rerunRefusalCode(body: unknown): RerunRefusalCode | null {
 //
 // (src/engine/api/pipeline.py RERUN_FAILED_PREFIX; the row keeps its status).
 // The remainder is one of two codes, or the run's own diagnostic text — which
-// is NEVER printed: the reader gets one of three sentences, by KIND.
+// is NEVER printed: the reader gets one of three sentences, by KIND. (A third
+// code, `rerun_not_a_trial_balance` — the file now reads as a public-records
+// summary and the re-run was refused before any write — has no sentence of
+// its own: the previous analysis is still the one served, the `kept` line.)
 
 /** `documents.error` begins with this when the file's last re-run did not
  *  finish. The same literal as pipeline.RERUN_FAILED_PREFIX. */

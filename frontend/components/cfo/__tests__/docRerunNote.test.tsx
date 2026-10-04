@@ -64,6 +64,10 @@ const STORED: [string, Kind][] = [
   ["rerun_failed: RuntimeError: compute failed", "kept"],
   ["rerun_failed: ReadTimeout: The read operation timed out", "kept"],
   ["rerun_failed: document_superseded", "kept"],
+  // A re-run that now reads as a public-records summary (engine gate
+  // rerun-data-loss, A3): refused before any write — the previous analysis IS
+  // still the one served, and the row has no sentence of its own for it.
+  ["rerun_failed: rerun_not_a_trial_balance", "kept"],
   ["rerun_failed: The period this run was staged under no longer exists — the month was not replaced; the analysis already there is unchanged.", "kept"],
   ["rerun_failed: ", "kept"],
 ];
@@ -107,7 +111,8 @@ describe("F4 — the row says what happened to the last re-run", () => {
         const { container } = render(<DocRerunNote status="analyzed" error={stored} />);
         const shown = container.textContent ?? "";
         for (const raw of ["rerun_failed", "interrupted_replacing", "rerun_month_taken", "document_superseded",
-                           "RuntimeError", "ReadTimeout", "compute failed", "staged under", "panels."]) {
+                           "rerun_not_a_trial_balance", "RuntimeError", "ReadTimeout", "compute failed",
+                           "staged under", "panels."]) {
           expect(shown, `${lang}: ${stored}`).not.toContain(raw);
         }
       }

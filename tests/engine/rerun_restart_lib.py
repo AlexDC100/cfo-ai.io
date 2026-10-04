@@ -109,6 +109,28 @@ def kill_when(gw: Any, monkeypatch: Any, store_path: Any, module: Any, name: str
     return seen
 
 
+def scripted_lane_model(monkeypatch: Any) -> List[Any]:
+    """The AI lane's MODEL, scripted — nothing leaves the process. Every
+    client the lane builds (`ai_lane.config.default_client_factory`, what
+    the pipeline's lane uses when it is handed no factory) answers the lane's
+    three stages (format, extract, classify) with the canned replies of
+    tests/engine/test_ai_lane.py for the Hungarian fixture ledger. Returns
+    the clients built so far, each recording its calls: ONE client with
+    three calls is one extraction; a cache hit builds none."""
+    import test_ai_lane as LANE
+    from engine.ai_lane import config as lane_config
+
+    clients = []  # type: List[Any]
+
+    def factory() -> Any:
+        client = LANE._FakeClient([LANE.FMT_JSON, LANE.EXTRACT_JSON, LANE.CLASSIFY_JSON])
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(lane_config, "default_client_factory", factory)
+    return clients
+
+
 def engine_src() -> str:
     """The `src` directory of the `engine` package THIS process imported —
     what the second process must import too."""

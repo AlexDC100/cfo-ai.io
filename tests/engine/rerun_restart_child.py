@@ -11,6 +11,8 @@ it was given through the real app:
   {"op": "provider", "outcomes": [...]}    script the provider ("refuses", or {"body", "titles"})
   {"op": "retry", "org", "doc"}            the REAL POST /api/pipeline/retry, then the run it queued
   {"op": "ttl_elapsed"}                    fifteen minutes pass (the constant, not the clock)
+  {"op": "lane_model"}                     script the AI lane's model (a non-Romanian document's
+                                           re-run re-extracts; `retry` then reports the extractions)
   {"op": "another_documents_run", ...}     another month of the company uploaded and analysed
   {"op": "settle_orphans"}                 the quota sweep's settlement of every reservation the
                                            dead process left outstanding (what the meter was told)
@@ -65,8 +67,12 @@ def test_the_second_process(app, gw, monkeypatch):
     O._production_foreign_keys(gw, monkeypatch)
     report = {"registries": registries, "steps": []}  # type: Dict[str, Any]
     steps = json.loads(os.environ[R.ENV_STEPS])  # type: List[Dict[str, Any]]
+    lane_clients = None  # type: Any
     for step in steps:
         op = step["op"]
+        if op == "lane_model":
+            lane_clients = R.scripted_lane_model(monkeypatch)
+            continue
         if op == "provider":
             W._script_the_provider(monkeypatch, [
                 RuntimeError(W.PROVIDER_ERROR_TEXT) if o == "refuses" else W._reply(o["body"], o["titles"])
@@ -91,6 +97,9 @@ def test_the_second_process(app, gw, monkeypatch):
             (doc,) = gw.docs(id=step["doc"])
             entry["document"] = {"status": doc["status"], "error": doc.get("error"),
                                  "period_id": doc.get("period_id")}
+            if lane_clients is not None:
+                # The model calls of each extraction the lane made HERE.
+                entry["lane_extractions"] = [len(c.messages.calls) for c in lane_clients]
         elif op == "another_documents_run":
             # ANOTHER document of the same company: its November, uploaded on
             # the card and analysed (its narration scripted before this step).
