@@ -39,6 +39,12 @@
 --        is CLAUDE.md, "Ask CFO AI — the cap is always enforced"; no cap
 --        number is repeated here.
 --   subscriptions.users_without_a_row  auth users with no row (trial caps).
+--   subscriptions.users_with_more_than_one_row
+--        users whose plan read is AMBIGUOUS. The function reads one row per
+--        user and refuses when there are two (503 metering_unavailable — it
+--        does not pick one). Must be 0: this repository's schema makes
+--        user_id unique; a database that does not would turn the chat off
+--        for exactly those users.
 --   meter                              counter rows that exist today, and
 --        reservations left open (a call the platform killed mid-flight, or a
 --        commit / release that failed: each still fills a slot).
@@ -176,6 +182,13 @@ select jsonb_build_object(
           then ((xpath('/row/n/text()', query_to_xml($count$
                   select count(*) as n from auth.users u
                    where not exists (select 1 from public.subscriptions s where s.user_id = u.id)
+                $count$, false, true, '')))[1]::text)::bigint
+          end,
+      'users_with_more_than_one_row', case
+          when exists (select 1 from tbl_facts where name = 'public.subscriptions' and present and not ('user_id' = any (missing_columns)))
+          then ((xpath('/row/n/text()', query_to_xml($count$
+                  select count(*) as n
+                    from (select user_id from public.subscriptions group by user_id having count(*) > 1) d
                 $count$, false, true, '')))[1]::text)::bigint
           end),
   'meter', jsonb_build_object(

@@ -2538,10 +2538,12 @@ def _engine_gates() -> List[Gate]:
         #                    get_plan_state executed beside it, a recorder for
         #                    the model, the process confined to 127.0.0.1; the
         #                    preflight report run on the stack and on an empty
-        #                    database. VACUOUS — never green — without the
+        #                    database, and read again while the run's users
+        #                    and counters exist (counts only: no user id, no
+        #                    address). VACUOUS — never green — without the
         #                    stack or Deno; refuses (exit 2, a FAIL here) a
         #                    non-loopback API and an API that is not that
-        #                    stack's gateway. Measured 75.
+        #                    stack's gateway. Measured 76.
         # Plant log: docs/engine_book/gates.md "chat-cap-always",
         # "chat-cap-real".
         Gate("chat-cap-always",

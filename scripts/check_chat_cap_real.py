@@ -29,7 +29,11 @@ WHAT IT RUNS
      ONE read-only statement; its three md5 literals are this repository's
      function bodies; on the stack it says ready; on a database with none of
      the objects (the cluster's template1 — read, never written) it answers
-     "ready": false and names what is missing instead of erroring.
+     "ready": false and names what is missing instead of erroring; it counts
+     the users whose plan read would be ambiguous (two rows: the function
+     refuses them) — none on this stack; and, read while this run's users,
+     plan rows and counters are on the stack, its answer holds no user id and
+     no e-mail address: counts only.
   B. THE ENGINE, EXECUTED. The real `_plan_state.get_plan_state` (this
      checkout's src/, a stub standing only where the HTTP read would be)
      resolves a matrix of subscription rows; the driver holds the function's
@@ -453,14 +457,17 @@ def main() -> int:
         passed(name)
     else:
         failed(name, "in the report: %s" % literals, "in the SQL:    %s" % wanted)
-    name = "P. on the stack the report answers ready: true — nothing blocking, the bodies this repository's, the meter closed to the browser's roles"
+    name = ("P. on the stack the report answers ready: true — nothing blocking, the bodies this repository's, the meter closed to the browser's roles, "
+            "no user with two plan rows")
     try:
         rep = json.loads(psql_file("postgres", PREFLIGHT))
-        got = [rep.get("ready"), rep.get("blocking"), rep.get("functions_are_this_repository"), rep.get("meter_closed_to_browser_roles")]
-        if got == [True, [], True, True]:
+        subs = rep.get("subscriptions") or {}
+        got = [rep.get("ready"), rep.get("blocking"), rep.get("functions_are_this_repository"), rep.get("meter_closed_to_browser_roles"),
+               subs.get("users_with_more_than_one_row", "(key missing)")]
+        if got == [True, [], True, True, 0]:
             passed(name)
         else:
-            failed(name, "got:  %s" % json.dumps(got), "want: [true, [], true, true]")
+            failed(name, "got:  %s" % json.dumps(got), "want: [true, [], true, true, 0]")
     except Exception as e:  # noqa: BLE001
         failed(name, "%s: %s" % (type(e).__name__, e))
     name = ("P. on a database with NONE of it (template1 — read, never written) the report answers ready: false "
@@ -470,7 +477,9 @@ def main() -> int:
         blocking = rep.get("blocking") or []
         named = [any(n in b and "does not exist" in b for b in blocking)
                  for n in CHAT_FUNCTIONS + ("public.subscriptions", "public.user_usage", "public.plan_chat_daily_usage")]
-        if rep.get("ready") is False and all(named) and rep.get("functions_are_this_repository") is False:
+        counts = rep.get("subscriptions") or {}
+        if (rep.get("ready") is False and all(named) and rep.get("functions_are_this_repository") is False
+                and counts.get("users_with_more_than_one_row", "(key missing)") is None):
             passed(name)
         else:
             failed(name, "ready: %s, functions_are_this_repository: %s" % (rep.get("ready"), rep.get("functions_are_this_repository")),
@@ -541,6 +550,27 @@ def main() -> int:
             print("     | deno stderr (last lines):")
             for line in err.splitlines()[-12:]:
                 print("     | %s" % line)
+        # COUNTS ONLY. The report reads rows of tables that hold users, and
+        # what it answers goes into the coordinator's notes. Read it NOW —
+        # after the driver, before the cleanup — while this gate's users, their
+        # plan rows and their counters are all on the stack: none of their ids
+        # or addresses may appear in it.
+        name = ("P. the report returns COUNTS, never a user: with this run's users, plan rows and counters on the stack, "
+                "no user id and no e-mail address anywhere in its answer")
+        try:
+            raw = psql_file("postgres", PREFLIGHT)
+            there = psql("select (select count(*) from auth.users where email like '%%@%s') || ' ' || "
+                         "(select count(*) from public.subscriptions) || ' ' || (select count(*) from public.user_usage) || ' ' || "
+                         "(select count(*) from public.plan_chat_daily_usage);" % DOMAIN).split()
+            ids = re.findall(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", raw)
+            mails = re.findall(r"[\w.+-]+@[\w-]+\.[\w.-]+", raw)
+            if all(int(n) > 0 for n in there) and not ids and not mails:
+                passed(name)
+            else:
+                failed(name, "on the stack now — gate users, plan rows, monthly counters, daily counters: %s (each must be > 0 for this law to mean anything)" % " ".join(there),
+                       "user-id-shaped strings in the report: %d, e-mail-shaped: %d" % (len(ids), len(mails)))
+        except Exception as e:  # noqa: BLE001
+            failed(name, "%s: %s" % (type(e).__name__, e))
     except subprocess.TimeoutExpired:
         failed("C. the driver finished within 240 s")
     finally:

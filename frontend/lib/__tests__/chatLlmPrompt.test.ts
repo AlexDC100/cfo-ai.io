@@ -361,8 +361,14 @@ describe("the preflight report the coordinator runs before the deploy", () => {
     // POSITIVE CONTROL: the scanner sees a write when one is there.
     expect("select set_config('x','y',true)".match(writes)).toEqual(["set_config"]);
     expect("select 1 from t for update".match(writes)).toEqual(["for update"]);
-    // …and the file does read rows where it says it does (counts only).
-    expect(count(statement, "query_to_xml(")).toBe(4);
+    // …and the file does read rows where it says it does (counts only):
+    // the stored keys, users with no row, users with MORE than one row (the
+    // function refuses those: its plan read is one row per user), and the
+    // day's and the month's counters.
+    expect(count(statement, "query_to_xml(")).toBe(5);
+    for (const key of ["rows_by_stored_key", "users_without_a_row", "users_with_more_than_one_row", "daily_rows_today", "monthly_rows_this_month"]) {
+      expect(count(statement, `'${key}'`), key).toBe(1);
+    }
   });
 
   it("its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's", () => {
