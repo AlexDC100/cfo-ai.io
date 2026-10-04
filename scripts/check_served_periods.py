@@ -31,6 +31,12 @@ Usage (inside the backend container, §14 step 5):
     ... --org <org_id>      one workspace only
     ... --limit 50          newest N periods only (prints that scope is partial)
     ... --json              machine-readable report on stdout
+    ... --require-common-size
+                            every period's body must ALSO carry a lawful
+                            `statements.common_size` (schema common_size/1 —
+                            the single-period share column, 2026-10-04). The
+                            pre-flight for the image that first serves it; the
+                            count of lawful blocks is printed either way.
 """
 from __future__ import annotations
 
@@ -97,18 +103,56 @@ def credit_snapshot(body: Any) -> Dict[str, Any]:
     return {k: credit.get(k) for k in ("letter_grade", "composite_score", "altman_z_score", "model_revision")}
 
 
+COMMON_SIZE_SCHEMA = "common_size/1"
+_COMMON_SIZE_ROW_KEYS = ("key", "statement", "base_key", "current", "share", "status", "note")
+_COMMON_SIZE_BASES = (("PL", "pl.revenue"), ("BS", "bs.total_assets"))
+
+
+def common_size_problem(body: Any) -> Optional[str]:
+    """Why this served body's `statements.common_size` is not a lawful
+    common_size/1 block — None when it is. Reads the block; computes nothing.
+
+    The problem names keys and statuses, NEVER a figure: this output goes
+    into a deploy log, and a customer's amounts do not."""
+    statements = body.get("statements") if isinstance(body, dict) else None
+    block = statements.get("common_size") if isinstance(statements, dict) else None
+    if not isinstance(block, dict):
+        return "no statements.common_size block"
+    if block.get("schema") != COMMON_SIZE_SCHEMA:
+        return "statements.common_size.schema is %r, not %r" % (block.get("schema"), COMMON_SIZE_SCHEMA)
+    bases = block.get("bases")
+    for statement, key in _COMMON_SIZE_BASES:
+        base = bases.get(statement) if isinstance(bases, dict) else None
+        if not isinstance(base, dict) or base.get("key") != key or "value" not in base:
+            return "statements.common_size.bases.%s does not name %s" % (statement, key)
+    rows = block.get("rows")
+    if not isinstance(rows, list) or not rows:
+        return "statements.common_size.rows is empty"
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != set(_COMMON_SIZE_ROW_KEYS):
+            return "a statements.common_size row does not carry exactly %s" % (_COMMON_SIZE_ROW_KEYS,)
+        if (row["share"] is not None) != (row["status"] == "share"):
+            return "row %s carries a share under status %r (a share exists only under 'share')" % (
+                row["key"], row["status"])
+    return None
+
+
 def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch,
-                  observe: Optional[Callable[[Dict[str, Any], int, Any], None]] = None) -> Dict[str, Any]:
+                  observe: Optional[Callable[[Dict[str, Any], int, Any], None]] = None,
+                  require_common_size: bool = False) -> Dict[str, Any]:
     """Pure core: request every period, judge every answer. No I/O of its own."""
     rows = list(periods)
     failures: List[Dict[str, Any]] = []
     slowest: Tuple[float, str] = (0.0, "")
+    with_common_size = 0
     for row in rows:
         pid = str(row.get("id") or "")
         started = time.monotonic()
         try:
             status, body = fetch(pid)
-            problem = _judge(pid, status, body)
+            problem = _judge(pid, status, body, require_common_size=require_common_size)
+            if status == 200 and common_size_problem(body) is None:
+                with_common_size += 1
             if observe is not None:
                 observe(row, status, body)
         except Exception as exc:  # noqa: BLE001 — a crash IS the finding
@@ -132,10 +176,13 @@ def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch,
         "failures": failures,
         "slowest_seconds": round(slowest[0], 2),
         "slowest_period": slowest[1],
+        # How many served bodies carry a lawful common_size/1 block — counted
+        # on every run, required only under --require-common-size.
+        "common_size": {"lawful": with_common_size, "required": bool(require_common_size)},
     }
 
 
-def _judge(pid: str, status: int, body: Any) -> Optional[str]:
+def _judge(pid: str, status: int, body: Any, require_common_size: bool = False) -> Optional[str]:
     if status != 200:
         detail = body.get("detail") if isinstance(body, dict) else body
         return f"HTTP {status}: {detail}"
@@ -144,6 +191,8 @@ def _judge(pid: str, status: int, body: Any) -> Optional[str]:
     period = body.get("period")
     if not isinstance(period, dict) or str(period.get("id")) != pid:
         return "served body does not carry this period"
+    if require_common_size:
+        return common_size_problem(body)
     return None
 
 
@@ -206,6 +255,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--dump", help="write one JSON line per period (id, org, status, served credit verdict) "
                                    "— run before and after a deploy and diff the two files")
+    ap.add_argument("--require-common-size", action="store_true",
+                    help="a period whose body carries no lawful statements.common_size "
+                         "(schema common_size/1) is a failure")
     args = ap.parse_args(argv)
 
     _add_src_to_path()
@@ -235,6 +287,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             observe=(lambda row, status, body: seen.append(
                 {"period_id": row.get("id"), "org_id": row.get("org_id"), "status": status, **credit_snapshot(body)}))
             if args.dump else None,
+            require_common_size=args.require_common_size,
         )
         if args.dump:
             with open(args.dump, "w", encoding="utf-8") as fh:
@@ -253,6 +306,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"SERVED PERIODS — scope: {report['scope']}")
         print(f"  checked {report['checked']} periods across {report['orgs']} orgs; "
               f"slowest {report['slowest_seconds']}s ({report['slowest_period']})")
+        print(f"  statements.common_size ({COMMON_SIZE_SCHEMA}) lawful on "
+              f"{report['common_size']['lawful']} of {report['checked']} periods"
+              + (" — REQUIRED" if args.require_common_size else ""))
         for f in report["failures"]:
             print(f"  RED  {f['period_id']}  org {f['org_id']}  {f['label']}  → {f['problem']}")
         verdict = {0: "GREEN — every stored period serves", 1: f"RED — {report['failed']} period(s) fail to serve",

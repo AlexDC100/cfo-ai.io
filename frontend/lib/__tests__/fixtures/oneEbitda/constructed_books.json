@@ -1979,6 +1979,642 @@
     },
     "unmapped": []
    },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 410000.0
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 1000000.0
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 1000000.0,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 600000.0,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.6,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.inventory_variation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 450000.0,
+      "key": "pl.gross_profit",
+      "note": "share of pl.revenue",
+      "share": 0.45,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.other_operating_income",
+      "note": "the period did not report Other operating income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 40000.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.04,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 290000.0,
+      "key": "pl.ebitda",
+      "note": "share of pl.revenue",
+      "share": 0.29,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 240000.0,
+      "key": "pl.ebit",
+      "note": "share of pl.revenue",
+      "share": 0.24,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_expense",
+      "note": "the period did not report Interest expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_income",
+      "note": "the period did not report Interest income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_income",
+      "note": "the period did not report Financial income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_expense",
+      "note": "the period did not report Financial expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 240000.0,
+      "key": "pl.pretax",
+      "note": "share of pl.revenue",
+      "share": 0.24,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 30000.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.03,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 120000.0,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.12,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 210000.0,
+      "key": "pl.net_income",
+      "note": "share of pl.revenue",
+      "share": 0.21,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 160000.0,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 0.390244,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_receivables_net",
+      "note": "the period did not report Trade receivables, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 0.609756,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_assets",
+      "note": "the period did not report Other current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 410000.0,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_net",
+      "note": "the period did not report Property, plant & equipment, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.intangibles_net",
+      "note": "the period did not report Intangibles, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_assets",
+      "note": "the period did not report Other non-current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 410000.0,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_payables",
+      "note": "the period did not report Trade payables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.short_term_debt",
+      "note": "the period did not report Short-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_liabilities",
+      "note": "the period did not report Other current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.long_term_debt",
+      "note": "the period did not report Long-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_liabilities",
+      "note": "the period did not report Other non-current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.243902,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": 0.243902,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_equity",
+      "note": "the period did not report Other equity; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 410000.0,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_intercompany",
+      "note": "the period did not report Related-party receivables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash_fx_component",
+      "note": "the period did not report Cash held in foreign currency; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_under_construction",
+      "note": "the period did not report Assets under construction; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.opex_third_party",
+      "note": "the period did not report Third-party services (628); absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 160000.0,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 0.390244,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.row.inventory_finished_goods",
+      "note": "share of bs.total.assets",
+      "share": 0.609756,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.243902,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.retained_earnings_prior_years",
+      "note": "share of bs.total.assets",
+      "share": 0.243902,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 210000.0,
+      "key": "bs.row.current_year_profit",
+      "note": "share of bs.total.assets",
+      "share": 0.512195,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_assets",
+      "note": "the period's balance sheet carries no row in section non_current_assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 410000.0,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.prepaid_expenses",
+      "note": "the period's balance sheet carries no row in section prepaid_expenses; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 410000.0,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_liabilities",
+      "note": "the period's balance sheet carries no row in section non_current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.current_liabilities",
+      "note": "the period's balance sheet carries no row in section current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.deferred_income",
+      "note": "the period's balance sheet carries no row in section deferred_income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 410000.0,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 410000.0,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
+   },
    "companyName": "Net 711 constructed bridge_with_722",
    "currency": "RON",
    "detection_envelope": {
@@ -4451,6 +5087,642 @@
     },
     "unmapped": []
    },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 370000.0
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 1000000.0
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 1000000.0,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 600000.0,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.6,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.inventory_variation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 450000.0,
+      "key": "pl.gross_profit",
+      "note": "share of pl.revenue",
+      "share": 0.45,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.other_operating_income",
+      "note": "the period did not report Other operating income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 250000.0,
+      "key": "pl.ebitda",
+      "note": "share of pl.revenue",
+      "share": 0.25,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.ebit",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_expense",
+      "note": "the period did not report Interest expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_income",
+      "note": "the period did not report Interest income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_income",
+      "note": "the period did not report Financial income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_expense",
+      "note": "the period did not report Financial expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.pretax",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 30000.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.03,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 120000.0,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.12,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 170000.0,
+      "key": "pl.net_income",
+      "note": "share of pl.revenue",
+      "share": 0.17,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 120000.0,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 0.324324,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_receivables_net",
+      "note": "the period did not report Trade receivables, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 0.675676,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_assets",
+      "note": "the period did not report Other current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 370000.0,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_net",
+      "note": "the period did not report Property, plant & equipment, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.intangibles_net",
+      "note": "the period did not report Intangibles, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_assets",
+      "note": "the period did not report Other non-current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 370000.0,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_payables",
+      "note": "the period did not report Trade payables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.short_term_debt",
+      "note": "the period did not report Short-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_liabilities",
+      "note": "the period did not report Other current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.long_term_debt",
+      "note": "the period did not report Long-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_liabilities",
+      "note": "the period did not report Other non-current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.27027,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": 0.27027,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_equity",
+      "note": "the period did not report Other equity; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 370000.0,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_intercompany",
+      "note": "the period did not report Related-party receivables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash_fx_component",
+      "note": "the period did not report Cash held in foreign currency; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_under_construction",
+      "note": "the period did not report Assets under construction; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.opex_third_party",
+      "note": "the period did not report Third-party services (628); absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 120000.0,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 0.324324,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.row.inventory_finished_goods",
+      "note": "share of bs.total.assets",
+      "share": 0.675676,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.27027,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.retained_earnings_prior_years",
+      "note": "share of bs.total.assets",
+      "share": 0.27027,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 170000.0,
+      "key": "bs.row.current_year_profit",
+      "note": "share of bs.total.assets",
+      "share": 0.459459,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_assets",
+      "note": "the period's balance sheet carries no row in section non_current_assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.prepaid_expenses",
+      "note": "the period's balance sheet carries no row in section prepaid_expenses; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_liabilities",
+      "note": "the period's balance sheet carries no row in section non_current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.current_liabilities",
+      "note": "the period's balance sheet carries no row in section current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.deferred_income",
+      "note": "the period's balance sheet carries no row in section deferred_income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
+   },
    "companyName": "Net 711 constructed closed_bridge",
    "currency": "RON",
    "detection_envelope": {
@@ -6911,6 +8183,642 @@
      "liabilities": 0.0
     },
     "unmapped": []
+   },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 322000.0
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 1000000.0
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 1000000.0,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 600000.0,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.6,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.inventory_variation",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 400000.0,
+      "key": "pl.gross_profit",
+      "note": "share of pl.revenue",
+      "share": 0.4,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.other_operating_income",
+      "note": "the period did not report Other operating income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.ebitda",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 150000.0,
+      "key": "pl.ebit",
+      "note": "share of pl.revenue",
+      "share": 0.15,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_expense",
+      "note": "the period did not report Interest expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_income",
+      "note": "the period did not report Interest income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_income",
+      "note": "the period did not report Financial income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_expense",
+      "note": "the period did not report Financial expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 150000.0,
+      "key": "pl.pretax",
+      "note": "share of pl.revenue",
+      "share": 0.15,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 30000.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.03,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 120000.0,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.12,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 122000.0,
+      "key": "pl.net_income",
+      "note": "share of pl.revenue",
+      "share": 0.122,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 72000.0,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 0.223602,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_receivables_net",
+      "note": "the period did not report Trade receivables, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 0.776398,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_assets",
+      "note": "the period did not report Other current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 322000.0,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_net",
+      "note": "the period did not report Property, plant & equipment, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.intangibles_net",
+      "note": "the period did not report Intangibles, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_assets",
+      "note": "the period did not report Other non-current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 322000.0,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_payables",
+      "note": "the period did not report Trade payables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.short_term_debt",
+      "note": "the period did not report Short-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_liabilities",
+      "note": "the period did not report Other current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.long_term_debt",
+      "note": "the period did not report Long-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_liabilities",
+      "note": "the period did not report Other non-current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.310559,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": 0.310559,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_equity",
+      "note": "the period did not report Other equity; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 322000.0,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_intercompany",
+      "note": "the period did not report Related-party receivables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash_fx_component",
+      "note": "the period did not report Cash held in foreign currency; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_under_construction",
+      "note": "the period did not report Assets under construction; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.opex_third_party",
+      "note": "the period did not report Third-party services (628); absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 72000.0,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 0.223602,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.row.inventory_finished_goods",
+      "note": "share of bs.total.assets",
+      "share": 0.776398,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.310559,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.retained_earnings_prior_years",
+      "note": "share of bs.total.assets",
+      "share": 0.310559,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 122000.0,
+      "key": "bs.row.current_year_profit",
+      "note": "share of bs.total.assets",
+      "share": 0.378882,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_assets",
+      "note": "the period's balance sheet carries no row in section non_current_assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 322000.0,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.prepaid_expenses",
+      "note": "the period's balance sheet carries no row in section prepaid_expenses; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 322000.0,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_liabilities",
+      "note": "the period's balance sheet carries no row in section non_current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.current_liabilities",
+      "note": "the period's balance sheet carries no row in section current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.deferred_income",
+      "note": "the period's balance sheet carries no row in section deferred_income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 322000.0,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 322000.0,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
    },
    "companyName": "Net 711 constructed closed_no_activity",
    "currency": "RON",
@@ -9827,6 +11735,642 @@
     },
     "unmapped": []
    },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 370000.0
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 1000000.0
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 1000000.0,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 600000.0,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.6,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.inventory_variation",
+      "note": "Variația stocurilor de produse (711) is refused, so no share is taken — the opening balance of account 121 (the prior-year result) is not shown cleared in the period, so it would enter the stock variation",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.gross_profit",
+      "note": "Gross profit is refused, so no share is taken — the opening balance of account 121 (the prior-year result) is not shown cleared in the period, so it would enter the stock variation",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.other_operating_income",
+      "note": "the period did not report Other operating income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.ebitda",
+      "note": "EBITDA is refused, so no share is taken — the opening balance of account 121 (the prior-year result) is not shown cleared in the period, so it would enter the stock variation",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.ebit",
+      "note": "EBIT is refused, so no share is taken — the opening balance of account 121 (the prior-year result) is not shown cleared in the period, so it would enter the stock variation",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_expense",
+      "note": "the period did not report Interest expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_income",
+      "note": "the period did not report Interest income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_income",
+      "note": "the period did not report Financial income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_expense",
+      "note": "the period did not report Financial expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.pretax",
+      "note": "Profit before tax is refused, so no share is taken — the opening balance of account 121 (the prior-year result) is not shown cleared in the period, so it would enter the stock variation",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 30000.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.03,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 120000.0,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.12,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 250000.0,
+      "key": "pl.net_income",
+      "note": "share of pl.revenue",
+      "share": 0.25,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 120000.0,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 0.324324,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_receivables_net",
+      "note": "the period did not report Trade receivables, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 0.675676,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_assets",
+      "note": "the period did not report Other current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 370000.0,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_net",
+      "note": "the period did not report Property, plant & equipment, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.intangibles_net",
+      "note": "the period did not report Intangibles, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_assets",
+      "note": "the period did not report Other non-current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 370000.0,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_payables",
+      "note": "the period did not report Trade payables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.short_term_debt",
+      "note": "the period did not report Short-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_liabilities",
+      "note": "the period did not report Other current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.long_term_debt",
+      "note": "the period did not report Long-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_liabilities",
+      "note": "the period did not report Other non-current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.27027,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 20000.0,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": 0.054054,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_equity",
+      "note": "the period did not report Other equity; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 370000.0,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_intercompany",
+      "note": "the period did not report Related-party receivables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash_fx_component",
+      "note": "the period did not report Cash held in foreign currency; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_under_construction",
+      "note": "the period did not report Assets under construction; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.opex_third_party",
+      "note": "the period did not report Third-party services (628); absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 120000.0,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 0.324324,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.row.inventory_finished_goods",
+      "note": "share of bs.total.assets",
+      "share": 0.675676,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.27027,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 20000.0,
+      "key": "bs.row.retained_earnings_prior_years",
+      "note": "share of bs.total.assets",
+      "share": 0.054054,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.row.current_year_profit",
+      "note": "share of bs.total.assets",
+      "share": 0.675676,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_assets",
+      "note": "the period's balance sheet carries no row in section non_current_assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.prepaid_expenses",
+      "note": "the period's balance sheet carries no row in section prepaid_expenses; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_liabilities",
+      "note": "the period's balance sheet carries no row in section non_current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.current_liabilities",
+      "note": "the period's balance sheet carries no row in section current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.deferred_income",
+      "note": "the period's balance sheet carries no row in section deferred_income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 370000.0,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
+   },
    "companyName": "Net 711 constructed g6_uncleared",
    "currency": "RON",
    "detection_envelope": {
@@ -12266,6 +14810,624 @@
      "liabilities": 0.0
     },
     "unmapped": []
+   },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 270000.0
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 1000000.0
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 1000000.0,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 600000.0,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.6,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.inventory_variation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 450000.0,
+      "key": "pl.gross_profit",
+      "note": "share of pl.revenue",
+      "share": 0.45,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.other_operating_income",
+      "note": "the period did not report Other operating income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 250000.0,
+      "key": "pl.ebitda",
+      "note": "share of pl.revenue",
+      "share": 0.25,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.ebit",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_expense",
+      "note": "the period did not report Interest expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_income",
+      "note": "the period did not report Interest income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_income",
+      "note": "the period did not report Financial income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_expense",
+      "note": "the period did not report Financial expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.pretax",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 30000.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.03,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 120000.0,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.12,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 170000.0,
+      "key": "pl.net_income",
+      "note": "share of pl.revenue",
+      "share": 0.17,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 270000.0,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_receivables_net",
+      "note": "the period did not report Trade receivables, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.inventory",
+      "note": "the period did not report Inventory; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_assets",
+      "note": "the period did not report Other current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 270000.0,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_net",
+      "note": "the period did not report Property, plant & equipment, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.intangibles_net",
+      "note": "the period did not report Intangibles, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_assets",
+      "note": "the period did not report Other non-current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 270000.0,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_payables",
+      "note": "the period did not report Trade payables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.short_term_debt",
+      "note": "the period did not report Short-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_liabilities",
+      "note": "the period did not report Other current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.long_term_debt",
+      "note": "the period did not report Long-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_liabilities",
+      "note": "the period did not report Other non-current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.37037,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.retained_earnings",
+      "note": "the period did not report Retained earnings; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_equity",
+      "note": "the period did not report Other equity; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 270000.0,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_intercompany",
+      "note": "the period did not report Related-party receivables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash_fx_component",
+      "note": "the period did not report Cash held in foreign currency; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_under_construction",
+      "note": "the period did not report Assets under construction; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.opex_third_party",
+      "note": "the period did not report Third-party services (628); absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 270000.0,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.37037,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 170000.0,
+      "key": "bs.row.current_year_profit",
+      "note": "share of bs.total.assets",
+      "share": 0.62963,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_assets",
+      "note": "the period's balance sheet carries no row in section non_current_assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 270000.0,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.prepaid_expenses",
+      "note": "the period's balance sheet carries no row in section prepaid_expenses; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 270000.0,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_liabilities",
+      "note": "the period's balance sheet carries no row in section non_current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.current_liabilities",
+      "note": "the period's balance sheet carries no row in section current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.deferred_income",
+      "note": "the period's balance sheet carries no row in section deferred_income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 270000.0,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 270000.0,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
    },
    "companyName": "Net 711 constructed open",
    "currency": "RON",
@@ -15156,6 +18318,633 @@
      "liabilities": 50000.0
     },
     "unmapped": []
+   },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 250000.0
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 1000000.0
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 1000000.0,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 600000.0,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.6,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.inventory_variation",
+      "note": "Variația stocurilor de produse (711) is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.gross_profit",
+      "note": "Gross profit is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.other_operating_income",
+      "note": "the period did not report Other operating income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.ebitda",
+      "note": "EBITDA is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.ebit",
+      "note": "EBIT is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_expense",
+      "note": "the period did not report Interest expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_income",
+      "note": "the period did not report Interest income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_income",
+      "note": "the period did not report Financial income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_expense",
+      "note": "the period did not report Financial expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.pretax",
+      "note": "Profit before tax is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 30000.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.03,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 120000.0,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.12,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.net_income",
+      "note": "the period did not report Net income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash",
+      "note": "the period did not report Cash & equivalents; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_receivables_net",
+      "note": "the period did not report Trade receivables, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_assets",
+      "note": "the period did not report Other current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_net",
+      "note": "the period did not report Property, plant & equipment, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.intangibles_net",
+      "note": "the period did not report Intangibles, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_assets",
+      "note": "the period did not report Other non-current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.trade_payables",
+      "note": "the period did not report Trade payables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 50000.0,
+      "key": "bs.short_term_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.2,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_liabilities",
+      "note": "the period did not report Other current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.long_term_debt",
+      "note": "the period did not report Long-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_liabilities",
+      "note": "the period did not report Other non-current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 50000.0,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.2,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 50000.0,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.2,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.4,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": 0.4,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_equity",
+      "note": "the period did not report Other equity; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 200000.0,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 0.8,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_intercompany",
+      "note": "the period did not report Related-party receivables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash_fx_component",
+      "note": "the period did not report Cash held in foreign currency; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_under_construction",
+      "note": "the period did not report Assets under construction; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.opex_third_party",
+      "note": "the period did not report Third-party services (628); absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.row.inventory_finished_goods",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.4,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.retained_earnings_prior_years",
+      "note": "share of bs.total.assets",
+      "share": 0.4,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 50000.0,
+      "key": "bs.row.st_debt_bank",
+      "note": "share of bs.total.assets",
+      "share": 0.2,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_assets",
+      "note": "the period's balance sheet carries no row in section non_current_assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.prepaid_expenses",
+      "note": "the period's balance sheet carries no row in section prepaid_expenses; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 200000.0,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 0.8,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_liabilities",
+      "note": "the period's balance sheet carries no row in section non_current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 50000.0,
+      "key": "bs.section.current_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 0.2,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.deferred_income",
+      "note": "the period's balance sheet carries no row in section deferred_income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
    },
    "companyName": "Net 711 constructed unanchored",
    "currency": "RON",
@@ -18127,6 +21916,651 @@
      "liabilities": 50000.0
     },
     "unmapped": []
+   },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 420000.0
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 1000000.0
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 1000000.0,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 600000.0,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.6,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.inventory_variation",
+      "note": "Variația stocurilor de produse (711) is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.gross_profit",
+      "note": "Gross profit is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 200000.0,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.2,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.other_operating_income",
+      "note": "the period did not report Other operating income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 50000.0,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.05,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.ebitda",
+      "note": "EBITDA is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.ebit",
+      "note": "EBIT is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_expense",
+      "note": "the period did not report Interest expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.interest_income",
+      "note": "the period did not report Interest income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_income",
+      "note": "the period did not report Financial income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.financial_expense",
+      "note": "the period did not report Financial expense; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.pretax",
+      "note": "Profit before tax is refused, so no share is taken — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+      "share": null,
+      "statement": "PL",
+      "status": "refused"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 30000.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.03,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 120000.0,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.12,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.net_income",
+      "note": "the period did not report Net income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 120000.0,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 0.285714,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 50000.0,
+      "key": "bs.trade_receivables_net",
+      "note": "share of bs.total_assets",
+      "share": 0.119048,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 250000.0,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 0.595238,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_assets",
+      "note": "the period did not report Other current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 420000.0,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_net",
+      "note": "the period did not report Property, plant & equipment, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.intangibles_net",
+      "note": "the period did not report Intangibles, net; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_assets",
+      "note": "the period did not report Other non-current assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 420000.0,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 50000.0,
+      "key": "bs.trade_payables",
+      "note": "share of bs.total_assets",
+      "share": 0.119048,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.short_term_debt",
+      "note": "the period did not report Short-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_current_liabilities",
+      "note": "the period did not report Other current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.long_term_debt",
+      "note": "the period did not report Long-term debt; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_non_current_liabilities",
+      "note": "the period did not report Other non-current liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 0.0,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 50000.0,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.119048,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.238095,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 100000.0,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": 0.238095,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.other_equity",
+      "note": "the period did not report Other equity; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 200000.0,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 0.47619,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_intercompany",
+      "note": "the period did not report Related-party receivables; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.cash_fx_component",
+      "note": "the period did not report Cash held in foreign currency; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_under_construction",
+      "note": "the period did not report Assets under construction; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.opex_third_party",
+      "note": "the period did not report Third-party services (628); absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (synthetic) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 120000.0,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 0.285714,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 50000.0,
+      "key": "bs.row.ar_trade_gross",
+      "note": "share of bs.total.assets",
+      "share": 0.119048,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.row.inventory_finished_goods",
+      "note": "share of bs.total.assets",
+      "share": 0.595238,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.238095,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 100000.0,
+      "key": "bs.row.retained_earnings_prior_years",
+      "note": "share of bs.total.assets",
+      "share": 0.238095,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 50000.0,
+      "key": "bs.row.ap_trade",
+      "note": "share of bs.total.assets",
+      "share": 0.119048,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_assets",
+      "note": "the period's balance sheet carries no row in section non_current_assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 420000.0,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.prepaid_expenses",
+      "note": "the period's balance sheet carries no row in section prepaid_expenses; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 200000.0,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 0.47619,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.non_current_liabilities",
+      "note": "the period's balance sheet carries no row in section non_current_liabilities; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 50000.0,
+      "key": "bs.section.current_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 0.119048,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.deferred_income",
+      "note": "the period's balance sheet carries no row in section deferred_income; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 420000.0,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 250000.0,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 0.595238,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
    },
    "companyName": "Net 711 constructed unanchored_unbalanced",
    "currency": "RON",

@@ -7,7 +7,11 @@ Three readings of the same two envelopes, each with its own refusal.
                 period, and the change in PERCENTAGE POINTS — never a
                 percentage of a percentage. A line the column model refused
                 stays refused here; a base below the zero floor refuses the
-                whole statement's shares.
+                whole statement's shares. A share is a statement about ONE
+                period, so each side's is taken by `shares.side_shares` —
+                the same function `period_common_size` runs over a period
+                read on its own (`statements.common_size` on every period
+                payload): one computation, two documents.
 
   THE BRIDGE    prior total → named steps → current total, closing to the
                 cent. Every step is the change in one engine field that the
@@ -23,7 +27,11 @@ Three readings of the same two envelopes, each with its own refusal.
                 direction (inventory, receivables, capital) is listed as a
                 mover and is never given an adjective — whether more
                 inventory is good depends on the business, and this module
-                does not know the business.
+                does not know the business. An adjective also needs TIME
+                TO RUN FORWARD from the prior to the current period: a
+                comparison with a period that closes LATER (or whose order
+                cannot be read) is served with every figure and no verdict
+                (`time_direction`).
 
 The identities the bridge relies on were MEASURED on the committed real
 baselines (scandia_fy2025, eei_dec_2025) before being written down here,
@@ -59,37 +67,64 @@ Python 3.9 — no `match`, no `X | Y` unions.
 """
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .columns import (
+    DISCLOSURE_ABSENT,
+    DISCLOSURE_REPORTED,
     MOVEMENT_STATUSES,
+    STATUS_ABSENT_BOTH,
     STATUS_ABSENT_CURRENT,
     STATUS_ABSENT_PRIOR,
+    STATUS_COMPARED,
+    STATUS_INCOMPARABLE,
     ComparativeColumn,
     ComparativeTable,
+    round_money,
 )
 from .lines import ZERO_FLOOR, spec_for, unwrap_envelope
+from .shares import (
+    COMMON_SIZE_BASE,
+    STATUS_NO_BASE,
+    SideLine,
+    SideShare,
+    side_lines,
+    side_shares,
+)
 
 __all__ = [
     "COMMON_SIZE_BASE",
+    "COMMON_SIZE_SCHEMA",
+    "CANONICAL_ROW_PREFIX",
+    "CANONICAL_SECTION_PREFIX",
+    "CANONICAL_TOTAL_PREFIX",
+    "CANONICAL_BASE_KEY",
     "FAVORABLE_DIRECTION",
     "MATERIALITY_FLOOR",
     "TOP_MOVERS_DEFAULT",
+    "ORDER_PRIOR_EARLIER",
+    "ORDER_PRIOR_LATER",
+    "ORDER_SAME_CLOSE",
+    "ORDER_UNKNOWN",
+    "VERDICT_ORDERS",
     "CommonSizeRow",
     "BridgeStep",
     "Bridge",
     "Mover",
     "Movers",
+    "Direction",
     "common_size",
+    "canonical_side_lines",
+    "canonical_common_size",
+    "period_common_size",
     "pl_bridge",
     "bs_bridge",
     "movers",
     "line_verdict",
+    "time_direction",
 ]
-
-#: The line each statement's shares are taken against.
-COMMON_SIZE_BASE = {"PL": "pl.revenue", "BS": "bs.total_assets"}
 
 #: Which way is good news, per line. Absent from this table means NO
 #: verdict — the line can be a mover but never "improved" or
@@ -153,61 +188,218 @@ class CommonSizeRow:
     note: str
 
 
-def _base_values(table: ComparativeTable, statement: str) -> Tuple[Optional[float], Optional[float], str]:
-    base_key = COMMON_SIZE_BASE.get(statement)
-    if base_key is None:
-        return None, None, ""
-    col = table.by_key(base_key)
-    if col is None:
-        return None, None, base_key
-    return col.current, col.prior, base_key
+def _table_side(table: ComparativeTable, which: str) -> Tuple[SideLine, ...]:
+    """One side of a comparison as the lines of ONE period — exactly what
+    the column model read for that side (value to the cent, disclosure)."""
+    current = which == "current"
+    return tuple(
+        SideLine(key=col.key, statement=col.statement, label=col.label,
+                 base_key=COMMON_SIZE_BASE.get(col.statement, ""),
+                 value=col.current if current else col.prior,
+                 disclosure=col.current_disclosure if current else col.prior_disclosure)
+        for col in table.columns)
 
 
-def _share(value: Optional[float], base: Optional[float]) -> Optional[float]:
-    if value is None or base is None or abs(base) < ZERO_FLOOR:
-        return None
-    return value / abs(base)
+def _pair_row(pair_status: str, pair_note: str, cur: SideShare, pri: SideShare) -> CommonSizeRow:
+    """One two-period row from the two periods' own shares. The shares are
+    `side_shares`' and nothing else; this only says what the PAIR permits."""
+    line = cur.line
+    if pair_status not in MOVEMENT_STATUSES and pair_status not in (
+            STATUS_ABSENT_PRIOR, STATUS_ABSENT_CURRENT):
+        # The pair refuses the line (refused or not disclosed on either
+        # side, incomparable, absent on both): no share on either side.
+        return CommonSizeRow(line.key, line.statement, line.base_key, None, None,
+                             None, pair_status, pair_note)
+    if cur.status == STATUS_NO_BASE:
+        status, note = "no_base", (
+            "%s is below the %.3f zero floor in the current period; no "
+            "share can be taken" % (line.base_key, ZERO_FLOOR))
+    elif pri.status == STATUS_NO_BASE:
+        status, note = "no_base", (
+            "%s is below the %.3f zero floor in the prior period; no "
+            "share can be taken" % (line.base_key, ZERO_FLOOR))
+    elif cur.raw is not None and pri.raw is not None:
+        status, note = "compared", "share of %s in both periods" % line.base_key
+    else:
+        status, note = pair_status, pair_note
+    # The change in points is struck from the UNROUNDED sides, as it
+    # always was; each side is then served rounded.
+    delta = (
+        _r((cur.raw - pri.raw) * 100.0, PTS_DP)
+        if cur.raw is not None and pri.raw is not None else None
+    )
+    return CommonSizeRow(
+        key=line.key, statement=line.statement, base_key=line.base_key,
+        current_share=cur.share, prior_share=pri.share,
+        delta_pts=delta, status=status, note=note,
+    )
 
 
 def common_size(table: ComparativeTable) -> Tuple[CommonSizeRow, ...]:
     """One row per column, each as a share of its statement's base."""
-    rows = []
-    for col in table.columns:
-        if col.statement not in COMMON_SIZE_BASE:
-            # analytic-only figures live under "BS" in the registry but
-            # carry no base of their own; a refused column stays refused.
-            pass
-        cur_base, pri_base, base_key = _base_values(table, col.statement)
-        if col.status not in MOVEMENT_STATUSES and col.status not in (
-                STATUS_ABSENT_PRIOR, STATUS_ABSENT_CURRENT):
-            rows.append(CommonSizeRow(col.key, col.statement, base_key, None, None,
-                                      None, col.status, col.note))
+    cur = side_shares(_table_side(table, "current"))
+    pri = side_shares(_table_side(table, "prior"))
+    return tuple(_pair_row(col.status, col.note, c, p)
+                 for col, c, p in zip(table.columns, cur, pri))
+
+
+# ── common size of the canonical balance sheet ───────────────────────
+#
+# THE BALANCE-SHEET TAB RENDERS THE CANONICAL OBJECT (bs_v2), row by row —
+# not the registry's `bs.*` lines. Its "% of total assets" column was
+# therefore never an engine figure: the page divided each row's closing
+# balance by the total it printed (BsCmpCells, measured 2026-10-04). The
+# rows are served here instead, under the keys the variance bridge already
+# gives them (`bs.row.<id>`), each section's subtotal and the two grand
+# totals beside them, every one a share of the canonical object's OWN total
+# assets — read through the serving gateway, the figure the tab prints as
+# TOTAL ASSETS. One object, one base: a canonical row is never a share of a
+# total another authority computed. (On a served period the registry's
+# `bs.total_assets` IS that total — `_apply_envelope_truth_to_statements` —
+# and the gate holds the two equal through the real route.)
+CANONICAL_ROW_PREFIX = "bs.row."
+CANONICAL_SECTION_PREFIX = "bs.section."
+CANONICAL_TOTAL_PREFIX = "bs.total."
+CANONICAL_BASE_KEY = CANONICAL_TOTAL_PREFIX + "assets"
+
+#: The canonical grand totals, in render order: (gateway name, label).
+_CANONICAL_TOTALS = (
+    ("assets", "Total assets"),
+    ("equity_plus_liabilities", "Total equity and liabilities"),
+)
+
+
+def _canonical_line(key: str, label: str, value: Optional[float], why_absent: str) -> SideLine:
+    if value is None:
+        return SideLine(key=key, statement="BS", label=label, base_key=CANONICAL_BASE_KEY,
+                        value=None, disclosure=DISCLOSURE_ABSENT, note=why_absent)
+    return SideLine(key=key, statement="BS", label=label, base_key=CANONICAL_BASE_KEY,
+                    value=round_money(value), disclosure=DISCLOSURE_REPORTED)
+
+
+def canonical_side_lines(envelope: Mapping[str, Any]) -> Optional[Tuple[SideLine, ...]]:
+    """The canonical balance sheet of ONE period as lines: every row, every
+    section subtotal, the two grand totals. None when the period carries no
+    canonical object (a legacy envelope has no row identities).
+
+    A section the object lists with no row in it and a subtotal below the
+    zero floor is ABSENT — the book has no such section — never 0 % of
+    total assets."""
+    read = _canonical_rows(envelope)
+    if read is None:
+        return None
+    rows, totals = read
+    node = unwrap_envelope(envelope).get("statements") or {}
+    cbs = node.get("canonical_bs") or {}
+    out = []  # type: List[SideLine]
+    populated = set()
+    for rid, (amount, section, label) in rows.items():
+        populated.add(section)
+        out.append(_canonical_line(CANONICAL_ROW_PREFIX + rid, label, amount, ""))
+    for sec in cbs.get("sections") or []:
+        if not isinstance(sec, Mapping) or sec.get("id") is None:
             continue
-        cur_share = _share(col.current, cur_base)
-        pri_share = _share(col.prior, pri_base)
-        if cur_share is None and col.current is not None:
-            status, note = "no_base", (
-                "%s is below the %.3f zero floor in the current period; no "
-                "share can be taken" % (base_key, ZERO_FLOOR))
-        elif pri_share is None and col.prior is not None:
-            status, note = "no_base", (
-                "%s is below the %.3f zero floor in the prior period; no "
-                "share can be taken" % (base_key, ZERO_FLOOR))
-        elif cur_share is not None and pri_share is not None:
-            status, note = "compared", "share of %s in both periods" % base_key
+        sid = str(sec["id"])
+        subtotal = sec.get("subtotal")
+        value = None  # type: Optional[float]
+        if not isinstance(subtotal, bool) and isinstance(subtotal, (int, float)):
+            value = float(subtotal)
+            if value != value or value in (float("inf"), float("-inf")):
+                value = None
+        if value is not None and sid not in populated and abs(value) < ZERO_FLOOR:
+            value = None
+        out.append(_canonical_line(
+            CANONICAL_SECTION_PREFIX + sid, "section %s" % sid, value,
+            "the period's balance sheet carries no row in section %s; absent, "
+            "which is not zero — no share is taken" % sid))
+    for name, label in _CANONICAL_TOTALS:
+        out.append(_canonical_line(
+            CANONICAL_TOTAL_PREFIX + name, label, totals.get(name),
+            "the canonical balance sheet does not serve %s; no share is taken" % label.lower()))
+    return tuple(out)
+
+
+def _absent_side(line: SideLine) -> SideShare:
+    gone = SideLine(key=line.key, statement=line.statement, label=line.label,
+                    base_key=line.base_key, value=None, disclosure=DISCLOSURE_ABSENT)
+    return SideShare(line=gone, raw=None, share=None, status=DISCLOSURE_ABSENT, note="")
+
+
+def canonical_common_size(cur_env, pri_env, table):
+    # type: (Mapping[str, Any], Mapping[str, Any], ComparativeTable) -> Tuple[CommonSizeRow, ...]
+    """The canonical rows of two periods, paired by their stable ids — the
+    same pairing `bs_bridge` walks. A row only one period carries is
+    `absent_prior` / `absent_current` with the other side's share and no
+    change in points; a pair the column model will not compare gets no
+    share on either side. Each side's shares are `side_shares` over that
+    period's own canonical lines."""
+    cur_lines = canonical_side_lines(cur_env)
+    pri_lines = canonical_side_lines(pri_env)
+    if cur_lines is None and pri_lines is None:
+        return ()
+    cur = dict((s.line.key, s) for s in side_shares(cur_lines or ()))
+    pri = dict((s.line.key, s) for s in side_shares(pri_lines or ()))
+    keys = list(cur) + [k for k in pri if k not in cur]
+    rows = []
+    for key in keys:
+        c, p = cur.get(key), pri.get(key)
+        line = (c or p).line  # type: ignore[union-attr]
+        c = c if c is not None else _absent_side(line)
+        p = p if p is not None else _absent_side(line)
+        if not table.comparability.comparable:
+            status, note = STATUS_INCOMPARABLE, table.comparability.reason
+        elif c.line.value is not None and p.line.value is not None:
+            status, note = STATUS_COMPARED, "both periods reported %s" % line.label
+        elif c.line.value is not None:
+            status, note = STATUS_ABSENT_PRIOR, (
+                "%s carries no canonical balance sheet (bs_v2); %s is not disclosed by it"
+                % (table.prior_label, line.label) if pri_lines is None else
+                "%s did not report %s; absent, which is not zero — no change is "
+                "computed against it" % (table.prior_label, line.label))
+        elif p.line.value is not None:
+            status, note = STATUS_ABSENT_CURRENT, (
+                "%s carries no canonical balance sheet (bs_v2); %s is not disclosed by it"
+                % (table.current_label, line.label) if cur_lines is None else
+                "%s did not report %s; absent, which is not zero — no change is "
+                "computed against it" % (table.current_label, line.label))
         else:
-            status, note = col.status, col.note
-        delta = (
-            _r((cur_share - pri_share) * 100.0, PTS_DP)
-            if cur_share is not None and pri_share is not None else None
-        )
-        rows.append(CommonSizeRow(
-            key=col.key, statement=col.statement, base_key=base_key,
-            current_share=None if cur_share is None else _r(cur_share, 6),
-            prior_share=None if pri_share is None else _r(pri_share, 6),
-            delta_pts=delta, status=status, note=note,
-        ))
+            status, note = STATUS_ABSENT_BOTH, "neither period reported %s" % line.label
+        rows.append(_pair_row(status, note, c, p))
     return tuple(rows)
+
+
+# ── common size of ONE period ────────────────────────────────────────
+
+#: The served block's schema stamp (`statements.common_size.schema`).
+COMMON_SIZE_SCHEMA = "common_size/1"
+
+
+def period_common_size(envelope: Mapping[str, Any], level: str) -> Dict[str, Any]:
+    """The single-period common size, JSON-ready: every registry line and
+    every canonical balance-sheet line of ONE assembled envelope as a share
+    of its base. No second period is read and none is needed.
+
+        {"schema": "common_size/1",
+         "bases": {"PL": {"key": "pl.revenue", "value": …|null},
+                   "BS": {"key": "bs.total_assets", "value": …|null}},
+         "rows": [{"key", "statement", "base_key", "current", "share",
+                   "status", "note"}, …]}
+
+    `status` is one of `shares.SIDE_STATUSES`; a row carries a `share`
+    only under `share`. Pure: same envelope in, same bytes out."""
+    lines = side_lines(envelope, level)
+    by_key = dict((line.key, line) for line in lines)
+    rows = []
+    for s in side_shares(lines + (canonical_side_lines(envelope) or ())):
+        rows.append({
+            "key": s.line.key, "statement": s.line.statement, "base_key": s.line.base_key,
+            "current": s.line.value, "share": s.share, "status": s.status, "note": s.note,
+        })
+    bases = {}
+    for statement, base_key in COMMON_SIZE_BASE.items():
+        base = by_key.get(base_key)
+        bases[statement] = {"key": base_key, "value": None if base is None else base.value}
+    return {"schema": COMMON_SIZE_SCHEMA, "bases": bases, "rows": rows}
 
 
 # ── the bridge ───────────────────────────────────────────────────────
@@ -591,6 +783,81 @@ def bs_bridge(cur_env, pri_env, table=None):
     return assets, le
 
 
+# ── which way time runs ──────────────────────────────────────────────
+#
+# "Improved" and "deteriorated" are words about time: the line moved the
+# good way FROM the prior period TO the current one. The picker lets a
+# reader compare with a period that closes AFTER the one on screen
+# (review of 2026-10-04): Δ is then current − later, and a verdict judged
+# on it reads history backwards — turnover that GREW from 2024 to 2025 was
+# listed "deteriorated" on the 2024 screen. The figures of such a
+# comparison are all true and all served; the adjectives are not.
+
+ORDER_PRIOR_EARLIER = "prior_is_earlier"
+ORDER_PRIOR_LATER = "prior_is_later"
+ORDER_SAME_CLOSE = "same_close"
+ORDER_UNKNOWN = "unknown"
+
+#: The orders under which a verdict is served. A later prior reads time
+#: backwards; an order that cannot be read is not assumed forward.
+VERDICT_ORDERS: Tuple[str, ...] = (ORDER_PRIOR_EARLIER, ORDER_SAME_CLOSE)
+
+
+@dataclass(frozen=True)
+class Direction:
+    #: One of the four ORDER_* tokens.
+    order: str
+    #: The two closes the order was read from, as ISO dates (None: unreadable).
+    current_period_end: Optional[str]
+    prior_period_end: Optional[str]
+    #: False when no improved / deteriorated verdict is served.
+    verdicts_served: bool
+    #: Why not — `prior_is_later` | `period_order_unknown`; None when served.
+    reason: Optional[str]
+    note: str
+
+
+def _close_date(value: Any) -> Optional[datetime.date]:
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.date.fromisoformat(value.strip()[:10])
+    except ValueError:
+        return None
+
+
+def time_direction(current_period_end: Any, prior_period_end: Any) -> Direction:
+    """Which way time runs between the two periods, from their closes.
+
+    Pure: the two dates in, the order out — no clock is read."""
+    cur = _close_date(current_period_end)
+    pri = _close_date(prior_period_end)
+    cur_iso = None if cur is None else cur.isoformat()
+    pri_iso = None if pri is None else pri.isoformat()
+    if cur is None or pri is None:
+        unread = [name for name, d in (("current", cur), ("prior", pri)) if d is None]
+        return Direction(
+            order=ORDER_UNKNOWN, current_period_end=cur_iso, prior_period_end=pri_iso,
+            verdicts_served=False, reason="period_order_unknown",
+            note="the close of the %s period cannot be read, so which period is the "
+                 "earlier one is unknown: no line is called improved or deteriorated"
+                 % " and the ".join(unread))
+    if pri > cur:
+        return Direction(
+            order=ORDER_PRIOR_LATER, current_period_end=cur_iso, prior_period_end=pri_iso,
+            verdicts_served=False, reason=ORDER_PRIOR_LATER,
+            note="the comparison period closes on %s, after the current period (%s): "
+                 "every change reads backwards in time, so no line is called "
+                 "improved or deteriorated" % (pri_iso, cur_iso))
+    order = ORDER_SAME_CLOSE if pri == cur else ORDER_PRIOR_EARLIER
+    return Direction(order=order, current_period_end=cur_iso, prior_period_end=pri_iso,
+                     verdicts_served=True, reason=None, note="")
+
+
 # ── movers ───────────────────────────────────────────────────────────
 
 
@@ -623,6 +890,10 @@ class Movers:
     deteriorated: Tuple[Mover, ...]
     #: Lines that moved but fell under the floor — counted, not hidden.
     below_floor: int
+    #: None when verdicts are served. Otherwise WHY every `verdict` is None
+    #: and both lists are empty (`Direction.reason`): the ranking, the
+    #: figures and the declared directions are served all the same.
+    verdicts_withheld: Optional[str] = None
 
 
 def _verdict(favorable: Optional[str], delta: Optional[float]) -> Optional[str]:
@@ -644,11 +915,16 @@ def line_verdict(key, delta):
     return _verdict(FAVORABLE_DIRECTION.get(key), delta)
 
 
-def movers(table, top_n=TOP_MOVERS_DEFAULT, floor=MATERIALITY_FLOOR):
-    # type: (ComparativeTable, int, float) -> Movers
+def movers(table, top_n=TOP_MOVERS_DEFAULT, floor=MATERIALITY_FLOOR, verdicts_withheld=None):
+    # type: (ComparativeTable, int, float, Optional[str]) -> Movers
     """Rank the bucket-backed lines that moved. Subtotals and derived lines
     (EBITDA, total assets, …) are excluded from the ranking so a move is
-    never counted twice; they still carry a verdict in `common_size`."""
+    never counted twice; they still carry a verdict in `common_size`.
+
+    `verdicts_withheld` is the reason no verdict may be served — the
+    document's `Direction.reason` when time does not run forward from the
+    prior to the current period. The ranking is unchanged; every verdict
+    is None and neither list holds a line."""
     bases = {}  # type: Dict[str, Tuple[str, Optional[float]]]
     for stmt, base_key in COMMON_SIZE_BASE.items():
         col = table.by_key(base_key)
@@ -671,7 +947,8 @@ def movers(table, top_n=TOP_MOVERS_DEFAULT, floor=MATERIALITY_FLOOR):
                   current=col.current, prior=col.prior, delta=col.delta,
                   delta_pct=col.delta_pct, materiality=_r(materiality, 6),
                   base_key=base_key, favorable=fav,
-                  verdict=_verdict(fav, col.delta), status=col.status)
+                  verdict=None if verdicts_withheld else _verdict(fav, col.delta),
+                  status=col.status)
         if materiality < floor:
             below += 1
             continue
@@ -683,4 +960,5 @@ def movers(table, top_n=TOP_MOVERS_DEFAULT, floor=MATERIALITY_FLOOR):
     improved = tuple(m for m in candidates if m.verdict == "improved")
     deteriorated = tuple(m for m in candidates if m.verdict == "deteriorated")
     return Movers(materiality_floor=floor, bases=bases, top=top,
-                  improved=improved, deteriorated=deteriorated, below_floor=below)
+                  improved=improved, deteriorated=deteriorated, below_floor=below,
+                  verdicts_withheld=verdicts_withheld or None)

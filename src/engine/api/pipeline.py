@@ -7151,6 +7151,51 @@ def _rebuild_assembled(
     return {"balanceSheet": bs, "incomeStatement": pl}
 
 
+# ── COMMON SIZE OF ONE PERIOD (owner ruling 2026-10-04) ──────────────
+#
+# "% din venituri" / "% din total active" was painted from the two-period
+# comparatives document alone, so a company with one year on file — or its
+# earliest year on screen — had no share column at all. The block is the
+# same computation the comparison's current side runs
+# (`engine.comparatives.shares.side_shares`), over this one period, and
+# rides on the period payload so the page prints it with no second request
+# and divides nothing itself.
+#
+# SERVE TIME ONLY, ON `GET /api/period`. Not persisted (it is a pure
+# function of the served statements, so no stored period needs
+# reprocessing) and not attached on `_rebuild_assembled_for_briefing`: no
+# engine consumer of that seam reads a share, and what a seam does not
+# carry cannot drift from the one that does.
+def _attach_common_size_block(
+    statements: Dict[str, Any], line_items: Optional[List[Dict[str, Any]]]
+) -> None:
+    """Attach `statements["common_size"]` in place, or leave the key ABSENT.
+
+    ABSENT != ZERO on the wire: the block's "absent" rows are statements
+    about a book that was READ. A payload whose re-assembly failed carries
+    no assembled P&L or balance sheet, and a block built on it would call
+    every line "not reported" — a false reading produced by our failure,
+    not by the book. So there is no block without both; the page then says
+    the shares are not served, which is the truth.
+
+    Never raises: a failure here must not cost the reader the period."""
+    try:
+        if not isinstance(statements, dict):
+            return
+        statements.pop("common_size", None)
+        if not isinstance(statements.get("assembled_pl"), dict) or not isinstance(
+                statements.get("assembled_bs"), dict):
+            return
+        from . import _comparatives as _cmp
+
+        statements["common_size"] = _cmp.common_size_block(
+            {"statements": statements, "line_items": list(line_items or [])})
+    except Exception:  # noqa: BLE001
+        if isinstance(statements, dict):
+            statements.pop("common_size", None)
+        logger.exception("[common size] block failed (non-fatal)")
+
+
 def _served_supplementary(period: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """`statements.supplementary` for a served period row — ONE rule for
     every served-rebuild seam (/api/period and `_rebuild_assembled_for_
@@ -10050,6 +10095,15 @@ def build_router() -> APIRouter:
         # (the reconciliation-adjusted `canonical_bs` the FE renders),
         # never the round-trip artifact. See `_attach_insights_block`.
         _attach_insights_block(statements, line_items)
+
+        # The single-period common size (`statements.common_size`, schema
+        # common_size/1): every line as a share of THIS period's own base,
+        # so the share column needs no comparison. After the envelope-truth
+        # override for the same reason as the two blocks above — the
+        # balance-sheet base is the served total assets. Nothing below
+        # changes a figure it reads (the gate recomputes it from the body
+        # this handler returns). See `_attach_common_size_block`.
+        _attach_common_size_block(statements, line_items)
 
         # ── F3.3 — Per-upload confidence report ─────────────────────
         # Surface the country-detection / layout / reconciliation /

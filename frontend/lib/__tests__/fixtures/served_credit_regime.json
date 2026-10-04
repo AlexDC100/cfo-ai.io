@@ -3837,6 +3837,957 @@
      }
     ]
    },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 83417653.88
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 162365.46
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 162365.46,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.cogs",
+      "note": "the period did not report Cost of goods sold; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 29589814.24,
+      "key": "pl.inventory_variation",
+      "note": "share of pl.revenue",
+      "share": 182.24205,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 29752179.7,
+      "key": "pl.gross_profit",
+      "note": "share of pl.revenue",
+      "share": 183.24205,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 29217823.86,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 179.950981,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 16620.28,
+      "key": "pl.other_operating_income",
+      "note": "share of pl.revenue",
+      "share": 0.102363,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 62219.44,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.383206,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 550976.12,
+      "key": "pl.ebitda",
+      "note": "share of pl.revenue",
+      "share": 3.393432,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 488756.68,
+      "key": "pl.ebit",
+      "note": "share of pl.revenue",
+      "share": 3.010226,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 1157873.31,
+      "key": "pl.interest_expense",
+      "note": "share of pl.revenue",
+      "share": 7.131278,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 408.12,
+      "key": "pl.interest_income",
+      "note": "share of pl.revenue",
+      "share": 0.002514,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 9412.46,
+      "key": "pl.financial_income",
+      "note": "share of pl.revenue",
+      "share": 0.057971,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 1299773.28,
+      "key": "pl.financial_expense",
+      "note": "share of pl.revenue",
+      "share": 8.005233,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": -1290360.82,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": -7.947262,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": -801604.14,
+      "key": "pl.pretax",
+      "note": "share of pl.revenue",
+      "share": -4.937036,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": null,
+      "key": "pl.tax",
+      "note": "the period did not report Income tax; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "PL",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": -30391418.38,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": -187.179086,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": -801604.14,
+      "key": "pl.net_income",
+      "note": "share of pl.revenue",
+      "share": -4.937036,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 1184400.37,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 0.014198,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 27193.95,
+      "key": "bs.trade_receivables_net",
+      "note": "share of bs.total_assets",
+      "share": 0.000326,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 67821213.71,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 0.813032,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 7766241.47,
+      "key": "bs.other_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.093101,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 76525079.54,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.917373,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 6613498.11,
+      "key": "bs.ppe_net",
+      "note": "share of bs.total_assets",
+      "share": 0.079282,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 2606.27,
+      "key": "bs.intangibles_net",
+      "note": "share of bs.total_assets",
+      "share": 3.1e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 2500.0,
+      "key": "bs.other_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 3e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 6892574.34,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.082627,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 83417653.88,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 2660262.76,
+      "key": "bs.trade_payables",
+      "note": "share of bs.total_assets",
+      "share": 0.031891,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 3796000.08,
+      "key": "bs.short_term_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.045506,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 21662993.58,
+      "key": "bs.other_current_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.259693,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 14754212.37,
+      "key": "bs.long_term_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.176872,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 260050.31,
+      "key": "bs.other_non_current_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.003117,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 18550212.45,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.222378,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 43133519.15,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.517079,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 14748500.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.176803,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": -145434.25,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": -0.001743,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 26483808.12,
+      "key": "bs.other_equity",
+      "note": "share of bs.total_assets",
+      "share": 0.317484,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 40284134.73,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 0.482921,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 38640.75,
+      "key": "bs.ar_intercompany",
+      "note": "share of bs.total_assets",
+      "share": 0.000463,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 177761.55,
+      "key": "bs.cash_fx_component",
+      "note": "share of bs.total_assets",
+      "share": 0.002131,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 266630.55,
+      "key": "bs.ppe_under_construction",
+      "note": "share of bs.total_assets",
+      "share": 0.003196,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 12000.4,
+      "key": "bs.ppe_advances",
+      "note": "share of bs.total_assets",
+      "share": 0.000144,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 27503254.59,
+      "key": "pl.opex_third_party",
+      "note": "share of pl.revenue",
+      "share": 169.391043,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "the period did not report Related-party exposure, by party; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "the period did not report Receivable concentration, by counterparty; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "the period did not report Payable concentration, by counterparty; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "the period did not report Receivable ageing schedule; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "the period did not report Non-trade receivables, by debtor class; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 10876204.38,
+      "key": "bs.row.ppe_land",
+      "note": "share of bs.total.assets",
+      "share": 0.130383,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1466658.75,
+      "key": "bs.row.ppe_buildings",
+      "note": "share of bs.total.assets",
+      "share": 0.017582,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 173986.93,
+      "key": "bs.row.ppe_machinery_equipment",
+      "note": "share of bs.total.assets",
+      "share": 0.002086,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 266630.55,
+      "key": "bs.row.ppe_under_construction",
+      "note": "share of bs.total.assets",
+      "share": 0.003196,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 12000.4,
+      "key": "bs.row.ppe_advances",
+      "note": "share of bs.total.assets",
+      "share": 0.000144,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -573105.34,
+      "key": "bs.row.accumulated_depreciation_ppe",
+      "note": "share of bs.total.assets",
+      "share": -0.00687,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -5608877.56,
+      "key": "bs.row.accumulated_impairment_ppe",
+      "note": "share of bs.total.assets",
+      "share": -0.067238,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 3235.38,
+      "key": "bs.row.intangibles_other",
+      "note": "share of bs.total.assets",
+      "share": 3.9e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -629.11,
+      "key": "bs.row.accumulated_amortization_intangibles",
+      "note": "share of bs.total.assets",
+      "share": -8e-06,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 2500.0,
+      "key": "bs.row.other_non_current_assets",
+      "note": "share of bs.total.assets",
+      "share": 3e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1006638.82,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 0.012067,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 177761.55,
+      "key": "bs.row.cash_fx",
+      "note": "share of bs.total.assets",
+      "share": 0.002131,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 27193.95,
+      "key": "bs.row.ar_trade_gross",
+      "note": "share of bs.total.assets",
+      "share": 0.000326,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 38640.75,
+      "key": "bs.row.ar_intercompany",
+      "note": "share of bs.total.assets",
+      "share": 0.000463,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 3921390.22,
+      "key": "bs.row.ar_tax_recoverable",
+      "note": "share of bs.total.assets",
+      "share": 0.047009,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 3532240.54,
+      "key": "bs.row.ar_supplier_advances",
+      "note": "share of bs.total.assets",
+      "share": 0.042344,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 36925261.71,
+      "key": "bs.row.inventory_wip",
+      "note": "share of bs.total.assets",
+      "share": 0.442655,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 30895952.0,
+      "key": "bs.row.inventory_merchandise_resale",
+      "note": "share of bs.total.assets",
+      "share": 0.370377,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 273969.96,
+      "key": "bs.row.prepaid_expenses_st",
+      "note": "share of bs.total.assets",
+      "share": 0.003284,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 14748500.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.176803,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 95.0,
+      "key": "bs.row.share_premium",
+      "note": "share of bs.total.assets",
+      "share": 1e-06,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 26482578.12,
+      "key": "bs.row.revaluation_reserves",
+      "note": "share of bs.total.assets",
+      "share": 0.31747,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1135.0,
+      "key": "bs.row.legal_reserves",
+      "note": "share of bs.total.assets",
+      "share": 1.4e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -145434.25,
+      "key": "bs.row.accumulated_losses_prior_years",
+      "note": "share of bs.total.assets",
+      "share": -0.001743,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -801604.14,
+      "key": "bs.row.current_year_loss",
+      "note": "share of bs.total.assets",
+      "share": -0.00961,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -1135.0,
+      "key": "bs.row.profit_distribution_provision",
+      "note": "share of bs.total.assets",
+      "share": -1.4e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 14717100.41,
+      "key": "bs.row.lt_debt_bank",
+      "note": "share of bs.total.assets",
+      "share": 0.176427,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 37111.96,
+      "key": "bs.row.lt_debt_other",
+      "note": "share of bs.total.assets",
+      "share": 0.000445,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 2660262.71,
+      "key": "bs.row.ap_trade",
+      "note": "share of bs.total.assets",
+      "share": 0.031891,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 13532620.37,
+      "key": "bs.row.ap_intercompany",
+      "note": "share of bs.total.assets",
+      "share": 0.162227,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -3676.37,
+      "key": "bs.row.ap_tax",
+      "note": "share of bs.total.assets",
+      "share": -4.4e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1719.0,
+      "key": "bs.row.ap_personnel_salaries",
+      "note": "share of bs.total.assets",
+      "share": 2.1e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1225.0,
+      "key": "bs.row.ap_personnel_social",
+      "note": "share of bs.total.assets",
+      "share": 1.5e-05,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 113.0,
+      "key": "bs.row.ap_personnel_other",
+      "note": "share of bs.total.assets",
+      "share": 1e-06,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 219.21,
+      "key": "bs.row.ap_other",
+      "note": "share of bs.total.assets",
+      "share": 3e-06,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 3796000.08,
+      "key": "bs.row.st_debt_bank",
+      "note": "share of bs.total.assets",
+      "share": 0.045506,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 8130773.37,
+      "key": "bs.row.customer_advances",
+      "note": "share of bs.total.assets",
+      "share": 0.097471,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 0.05,
+      "key": "bs.row.accrued_expenses",
+      "note": "share of bs.total.assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 0.05,
+      "key": "bs.row.unclassified_credit",
+      "note": "share of bs.total.assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 260050.31,
+      "key": "bs.row.government_grants_deferred",
+      "note": "share of bs.total.assets",
+      "share": 0.003117,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 6618604.38,
+      "key": "bs.section.non_current_assets",
+      "note": "share of bs.total.assets",
+      "share": 0.079343,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 76525079.54,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 0.917373,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 273969.96,
+      "key": "bs.section.prepaid_expenses",
+      "note": "share of bs.total.assets",
+      "share": 0.003284,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 40284134.73,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 0.482921,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 14754212.37,
+      "key": "bs.section.non_current_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 0.176872,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 28119256.47,
+      "key": "bs.section.current_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 0.33709,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 260050.31,
+      "key": "bs.section.deferred_income",
+      "note": "share of bs.total.assets",
+      "share": 0.003117,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 83417653.88,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 83417653.88,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
+   },
    "companyName": "Corpus Entity",
    "currency": "RON",
    "detection_envelope": {
@@ -9940,6 +10891,1002 @@
       "sf_d": 46613.06
      }
     ]
+   },
+   "common_size": {
+    "bases": {
+     "BS": {
+      "key": "bs.total_assets",
+      "value": 39319114.09
+     },
+     "PL": {
+      "key": "pl.revenue",
+      "value": 110798309.14
+     }
+    },
+    "rows": [
+     {
+      "base_key": "pl.revenue",
+      "current": 110798309.14,
+      "key": "pl.revenue",
+      "note": "share of pl.revenue",
+      "share": 1.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 70557114.68,
+      "key": "pl.cogs",
+      "note": "share of pl.revenue",
+      "share": 0.636807,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 1071687.03,
+      "key": "pl.inventory_variation",
+      "note": "share of pl.revenue",
+      "share": 0.009672,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 41312881.49,
+      "key": "pl.gross_profit",
+      "note": "share of pl.revenue",
+      "share": 0.372866,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 29854906.77,
+      "key": "pl.opex_total",
+      "note": "share of pl.revenue",
+      "share": 0.269453,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 386101.85,
+      "key": "pl.other_operating_income",
+      "note": "share of pl.revenue",
+      "share": 0.003485,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 0.0,
+      "key": "pl.capitalized_own_work",
+      "note": "share of pl.revenue",
+      "share": 0.0,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 2819963.03,
+      "key": "pl.depreciation",
+      "note": "share of pl.revenue",
+      "share": 0.025451,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 131394.66,
+      "key": "pl.net_provisions",
+      "note": "share of pl.revenue",
+      "share": 0.001186,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 11844076.57,
+      "key": "pl.ebitda",
+      "note": "share of pl.revenue",
+      "share": 0.106898,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 8892718.88,
+      "key": "pl.ebit",
+      "note": "share of pl.revenue",
+      "share": 0.08026,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 277930.35,
+      "key": "pl.interest_expense",
+      "note": "share of pl.revenue",
+      "share": 0.002508,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 299383.26,
+      "key": "pl.interest_income",
+      "note": "share of pl.revenue",
+      "share": 0.002702,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 456384.14,
+      "key": "pl.financial_income",
+      "note": "share of pl.revenue",
+      "share": 0.004119,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 343877.0,
+      "key": "pl.financial_expense",
+      "note": "share of pl.revenue",
+      "share": 0.003104,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 112507.14,
+      "key": "pl.net_financial_result",
+      "note": "share of pl.revenue",
+      "share": 0.001015,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 9005226.02,
+      "key": "pl.pretax",
+      "note": "share of pl.revenue",
+      "share": 0.081276,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 1471550.0,
+      "key": "pl.tax",
+      "note": "share of pl.revenue",
+      "share": 0.013281,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 6461988.99,
+      "key": "pl.net_income_operational",
+      "note": "share of pl.revenue",
+      "share": 0.058322,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 7533676.02,
+      "key": "pl.net_income",
+      "note": "share of pl.revenue",
+      "share": 0.067995,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 1168047.04,
+      "key": "bs.cash",
+      "note": "share of bs.total_assets",
+      "share": 0.029707,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 8513384.96,
+      "key": "bs.trade_receivables_net",
+      "note": "share of bs.total_assets",
+      "share": 0.21652,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 8933332.42,
+      "key": "bs.inventory",
+      "note": "share of bs.total_assets",
+      "share": 0.227201,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 8861292.52,
+      "key": "bs.other_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.225369,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 27371337.47,
+      "key": "bs.total_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.696133,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 11055449.54,
+      "key": "bs.ppe_net",
+      "note": "share of bs.total_assets",
+      "share": 0.281172,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 673090.13,
+      "key": "bs.intangibles_net",
+      "note": "share of bs.total_assets",
+      "share": 0.017119,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 67904.42,
+      "key": "bs.other_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.001727,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 11947776.62,
+      "key": "bs.total_non_current_assets",
+      "note": "share of bs.total_assets",
+      "share": 0.303867,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 39319114.09,
+      "key": "bs.total_assets",
+      "note": "share of bs.total_assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 7554847.25,
+      "key": "bs.trade_payables",
+      "note": "share of bs.total_assets",
+      "share": 0.192142,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 2199783.1,
+      "key": "bs.short_term_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.055947,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 3258346.42,
+      "key": "bs.other_current_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.082869,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 1440419.23,
+      "key": "bs.long_term_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.036634,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 941634.37,
+      "key": "bs.other_non_current_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.023949,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 3640202.33,
+      "key": "bs.total_debt",
+      "note": "share of bs.total_assets",
+      "share": 0.092581,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 15395030.37,
+      "key": "bs.total_liabilities",
+      "note": "share of bs.total_assets",
+      "share": 0.391541,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 8795850.0,
+      "key": "bs.share_capital",
+      "note": "share of bs.total_assets",
+      "share": 0.223704,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": -61628.4,
+      "key": "bs.retained_earnings",
+      "note": "share of bs.total_assets",
+      "share": -0.001567,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 7656186.1,
+      "key": "bs.other_equity",
+      "note": "share of bs.total_assets",
+      "share": 0.194719,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 23924083.72,
+      "key": "bs.total_equity",
+      "note": "share of bs.total_assets",
+      "share": 0.608459,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_doubtful_gross",
+      "note": "the period did not report Receivables flagged doubtful, gross; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ar_provisions",
+      "note": "the period did not report Receivable provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 7692202.74,
+      "key": "bs.ar_intercompany",
+      "note": "share of bs.total_assets",
+      "share": 0.195635,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 133402.89,
+      "key": "bs.cash_fx_component",
+      "note": "share of bs.total_assets",
+      "share": 0.003393,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": 49773.0,
+      "key": "bs.ppe_under_construction",
+      "note": "share of bs.total_assets",
+      "share": 0.001266,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ppe_advances",
+      "note": "the period did not report Advances on fixed assets; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "bs.ap_dividends",
+      "note": "the period did not report Dividends payable; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "pl.revenue",
+      "current": 1313827.41,
+      "key": "pl.opex_third_party",
+      "note": "share of pl.revenue",
+      "share": 0.011858,
+      "statement": "PL",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.related_party_exposure",
+      "note": "Related-party exposure, by party is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivables_by_counterparty",
+      "note": "Receivable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.payables_by_counterparty",
+      "note": "Payable concentration, by counterparty is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.receivable_ageing",
+      "note": "Receivable ageing schedule is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total_assets",
+      "current": null,
+      "key": "analytic.non_trade_receivable_split",
+      "note": "Non-trade receivables, by debtor class is a subdivision below the synthetic account boundary; not disclosed at this detail level (mixed) — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "not_disclosed_at_this_detail_level"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 2573536.72,
+      "key": "bs.row.ppe_land",
+      "note": "share of bs.total.assets",
+      "share": 0.065453,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 6651005.88,
+      "key": "bs.row.ppe_buildings",
+      "note": "share of bs.total.assets",
+      "share": 0.169155,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 27571713.7,
+      "key": "bs.row.ppe_machinery_equipment",
+      "note": "share of bs.total.assets",
+      "share": 0.701229,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 554867.72,
+      "key": "bs.row.ppe_furniture_office",
+      "note": "share of bs.total.assets",
+      "share": 0.014112,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 49773.0,
+      "key": "bs.row.ppe_under_construction",
+      "note": "share of bs.total.assets",
+      "share": 0.001266,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -26345447.48,
+      "key": "bs.row.accumulated_depreciation_ppe",
+      "note": "share of bs.total.assets",
+      "share": -0.670042,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 5301071.25,
+      "key": "bs.row.intangibles_other",
+      "note": "share of bs.total.assets",
+      "share": 0.134822,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -4627981.12,
+      "key": "bs.row.accumulated_amortization_intangibles",
+      "note": "share of bs.total.assets",
+      "share": -0.117703,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 67904.42,
+      "key": "bs.row.other_non_current_assets",
+      "note": "share of bs.total.assets",
+      "share": 0.001727,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1034644.15,
+      "key": "bs.row.cash_operating",
+      "note": "share of bs.total.assets",
+      "share": 0.026314,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 133402.89,
+      "key": "bs.row.cash_fx",
+      "note": "share of bs.total.assets",
+      "share": 0.003393,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 906526.42,
+      "key": "bs.row.short_term_investments",
+      "note": "share of bs.total.assets",
+      "share": 0.023056,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 8573293.46,
+      "key": "bs.row.ar_trade_gross",
+      "note": "share of bs.total.assets",
+      "share": 0.218044,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -59908.5,
+      "key": "bs.row.ar_provisions",
+      "note": "share of bs.total.assets",
+      "share": -0.001524,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 7692202.74,
+      "key": "bs.row.ar_intercompany",
+      "note": "share of bs.total.assets",
+      "share": 0.195635,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 48733.72,
+      "key": "bs.row.ar_tax_recoverable",
+      "note": "share of bs.total.assets",
+      "share": 0.001239,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 19614.76,
+      "key": "bs.row.ar_supplier_advances",
+      "note": "share of bs.total.assets",
+      "share": 0.000499,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 42882.35,
+      "key": "bs.row.ar_other",
+      "note": "share of bs.total.assets",
+      "share": 0.001091,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 3654805.78,
+      "key": "bs.row.inventory_raw_materials",
+      "note": "share of bs.total.assets",
+      "share": 0.092952,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 714545.14,
+      "key": "bs.row.inventory_consumables",
+      "note": "share of bs.total.assets",
+      "share": 0.018173,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 995988.37,
+      "key": "bs.row.inventory_wip",
+      "note": "share of bs.total.assets",
+      "share": 0.025331,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1457159.29,
+      "key": "bs.row.inventory_finished_goods",
+      "note": "share of bs.total.assets",
+      "share": 0.03706,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 2064260.65,
+      "key": "bs.row.inventory_merchandise_resale",
+      "note": "share of bs.total.assets",
+      "share": 0.0525,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 52648.19,
+      "key": "bs.row.inventory_packaging",
+      "note": "share of bs.total.assets",
+      "share": 0.001339,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -6075.0,
+      "key": "bs.row.inventory_provisions",
+      "note": "share of bs.total.assets",
+      "share": -0.000155,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 46613.06,
+      "key": "bs.row.unclassified_debit",
+      "note": "share of bs.total.assets",
+      "share": 0.001186,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 151332.53,
+      "key": "bs.row.prepaid_expenses_st",
+      "note": "share of bs.total.assets",
+      "share": 0.003849,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 8795850.0,
+      "key": "bs.row.share_capital",
+      "note": "share of bs.total.assets",
+      "share": 0.223704,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 5.0,
+      "key": "bs.row.share_premium",
+      "note": "share of bs.total.assets",
+      "share": 0.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1888792.0,
+      "key": "bs.row.revaluation_reserves",
+      "note": "share of bs.total.assets",
+      "share": 0.048038,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 5767389.1,
+      "key": "bs.row.other_reserves",
+      "note": "share of bs.total.assets",
+      "share": 0.146682,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": -61628.4,
+      "key": "bs.row.accumulated_losses_prior_years",
+      "note": "share of bs.total.assets",
+      "share": -0.001567,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 7533676.02,
+      "key": "bs.row.current_year_profit",
+      "note": "share of bs.total.assets",
+      "share": 0.191603,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 552921.67,
+      "key": "bs.row.lt_debt_bank",
+      "note": "share of bs.total.assets",
+      "share": 0.014062,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 887497.56,
+      "key": "bs.row.lt_debt_other",
+      "note": "share of bs.total.assets",
+      "share": 0.022572,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 7186373.77,
+      "key": "bs.row.ap_trade",
+      "note": "share of bs.total.assets",
+      "share": 0.18277,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 902453.47,
+      "key": "bs.row.ap_tax",
+      "note": "share of bs.total.assets",
+      "share": 0.022952,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 791069.0,
+      "key": "bs.row.ap_personnel_salaries",
+      "note": "share of bs.total.assets",
+      "share": 0.020119,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 520453.0,
+      "key": "bs.row.ap_personnel_social",
+      "note": "share of bs.total.assets",
+      "share": 0.013237,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 826388.99,
+      "key": "bs.row.ap_personnel_other",
+      "note": "share of bs.total.assets",
+      "share": 0.021017,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 138104.01,
+      "key": "bs.row.ap_other",
+      "note": "share of bs.total.assets",
+      "share": 0.003512,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 2199783.1,
+      "key": "bs.row.st_debt_bank",
+      "note": "share of bs.total.assets",
+      "share": 0.055947,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 79877.95,
+      "key": "bs.row.customer_advances",
+      "note": "share of bs.total.assets",
+      "share": 0.002032,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 368473.48,
+      "key": "bs.row.accrued_expenses",
+      "note": "share of bs.total.assets",
+      "share": 0.009371,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 941634.37,
+      "key": "bs.row.government_grants_deferred",
+      "note": "share of bs.total.assets",
+      "share": 0.023949,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 11796444.09,
+      "key": "bs.section.non_current_assets",
+      "note": "share of bs.total.assets",
+      "share": 0.300018,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 27371337.47,
+      "key": "bs.section.current_assets",
+      "note": "share of bs.total.assets",
+      "share": 0.696133,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 151332.53,
+      "key": "bs.section.prepaid_expenses",
+      "note": "share of bs.total.assets",
+      "share": 0.003849,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 23924083.72,
+      "key": "bs.section.equity",
+      "note": "share of bs.total.assets",
+      "share": 0.608459,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": null,
+      "key": "bs.section.provisions",
+      "note": "the period's balance sheet carries no row in section provisions; absent, which is not zero — no share is taken",
+      "share": null,
+      "statement": "BS",
+      "status": "absent"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 1440419.23,
+      "key": "bs.section.non_current_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 0.036634,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 13012976.77,
+      "key": "bs.section.current_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 0.330958,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 941634.37,
+      "key": "bs.section.deferred_income",
+      "note": "share of bs.total.assets",
+      "share": 0.023949,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 39319114.09,
+      "key": "bs.total.assets",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     },
+     {
+      "base_key": "bs.total.assets",
+      "current": 39319114.09,
+      "key": "bs.total.equity_plus_liabilities",
+      "note": "share of bs.total.assets",
+      "share": 1.0,
+      "statement": "BS",
+      "status": "share"
+     }
+    ],
+    "schema": "common_size/1"
    },
    "companyName": "Corpus Entity",
    "currency": "RON",

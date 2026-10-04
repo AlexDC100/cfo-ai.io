@@ -74,6 +74,9 @@ __all__ = [
     "ComparativeColumn",
     "ComparativeTable",
     "build_comparative_columns",
+    "disclose_side",
+    "round_money",
+    "refusal_text",
 ]
 
 #: A base whose magnitude is below half a cent is a zero base. The same
@@ -176,24 +179,35 @@ class ComparativeTable:
         return tuple(c for c in self.columns if c.status not in MOVEMENT_STATUSES)
 
 
-def _round_money(value: float) -> float:
+def round_money(value: float) -> float:
     rounded = round(value, MONEY_DP)
     # -0.0 and 0.0 are the same money; only one of them should ever be
     # rendered, or two hosts print different strings for one fact.
     return 0.0 if rounded == 0 else rounded
 
 
+_round_money = round_money
+
+
 def _fmt(value: float) -> str:
     return "%.2f" % value
 
 
-def _disclosure(
+def disclose_side(
     envelope: Mapping[str, Any],
     spec: LineSpec,
     coverage: Optional[FrozenSet[str]],
     level: str,
     level_known: bool,
 ) -> Tuple[Optional[float], str]:
+    """What ONE period says about one line: `(value, disclosure)`, the
+    value unrounded and None unless the disclosure is REPORTED.
+
+    THE PER-SIDE READER, and the only one. `build_comparative_columns`
+    calls it once per side; `shares.side_lines` calls it for a period read
+    on its own (the single-period common size served on every period
+    payload). One function, so the current column of a comparison and the
+    same period read alone cannot disagree about what the period said."""
     if level_known and spec.requires == ANALYTIC and not carries_analytic_detail(level):
         return None, DISCLOSURE_NOT_AT_LEVEL
     value = read_value(envelope, spec, coverage)
@@ -204,9 +218,15 @@ def _disclosure(
     return value, DISCLOSURE_REPORTED
 
 
-def _refusal_text(envelope: Mapping[str, Any], spec: LineSpec) -> str:
+_disclosure = disclose_side
+
+
+def refusal_text(envelope: Mapping[str, Any], spec: LineSpec) -> str:
     refusal = refusal_of(envelope, spec) or {}
     return str(refusal.get("text_en") or refusal.get("code") or "refused")
+
+
+_refusal_text = refusal_text
 
 
 def build_comparative_columns(
