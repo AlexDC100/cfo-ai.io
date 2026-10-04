@@ -784,6 +784,11 @@ module between the two runtimes. **If the persona wording, the FX directive,
 or a plan's chat caps change, update both files** — the Edge Function is the
 one users actually hit, so it's the one that will silently drift out of
 prod behavior if only the Python side gets edited.
+(2026-10-03: the function is four files now — `index.ts` thin wiring,
+`guard.ts` the decision, `plans.ts` the tier → caps table, `prompt.ts` the
+personas. The cap numbers and the row resolution can no longer drift
+silently: `frontend/lib/__tests__/chatLlmPlans.test.ts` reads
+`_pricing_config.py` / `_plan_state.py` and reds on a difference.)
 
 **Scope — chat only.** Today/Cash/Profit/Products/decisions/exports/pipeline
 still require `cfo-ai-backend` running; nothing else was touched.
@@ -810,26 +815,30 @@ does. Nothing in the frontend calls `/api/ask` today (confirmed by grep), so
 it's dead-but-not-duplicate — a distinct decision from this cleanup, flagged
 for the owner rather than deleted.
 
-**Auth model:** the function reads `Authorization: Bearer <jwt>` the same
-way the FE always sent it, resolves the user via `auth.getUser()` against
-the ANON key + that header (never trusts a client-supplied user id), and
-falls back to unauthenticated (cap-check skipped, matching the Python
-endpoint's "legacy callers don't auth this endpoint" behavior) when the
-header is absent. Deployed with `--no-verify-jwt` so the platform gateway
-doesn't reject those unauthenticated calls before they reach the function.
-The chat-cap RPCs and the `subscriptions` read inside the function use the
-service-role key (a Supabase Function secret, injected automatically —
-never sent to the browser); `ANTHROPIC_API_KEY` was added as a second
-secret the same way.
+**Auth model (CORRECTED 2026-10-03 — see "Ask CFO AI — the cap is always
+enforced" at the end of this file):** the function reads `Authorization:
+Bearer <jwt>` the same way the FE always sent it and resolves the user via
+`auth.getUser()` against the ANON key + that header (never trusts a
+client-supplied user id, never the token's own claims). **A request with no
+bearer, or one that does not verify, is answered `401 sign_in_required` — no
+model call, nothing metered.** As first shipped it "fell back to
+unauthenticated (cap-check skipped…)": that was the hole — anyone with the
+function URL got unmetered model calls on the owner's key. It is still
+deployed with `--no-verify-jwt`, for a different reason now: the function
+verifies the bearer itself, so its 401 carries a typed body the app renders
+and it answers the CORS preflight. The chat-cap RPCs and the `subscriptions`
+read inside the function use the service-role key (a Supabase Function
+secret, injected automatically — never sent to the browser);
+`ANTHROPIC_API_KEY` is a second secret set the same way.
 
-**Not yet live-tested:** `USAGE_LIMITS_ENABLED` is unset (enforcement off)
-in both the engine and this function today, matching current prod behavior
-— so the cap-reject path (`reserve_user_chat` returning
-`daily_cap_reached`/`monthly_cap_reached`) has only been read-reviewed
-against the SQL signatures, not exercised against a real capped user. Before
-flipping `USAGE_LIMITS_ENABLED` on for this function, test that path
-deliberately (a plan with a low cap, a few real turns) rather than assuming
-parity from code review alone.
+**The cap-reject path (CORRECTED 2026-10-03):** this section used to say the
+path was "not yet live-tested" and to "test it before flipping
+`USAGE_LIMITS_ENABLED` on for this function". There is no flag to flip any
+more: **the function does not read `USAGE_LIMITS_ENABLED`** and meters every
+verified call. The path is exercised against the real SQL functions by the
+gate `chat-cap-real` (`scripts/check_chat_cap_real.py`, local stack). The
+ENGINE still reads `USAGE_LIMITS_ENABLED` for document quotas — that is a
+separate switch and this change does not touch it.
 
 **Redeploy command** (no Docker required — `--use-api` bundles server-side):
 ```
@@ -1488,6 +1497,11 @@ login`, then the Milestone D redeploy command (§16) — until then the snapshot
 is the only carrier of the rule, and the snapshot law
 (`chatSnapshotInventoryDays.test.ts`, gate inventory-days-surfaces) is what
 keeps it there.
+**UPDATE 2026-10-03:** the rule is in the function's own system prompt now
+(`supabase/functions/chat-llm/prompt.ts` `STOCK_CLAIM_SECTION`, both
+personas, held to `STOCK_SLOW_CLAIM_RULE` by `chatLlmPrompt.test.ts`) and
+goes live with the next chat-llm deploy. The snapshot line STAYS — the
+snapshot law is untouched.
 
 **Rulings of 2026-09-28 (R2, R3) — candidate `feat/rulings-2`, NOT shipped
 until the owner has seen the per-period diff.** Design:
@@ -4256,3 +4270,620 @@ built from this repository's SQL, 2026-10-04):
    self-update policies shows it. The fix that widens nothing is the
    frontend's (`update`, not `upsert`). `profiles.language` is written by
    the frontend and defined by no committed file.
+
+---
+
+## 32. Ask CFO AI — the cap is always enforced (2026-10-03)
+
+Owner, 2026-10-03: *"Fix the chat function so it enforces its cap on every
+call, signed in or not, and deploy it. Only after that will I add the
+Anthropic key."* And 2026-10-04: *"deploy the cap fix with limits switched
+on"* and *"tell me when it is safe to add the Anthropic key"*. Branch
+`fix/chat-cap-always`. **Not deployed by this branch — the coordinator deploys
+the function (steps below).** Renumber this section at merge.
+
+**What was open** (each verified on `supabase/functions/chat-llm/index.ts` as
+it stood on main):
+
+1. No `Authorization` header, or a bearer `auth.getUser` rejected → `userId`
+   stayed null and the reservation was skipped. Anyone with the function URL
+   got unmetered model calls on the owner's key.
+2. The reservation for everyone else sat behind `USAGE_LIMITS_ENABLED`, unset
+   in production: signed-in users were uncapped too.
+3. A dead metering RPC read as "monthly cap reached" (a false sentence to a
+   paying user); an unreadable plan row read as "trial".
+4. The cap-reject path had never run against the real SQL functions.
+
+**What closes it.** The function is four files; `index.ts` is thin wiring.
+
+| file | holds |
+|---|---|
+| `guard.ts` | THE DECISION, pure, dependencies injected: verify → validate → plan → reserve → ONE model request → commit \| release |
+| `plans.ts` | the tier → chat caps table and the row resolution — the engine's, step for step |
+| `prompt.ts` | the request shape, the two personas, the stock-claim rule |
+| `index.ts` | the real things: `auth.getUser`, the `subscriptions` read, the three RPCs, one `fetch` |
+
+The order is the contract:
+
+| step | refusal | upstream request | metered |
+|---|---|---|---|
+| no bearer / bearer does not verify (the anon key, a forged, unsigned or expired token, the token of a deleted user) | `401 sign_in_required` | none | nothing |
+| auth server cannot be asked (unreachable, a 5xx, or rate-limiting the check: 408 / 429) | `503 auth_unavailable` | none | nothing |
+| request not sendable (not JSON, no messages, a non-string `content`, a role other than user / assistant) | `400 invalid_request` | none | nothing |
+| `ANTHROPIC_API_KEY` unset (verified user) | `503 ai_not_configured` | none | nothing |
+| plan row unreadable | `503 metering_unavailable` | none | nothing |
+| the plan carries a cap that is not a whole number (no plan has one; `reserve_user_chat` reads NULL as "unlimited", and JSON sends NaN as null) | `503 metering_unavailable` | none | nothing — the meter is not asked |
+| `reserve_user_chat` errors, times out (8 s), or answers a shape the function does not understand | `503 metering_unavailable` | none | whatever the RPC did |
+| `reserve_user_chat` → `daily_cap_reached` / `monthly_cap_reached` | `429 chat_cap_reached` | none | nothing |
+| `allowed` | — | exactly ONE, with a deadline of 100 s | reserved → **committed once** on an answer, **released once** on a failure — a model that has not answered at the deadline is aborted and counts as a failure |
+
+(The missing-key arm used to be HTTP 200 with an "answer" naming the secret
+and the model; the chat stored it in the conversation and Explain cached it.
+The function is deployed BEFORE the key is added, so that window is real: it
+is a typed 503 now, the secret's name goes to the function's log, and every
+surface — old bundle and new — shows "the assistant is unavailable".)
+
+**There is no switch — "limits switched on" is the code, not a setting.** The
+function does not read `USAGE_LIMITS_ENABLED` (unset among production's
+function secrets, 2026-10-04 — and it does not matter any more) and no
+environment variable turns the cap off. (The ENGINE still reads it for
+document quotas; that switch is untouched.) The cap decision is the RPC's:
+the function never reads a counter and never pre-checks, so two calls at
+cap − 1 — or six first calls at once — are settled by the row lock in
+`reserve_user_chat`.
+
+To switch enforcement OFF the owner would have to change the function's
+source and redeploy it — take the reservation out of `guard.ts`, which reds
+`chat-cap-always` (plants P1–P9, P114) — a deliberate act, never an unset
+variable. The one lever a secret holds is a cap NUMBER: `PRICING_CHAT_DAILY_CAP_<PLAN>`
+/ `PRICING_CHAT_MONTHLY_CAP_<PLAN>` set among the function's secrets moves
+that plan's cap (the engine reads the same names from its own environment —
+set both or the plan card and the function disagree). Unset — as today — the
+caps are the table below. A value that is not a whole number falls back to
+the table's; a very large whole number would be a cap nobody reaches — again
+something a person has to type and set, by name, on purpose. A plan with no
+whole-number cap at all is refused, not served.
+
+**IT FAILS CLOSED — so the database must have the meter BEFORE the deploy.**
+The three functions (`supabase/schema_phase_pricing_v3_atomic.sql`) were only
+ever called behind the switch; production may never have run them. On a
+database without them every call of a signed-in user is answered `503
+metering_unavailable` — the chat is off for everyone. The coordinator runs
+`supabase/preflight/chat_cap_always_preflight_report.sql` first (ONE
+read-only statement, one jsonb row): `ready` (the functions under the names
+and argument names `index.ts` calls, executable by `service_role`, the tables,
+columns and unique keys), `blocking` (what is missing, in words),
+`functions_are_this_repository` (md5 of each body against the repository's),
+`meter_closed_to_browser_roles` (neither browser role may execute the three
+FUNCTIONS), `plan_and_counters_closed_to_browser_roles` (neither can write a
+ROW of `subscriptions`, `user_usage` or `plan_chat_daily_usage` — see "as
+strong as the three tables" below), and COUNTS ONLY — never a user — of the
+stored tier keys, of users with no plan row, of users with MORE than one
+(`subscriptions.users_with_more_than_one_row`: the function reads one row per
+user and refuses a user who has two, so this must be 0) and of reservations
+left open. Deploy only on `ready: true`. If it is false the
+fix is `schema_phase_pricing_v3_atomic.sql`, which CREATES objects — that is
+outside "restrict-only" and is the owner's call, not this branch's. The
+report reads the catalog; it does not CALL the functions. A counter column
+of another type, a NOT NULL column the meter's insert does not supply, a
+trigger that raises, or row security that binds the functions' owner would
+each pass it and fail the first reservation — closed (`503`), never open.
+The owner's signed-in check (b) below is what runs them.
+
+**Every refusal body is `{ error: <code>, detail: { code, message, … } }`.**
+The `message` is in the request's `language` ("ro" / "en") for a caller with
+no words of its own. THE APP NEVER PRINTS IT: `frontend/lib/chatRefusal.ts`
+renders its own sentence from the code, the cap period and the cap number
+(`chatRefusalStrings.json`, EN + RO). Its "See plans" / "Sign in" link is a
+labelled link the bubble now renders — for a same-site path made of a closed
+set of characters only (no backslash: a browser reads `/\host` as `//host`,
+and a model's answer could have hidden another site behind a label). A 401
+while signed in triggers ONE session refresh and ONE retry in
+`cfoApi.chatLlm`; nothing else is retried.
+A bundle older than this branch still works against the new function: the
+cap card renders as before (from `detail.code`, with the server's English),
+and a 401 / 503 shows its generic "assistant unavailable" panel — the SAME
+panel for "sign in again", "could not check your plan" and a dead key, which
+is why the deploy's signed-in checks below are read as HTTP, not off the
+screen. So the order frontend → function is the gentle one, and function →
+frontend is safe. A refusal the new bundle shows is marked as one
+(`ChatMessage.refused`) and is never sent to the model as a turn of the next
+request — the reader's questions ride, the app's notice does not (an errored
+turn was always left out; the sentence this branch gave the refusals would
+otherwise have gone upstream as if the assistant had said it).
+
+**Who calls the function.** One chokepoint, `cfoApi.chatLlm`, three surfaces —
+Ask CFO AI (`/chat`), the command bar's answer (Capsule), and Explain
+(`ExplainDrawer`, Benchmark). All three sit behind `AuthGuard`; the mobile
+shell is a WebView of the same app; no landing, public or demo page calls it
+(the anonymous `/public-companies` drawer's "Ask CFO AI" button dispatches an
+event only the signed-in shell listens to — it does nothing signed out, and
+calls nothing). So no signed-out surface exists today. All three share ONE
+cap: an Explain click and a command-bar answer each use a chat message (a
+command-bar answer that fails its guard and regenerates uses two). At the cap
+the chat shows the cap sentence and locks the composer; the command bar
+serves its deterministic answer under "You have reached your assistant limit
+for now."; Explain keeps its template explanation and says "CFO AI couldn't
+add more right now" with a Retry (which is refused again, unmetered). On a
+401 / 503 the two fall back the same way with their own "could not be
+reached" sentence. Every one of these sentences is the app's, EN and RO —
+none prints the function's.
+
+**The plan a row resolves to — unchanged, and now exactly the engine's.**
+`plans.ts` mirrors `_plan_state.get_plan_state` (`tier or plan`),
+`_pricing_config.plan_for` and `_env_int`. One real difference was repaired:
+an EMPTY `tier` fell through to the trial caps here (`??`) while the engine
+read `plan`. No cap number changed:
+
+| `subscriptions` row | plan | chat / day | chat / month |
+|---|---|---|---|
+| no row, `tier = 'trial'`, or an unknown tier | trial | 3 | 5 |
+| `intro` | intro | 5 | 10 |
+| `solo` | solo | 10 | 50 |
+| `pro`, `starter` | pro | 25 | 150 |
+| `multi`, `pro_legacy`, `business`, `professional`, `professional_contact` | multi | 40 | 200 |
+| **tier NULL, plan `'professional'` — the row the signup trigger writes** | **multi** | **40** | **200** |
+
+**⚠ The last row is the one to rule on before the Anthropic key goes in.**
+The signup trigger (`handle_new_user` in `supabase/schema.sql`,
+`handle_new_user_v2` in `schema_phase3.sql`) gives every new account a row
+with `plan = 'professional'`, `tier` NULL. The engine and the function both read
+`tier or plan` → `professional` → the legacy map → **multi**. So a free
+signup is metered at 40 messages a day and 200 a month, not 3 and 5 — and its
+plan card says the same, because both read the row the same way. This branch
+does NOT change that (owner's fence: no change to plan limits, no change to
+customer rows). Whatever closes the "Multi-Country signup" hole in the engine
+must be mirrored in `plans.ts` in the same commit; `chatLlmPlans.test.ts`
+pins the engine lines and reds until it is. (A trigger that writes `tier =
+'trial'` for NEW rows needs no change here: `tier` is read first — a signup
+made after that fix is on 3 / 5. It changes nothing for the rows that exist:
+every account created before it keeps `plan = 'professional'`, `tier` NULL,
+and so 40 / 200, until the owner rules on existing accounts.)
+
+**The cap is exactly as strong as the three tables behind it.** The plan is
+read from `subscriptions`; the counters are `user_usage` and
+`plan_chat_daily_usage`. On a repository-built database the two counter
+tables carry a SELECT policy only (gate `chat-cap-real` 11: a user at the cap
+cannot update, delete or upsert their counter or call the three functions),
+but `subscriptions` carries "self insert" / "self update" policies: a
+signed-in user can PATCH their own `tier` to `multi`. That is the
+subscriptions write lockdown's hole (branch `fix/subscriptions-self-write`),
+not this branch's — where it is open the chat cap of any account is, at most,
+multi's. The owner's order (2026-10-04) puts the lockdown on production
+BEFORE this deploy; its own post-check is what says the row is closed.
+
+**The preflight report now says it too** (review of 2026-10-04: it answered
+`ready: true` and `meter_closed_to_browser_roles: true` on the local stack
+while a trial user at the cap raised their own tier with their own session
+and was served — it looked at the three functions only).
+`plan_and_counters_closed_to_browser_roles` is true when, for each of the
+three tables and each of INSERT / UPDATE / DELETE, a browser role either does
+not hold the privilege (on the table or on any column) or row security is on,
+the role does not bypass it, and no permissive policy for that command (or
+FOR ALL) applies to the role or to public. `browser_role_row_writes` names
+every open door ("authenticated may UPDATE public.subscriptions (policy
+…)"); `browser_role_truncate_grants` is for the record only (row security
+does not cover TRUNCATE; no API a browser reaches issues it). On production
+as the coordinator read it on 2026-10-04 — one SELECT policy on
+`subscriptions` and no write privilege; select-only policies on the two
+counter tables — the fact is `true` already; the lockdown keeps it so. What
+it CANNOT see: a SECURITY DEFINER function, trigger or view that writes these
+rows on someone else's privileges, and a policy's own condition (it errs
+towards "open"). So it is a second look, not a replacement: the lockdown's
+post-check stays item 1 of "when it is safe to add a working key".
+
+**What bounds ONE call (C4).**
+- Model `claude-opus-4-7`, `max_tokens: 2000`, `output_config.effort: high`,
+  no `thinking` requested (on this model that means no thinking: the 2,000
+  tokens are the whole output) — as the engine's original call. One
+  reservation → ONE `fetch`, no SDK underneath (an SDK would retry 429 / 5xx
+  twice by default), no retry in the function.
+- The caller cannot widen it: only `{role: user|assistant, content: string}`
+  messages are forwarded, and only the known context fields; a caller's own
+  `model`, `max_tokens`, `tools`, `system`, image or document blocks are not.
+  (This is the one bound ADDED: the app only ever sends strings, so nothing a
+  real user sends changes.)
+- **INPUT SIZE IS NOT BOUNDED BY THE FUNCTION.** It forwards the whole
+  `messages` history and the whole `dataset_summary`. The chat sends the full
+  conversation each turn and the app sets no limit on either, so there is no
+  smaller size the frontend guarantees and none was invented here. The only
+  ceiling is the model's context window. So the cap bounds CALLS, not tokens:
+  at the list price in the API reference this was written against
+  (2026-09-25: $5 / MTok in, $25 / MTok out, 1M-token context — re-check it),
+  the output of a call is at most 2,000 tokens ≈ $0.05, an ordinary turn (a
+  few thousand input tokens) is a few cents, and a direct caller who fills the
+  context costs about $5 a call (about $6.25 where it rides in the
+  cached system block, written at 1.25×). An owner ruling (a maximum request
+  size) is the missing bound; it is one line in `guard.parseRequest`.
+- **The model request has a deadline: `guard.MODEL_TIMEOUT_MS`, 100 s** — an
+  operational timeout like the 8 s on the auth check, the plan read and each
+  RPC, not a plan limit. (Review of 2026-10-04, measured: with the upstream
+  never answering, the function had not answered after 25 s and the meter
+  read 0 used / 1 reserved; the platform cuts a request off at 150 s and then
+  nothing releases — a fifth of a trial month gone with no answer.) At the
+  deadline the request is ABORTED (the signal `index.ts` hands to its one
+  `fetch` — while waiting for the answer or while reading it), the
+  reservation is released once and the caller gets the same sentinel a failed
+  model call always got. 3 × 8 s before the request + 100 s + 8 s for the
+  release = 132 s, under the platform's 150 s (a law holds the sum). An
+  aborted request may still have cost input tokens upstream; it is not
+  counted against the user.
+- A call the platform kills anyway (a crash, a redeploy mid-flight) is neither
+  committed nor released: its reservation stays and keeps counting against
+  the cap for that day and month. The same if `commit_user_chat` fails after
+  an answer: the answer is returned, `used` does not move, the reservation
+  still fills its slot (the plan card shows one fewer used than the cap
+  counts).
+- An upstream failure RELEASES the reservation (C2), so while the upstream is
+  failing a signed-in user below the cap can keep sending requests that are
+  not counted. Requests the upstream rejects are not billed; the Console
+  spend limit and Anthropic's own rate limits are the ceiling for that.
+- Nothing is remembered between requests: the bearer is verified with the
+  auth server on every call and the plan row is read on every call, for the
+  user the auth server named. A request's own headers, query string or body
+  never say who is metered or on which plan.
+- The meter's buckets are the UTC day and the UTC calendar month — not the
+  billing period.
+
+**Before the Anthropic key goes in — what a signed-in account can spend.**
+The caps are CALLS. The unchanged numbers, per account, and the ceiling the
+function itself enforces at the list price above (a call that fills the 1M
+context is ≈ $5.05; about a quarter more where the bulk rides in the cached
+system block):
+
+| plan (how a row resolves: the table above) | messages / day | messages / month | a month in which EVERY call fills the context |
+|---|---|---|---|
+| trial | 3 | 5 | ≈ $25 |
+| intro | 5 | 10 | ≈ $50 |
+| solo | 10 | 50 | ≈ $250 |
+| pro | 25 | 150 | ≈ $760 |
+| multi — and every default signup row | 40 | 200 | ≈ $1,010 |
+
+That last column is what a direct caller with a valid session could reach,
+not what the app sends: an ordinary turn is a few cents (the answer is at
+most 2,000 tokens ≈ $0.05; the prompt a few thousand), so a month of 200
+ordinary messages is in the order of $10–20.
+
+NOT bounded by this function, each one the owner's to rule or set:
+1. **The number of accounts.** Every signup is a new allowance — 40 / 200 for
+   the default row until the signup tier is ruled on (H4), so until then the
+   number of accounts IS the bound on spend: H4 and the Console spend limit
+   go in before the key. Whether production requires a confirmed e-mail,
+   allows signups at all or allows anonymous sign-ins is readable with the
+   PUBLIC anon key alone — `GET <project>/auth/v1/settings` answers
+   `disable_signup`, `mailer_autoconfirm` and `external.anonymous_users`
+   (measured on the local stack: false / true / false). The coordinator reads
+   it on production and puts the three values in front of the owner; a
+   CAPTCHA is a dashboard setting that endpoint does not show.
+2. **Input tokens per call** (above): a maximum request size is one line in
+   `guard.parseRequest`, and a number only the owner can choose.
+3. **The plan row**, while a signed-in user can write their own (the
+   subscriptions lockdown): any account can lift itself to multi's caps —
+   never above them, an unknown tier reads as trial.
+4. **The total.** Nothing in the function or the database budgets across
+   accounts. The one global ceiling available without code is a monthly spend
+   limit in the Anthropic Console (the organization's, or the key's
+   workspace) — set it before the key goes in.
+
+**Gates** (`docs/engine_book/gates.md`; 152 plants, each alone, each
+RED on at least one of the two — 119 from the build, 33 from the review of
+2026-10-04, all replayed in one run at `8c91a093`; one line of the real
+gate's driver came after it, and the six plants that line touches were run
+again at `ad32d692` — no function, report or frontend file changed since):
+- `chat-cap-always` — vitest, 191 laws: `chatLlmGuard` (a recorder where the
+  model would be; a plan with no whole-number cap never reaches the meter;
+  the model request's deadline and the sum of the deadlines; the auth server
+  and the plan row asked on every call; a body that names another user),
+  `chatLlmPlans` (reads the engine's Python), `chatLlmPrompt` (the function's
+  source: no switch, one fetch, three RPCs, no counter read, the stock-claim
+  rule — and, with the rule taken out, every prompt hashing to what main's
+  function sent; the CORS allowlist and the deployed LAN dev allowance; the
+  model request pinned line for line; two request headers and nothing else of
+  a request; module scope holds constants only; the preflight report held to
+  the SQL and to the argument names `index.ts` sends, and its fact about the
+  plan row and the counters), `chatRefusal` (the app's sentences, EN + RO,
+  from the function's real bodies; no labelled link in a bubble that a
+  browser would take to another site; a refusal is never sent to the model as
+  a turn), `chatLlmSignInRetry`.
+- `chat-cap-real` — `scripts/check_chat_cap_real.py`, 100 cases: the DEPLOYED
+  FILE under Deno on a loopback port against the local stack's real auth
+  server, plan row and RPCs (checked body for body against this repository's
+  SQL), the engine's real `get_plan_state` executed beside it, a recorder for
+  the model, the process confined to 127.0.0.1; the preflight report run on
+  the stack (`ready: true`), on an empty database (`ready: false`, six
+  things named), and once more while the run's users and counters exist (no
+  user id, no address in its answer; its meter counts the tables'; no
+  reservation of the run left open; its fact about what a browser can write
+  held to what the run's signed-in user DID write, and to eleven shapes in a
+  scratch database). A token that was SERVED and then revoked (its user
+  deleted, or signed out); a trial user at the cap naming a paying user in
+  headers, cookie, query string and body; the plan row re-read on every call;
+  the deploy's two signed-in checks; an upstream that never answers (the
+  function's 100 s timer run in 1.5 s — the file under test untouched).
+  VACUOUS without the stack or Deno; it
+  refuses a non-loopback
+  API and an API that is not its database's stack. The model upstream can be
+  pointed at a loopback recorder with `CHAT_LLM_UPSTREAM_BASE_URL`; any other
+  value is ignored, and production leaves it unset.
+- Measured once BY HAND (2026-10-04; transcripts in `gates.md` under
+  `chat-cap-real`), not by a gate: the four files served by the REAL local
+  Supabase edge runtime (`supabase functions serve`, edge-runtime v1.73.13)
+  through the stack's gateway — 20 cases, 20 pass, including twenty
+  concurrent calls with one slot left (one served); and the preflight report
+  on a scratch database in fourteen deviant shapes (an overload, other
+  argument names, a missing column, table or unique key, a partial unique
+  index, a lost grant, a browser role that may execute) — it named each and
+  errored on none. Both were measured on the files as they stood at
+  `45f22fff`; what came after (the LAN dev allowance, the whole-number cap
+  refusal, the report's fifth read, and the review's changes of 2026-10-04:
+  the model request's deadline and its `AbortSignal` on the fetch, the
+  report's table fact) runs under plain Deno and psql in the two gates, not
+  again under the edge runtime. If the hosted runtime's `fetch` did not
+  honour the signal, the function would still stop waiting at the deadline,
+  release and answer — `guard.ts` races the request and does not depend on
+  the abort; only the upstream request would run on.
+
+**What goes live with this deploy (C7).** `git log -- supabase/functions/chat-llm`
+on main is two commits: `7488b4e7` (2026-07-26, the file as first committed
+after the 2026-07-24 deploy) and `a3853435` (2026-08-27, the tier
+restructure). **What production runs was read on 2026-10-04** (the
+coordinator downloaded the deployed source): it is main's `index.ts` — the
+`a3853435` tier table included — plus ONE addition main never had: a CORS
+allowance for the iOS shell's LAN dev server (`LAN_DEV_ORIGIN`, a
+private-range host on the Vite port; in the repository it exists only on
+`origin/feat/ios-shell-native-sheets`, commit `cdca438a` of 2026-09-10 —
+never merged to main; that branch's `index.ts` is byte-identical to the
+downloaded source). This branch was built from main, so a redeploy of it
+would have DROPPED that allowance; it carries it now, byte for byte. **Until
+that iOS branch merges, any deploy of this function from main-derived code
+without these lines removes it again — the LAN dev law is what reds.** So
+against what is
+deployed today the redeploy changes exactly the rows marked "this branch"
+below, and nothing in CORS:
+
+| change | from | safe |
+|---|---|---|
+| the tier table — `starter` 10/50 · `pro` 40/200 became `solo` 10/50 · `pro` 25/150 · `multi` 40/200; the legacy map (`starter → pro`; `business`, `professional`, `professional_contact`, `pro_legacy → multi`, where the old one had `solo → starter` and the rest `→ pro`); display names | `a3853435` — ALREADY LIVE (the deployed file carries it): no change | — the engine's numbers (parity law); until this deploy no cap was enforced at all, so no account loses an allowance it had |
+| the LAN dev CORS allowance: `http://10.x.x.x:5173`, `http://192.168.x.x:5173`, `http://172.16–31.x.x:5173` are echoed as the allowed origin | deployed today, NOT on main | KEPT — the same comment, pattern and deciding line as the deployed file (`chatLlmPrompt.test.ts` pins the pattern and executes it against 26 origins; `chat-cap-real` 1.4 through the real `index.ts`). It admits a browser on a private network to READ the function's answers; it verifies nobody — such a caller is still refused 401 without a session |
+| a plan whose cap is not a whole number is refused `503 metering_unavailable` instead of being sent to the meter (which reads NULL as "unlimited") | this branch | yes — no plan carries one, with or without an override (law); nothing a real account gets changes |
+| 401 / 429 / 503 before any model call; no switch; fail closed (C1–C3) | this branch | the point of the deploy — needs the meter in the database (preflight) |
+| an unverified caller is refused BEFORE the request is validated or the key is looked at | this branch | yes — changes only what an unauthenticated caller is told |
+| no model key → `503 ai_not_configured`, not a 200 "answer" naming the secret | this branch | yes — old and new bundles show "unavailable" |
+| `messages` must be `{role: user \| assistant, content: string}`; a caller's other fields are not forwarded; context fields of the wrong type read as absent | this branch | yes — the three callers send exactly that |
+| every refusal body gains `error`; the 400s keep their `detail` words, the cap body every field it had | this branch | yes — a superset; the old bundle reads `detail` |
+| the monthly cap sentence says "Resets on the 1st of next month (UTC)" (it said "at the start of your next billing period"; the meter's bucket is the calendar month); Romanian sentences when the request says `language: "ro"` | this branch | yes — the new bundle prints its own sentence anyway |
+| an EMPTY `tier` falls through to `plan`; an override is parsed as the engine's `_env_int` | this branch | yes — engine parity; the preflight report counts the rows by stored key |
+| the stock-claim rule in both personas' system prompt | this branch | yes — static text in the cached head; the first call after the deploy writes the prompt cache anew, once |
+| the auth check, the plan read and each metering RPC time out at 8 s; the UTC day is read once per request; a rate-limited or failed auth check is `503 auth_unavailable` | this branch | yes |
+| the model request is aborted at 100 s and its reservation released (it used to wait until the platform cut the function off, leaving the reservation counted) | this branch | yes — an answer of at most 2,000 tokens fits (80 s at 25 tokens a second); the deadline cannot be much longer, because the platform ends the whole request at 150 s and the function must still release inside that. A call that IS cut off at 100 s reads "assistant unavailable" and is not counted |
+| `CHAT_LLM_UPSTREAM_BASE_URL`, honoured for loopback values only | this branch | yes — unset in production; any other value is ignored |
+| the CORS allowlist (the six origins + the LAN dev allowance) and headers, the model id, `max_tokens`, `output_config`, the upstream headers, the two personas, the currency and public-company directives | unchanged — the CORS block is the DEPLOYED file's, byte for byte; the rest was diffed against main line by line; the personas differ by the rule's one insertion each. HELD by laws since 2026-10-04: eight sha256 pins of main's own prompts (`chatLlmPrompt.test.ts`), the allowlist law, the LAN dev law, `chat-cap-real` 1.3 / 1.4 — before them a changed persona word, an echoed foreign origin or a dropped allowance left both gates green | — |
+
+**Deploy (coordinator), in this order.**
+```
+# 1. the meter is there (read-only; deploy only on "ready": true)
+supabase db query --linked -f supabase/preflight/chat_cap_always_preflight_report.sql
+# 2. what is deployed today, for the diff — with a SCRATCH workdir: the
+#    download writes the function's source under <workdir>/supabase/functions/
+#    and must not be able to touch the checkout you are about to deploy from
+supabase functions download chat-llm --project-ref cjclenykwlngqvapmisb --use-api --workdir <scratch dir>
+diff -ru <scratch dir>/supabase/functions/chat-llm supabase/functions/chat-llm   # expected: the table above
+#    (done once on 2026-10-04: one file, main's index.ts + LAN_DEV_ORIGIN. Do it
+#    again on the day: `grep -n LAN_DEV_ORIGIN` must hit BOTH trees with the same
+#    two lines — if the deployed file has gained anything else since, stop and read it)
+# 3. the secrets' NAMES: CHAT_LLM_UPSTREAM_BASE_URL must not be there; a
+#    PRICING_CHAT_* override must be the same on the engine container; and
+#    whether ANTHROPIC_API_KEY is there decides what the signed-in live check shows
+supabase secrets list --project-ref cjclenykwlngqvapmisb
+# 4. deploy — from the checkout that holds this branch (the CLI deploys
+#    <workdir>/supabase/functions/chat-llm)
+supabase functions deploy chat-llm --project-ref cjclenykwlngqvapmisb --use-api --no-verify-jwt
+```
+The function is four files now. After the deploy, a second download (again
+into a scratch directory) must show `index.ts`, `guard.ts`, `plans.ts`,
+`prompt.ts` — a missing module is a boot error on every call, the CORS
+preflight included. (The same four files boot under the local edge runtime;
+if the server-side bundler ever drops one, the same command without
+`--use-api` bundles with Docker.) To go back: redeploy the previous source —
+which is the hole itself, so only with no working key among the secrets.
+
+**Live checks that cannot spend** — AFTER the deploy (before it, an
+unauthenticated POST is the unmetered model call itself, harmless only while
+no valid key is set). All are refused before any upstream request:
+```
+curl -i -X OPTIONS "$FN/chat-llm" -H 'Origin: https://cfo-ai.io' -H 'Access-Control-Request-Method: POST'
+#   200, access-control-allow-origin: https://cfo-ai.io
+curl -i -X POST "$FN/chat-llm" -H 'Origin: https://cfo-ai.io' -H 'Content-Type: application/json' \
+     -d '{"messages":[{"role":"user","content":"hi"}]}'
+#   401 {"error":"sign_in_required","detail":{"code":"sign_in_required",…}}
+```
+The same POST with the public anon key as the bearer is also a 401. A boot
+error (a module the bundle lost) shows on the first of these as a 5xx
+`BOOT_ERROR` instead of the 200 — the preflight is the cheapest proof the four
+files arrived. And the allowance the deployed function carried is still there
+(and still admits only a private address on the Vite port):
+```
+curl -si -X OPTIONS "$FN/chat-llm" -H 'Origin: http://192.168.1.20:5173' -H 'Access-Control-Request-Method: POST' | grep -i allow-origin
+#   access-control-allow-origin: http://192.168.1.20:5173
+curl -si -X OPTIONS "$FN/chat-llm" -H 'Origin: http://203.0.113.7:5173' -H 'Access-Control-Request-Method: POST' | grep -i allow-origin
+#   access-control-allow-origin: https://cfo-ai.io
+```
+
+**The checks above pass on a function that refuses every real user.** Until
+this deploy production swallowed a failed `auth.getUser`, a failed plan read
+and a failed reservation alike (the review of 2026-10-04 ran main's function
+in the gate's harness: no bearer → an answer; a signed-in trial user, six
+calls → six answers, meter untouched). So
+production has NEVER shown whether any of the three works there — and from
+this deploy each one is a refusal for EVERY user. OPTIONS → 200, no bearer →
+401 and the anon key → 401 say nothing about it. Two signed-in checks do, and
+both are the OWNER's (they need a session; the token never leaves the owner's
+browser). Each is a case of `chat-cap-real` (13.1–13.3) and of
+`chat-cap-always`:
+
+**(a) Free, always: a real session and a request that can never be sent.**
+In the browser console of `https://cfo-ai.io`, signed in (reload the page
+first, so the stored token is a fresh one):
+```js
+const k = Object.keys(localStorage).find((k) => /^sb-.*-auth-token$/.test(k));
+const t = JSON.parse(localStorage.getItem(k)).access_token;
+const r = await fetch("https://cjclenykwlngqvapmisb.supabase.co/functions/v1/chat-llm", {
+  method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+  body: JSON.stringify({ messages: [] }) });
+console.log(r.status, await r.text());
+```
+| it prints | it means |
+|---|---|
+| `400 {"error":"invalid_request","detail":"messages is required"}` | the bearer was VERIFIED by the auth server from inside the deployed function. Nothing was reserved (no counter row is made), nothing reached the model |
+| `401 {"error":"sign_in_required",…}` | **verification is broken on production — stop.** (The function's own `SUPABASE_ANON_KEY` / `SUPABASE_URL` is refused, or the session really has ended: sign in again and repeat once) |
+| `503 {"error":"auth_unavailable",…}` | the function cannot reach the auth server — stop |
+
+**(b) One real message while the key among the secrets is still DEAD** (the
+same snippet with `body: JSON.stringify({ messages: [{ role: "user", content:
+"hi" }] })`, or one question in the chat — then read the RESPONSE BODY of
+`chat-llm` in the Network tab, not the panel). It costs nothing while the
+upstream rejects the key (a revoked key answers 401, a key with no credit
+400; neither is billed). If the key turns out to WORK, this is the first
+billed call (a few cents) — so it is the owner's to send, never a
+coordinator's "check".
+
+| the HTTP response | it means |
+|---|---|
+| `200 {"answer":"Couldn't reach Claude: 401 …"` (or `400 … credit balance …`) | auth, the plan read, `reserve_user_chat` and `release_user_chat` all ran in production, and the key is dead. Run the preflight report again: `meter.daily_rows_today.users` ≥ 1 and both `reservations_open` 0 — the counter rows that call made, with nothing left reserved |
+| `503 {"error":"metering_unavailable",…}` | **the meter failed** (the plan row could not be read, or `reserve_user_chat` errored): read the function's log before adding a working key |
+| `503 {"error":"ai_not_configured",…}` | there is no `ANTHROPIC_API_KEY` among the secrets at all: the meter was NOT exercised (the function stops before it). Nothing to conclude about the plan read or the RPCs |
+| `200` with a real answer | the key that is there already works: the call was billed and committed — the plan card's "used" went up by one. **If so, the function deployed BEFORE this one was answering anyone with the URL, unmetered — the deploy closed that** |
+| `401` / `503 auth_unavailable` | as in (a) |
+
+**Why the body and not the panel.** The bundle in production today knows one
+refusal — `429 chat_cap_reached`. A 401, a 503 `metering_unavailable` and the
+dead-key sentinel ALL render as the same "assistant unavailable" panel there
+(and, in any bundle, the command bar and Explain show one generic sentence
+for a 401 and a 503). The new frontend build tells the three apart in the
+chat ("sign in again" / "could not check your plan" / unavailable); until it
+is live, "did it say *could not check your plan*?" cannot be decided from the
+screen. Deploying the frontend first is the other way to make them read
+differently — the order frontend → function is safe.
+
+**When it is safe to add a working key — all of these, in this order.**
+1. The subscriptions lockdown is on production and its post-check says closed
+   (a user cannot write their own plan row). A hard precondition: the
+   function believes the plan row.
+2. The preflight report answered `ready: true`, `blocking: []`,
+   `functions_are_this_repository: true`, `meter_closed_to_browser_roles:
+   true`, `plan_and_counters_closed_to_browser_roles: true` (with
+   `browser_role_row_writes: []`),
+   `subscriptions.users_with_more_than_one_row: 0`.
+3. The function is deployed from this branch; the second download shows the
+   four files; the unauthenticated checks above answer 200 and 401.
+4. Signed-in check (a) printed `400 invalid_request`.
+5. Signed-in check (b) answered HTTP 200 with the "Couldn't reach Claude"
+   sentinel (the key that is there is dead), and the preflight report run
+   again shows `meter.daily_rows_today.users` ≥ 1 with `reservations_open` 0
+   for the day and the month. (If (b) answered with a real reply, that key
+   already works and this list is complete but for 6–8. If it answered
+   `ai_not_configured`, there is no key: the meter has still never run on
+   production — the first message after the key is added is then both the
+   first billed call and the first reservation; send it yourself and read its
+   body before anyone else uses the chat.)
+6. The signup-tier fix (H4) is applied: a new account is on 3 a day / 5 a
+   month, not 40 / 200. Until then the number of accounts is the bound.
+7. A monthly spend limit is set in the Anthropic Console for the key's
+   workspace — the only ceiling across accounts, and the only ceiling on
+   requests that fail upstream (those are released, not counted).
+8. The owner has read the two numbers nothing here bounds: how many accounts
+   can be created (`/auth/v1/settings`: `disable_signup`,
+   `mailer_autoconfirm`, `external.anonymous_users` — read with the public
+   anon key; a CAPTCHA is a dashboard setting), and that every account
+   created before the signup-tier fix stays on 40 a day / 200 a month.
+
+**When feat/owner-plan merges:** its `owner` entry must be added to
+`plans.ts` `buildPlans` (it edited the table when it lived in `index.ts`),
+`tests/engine/test_owner_plan.py` `CHAT_FUNCTION` repointed to `plans.ts`,
+its `stored_tier` (an internal plan is read from `tier` only) mirrored in
+`plans.ts` `storedTier` — the pin in `chatLlmPlans.test.ts` reds until it is —
+and its runbook's "or `USAGE_LIMITS_ENABLED` confirmed unset among its
+secrets" dropped: the function no longer reads the variable, so the only way
+to settle chat before assigning the plan is the redeploy.
+
+**When feat/ios-shell-native-sheets merges:** its only change to
+`supabase/functions/chat-llm/index.ts` is the LAN dev allowance (seven added
+lines, one changed), already carried here byte for byte. The merge conflicts
+on that file (it edits the single-file function this branch split in four):
+keep THIS tree's `index.ts`; `chatLlmPrompt.test.ts` reds if the allowance is
+lost or changed in the resolution.
+
+---
+
+## 33. A comparison that is on says what it compares — or that it compares nothing (2026-10-04)
+
+Owner, top priority: Scandia Food, Dec 2024 on screen, "Compară cu: Anul
+precedent (automat)" selected, the Anterior / Δ / Δ % / "% din venituri"
+boxes ticked — and the P&L, the balance sheet and the cash flow each showed
+one column, with no word why. Read before anything was changed: no Dec 2023
+period exists (both of that company's workspaces hold Dec 2024 and Dec 2025
+only); the engine's `GET /api/period/{id}/comparatives?prior=` answers 200
+for the pair in both directions; the morning's deploy touched no comparison
+code. The page's own rule was working as written — AUTO is the nearest
+EARLIER period of the same length, there was none, no request was made — and
+the controls went on implying a comparison. **A state with a reason and no
+sentence.**
+
+Frontend-only hotfix, LIVE 2026-10-04 05:22Z: main `4c27baf1` (d7e8481d +
+4c27baf1), frontend image `606243fad680`, backend untouched.
+
+**The rule.** Whenever the comparison is ON and no prior resolves
+(`lib/comparatives` `noPriorStateOf`): the picker's AUTO option names the
+balance it looked for (`previousYearEnd`) as missing — never one that is in
+the list at another length; `ComparativesNoPriorNote`, rendered by the page
+BELOW the sticky tab bar, says which balance is missing and offers the
+workspace upload and up to three EARLIER periods one click away (never a
+later one: under "Prior" it reads the change backwards); the column boxes
+are disabled and unticked, and the reader's stored columns are not written
+over; AUTO never picks another period in its place; month names follow the
+UI language.
+
+**The review's blocker — keep it in mind for every hook keyed by a pair.**
+The app's query client keeps the previous result as a placeholder when a key
+changes (`lib/queryClient.ts`, `placeholderData: keepPreviousData`). A query
+that becomes DISABLED under a new key hands back the previous key's data for
+good. Opening the later year and stepping back to the earlier one left the
+later year's comparison — its header, its summary — beside the new notice.
+`useComparatives` takes no placeholder now, and `ratioSurfacesOf` paints a
+document only when a comparison is requested AND the document names the pair
+on screen (a held-over refusal likewise). No gate could see it: every
+comparison test used `createTestQueryClient()`, which has none of the app's
+defaults. **A law that depends on cache behaviour builds its client from
+`queryClient.getDefaultOptions()`.**
+
+Also fixed in the same change: the cash-flow card's "upload the prior
+period" link pointed at `/financials`, a path with no route; a balance
+uploaded from the redesigned workspace did not refresh the period lists the
+dashboard reads (`UploadFlowHost` invalidates `periods-with-documents` and
+`org-periods` now).
+
+Gate `compare-no-prior` (26 tests, 190 states, twenty-six plants:
+`docs/engine_book/gates.md`). Owner's rule from this day: **frontend-only
+display fixes skip the independent review — gates, the full frontend suite
+and the build are enough; reviews stay for money, auth, customer data and
+the engine.** (This one had a review, and it found the blocker.)
+
+**Follow-ups shipped with this release** (frontend only; branch
+`fix/compare-followups`, three gates): `links-routed` — every internal path
+the frontend links to is a route of `App.tsx`, a proxied request or a file
+under `public/` (the learning popover's account rows linked to `/financials`,
+never a route; the Products page's sales example pointed at a workbook deleted
+in July); `i18n-parity` — English and Romanian carry the same keys and
+placeholders, the in-code string tables included (the stale
+`scripts/check-i18n-coverage.ts` is deleted); `period-month-locale` — the two
+month formatters REQUIRE a locale and read `YYYY-MM-DD` dates only (the
+dashboard header said "Dec 2024" in a Romanian interface).
+
+**What production's database and functions carry since 2026-10-04** (applied
+by the coordinator with `supabase db query --linked`, each restrict-only, each
+with a before / after fingerprint showing no existing row changed; the record
+is `specs-durable/ops_log.md`): the subscriptions write lockdown (§29), the
+workspace-cap guard and the signup tier for NEW signups (§31), the `fx-rates`
+function (§30) and `chat-llm` with the cap always enforced (§32). The two
+unruled revokes of §31 (the derived tables, the calibration queue) are NOT
+applied.

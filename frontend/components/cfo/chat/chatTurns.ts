@@ -16,8 +16,8 @@
 //     cap survives tab switches instead of resetting with the shell.
 
 import { useSyncExternalStore } from "react";
-import i18n from "@/i18n";
-import { CfoApiError, cfoApi } from "@/lib/cfoApi";
+import { cfoApi } from "@/lib/cfoApi";
+import { chatRefusalCopy, chatRefusalMarkdown, chatRefusalOf } from "@/lib/chatRefusal";
 import {
   classifyUpstreamAnswer,
   clearAiDegraded,
@@ -124,8 +124,11 @@ export function startChatTurn(ctx: ChatTurnContext): void {
   //    so the conversation already contains the just-appended user turn —
   //    no React-flush race to defend against anymore.
   const conv = getChatConversation(ctx.orgId, conversationId);
+  //    A REFUSED turn (sign in again / the cap / "could not check your plan")
+  //    is the app's own notice, not something the assistant said: it is left
+  //    out, as a failed turn always was (those carry no content).
   const payloadMessages = (conv?.messages ?? [])
-    .filter((m) => !m.pending && m.content && !m.interrupted)
+    .filter((m) => !m.pending && m.content && !m.interrupted && !m.refused)
     .map((m) => ({ role: m.role, content: m.content }));
 
   // 3. Register the in-flight turn. `beginChatReply` keeps the nav rail's
@@ -207,42 +210,34 @@ export function startChatTurn(ctx: ChatTurnContext): void {
         // Aborted by deletion: the conversation is gone — nothing to render.
         return;
       }
-      // Pricing V3 — render the chat-cap-reached 429 as a friendly
-      // upgrade-CTA message, not as a generic transport error.
-      // Detail shape from backend:
-      //   { code: 'chat_cap_reached', kind: 'daily_cap_reached' |
-      //     'monthly_cap_reached', plan_key, daily_used, daily_cap,
-      //     monthly_used, monthly_cap, message, upgrade_url }
-      if (err instanceof CfoApiError && err.status === 429) {
-        const detail = (err.detail ?? {}) as {
-          code?: string;
-          kind?: string;
-          message?: string;
-          upgrade_url?: string;
-        };
-        if (detail.code === "chat_cap_reached") {
-          // Strings resolve at runtime (the 429 lands mid-session), so the
-          // module-level i18n instance already carries the active language.
-          const headline = i18n.t(
-            detail.kind === "daily_cap_reached"
-              ? "chatX.cap.dailyHeadline"
-              : "chatX.cap.monthlyHeadline",
-          );
-          const body = detail.message ?? i18n.t("chatX.cap.body");
-          const link = detail.upgrade_url ?? "/pricing";
-          chatCompleteAssistantTurn(ctx.orgId, {
-            conversationId,
-            assistantId,
-            content: `**${headline}**\n\n${body}\n\n[${i18n.t("chatX.seePlans")} →](${link})`,
-            error: false,
-          });
+      // THE FUNCTION REFUSED (it never called the model): no verified user
+      // (401), the plan's cap (429), or a meter it could not read (503).
+      // Rendered from the CODE in the reader's language — never the
+      // server's own English sentence (lib/chatRefusal.ts). Strings resolve
+      // at runtime (the refusal lands mid-session), so the module-level
+      // i18n instance already carries the active language.
+      const refusal = chatRefusalOf(err);
+      if (refusal) {
+        const copy = chatRefusalCopy(refusal);
+        chatCompleteAssistantTurn(ctx.orgId, {
+          conversationId,
+          assistantId,
+          content: chatRefusalMarkdown(copy),
+          // The cap message is part of the conversation's history (as it
+          // always was). "Sign in" and "could not check your plan" describe
+          // this moment only: shown, never written to server history.
+          error: refusal.code !== "chat_cap_reached",
+          // …and none of the three is ever sent to the model as a turn.
+          refused: true,
+        });
+        if (refusal.code === "chat_cap_reached") {
           // Lock the composer for the rest of the session (spec §14
-          // "disable + message if blocked"). The thread already shows
-          // the long-form 429 card; the composer banner is the short
-          // form + a hard input-disable so users can't keep retrying.
-          setCapBlock({ headline, body, href: link });
-          return;
+          // "disable + message if blocked"). The thread already shows the
+          // long-form card; the composer banner is the short form + a hard
+          // input-disable so users can't keep retrying.
+          setCapBlock({ headline: copy.headline, body: copy.body, href: copy.link?.href ?? "/pricing" });
         }
+        return;
       }
       // A2 — EVERY other AI failure funnels through the one mapper. The
       // raw payload (status, request_id, JSON body) goes to console.debug
