@@ -20622,7 +20622,7 @@ exit=1
 **PLANT (p1)** — the self-update policy re-created (the brief's first):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 create policy "subscriptions self update" on public.subscriptions
   for update using (auth.uid() = user_id);
 ```
@@ -20647,7 +20647,7 @@ exit=1
 **PLANT (p2)** — the self-insert policy re-created:
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 create policy "subscriptions self insert" on public.subscriptions
   for insert with check (auth.uid() = user_id);
 ```
@@ -20672,7 +20672,7 @@ exit=1
 **PLANT (p3)** — UPDATE granted back to authenticated, with a write policy under another name:
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 grant update on public.subscriptions to authenticated;
 create policy "billing sync" on public.subscriptions
   for update to authenticated using (true) with check (true);
@@ -20708,7 +20708,7 @@ exit=1
 **PLANT (p4)** — row level security switched off on subscriptions:
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 alter table public.subscriptions disable row level security;
 ```
 
@@ -20737,7 +20737,7 @@ exit=1
 **PLANT (p5)** — a sibling: the document meter writable (the reviewed "free documents" shape):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 alter table public.user_usage disable row level security;
 grant update, delete on public.user_usage to authenticated;
 ```
@@ -20768,7 +20768,7 @@ exit=1
 **PLANT (p8)** — a row-level view over subscriptions, left with a new view's default grants:
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 create or replace view public.my_plan as select * from public.subscriptions;
 ```
 
@@ -20839,7 +20839,7 @@ exit=1
 **PLANT (pA)** — MAINTAIN (Postgres 17) granted back to authenticated:
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 grant maintain on public.subscriptions to authenticated;
 ```
 
@@ -20867,7 +20867,7 @@ exit=1
 **PLANT (e1)** — a column-level UPDATE on four columns no named attack writes, with an own-row update policy (attack review, e1: GREEN before this round's per-column writes):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 grant update (billing_period_anchor, extra_docs_pending, nonro_extra_billed_period, trial_start)
   on public.subscriptions to authenticated;
 create policy "self upd" on public.subscriptions for update using (auth.uid() = user_id);
@@ -20902,7 +20902,7 @@ exit=1
 **PLANT (e4)** — a view over a view over subscriptions; the inner one closed, the outer one granted (attack review, e4: GREEN before the recursive walk):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 create or replace view public.va_plan_base as select * from public.subscriptions;
 revoke all on public.va_plan_base from public, anon, authenticated;
 create or replace view public.va_account_overview as select * from public.va_plan_base;
@@ -20933,7 +20933,7 @@ exit=1
 **PLANT (e5)** — a permissive read on the document meter (attack review, e5: GREEN — 281 of 281 — before this round):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 create policy "everyone reads usage" on public.user_usage for select using (true);
 ```
 
@@ -20957,7 +20957,7 @@ exit=1
 **PLANT (e7)** — a SECURITY DEFINER trigger on profiles — a table every user may write — that writes the plan row (attack review, e7: GREEN before the census):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 create function public.subs_plant_e7() returns trigger language plpgsql security definer … as
   $$ begin if new.company_name = 'upgrade' then
        update public.subscriptions set tier = 'multi', status = 'active' where user_id = new.id; end if;
@@ -21138,7 +21138,7 @@ exit=1
 **PLANT (e5b)** — a permissive read on the daily chat counter (e5 did it to the document meter; L2c and R5 had never been red):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 create policy "everyone reads chat usage" on public.plan_chat_daily_usage for select using (true);
 ```
 
@@ -21162,7 +21162,7 @@ exit=1
 **PLANT (e9)** — the renewal mail queue — the table this round added to THE LIST — handed back to the API roles:
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 alter table public.renewal_email_queue disable row level security;
 grant select, insert, update, delete on public.renewal_email_queue to anon, authenticated;
 ```
@@ -21249,7 +21249,7 @@ exit=1
 **PLANT (eW)** — the migration changes a view: the aggregate over founding_members is made security_invoker:
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 alter view if exists public.subs_gate_cohort_public set (security_invoker = true);
 ```
 
@@ -21271,7 +21271,7 @@ exit=1
 **PLANT (eX)** — a meter RPC granted to a signed-in user (the shape the attack review measured on the engine's release route):
 
 ```
-appended to a copy of the migration, after its last statement:
+put into a copy of the migration after its DO block — before its notify and its result row, which stays the last statement:
 grant execute on function public.release_user_upload(uuid, text, boolean) to authenticated;
 ```
 
@@ -21823,16 +21823,22 @@ next time it is applied, or a runbook file that is not what it says.
 - **A, the list**: the pre-flight report and the grids file name exactly THE
   LIST the migration carries, and the same three kept policies.
 - **B, the browser**: no file under `frontend/`, `mobile/` or
-  `supabase/functions/` writes a listed table through a supabase-js client or
-  names its REST path; no browser file calls a writer RPC; no browser file
-  that names a listed table in quotes also makes a supabase-js write, a write
-  `fetch` or a GraphQL call (the handle kept in a variable, the name in a
-  constant, a path assembled from parts, `.from<any>(…)`);
+  `supabase/functions/` — test files included — writes a listed table
+  through a supabase-js client or names its REST path; no browser file calls
+  a writer RPC; no browser file that names a listed table in quotes also
+  makes a supabase-js write, a write `fetch` or a GraphQL call (the handle
+  kept in a variable, the name in a constant, a path assembled from parts,
+  `.from<any>(…)`) — this last law is an over-reach on purpose (a hash's
+  `.update(` beside a quoted name is a hit) and is not asked of TEST files
+  (`__tests__/`, `*.test.*`, `*.spec.*`, `frontend/test/`), which no browser
+  session runs;
   `useSubscription` exposes exactly `subscription, loading, refresh, setPlan`.
 - **C, the SQL**: no committed `supabase/**/*.sql` creates a non-select policy
   on a listed table or grants an API role a privilege on one — quoted
   identifiers included — nor `on all tables in schema public`, nor `disable
-  row level security`, nor an `execute` string naming one; no view over a
+  row level security`, nor an `execute` string naming one (the KEYWORD: the
+  word inside a string literal — `'service_role may not execute ' || name` —
+  is told apart by the quotes before it on its own line); no view over a
   listed table, or over such a view, that nothing closes (`security_invoker`,
   or a revoke from anon and authenticated); no function naming a listed table
   granted to an API role but the product's two.

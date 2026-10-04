@@ -3777,6 +3777,13 @@ created by NO file in this repository; the runbook says how to read its row.
   the source half — no browser or edge-function writer, no committed SQL that
   re-opens a table, the migration one batch, the report files one read-only
   statement each, the probe in a mocked browser, the gate's own default.
+  Two of its laws over-reach on purpose and were narrowed where they would
+  have red another lane's honest files (measured by merging this branch
+  read-only with main and each sibling lane and running the laws there): the
+  "names a listed table in quotes and also writes" law is not asked of TEST
+  files — the two exact laws (a `.from("<table>")` write chain, a
+  `/rest/v1/<table>` path) still are — and the `execute` law reads the
+  keyword, not the word inside a string literal.
 
 > **On the local Postgres image (supabase/postgres 17.6.1.106)
 > `grant <role> to current_user` segfaults the backend** and the whole cluster
@@ -3786,9 +3793,11 @@ created by NO file in this repository; the runbook says how to read its row.
 **In production** each file is sent whole with `supabase db query --linked -f
 <file>` (the Management API runs it as `postgres` and returns the LAST
 statement's rows as JSON: the one row's one column is `report`, `applied` or
-`audit` — `jq '(.rows // .)[0]'`, the CLI wraps the rows in an envelope when
-an agent runs it). The gate cannot run there — it creates accounts and re-opens
-the hole. What proves "0 of 35" there: the post-check report's
+`audit`. The CLI prints a bare array of rows to a person and wraps it in an
+envelope — `{warning, boundary, rows, advisory}` — when an agent runs it;
+`jq '(if type == "array" then . else .rows end)[0]'` reads both, measured on
+the local stack with `--agent=no`, `--agent=yes` and neither). The gate cannot
+run there — it creates accounts and re-opens the hole. What proves "0 of 35" there: the post-check report's
 `verdict.fully_locked: true` (the catalog state the gate shows refusing every
 attack), anonymous `GET` / `POST /rest/v1/subscriptions` answering 401, and the
 signed-in console probe printing `CLOSED`. The "Reload schema cache" click
