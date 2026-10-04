@@ -609,7 +609,9 @@ describe("the law — ON and nothing compared is always said; a comparison is ne
     expect(withPrior).toBeGreaterThanOrEqual(30);
     expect(named).toBeGreaterThanOrEqual(25);
     expect(offered).toBeGreaterThanOrEqual(15);
-  });
+    // 126 renders in one test: on a machine busy with other suites it must
+    // not go red on the clock (it has, at the default five seconds).
+  }, 60_000);
 });
 
 // ── No document of another pair ────────────────────────────────────────

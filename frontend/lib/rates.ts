@@ -226,8 +226,13 @@ export interface HeldRates {
 
 type CacheRecord = HeldRates;
 
+/** "Never": the moment of a record no source answered. It is a TIME, not a
+ *  figure — nothing is painted from it; it only decides whether a held
+ *  record may still be called current and whether it spares a request. */
+const NEVER_ANSWERED = 0;
+
 /** Nothing held: the bundled fallback, answered by no source at no time. */
-const NOTHING_HELD: HeldRates = { payload: FALLBACK_PAYLOAD, cached_at: 0 };
+const NOTHING_HELD: HeldRates = { payload: FALLBACK_PAYLOAD, cached_at: NEVER_ANSWERED };
 
 function isRatesPayload(payload: unknown): payload is RatesPayload {
   const p = payload as RatesPayload | null;
@@ -250,8 +255,8 @@ function readCache(): CacheRecord | null {
     if (!isRatesPayload(parsed?.payload)) return null;
     // A record without a usable timestamp was answered "never": it can be
     // shown (marked stale) and never spares a request.
-    const at = typeof parsed.cached_at === "number" && Number.isFinite(parsed.cached_at) ? parsed.cached_at : 0;
-    return { payload: parsed.payload, cached_at: at };
+    const stamped = typeof parsed.cached_at === "number" && Number.isFinite(parsed.cached_at);
+    return { payload: parsed.payload, cached_at: stamped ? parsed.cached_at : NEVER_ANSWERED };
   } catch {
     return null;
   }
