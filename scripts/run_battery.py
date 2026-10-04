@@ -2728,26 +2728,55 @@ def _engine_gates() -> List[Gate]:
                        "test_e8_the_hint_carries_the_products_own_example_strings_with_the_code_after_the_figure",
                        "test_e9_a_failed_narration_is_returned_as_it_was_and_the_pass_is_never_run_on_it",
                        "test_e10_no_socket_was_attempted_and_the_model_was_only_ever_the_stand_in")),
-        # ai-figures — ONE STANDARD, THREE RUNTIMES. frontend/lib/money
-        # (and the ratio printer) is the authority; this gate RUNS it and
-        # holds the copies: every example string of the chat function's
-        # figure-format rule and conversion note; standard.json and
-        # grid.json (regenerated on every run, compared with the committed
-        # bytes — the engine's gate reads the same files); the magnitude
-        # words against both packs' money_display. And the prompt the chat
-        # really receives: the rule once, inside the display-currency rule
-        # — never in the command bar's or Explain's prompt ("write NO
-        # digits") — and no currency before a digit in any built prompt,
-        # read by the independent detector. The prompt pins themselves are
+        # ai-figures — ONE STANDARD, THREE RUNTIMES, AND WHAT THE READER
+        # SEES. frontend/lib/money (and the ratio printer) is the
+        # authority; this gate RUNS it and holds the copies.
+        #   chatLlmFigureFormat   every example string of the chat
+        #       function's figure-format rule and conversion note;
+        #       standard.json and grid.json regenerated on every run and
+        #       compared with the committed bytes (the engine's gate reads
+        #       the same files); the magnitude words against both packs;
+        #       the rule once, inside the display-currency rule — never in
+        #       the command bar's or Explain's prompt — and no currency
+        #       before a digit in any built prompt.
+        #   readerFigures         the BROWSER's normaliser
+        #       (frontend/lib/readerFigures.ts, the twin of
+        #       engine.ai.figure_format) over the shared corpus (expected
+        #       typed by hand) and grid; no value changes — an independent
+        #       reader of every rewritten token, the digit proof planted,
+        #       a lone three-digit group never guessed; the language is
+        #       the TEXT's, never the UI's; no lookbehind (an old iOS
+        #       WebView throws at parse time); imported by five files only.
+        #   chatReplyFigures      the REAL send pipeline, list and bubble
+        #       with a recorder where the model would be: stored = shown =
+        #       expected for every chat case, one request per turn; a
+        #       reply already in the store; history sent as the reader saw
+        #       it; THE COMMAND BAR'S GUARD handed the transport's text
+        #       byte for byte.
+        #   explainFigures        Explain: fresh, cached, cached before
+        #       the release; the template path verbatim.
+        #   briefingCardFigures   the briefing card: a `ro` stamp, an
+        #       untrusted `en` stamp, the seven other languages byte for
+        #       byte, display only, the narration of an explicit
+        #       regenerate (one counted request).
+        # Every output is read by frontend/test/numberLanguage.ts, never
+        # by the normaliser. No test calls a model. The prompt pins are
         # chat-cap-always's (moved on purpose, no pin value changed).
-        # Blind to: what the model writes under the prompt; the deployed
-        # function's source. Plant log: docs/engine_book/gates.md.
+        # Measured 574 tests. Blind to: what a model writes; a token left
+        # by design (a lone group passes every law and the detector); the
+        # deployed function's source; the report page and the exports; a
+        # bundle older than the release. Plant log:
+        # docs/engine_book/gates.md.
         Gate("ai-figures",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/chatLlmFigureFormat.test.ts",
+              "frontend/lib/__tests__/readerFigures.test.ts",
+              "frontend/components/cfo/chat/__tests__/chatReplyFigures.test.tsx",
+              "frontend/lib/__tests__/explainFigures.test.ts",
+              "frontend/components/cfo/__tests__/briefingCardFigures.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=15,
-             units="figure-standard tests", no_skips=True,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=560,
+             units="figure-format tests", no_skips=True,
              canaries=("GATE-WORK ai-figures-standard grid=984 lone=120 examples=12",
                        "POSITIVE CONTROL: it sees the shapes the base patterns cannot",
                        "a lone three-digit group is matched by nothing",
@@ -2759,7 +2788,57 @@ def _engine_gates() -> List[Gate]:
                        "the rule is static text: the same bytes for every request",
                        "the magnitude words are the packs' money_display",
                        "the lone groups are exactly the whole amounts of four to six digits",
-                       "standard.json and grid.json are what the product prints now")),
+                       "standard.json and grid.json are what the product prints now",
+                       # the browser's normaliser (stage 2)
+                       "GATE-WORK ai-figures corpus=",
+                       "its first case is the incident's sentence in shape",
+                       "the independent reader: one value per notation",
+                       "every reason a token can be left for is exercised by the corpus",
+                       "PLANTED HERE, not in the source: a swap that drops a digit",
+                       "does not freeze the render thread",
+                       "ro: a lone three-digit group comes back byte-identical",
+                       "en: a lone three-digit group comes back byte-identical",
+                       "handed figures change nothing but bare decimals and bare groups",
+                       "984 rows: 864 rewritten to the print byte for byte",
+                       "FIGURE_STANDARD equals standard.json",
+                       "de: a narration in another language is not changed by a byte",
+                       "pl: a narration in another language is not changed by a byte",
+                       "a text too short to tell is not touched on its own",
+                       "an English answer that quotes Romanian terms is English",
+                       "the UI language decides nothing",
+                       "no separator is ever inserted into a plain integer",
+                       "reads the figures the model was handed, skips dates and bare integers",
+                       "no lookbehind",
+                       "imported by exactly five files",
+                       # the chat, and the command bar's guard
+                       "GATE-WORK ai-figures-chat turns=",
+                       "the snapshot's figures reach the pass",
+                       "a reply too short to tell its language takes the QUESTION's",
+                       "what the pipeline logs about a reply is its language and COUNTS by reason",
+                       "the incident's reply, alone in a conversation",
+                       "a failed and an interrupted turn holding the SAME digits are not touched",
+                       "a freshly arrived reply TYPES OUT in the reader's format",
+                       "find-in-conversation counts the match",
+                       "a wrong-format reply stored before the release is sent in the reader's format",
+                       "reaches the guard byte for byte",
+                       "its real request carries no display currency",
+                       "no sentinel is an anchor, and the served figures above are",
+                       # Explain
+                       "GATE-WORK ai-figures-explain answers=",
+                       "an answer CACHED BEFORE the release",
+                       "the answer's OWN language wins over the one that was asked for",
+                       "an empty answer: the template, byte for byte",
+                       "the prompt the function builds for it holds no figure-format rule and no digit example of it",
+                       # the briefing card
+                       "GATE-WORK ai-figures-briefing bodies=",
+                       "stamped ro",
+                       "as every row written before 2026-10-02 is, whatever its language",
+                       "a de narration",
+                       "a failure text is never prose, whatever digits it holds; mounting makes no request",
+                       "the card's own decisions read the SERVED bytes",
+                       "the source: ONE call of the pass",
+                       "an engine that predates the release answers a Romanian narration in EUR",
+                       "the language the engine SAYS it narrated in is trusted")),
         # ── end of lane ai-figures ───────────────────────────────────────
         # ── period-verdict-served (production, 2026-10-04) ───────────────
         # A signed-in reader's dashboard said "nothing analysed here yet"
