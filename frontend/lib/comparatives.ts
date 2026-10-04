@@ -494,6 +494,42 @@ export function pickDefaultPrior(
   return earlier[0] ?? null;
 }
 
+/**
+ * The close a reader means by "the previous year" for a period closing on
+ * `currentEnd`: the same month, one year earlier — a month's last day stays
+ * the month's last day (28 Feb 2025 → 29 Feb 2024). Null for a date that
+ * cannot be read.
+ *
+ * It names the period AUTO looked for when `pickDefaultPrior` found none
+ * (2026-10-04, production: a company whose earliest period was on screen —
+ * the picker said "Previous year (auto)", the four column boxes were ticked,
+ * and the statements showed one column with no word about why). The picker
+ * and its notice say which balance is missing; they never pick another
+ * period in its place.
+ */
+export function previousYearEnd(currentEnd: string | null | undefined): string | null {
+  if (!currentEnd || !/^\d{4}-\d{2}-\d{2}/.test(currentEnd)) return null;
+  const y = Number(currentEnd.slice(0, 4));
+  const m = Number(currentEnd.slice(5, 7));
+  const d = Number(currentEnd.slice(8, 10));
+  if (y < 1 || m < 1 || m > 12 || d < 1) return null;
+  const lastOf = (year: number) => new Date(Date.UTC(year, m, 0)).getUTCDate();
+  if (d > lastOf(y)) return null;
+  const day = d === lastOf(y) ? lastOf(y - 1) : Math.min(d, lastOf(y - 1));
+  const pad = (n: number, w: number) => String(n).padStart(w, "0");
+  return `${pad(y - 1, 4)}-${pad(m, 2)}-${pad(day, 2)}`;
+}
+
+/**
+ * A comparison that is ON and compares nothing: the reader did not turn
+ * comparisons off, and no prior resolves (AUTO found no earlier period
+ * of the same length, and no usable stored choice stands in). The page says so in words and offers the next step — it never leaves
+ * the picker and the column boxes implying a comparison that is not there.
+ */
+export function comparisonHasNoPrior(stored: string | null | "none", priorId: string | null): boolean {
+  return stored !== "none" && !priorId;
+}
+
 // ── Cells the views may paint ────────────────────────────────────────
 
 export interface ComparativeCell {

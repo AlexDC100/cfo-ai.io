@@ -9,12 +9,15 @@
 // with.
 import { createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { comparisonRefusalKey } from "@/lib/comparisonRefusal";
 
 import {
+  comparisonHasNoPrior,
   detailLevelLabelKey,
   formatDeltaPct,
+  previousYearEnd,
   type BridgeDto,
   type ComparativesResponse,
   type MoverDto,
@@ -46,19 +49,31 @@ export function useRatioCompareView(): RatioCompareView | null {
 export function ComparativesControls({
   periods,
   currentId,
+  currentEnd,
   autoPick,
+  priorId,
   currency: _currency,
   columns = true,
+  uploadHref,
 }: {
   /** Every analysed period of the company on screen, newest first. */
   periods: readonly OrgPeriod[];
   currentId: string | null;
+  /** The close of the period on screen: it names the year AUTO looked for
+   *  when it found none. Read off `periods` when not given. */
+  currentEnd?: string | null;
   /** What AUTO resolves to right now, for the option label. */
   autoPick: OrgPeriod | null;
+  /** The prior the page compares with (`comparisonChoiceOf`'s `priorId`) —
+   *  null when nothing resolves. Required: a caller that cannot say what is
+   *  being compared cannot render the column boxes. */
+  priorId: string | null;
   currency: string;
   /** The column toggles (Prior, Δ, Δ %, share) — statement tables only; the
    *  Overview has no columns to toggle. */
   columns?: boolean;
+  /** Where a balance is uploaded (the workspace), for the no-prior notice. */
+  uploadHref?: string | null;
 }) {
   const { t } = useTranslation();
   const { view, setPriorPeriodId, setColumn } = useComparativesView();
@@ -75,6 +90,16 @@ export function ComparativesControls({
           ? view.priorPeriodId
           : "auto";
   const label = (p: OrgPeriod) => formatPeriodMonth(p.period_end) ?? p.period_label;
+  // THE COMPARISON IS ON AND COMPARES NOTHING (2026-10-04, production: the
+  // company's earliest period on screen — "Previous year (auto)" selected,
+  // the four boxes ticked, one column in the table and no word why). The
+  // picker names the balance AUTO looked for, the notice below says it is not
+  // uploaded and offers the next step, and the boxes are off until a
+  // comparison exists. AUTO never picks another period in its place.
+  const noPrior = comparisonHasNoPrior(view.priorPeriodId, priorId);
+  const end = currentEnd ?? periods.find((p) => p.period_id === currentId)?.period_end ?? null;
+  const missingLabel = noPrior ? formatPeriodMonth(previousYearEnd(end)) : null;
+  const currentLabel = formatPeriodMonth(end);
   const toggles: { key: keyof ComparativeColumns; label: string }[] = [
     { key: "prior", label: t("statements.cmp.colPrior") },
     { key: "delta", label: t("statements.cmp.colDelta") },
@@ -85,6 +110,7 @@ export function ComparativesControls({
     <div
       className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2 text-[12px] text-ink-soft"
       data-testid="comparatives-controls"
+      data-comparison={view.priorPeriodId === "none" ? "off" : noPrior ? "no-prior" : "on"}
     >
       <label className="inline-flex items-center gap-2">
         <span className="font-mono uppercase tracking-[0.08em] text-[10.5px] text-ink-mute">
@@ -100,7 +126,12 @@ export function ComparativesControls({
           }}
         >
           <option value="auto">
-            {t("statements.cmp.auto")}{autoPick ? ` — ${label(autoPick)}` : ""}
+            {t("statements.cmp.auto")}
+            {autoPick
+              ? ` — ${label(autoPick)}`
+              : missingLabel
+                ? ` — ${t("statements.cmp.autoMissing", { label: missingLabel })}`
+                : ""}
           </option>
           <option value="none">{t("statements.cmp.none")}</option>
           {candidates.map((p) => (
@@ -109,16 +140,27 @@ export function ComparativesControls({
         </select>
       </label>
       {columns && view.priorPeriodId !== "none" && (
-        <div className="inline-flex items-center gap-3" data-testid="comparatives-columns">
+        <div
+          className={`inline-flex items-center gap-3 ${noPrior ? "opacity-50" : ""}`}
+          data-testid="comparatives-columns"
+          data-disabled={noPrior ? "true" : "false"}
+          title={noPrior ? t("statements.cmp.columnsDisabled") : undefined}
+        >
           <span className="font-mono uppercase tracking-[0.08em] text-[10.5px] text-ink-mute">
             {t("statements.cmp.columns")}
           </span>
           {toggles.map((c) => (
-            <label key={c.key} className="inline-flex items-center gap-1 cursor-pointer">
+            <label
+              key={c.key}
+              className={`inline-flex items-center gap-1 ${noPrior ? "cursor-not-allowed" : "cursor-pointer"}`}
+            >
               <input
                 type="checkbox"
                 data-testid={`comparatives-col-${c.key}`}
-                checked={view.columns[c.key]}
+                // No comparison on screen: no column is shown, so no box is
+                // ticked. The reader's stored columns come back with a prior.
+                checked={noPrior ? false : view.columns[c.key]}
+                disabled={noPrior}
                 onChange={(e) => setColumn(c.key, e.target.checked)}
               />
               <span>{c.label}</span>
@@ -126,9 +168,53 @@ export function ComparativesControls({
           ))}
         </div>
       )}
+      {noPrior && (
+        <div
+          role="status"
+          data-testid="comparatives-no-prior"
+          data-missing={missingLabel ?? ""}
+          className="basis-full rounded-sm border border-rule bg-surface px-3 py-2 text-[12.5px] leading-snug text-ink-soft"
+        >
+          <span className="font-medium text-ink">{t("statements.cmp.noPriorTitle")}</span>{" "}
+          <span data-testid="comparatives-no-prior-body">
+            {missingLabel && currentLabel
+              ? t("statements.cmp.noPriorBody", { prior: missingLabel, current: currentLabel })
+              : t("statements.cmp.noPriorBodyUnnamed")}
+          </span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {uploadHref && (
+              <Link
+                to={uploadHref}
+                data-testid="comparatives-no-prior-upload"
+                className="font-medium text-brand-d hover:text-brand transition-colors duration-150"
+              >
+                {missingLabel
+                  ? t("statements.cmp.noPriorUpload", { prior: missingLabel })
+                  : t("statements.cmp.noPriorUploadUnnamed")}
+              </Link>
+            )}
+            {candidates.slice(0, NO_PRIOR_ALTERNATIVES).map((p) => (
+              <button
+                key={p.period_id}
+                type="button"
+                data-testid="comparatives-no-prior-pick"
+                data-period={p.period_id}
+                onClick={() => setPriorPeriodId(p.period_id)}
+                className="font-medium text-brand-d hover:text-brand transition-colors duration-150"
+              >
+                {t("statements.cmp.noPriorCompareWith", { label: label(p) })}
+              </button>
+            ))}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
+
+/** How many of the company's other periods the no-prior notice offers by
+ *  name; the picker above lists them all. */
+const NO_PRIOR_ALTERNATIVES = 3;
 
 // ── Summary ──────────────────────────────────────────────────────────
 

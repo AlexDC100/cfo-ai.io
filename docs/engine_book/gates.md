@@ -20219,3 +20219,112 @@ FastAPI route table (a script, a cron, `docker exec`); the other files on
 the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
 the journal) — each has its own gates; whether the operator bearer is held
 only by the operator.
+
+## compare-no-prior
+
+**The incident (owner, production, 2026-10-04).** The dashboard of a company
+with two analysed year-ends, the EARLIER one on screen. "Compare with:
+Previous year (auto)" was selected; the Prior, Δ, Δ % and "% of revenue"
+boxes were ticked; the P&L, the balance sheet and the cash flow each showed
+ONE column, and nothing on the page said why.
+
+**What was read, before anything was changed.** No period for the year before
+exists in that company (its two periods are the year on screen and the year
+after it). The engine's `GET /api/period/{id}/comparatives?prior=` answers
+200 for the pair in both directions — nothing was broken by the deploy of
+that morning, which touched no comparison code. The cause is the page's own
+rule, working as written: AUTO is "the nearest EARLIER period of the same
+length" (`pickDefaultPrior`), there was none, `comparisonChoiceOf` returned
+`priorId: null` ("a company with one period has no prior: no request, no
+error"), no request was made — and the controls went on rendering the picker
+on AUTO with nothing after it and four enabled, ticked boxes. A state with a
+reason and no sentence.
+
+**The rule now.** Whenever the comparison is ON (the reader did not choose
+"No comparison") and no prior resolves (`lib/comparatives`
+`comparisonHasNoPrior`):
+
+- the picker's AUTO option names the balance it looked for —
+  `previousYearEnd` of the period on screen — as not uploaded ("Anul
+  precedent (automat) — Dec 2023, neîncărcat");
+- a notice (`comparatives-no-prior`, `role="status"`) says which balance is
+  missing and which period is therefore shown without a comparison, and
+  offers the next step: the workspace, where the balance is uploaded, and
+  each other period of the company as a one-click "Compare with …";
+- every column box is disabled and unticked — no column is on screen — with
+  the reason as its title; the reader's stored columns are not written over
+  and come back with a prior;
+- AUTO never picks another period in place of the missing one (a later year
+  under "Prior" would be a different claim);
+- on the Overview (no column boxes) the notice still stands.
+
+`priorId` — the prior the page REQUESTS — is a required prop of
+`ComparativesControls`: a caller that cannot say what is compared cannot
+render the boxes.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/__tests__/comparativesNoPrior.test.tsx --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **15** (measured 15; `GATE-WORK compare-no-prior states=118`) |
+| canary | `GATE-WORK compare-no-prior states=` and eight titles named in `scripts/run_battery.py` |
+
+The laws: `previousYearEnd` over thirteen dates (a month's last day stays the
+month's last day across a leap year; an unreadable date is null);
+`comparisonHasNoPrior`'s truth table; the incident in Romanian and in
+English, sentence for sentence; one click on the offered period compares
+with it, and back on AUTO the notice returns; "No comparison" is the
+reader's choice (no notice, no boxes); a period whose close cannot be read
+still gets the notice, naming no month; with a prior, nothing changed (no
+notice, the boxes work and write the store); the stored columns survive the
+state; THE LAW over six company shapes × every period on screen × six
+stored choices (108 states: off / no-prior / on, and in each what must and
+must not be on screen); the page's one `<ComparativesControls>` is fed
+`priorId={cmpPriorId}` — the id `useComparatives` is called with; every
+sentence exists in both bundles with its placeholders.
+
+### compare-no-prior — plant log (2026-10-04, branch `fix/compare-no-prior-state`)
+
+Runner: `specs-durable/compare_no_prior/plants.py` (one plant at a time, the
+file restored from memory after each; record `plants.json` beside it).
+
+**BASELINE** — exit `0`: `15 passed`.
+
+| plant | result |
+|---|---|
+| P1 THE INCIDENT — the notice is not rendered | `7 failed, 8 passed` |
+| P2 the column boxes stay enabled with nothing compared | `6 failed, 9 passed` |
+| P3 the column boxes stay ticked with no column on screen | `6 failed, 9 passed` |
+| P4 AUTO's label does not name the balance it looked for | `3 failed, 12 passed` |
+| P5 the Romanian sentence is missing (a raw key on screen) | `2 failed, 13 passed` |
+| P6 the English upload action is missing | `3 failed, 12 passed` |
+| P7 the page hands the controls AUTO's pick, not the prior it requests | `1 failed, 14 passed` — the page-wiring law |
+| P8 AUTO picks the later year in place of the missing one | `6 failed, 9 passed` |
+| P9 the notice stands over a comparison that exists | `5 failed, 10 passed` |
+| P10 the notice shows after the reader chose "No comparison" | `3 failed, 12 passed` |
+| P11 the offered period does nothing when clicked | `1 failed, 14 passed` |
+| P12 the previous year of a leap February is read as 28 Feb | `1 failed, 14 passed` |
+| P13 `priorId` becomes optional | `1 failed, 14 passed` |
+
+**RED** — every plant exits `1`. **REVERT** — exit `0`: `15 passed`.
+Verdict: proven RED, thirteen of thirteen.
+
+**After the repair it reds on:** the comparison controls rendering a state
+that is ON with no prior and no notice; a column box enabled or ticked while
+nothing is compared; AUTO's option silent about the balance it looked for;
+AUTO resolving to a period that is not an earlier one of the same length; a
+notice over a comparison that exists or over the reader's "No comparison"; a
+sentence missing from either language; the dashboard handing the controls
+anything but the prior it requests.
+
+**CANNOT SEE:** a company with ONE period — the page renders no controls
+there at all, so nothing claims a comparison (the balance sheet's own "Sold
+inițial — nedepus" is `bsOpeningAbsence.test.tsx`'s); whether, once a prior
+exists, the engine's document fills the columns (`comparatives.test.ts`,
+`plCompareSubtotals.test.tsx`); the comparison REQUEST failing or being
+refused (`ComparativesRefusedNote` and the `refusal-carries` gates); the
+command bar's "compare" action; the month labels' language — the picker
+prints "Dec 2023" in both languages today (`formatPeriodMonth`'s default
+locale), and the notice prints the picker's label so the two agree; that
+"% of revenue" needs a comparison document at all (a single-period
+common-size column would be an engine change — ticketed, not done here).
+The rendered page is checked live after each deploy, not by this gate.
