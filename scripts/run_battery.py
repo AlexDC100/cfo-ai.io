@@ -2370,6 +2370,98 @@ def _engine_gates() -> List[Gate]:
                        "fed by the choice the request is made with",
                        "every upload link of the comparison goes to a path the app routes",
                        "each key, with its placeholders, in both bundles \u2014 and the two differ")),
+        # ── LANE compare-followups (2026-10-04) ─────────────────────────
+        # The display follow-ups the pre-deploy review of the no-prior
+        # hotfix left: three laws over the frontend's SOURCE, each the
+        # class of a defect the review found by reading.
+        #   links-routed     every path literal the frontend's source holds
+        #                    — an attribute, a navigate() call, a nav
+        #                    model's entry, an origin-prefixed template, an
+        #                    href inside an HTML string or a translation, the
+        #                    native shell's home path — is a path App.tsx
+        #                    routes, a request under a prefix the dev server
+        #                    proxies, a file that IS under public/, or a
+        #                    declared non-path; walked over the TypeScript
+        #                    AST (a path named in a comment is not a link).
+        #                    The learning popover's source-account row opens
+        #                    the account view in the period on screen, in
+        #                    the app (it linked to /financials, never a
+        #                    route). Plant log: docs/engine_book/gates.md.
+        Gate("links-routed",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/linksRouted.test.tsx",
+              "--reporter=verbose"],
+             # measured 416 literals over 655 files (2026-10-04)
+             work_rx=r"GATE-WORK links-routed files=\d+ literals=(\d+)", floor=350,
+             units="path literals held to the router",
+             canaries=("GATE-WORK links-routed files=",
+                       "GATE-WORK links-routed account_rows=",
+                       "the router is read: its routes, and the catch-all an unrouted path falls to",
+                       "the walk reads every form a link is written in",
+                       "no path literal in the source is unrouted",
+                       "what is exempt is still what it was exempted as",
+                       "every code of the static map: a routed path, the period and company on screen",
+                       "a click stays in the app: the location becomes the account view",
+                       "the popover hands the row the period on screen and its own close")),
+        #   i18n-parity      English and Romanian carry the same strings:
+        #                    every key in both languages, every plural key
+        #                    with exactly the forms i18next looks up for its
+        #                    language (Romanian one / few / other — read from
+        #                    i18next's resolver), the same {{placeholders}}
+        #                    (a singular may spell the count out), nothing
+        #                    empty — over the two bundle files AND over the
+        #                    store i18next reads once every module that
+        #                    registers strings in code has loaded. Replaces
+        #                    scripts/check-i18n-coverage.ts, which imported
+        #                    paths that do not exist and was run by nothing.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("i18n-parity",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/i18n/__tests__/localeParity.test.ts",
+              "--reporter=verbose"],
+             # measured 4,212 English keys in the store (3,174 in en.json,
+             # 1,038 registered in code by 29 modules), 2026-10-04
+             work_rx=r"GATE-WORK i18n-parity store modules=\d+ en_keys=(\d+)", floor=3800,
+             units="English keys held to Romanian",
+             canaries=("GATE-WORK i18n-parity bundles en_keys=",
+                       "GATE-WORK i18n-parity store modules=",
+                       "i18next's plural categories are the ones the law is written for",
+                       "the laws see each kind of gap",
+                       "the two bundle files: every key in both, every plural form its language needs",
+                       "the store i18next reads, once every module that registers strings in code has loaded",
+                       "the stale checker is gone")),
+        #   period-month-locale  every month label in the reader's language
+        #                    (the dashboard's header said "Dec 2024" in a
+        #                    Romanian interface, beside a breadcrumb saying
+        #                    "dec. 2024"): the two month formatters REQUIRE a
+        #                    locale (no default, not optional); every call —
+        #                    and every call of a helper that passes a locale
+        #                    on — hands them one that comes from the UI
+        #                    language (lib/locale), never a written one;
+        #                    formatDetectedMonth reads the active locale; the
+        #                    formatters read served dates only (a label such
+        #                    as "FY 2024" is not a date). Rendered in RO and
+        #                    EN: the dashboard header (and across a live
+        #                    language switch), the stepper's month and the
+        #                    period-switch overlay's label. Plant log:
+        #                    docs/engine_book/gates.md.
+        Gate("period-month-locale",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/periodMonthLocale.test.tsx",
+              "--reporter=verbose"],
+             # measured 36 calls in 13 files, 4 helper calls (2026-10-04)
+             work_rx=r"GATE-WORK period-month-locale calls=(\d+)", floor=30,
+             units="month-formatter calls held to the UI language",
+             canaries=("GATE-WORK period-month-locale calls=",
+                       "neither formatter declares its locale optional, or with a default",
+                       "the rule sees each way a locale goes missing",
+                       "every call of the month formatters, and of each helper that passes a locale on",
+                       "the upload dialog's month (formatDetectedMonth) is formatted with the active locale",
+                       "ro: the dashboard's header prints the period's month in Romanian",
+                       "en: the same header prints the English month",
+                       "a label that is not a served date is never read as one",
+                       "ro: the stepper's month, and the label it hands the period-switch overlay, are Romanian")),
+        # ── end of lane compare-followups ───────────────────────────────
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,

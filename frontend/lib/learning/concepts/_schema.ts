@@ -185,9 +185,11 @@ export interface AccountTrace {
   amount: number;
   /** Side hint — debit ("D") or credit ("C"). */
   side?: "D" | "C";
-  /** Optional override for the deep-link route. Defaults to
-   *  `/financials?account=<code>`. Used when a non-RAS source (e.g.
-   *  public-company dataset row) wants to drive the user elsewhere. */
+  /** Reserved, and read by nothing: the popover's row always opens the
+   *  account view (`/dashboard?…&account=<code>`, evidenceLink
+   *  accountEvidenceHref). A non-RAS source that wants to drive the user
+   *  elsewhere needs the row to read this first — and the path to be one
+   *  App.tsx routes (gate links-routed). */
   route?: string;
 }
 

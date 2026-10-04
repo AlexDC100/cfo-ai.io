@@ -250,7 +250,7 @@ const revenue: Concept = {
       tokens: [],
       // Leaf concept — bottoms out at source accounts. When the trial
       // balance accounts are available in ReportingMetrics.accountTraces,
-      // the popover renders them as deep links to /financials. When
+      // the popover renders them as deep links to the account view. When
       // missing, the popover shows the inlineFormula text instead.
       trace: trace.length > 0 ? { accounts: trace } : undefined,
     };

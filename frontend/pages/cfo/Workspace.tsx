@@ -60,6 +60,7 @@ import { WorkspaceSettingsV2 } from "@/components/cfo/workspace/WorkspaceSetting
 import { OrgIndustryPills, orgIndustryDisplayLabel, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { toast } from "@/components/ui/sonner";
 import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
+import { useActiveLocale } from "@/lib/locale";
 import {
   deleteEmptyPeriod,
   fetchWorkspacePeriodsDirect,
@@ -933,6 +934,7 @@ function SelectedWorkspacePanel({
 // fetched per org and cached so a grid of cards costs one request each.
 function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
   const { t } = useTranslation();
+  const locale = useActiveLocale();
   const { data } = useQuery({
     queryKey: ["org-periods", orgId],
     queryFn: () => fetchWorkspacePeriodsDirect(orgId),
@@ -955,7 +957,7 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
         const seen = new Set<string>();
         const clean = periods
           .filter((p) => !isImplausiblePeriod(p.period_end))
-          .map((p) => ({ p, label: formatPeriodMonth(p.period_end) ?? p.period_label }))
+          .map((p) => ({ p, label: formatPeriodMonth(p.period_end, locale) ?? p.period_label }))
           .filter(({ label }) => {
             if (!label || seen.has(label)) return false;
             seen.add(label);

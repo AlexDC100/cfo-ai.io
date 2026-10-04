@@ -39,7 +39,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Drawer } from "vaul";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useConcept } from "@/hooks/useConcept";
 import { useLearningMode } from "@/stores/learningMode";
 import { useReportingMetrics } from "./ReportingContextProvider";
@@ -53,7 +53,11 @@ import { useReportingMetrics } from "./ReportingContextProvider";
 // refactor (move PopoverStackRenderer inside the provider, OR migrate
 // the provider to a global store) just removes this direct read.
 import { useActivePeriod } from "@/lib/activePeriod";
-import { EVIDENCE_ACCOUNT_PARAM, dashboardEvidenceHref } from "@/lib/evidence/evidenceLink";
+import {
+  EVIDENCE_ACCOUNT_PARAM,
+  accountEvidenceHref,
+  dashboardEvidenceHref,
+} from "@/lib/evidence/evidenceLink";
 // LEARN-FIX-2 — same workaround for the ReportingMetrics snapshot
 // (revenue / ebitda / total_debt etc.) so the FORMULA path inside
 // the popover renders real operand values. Without this the EBIT
@@ -734,7 +738,13 @@ function PopoverContent({
               </p>
               <div className="space-y-0.5">
                 {fallback.map((acc) => (
-                  <SourceAccountRow key={acc.code} account={acc} currency={currency} />
+                  <SourceAccountRow
+                    key={acc.code}
+                    account={acc}
+                    currency={currency}
+                    scope={{ periodId: activePeriod.id, orgId: activePeriod.organizationId }}
+                    onLeave={onClose}
+                  />
                 ))}
               </div>
             </div>
@@ -1242,13 +1252,28 @@ function BenchmarkBar({
   );
 }
 
-function SourceAccountRow({
+/** One source account of a concept, as a link to that account's evidence.
+ *  Exported for its law (lib/__tests__/linksRouted.test.tsx). */
+export function SourceAccountRow({
   account,
   currency,
+  scope,
+  onLeave,
 }: {
   account: AccountTrace;
   currency: string;
+  /** The period on screen and its company — the account view opens THERE. */
+  scope: { periodId: string | null; orgId: string | null };
+  onLeave: () => void;
 }) {
+  const { clear } = usePopoverStack();
+  // The account view (design C4, `?account=` on the dashboard): the code's
+  // served leaves, highlighted, on the statement the code lives on, in the
+  // period on screen. This row used to link to `/financials?account=<code>`
+  // — a path the app has never routed (the statements page was
+  // /financial-statements, then /dashboard), so every row opened the
+  // not-found page, and as a plain <a> it reloaded the app to get there.
+  const href = accountEvidenceHref(scope, [account.code]);
   // LEARN-MOBILE F5 (2026-06-16) — 44px tap target + label-on-row-1,
   // amount-on-row-2 stacking on narrow viewports so long Romanian
   // labels like "Venituri din vânzarea produselor finite" don't fight
@@ -1256,8 +1281,14 @@ function SourceAccountRow({
   // aligned via `ml-auto` so the visual hierarchy survives at any
   // viewport width. min-h ensures the row is reliably tappable.
   return (
-    <a
-      href={`/financials?account=${encodeURIComponent(account.code)}`}
+    <Link
+      to={href}
+      // The stack closes itself on a PATHNAME change only; from the
+      // dashboard this link changes the query alone.
+      onClick={() => {
+        clear();
+        onLeave();
+      }}
       data-testid={`learn-pop-account-${account.code}`}
       className="
         flex items-center justify-between gap-3
@@ -1277,7 +1308,7 @@ function SourceAccountRow({
       <span className="tabular-nums shrink-0 text-white/95 ml-auto">
         {formatValue(account.amount, "currency", { currency, full: false })}
       </span>
-    </a>
+    </Link>
   );
 }
 

@@ -12,12 +12,12 @@ import { formatPeriodMonth, formatPeriodYear } from "@/lib/orgPeriods";
 
 describe(`date-only rendering is timezone-proof (TZ=${process.env.TZ ?? "default"})`, () => {
   it("first-of-month period end stays in its own month", () => {
-    expect(formatPeriodMonth("2025-12-01")).toBe("Dec 2025");
-    expect(formatPeriodMonth("2026-01-01")).toBe("Jan 2026");
+    expect(formatPeriodMonth("2025-12-01", "en-GB")).toBe("Dec 2025");
+    expect(formatPeriodMonth("2026-01-01", "en-GB")).toBe("Jan 2026");
   });
 
   it("last-of-month period end stays in its own month", () => {
-    expect(formatPeriodMonth("2025-12-31")).toBe("Dec 2025");
+    expect(formatPeriodMonth("2025-12-31", "en-GB")).toBe("Dec 2025");
   });
 
   it("year label never shifts across the new-year boundary", () => {

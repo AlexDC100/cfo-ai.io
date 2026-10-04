@@ -24153,3 +24153,365 @@ five "payload judged" cases carry the rollback paragraph and not the new
 words. PLANT: print the rollback paragraph unconditionally → RED, `4 failed`
 (the three not-a-payload cases and nothing-listens); REVERT → `96 passed`
 (`tests/engine/test_fx_bnr_feed.py` + `test_gate_canaries.py`).
+
+---
+
+## links-routed
+
+**The defect (found by the pre-deploy review of the no-prior hotfix,
+2026-10-04).** The learning popover's source-account rows linked to
+`/financials?account=<code>`; the cash-flow card's "upload the prior period"
+to `/financials`. `frontend/App.tsx` has never routed `/financials` — the
+statements page was `/financial-statements` (a redirect today), then
+`/dashboard` — so both opened the not-found page in production. The hotfix
+repaired the cash-flow card; the popover's rows were left as a follow-up.
+
+**What was read, before anything was changed.** `git log -S"/financials"`:
+the literal arrived with the learning popover (2026-06) and no commit ever
+added a route for it. `?account=` IS still read — by the account view
+(`components/cfo/evidence/EvidenceDrawer`, design C4) on the dashboard, and
+the popover's own "See all accounts in …" button already builds that link
+(`lib/evidence/evidenceLink` `dashboardEvidenceHref`). So the row was meant
+to open the statements page on the account, and the receiver exists.
+
+**The repair: corrected links, not a redirect route.** A `/financials`
+redirect would have kept a path nobody was ever sent to by anything but
+these two links, would land without the period, the company or the
+statement tab (the account view needs all three to open on the row), and
+gate `compare-no-prior` holds `/financials` to being unrouted. The row now
+builds `accountEvidenceHref({period on screen, its company}, [code])` — the
+code's own statement tab, `?account=<code>` — as a router `<Link>` that
+closes the popover stack (from the dashboard the pathname does not change,
+so the stack would not close by itself); it was a plain `<a>`, a full
+reload. `AccountTrace.route` ("defaults to /financials?account=") is read by
+nothing and now says so.
+
+**Found by the law on its first run, fixed in the same change.** The
+Products page's "Sales analysis example" row (View and Download) pointed at
+`/examples/example_products_trading.xlsx`, a workbook removed from `public/`
+on 2026-07-26: nginx answers a missing file with the app's `index.html`, so
+"View" parsed HTML as a workbook and "Download" saved it under an `.xlsx`
+name. The example that is in `public/examples/` — fictional rows under the
+heading "EXAMPLE SALES ANALYSIS", referenced by nothing — is
+`example_sales_analysis.xlsx`; the row opens that one.
+
+**The law.** Every path literal in the frontend's source — a string or
+template literal that begins with `/`, an origin-prefixed template
+(`${window.location.origin}/…`), an `href` / `action` / `src` written inside
+a string of HTML (the landing page, the legal documents) or inside a
+translation — is exactly one of:
+
+| class | what it is | how it is held |
+|---|---|---|
+| page | a path `App.tsx` routes | a `:param` segment takes any segment; a `${…}` is text the source does not spell |
+| request | `/health`, and anything under a prefix the dev server proxies | the prefixes are READ from `vite.config.ts` `server.proxy` (`/api`, `/yahoo`) |
+| asset | a file under `public/` | the file must exist; for a literal ending in `${…}`, its directory |
+| not a path | prose (whitespace in the literal) or a listed price-unit suffix (`/mo`, `/lună`) | a listed suffix no source file uses any more is red — the list only shrinks |
+
+Anything else reds, wherever it is written: an attribute, a `navigate()`
+call, a nav model's `to:`, a default parameter, a builder's return. The walk
+is over the TypeScript AST (`typescript` `createSourceFile`), so a path NAMED
+in a comment is not a link. It covers `frontend/` (tests excluded),
+`mobile/App.tsx` and `mobile/src/` (the native shell's home path), and both
+translation bundles.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/linksRouted.test.tsx --reporter=verbose` |
+| work count | `GATE-WORK links-routed files=… literals=(\d+)`, floor **350** (measured: 655 files, 416 literals — 327 pages, 76 requests, 8 assets, 5 non-paths — against 50 routes; `account_rows=67`) |
+| canary | the two `GATE-WORK links-routed` lines and the titles named in `scripts/run_battery.py` |
+
+The laws: the router is read (its routes, ONE catch-all rendering the
+not-found page, the matcher on its own shapes); the walk reads every form a
+link is written in, on a synthetic file — a nav model, a default parameter,
+a call, a builder, an origin prefix, HTML in a template, JSX with and without
+braces — and reads neither a `//` nor a `/* */` comment, and it reaches the
+app, the pages, the components, the libraries and the shell; no literal is
+unrouted, and every class has members; the exemptions are still what they
+were exempted as; the popover's row, for every code of the static source map
+(67): a routed path, the period and the company on screen, the tab the
+account's class lives on, the code the receiver (`readEvidenceRequest`)
+reads back; a click moves the router to that location, empties the popover
+stack and tells the popover; with no period the row still leads to the
+dashboard; the popover hands the row the period on screen and its own close.
+
+### links-routed — PLANT / RED / REVERT (2026-10-04, branch `fix/compare-followups`)
+
+Runner: `specs-durable/compare_followups/plants.py <worktree> f3` — one PLANT
+at a time, every touched file restored from memory after each; record
+`plants_f3.json` beside it.
+
+**BASELINE** — exit `0`: `8 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the popover's account row links to `/financials?account=` again | `4 failed, 4 passed` |
+| P2 THE SECOND DEFECT — the sales example links to the workbook removed from `public/` | `1 failed, 7 passed` |
+| P3 a nav model's entry points at a path with no route (`/benchmarks`) | `1 failed, 7 passed` |
+| P4 a route is deleted from `App.tsx` while a page still links to it | `1 failed, 7 passed` |
+| P5 a link inside the landing page's HTML string leaves the routed paths | `1 failed, 7 passed` |
+| P6 a `navigate()` call names a path with no route | `1 failed, 7 passed` |
+| P7 an origin-prefixed link (the sign-up e-mail's return address) names a path with no route | `1 failed, 7 passed` |
+| P8 the native shell opens the web app on a path with no route | `1 failed, 7 passed` |
+| P9 a string that looks like a path is neither routed nor declared (a new unit suffix) | `1 failed, 7 passed` |
+| P10 the dev proxy no longer covers `/api` (the request class is the proxy table's) | `2 failed, 6 passed` |
+| P11 the account row drops the period on screen | `2 failed, 6 passed` |
+| P12 the account row opens every account on the P&L tab | `2 failed, 6 passed` |
+| P13 the account row is a plain `<a>` again (a full reload; the router never moves) | `1 failed, 7 passed` |
+| P14 the account row leaves the popover stack open over the account view | `1 failed, 7 passed` |
+| P15 the popover hands the row no period at all | `1 failed, 7 passed` |
+
+**RED** — every plant exits `1`. **REVERT** — every file restored
+byte-exact; exit `0`: `8 passed`. Verdict: proven RED, fifteen of fifteen.
+
+**After the repair it reds on:** a new literal path `App.tsx` does not route
+— a typo, a page renamed in the router and not at its callers, a route
+deleted while a link remains; a public asset linked and not in `public/`; a
+path-looking string that is neither routed nor declared; a listed unit
+suffix that nothing prints any more; the dev proxy table losing `/api`; the
+popover's row leaving the account view, dropping the period or the company,
+landing on a tab the account's class does not live on, reloading the app, or
+leaving the popover open; the popover handing the row anything but the
+period on screen.
+
+**CANNOT SEE:** a path assembled at run time (`"/" + name`; a route read
+from the feature registry or served by the engine — attention/1's actions, a
+notification's target); the VALUE of a `${…}` segment — it is held to the
+route's shape only, so `/workspace/${x}` passes whatever `x` is, and a file
+NAME held in a variable (`/examples/${file}`) is held to its directory; the
+query string and the hash (`?tab=` slugs are `evidenceLanding.test.tsx`'s
+law; whether `/#pricing` names a section that exists is nobody's); whether a
+ROUTED path renders anything useful (a `FeatureRoute`'s pending state, a
+redirect chain, a page that needs a period it was not given); `index.html`
+and the files under `public/`; links the engine renders (the public
+storefront, e-mails); external URLs; whether the account view, once open,
+shows the account (`cmdbar-evidence`); the popover's wiring beyond its
+source (the law is a match over `LearningPopover.tsx`: a harmless rename of
+`activePeriod` reds it); the rendered popover in a browser (the row's
+fallback list shows only when a concept has no account with activity in the
+period — it is checked live after the deploy, not by this gate).
+
+## i18n-parity
+
+**The defect (review of the no-prior hotfix, 2026-10-04).** The product
+ships in English and Romanian, and nothing held the two to the same keys.
+`scripts/check-i18n-coverage.ts` was written for exactly that and never ran:
+it imported `../src/i18n/locales/{en,ro,fr}.json` — the bundles live in
+`frontend/i18n/locales/`, and French left on 2026-07-24 — so it could not
+start, and no gate, hook or CI job named it. Each gate that needed a
+sentence in both languages checked its own handful of keys; the bundles as a
+whole were nobody's. A key in one language only prints the OTHER language's
+sentence (i18next falls back to English) or the raw key.
+
+**Measured before anything was changed.** The two bundle files: 3,174
+English keys, 3,202 Romanian — **no gap**. The 28 Romanian extras are all
+`_few` plural forms, which English does not have; 5 placeholder differences
+are Romanian singulars spelling the count out ("acum o zi"). The strings
+registered IN CODE (`i18n.addResourceBundle`, 29 modules, 1,038 keys — the
+capsule, the command bar, the account view, the dashboard's own table…),
+which the stale script never read: **one gap** —
+`capsuleAnswer.citation.period` had `_one` / `_other` in Romanian and no
+`_few`. Added ("Perioade"). Nothing was baselined; there is no burn-down
+file.
+
+**The stale script is deleted,** not repaired: its four checks (a key
+missing either way, an empty value, a placeholder mismatch) are this gate's
+laws, it knew nothing of plural forms (it would have called every Romanian
+`_few` an orphan) or of the strings registered in code, and a second
+checker beside the gate is a second answer.
+
+**The law,** over two sets of strings — the two bundle files, and the store
+i18next actually reads once every module that registers strings in code has
+loaded (found by walking the source; each is imported):
+
+1. **Keys.** Every key of one language exists in the other. The exception is
+   i18next's own plural rule, READ from its resolver
+   (`pluralResolver.getSuffixes`, i.e. `Intl.PluralRules`): a plural key
+   carries one form per category of its language — English `_one` /
+   `_other`, Romanian `_one` / `_few` / `_other` — and `_zero`, i18next's
+   extra form for a count of 0, in both languages or in neither. A missing
+   form is a gap, not a nicety: i18next falls back to the other LANGUAGE,
+   never to another form of the same one, so Romanian without `_few` prints
+   the English sentence for 0 and 2–19 (the first test proves it on a fresh
+   instance). A key that merely ends in `_other` ("equity_other") is an
+   ordinary key: a plural family is a base with both `_one` and `_other`.
+2. **Placeholders.** The `{{placeholders}}` of a key are the same in both
+   languages (a Romanian `_few` is held to the family's `_other`). A
+   singular form (`_one`, `_zero`) may omit `{{count}}`; nothing else may
+   differ.
+3. **Not empty.** Every value is a non-empty string.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/i18n/__tests__/localeParity.test.ts --reporter=verbose` |
+| work count | `GATE-WORK i18n-parity store modules=… en_keys=(\d+)`, floor **3,800** (measured 4,212 English keys / 4,248 Romanian in the store; 28 plural families in the files, 132 identical values printed, not judged) |
+| canary | the two `GATE-WORK i18n-parity` lines and the titles named in `scripts/run_battery.py` |
+
+### i18n-parity — PLANT / RED / REVERT (2026-10-04, branch `fix/compare-followups`)
+
+Runner: `specs-durable/compare_followups/plants.py <worktree> f4`; record
+`plants_f4.json` beside it.
+
+**BASELINE** — exit `0`: `5 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE CLASS — a sentence exists in English only (the Romanian key removed from `ro.json`) | `2 failed, 3 passed` |
+| P2 a sentence exists in Romanian only | `2 failed, 3 passed` |
+| P3 a Romanian plural loses its `_few` form | `3 failed, 2 passed` |
+| P4 English is given a `_few` form — a category English does not have | `2 failed, 3 passed` |
+| P5 a `_zero` form is written in English only | `2 failed, 3 passed` |
+| P6 a placeholder is renamed in Romanian | `2 failed, 3 passed` |
+| P7 a Romanian plural (not a singular) drops `{{count}}` | `2 failed, 3 passed` |
+| P8 a Romanian value is empty | `2 failed, 3 passed` |
+| P9 a value is not a string | `2 failed, 3 passed` |
+| P10 THE GAP FOUND — the capsule's in-code table loses the Romanian `_few` again | `1 failed, 4 passed` |
+| P11 a module registers its strings for English only | `1 failed, 4 passed` |
+| P12 an in-code table renames a placeholder in Romanian | `1 failed, 4 passed` |
+| P13 the stale checker is back beside the law | `1 failed, 4 passed` |
+
+**RED** — every plant exits `1` (P10–P12 red the store law alone: the bundle
+files are untouched). **REVERT** — every file restored byte-exact; exit `0`:
+`5 passed`. Verdict: proven RED, thirteen of thirteen.
+
+**After the repair it reds on:** a key added to one language and not the
+other, either way, in a bundle file or in a table registered in code; a
+plural form missing for a language's category, a form of a category the
+language does not have, a `_zero` in one language only; a placeholder
+renamed, dropped or added in one language (a plural's `{{count}}` included);
+an empty or non-string value; a module registering strings for one language
+only; a source file that starts calling `addResourceBundle` and cannot be
+imported by the test; i18next's plural categories for English or Romanian
+changing under an upgrade; `scripts/check-i18n-coverage.ts` returning.
+
+**CANNOT SEE:** whether a translation is RIGHT, or is a translation at all —
+an English sentence pasted into `ro.json` passes (132 values are identical
+in both files today: "EBITDA {{year}}", "CAEN {{caen}}", product names; the
+count is printed on every run, not judged); a key the source USES that
+neither language has (a raw key on screen — the i18n sweep,
+`e2e/i18n-mobile-sweep.spec.ts`, is the only reader of that); a string that
+is in no bundle — a hard-coded English label in a component, the landing
+page's own table (`pages/cfo/landingStrings.ts`, held to one shape by its
+TypeScript type), the sentences the ENGINE serves in both languages (packs;
+`ui-language-figures` holds the ones it names); a plural key addressed by
+its full name (`t("…period_other")`) being used with the wrong count; markup
+inside a value beyond its placeholders; a `$t(…)` nesting reference (none
+today — counted on every run and held at zero, so the first one is seen);
+strings added with `addResourceBundle` at run time rather than at module
+load. The store law imports the dashboard page among the 29 modules: about
+15 s alone, more inside the full suite (its timeout is 180 s).
+
+## period-month-locale
+
+**The defect (review of the no-prior hotfix, 2026-10-04).** In a Romanian
+interface the dashboard's own header read "Dec 2024" while the breadcrumb
+beside it read "dec. 2024". The month formatters (`lib/orgPeriods`
+`formatPeriodMonth`, `formatPeriodMonthLoose`) took the locale as an
+OPTIONAL argument defaulting to `"en-GB"`. Nothing failed where a caller
+forgot it: an English month is a perfectly good string.
+
+**Measured before anything was changed** (the TypeScript AST of every
+non-test file): 36 calls in 13 files; **eight** passed no locale — the
+dashboard's header (two), the stepper's `selectedMonth` and the label it
+hands the period-switch overlay ("Loading Dec 2024…"), the Products page's
+two month labels, the workspace cards' month chips, the "could not delete"
+list of the dashboard's danger zone. One helper took the locale as an
+optional pass-through (`scopeMonth(scope, locale?)`, the command bar's
+header month). A third printer, `lib/detectPeriodEnd` `formatDetectedMonth`
+(the upload dialog's "March 2025"), had `"en-GB"` written into it.
+
+**The repair is the signature.** `locale` is REQUIRED on both formatters —
+a default is how the argument gets forgotten, and TypeScript now refuses a
+call without it; the eight call sites pass the active one (`useActiveLocale`
+in a component, `activeLocale` in the danger zone's handler); `scopeMonth`'s
+is required; `formatDetectedMonth` reads `activeLocale()` itself.
+
+**Found by the rendered check on its first run, fixed in the same change.**
+The formatters read whatever `new Date()` would — and V8 reads the LABEL
+"FY 2025" as 1 January 2025 in the viewer's timezone, "Decembrie 2025" as
+1 December. The dashboard's header passes `statements.periodLabel` (a served
+date for most books, a label where the reader produced one — the extraction
+schema's own examples are "FY 2025" and "Decembrie 2025") through them, so
+east of Greenwich the header printed **"Dec 2024" for "FY 2025"** and "Nov
+2025" for "Decembrie 2025". The header's own comment said such labels "are
+left as-is". The formatters now read the dates the engine serves
+(`YYYY-MM-DD`, with or without a time) and nothing else; a label stays as
+written.
+
+**The law.**
+
+1. *Source:* neither formatter declares its `locale` optional or with a
+   default.
+2. *Source:* every call of either passes a locale that comes from the UI
+   language — a call to `lib/locale` (`useActiveLocale()`, `activeLocale()`,
+   `localeFor(…)`), or a name every declaration of which, in that file, is
+   one of those calls or a REQUIRED parameter. Never a string literal, never
+   an optional pass-through.
+3. *Source:* a function that takes the locale as a parameter and hands it to
+   a formatter is held to rule 2 at every call of it — in its own file, and
+   wherever it is imported (to a fixed point).
+4. *Source:* `formatDetectedMonth` formats with `activeLocale()`.
+5. *Rendered, RO and EN:* the three printers; the dashboard's header
+   (`CompactPeriodHeader`: the breadcrumb's own string in Romanian, the
+   English one in English, and across a language switch while mounted); the
+   stepper's month and the label it hands the period-switch overlay; a label
+   that is not a served date is never read as one.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/periodMonthLocale.test.tsx --reporter=verbose` |
+| work count | `GATE-WORK period-month-locale calls=(\d+)`, floor **30** (measured 36 calls in 13 files; helpers `monthLabel`, `scopeMonth`, 4 calls of them) |
+| canary | the `GATE-WORK period-month-locale` line and the titles named in `scripts/run_battery.py` |
+
+### period-month-locale — PLANT / RED / REVERT (2026-10-04, branch `fix/compare-followups`)
+
+Runner: `specs-durable/compare_followups/plants.py <worktree> f5`; record
+`plants_f5.json` beside it.
+
+**BASELINE** — exit `0`: `11 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the dashboard's header formats its month without a locale | `3 failed, 8 passed` |
+| P2 the default returns to `formatPeriodMonth` | `1 failed, 10 passed` |
+| P3 `formatPeriodMonthLoose`'s locale becomes optional | `1 failed, 10 passed` |
+| P4 the stepper hands the period-switch overlay a month with no locale | `2 failed, 9 passed` |
+| P5 the stepper's `selectedMonth` is formatted with a written locale | `2 failed, 9 passed` |
+| P6 the Products page's month label loses its locale | `1 failed, 10 passed` |
+| P7 the workspace cards' month chips lose their locale | `1 failed, 10 passed` |
+| P8 the danger zone's "could not delete" list loses its locale | `1 failed, 10 passed` |
+| P9 a component fixes its locale as a constant (the breadcrumb) | `1 failed, 10 passed` |
+| P10 the command bar's month helper takes its locale as optional again | `1 failed, 10 passed` |
+| P11 the command bar calls its month helper without a locale | `1 failed, 10 passed` |
+| P12 a file-local helper that passes the locale on is called with a written one | `1 failed, 10 passed` |
+| P13 the upload dialog's month is written in English again | `2 failed, 9 passed` |
+| P14 THE SECOND DEFECT — `formatPeriodMonth` reads a label as a date again | `1 failed, 10 passed` |
+| P15 `formatPeriodMonthLoose` reads a label as a date again | `1 failed, 10 passed` |
+
+**RED** — every plant exits `1`. **REVERT** — every file restored
+byte-exact; exit `0`: `11 passed`. Verdict: proven RED, fifteen of fifteen.
+
+**After the repair it reds on:** a new call without a locale, or with a
+written one; a default or a `?` returning to either formatter, or to a
+helper that passes the locale on; a helper called with a locale that is not
+the UI language's; `formatDetectedMonth` going back to a written locale; the
+dashboard's header or the stepper printing an English month in Romanian (or
+a Romanian one in English); a header that does not follow a language switch
+while mounted; either formatter reading a label ("FY 2024", "Decembrie
+2024", a bare year, "31.12.2024") as a date.
+
+**CANNOT SEE:** a month printed by anything OTHER than these three functions
+— a date formatted in place with a written locale
+(`toLocaleDateString("en-GB", …)`: the Products page's upload dates, the
+extra-document dialog's reset date, the industry audit trail's timestamps)
+or with the browser's (`toLocaleDateString(undefined, …)`: the stock chart's
+axis, the renewal date in Settings); a month name written into a
+translation; a label the ENGINE serves; a locale handed down as a component
+PROP (a destructured parameter is "the caller's to state", and JSX callers
+are not traced); a call through a re-export or a renamed import; the report
+and the exports, which are English by contract; `formatPeriodYear` and
+`isImplausiblePeriod`, which still read whatever `new Date()` would (they
+are handed period ends only); whether "dec. 2024" is what a Romanian reader
+expects (it is ICU's `ro-RO` form, and the breadcrumb's); the Products
+page's labels and the workspace chips RENDERED (they are held by the source
+law alone).
