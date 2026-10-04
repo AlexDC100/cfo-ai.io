@@ -28337,3 +28337,405 @@ After the repair this gate fails on: an upsert or insert into `profiles`
 anywhere in the frontend's source; a save with no id filter or a payload
 beyond `full_name`; a zero-row save reported as saved; a swallowed refusal;
 Settings writing the table itself or printing English in every language.
+
+---
+
+
+## no-anonymous-model-call
+
+**The incident (measured 2026-10-04, by a read-only audit and then on
+production).** `POST /api/financial-statements/parse` was mounted
+unconditionally on the real app and took no Authorization header, no
+dependency, no meter and no rate limiter. It sent the caller's PDF
+(`pdf_b64`) — or fetched a URL the caller NAMED (`pdf_url`: any host,
+addresses inside the Docker network included, the whole body read into memory
+before the 25 MB check) — to the model on the backend's key
+(`claude-opus-4-7`, 8,000 output tokens, five SDK retries) and returned the
+model's text. An anonymous POST with a 20-byte body answered 502 with the
+model API's 401 inside on both production hosts: the route reached the model
+client, and only the backend's key being invalid stopped the spend. No screen
+ever called the route. The upload pipeline does not go through HTTP: it builds
+the router object and calls the handler in-process.
+
+**The repair** (branch `fix/anonymous-model-routes`).
+`server.create_app()` no longer mounts `financial_statements.build_router()`.
+Nothing but tests and the corpus replay reached the route, all of them
+in-process, so it is unmounted rather than walled behind the operator bearer —
+an operator tool that needed it would have to be written first.
+`build_router()` stays because `pipeline.stage_extract` finds the route named
+`parse_document` on it; the handler is now the module-level `parse_document`,
+and `pipeline.py` is untouched. The handler itself fetches only the project's
+own document storage — https, the host and port of `VITE_SUPABASE_URL` (the
+setting `_supabase.load_config` reads; unset, unreadable or not https means
+nothing is fetched), the path prefix of the `documents` bucket's signed URLs,
+no credentials, no dot segments — refused before any request. No redirect is
+followed, the cap is enforced while the body is streamed, each phase has a
+30 s timeout and the BODY a 120 s deadline, an encoded body is refused, and a
+failure's text no longer quotes the signed URL. Bytes the .pdf branch does not
+read as a PDF (`_upload_type.reads_as_pdf`, the pipeline guard's own rule)
+are refused 415 before the SDK is imported.
+
+**The review of 2026-10-04 — what the first version of this gate was GREEN
+on.** Seven plants, each applied ALONE to the tree the review read, each
+proven a real model reach by a direct anonymous request under the gate's own
+recorders (runner `specs-durable/spend_audit/parse_wall/round2/plants_r2.py
+before`, record `plants_r2.json`). The gate answered `56 passed` every time:
+
+| planted alone | first version of the gate | the direct anonymous request |
+|---|---|---|
+| the PDF lane mounted through a sub-application (`app.mount("/v2", sub)`) | `56 passed` | `POST /v2/api/financial-statements/parse` → `Anthropic(max_retries, timeout)`, `messages.create model=claude-opus-4-7 max_tokens=8000` |
+| the PDF lane mounted on the main app under `if os.environ.get("PDF_LANE_HTTP") == "1"` | `56 passed` | the same, at `/api/financial-statements/parse` with the flag set |
+| a plain Starlette route (`app.add_route`) calling the model | `56 passed` | `POST /api/planted/plain` → client constructed, `messages.create` |
+| a model call behind an optional query flag | `56 passed` | `GET /api/planted/summary?ai=true` → `messages.create` |
+| a model call behind an optional header | `56 passed` | `POST /api/planted/hdr` with `X-Use-Ai: 1` → `messages.create` |
+| a model call on a raw `application/pdf` body | `56 passed` | `POST /api/planted/raw-document` → `messages.create` |
+| a completion bought over httpx at `openrouter.ai` on the backend's key | `56 passed` | `POST /api/planted/other-model-host` → one outbound POST to `openrouter.ai`, no model event |
+
+Why: the sweep sent ONE bare GET to anything that was not an `APIRoute` and
+never looked inside a `Mount`; the source census followed one import spelling
+(`from …financial_statements import build_router`); only REQUIRED query
+parameters were filled and no header parameter at all; bodies were JSON or
+multipart, never raw; and "a model" meant the two SDK modules plus two hosts.
+Each is a law below, and each of the seven is a plant in the log.
+
+The same review measured four things in the handler, repaired in the same
+change: a signed URL whose storage key holds a SPACE was refused (main read
+it; the browser builds the key's ending from the uploaded file's own name and
+the sign response hands the key back raw) — it is now sent percent-encoded;
+port 0 was read as the default port (`url.port or 443`); the fixed prefix was
+checked on the decoded path while the raw path was sent (`/storage%2fv1/…`,
+`/object/sign/%64ocuments/…`, `%252e%252e`); and a host label that does not
+decode (`xn--…`) raised out of the check instead of being refused. A fifth is
+stated rather than repaired: the 120 s deadline is read between body chunks,
+so the status line and the headers are bounded per read (30 s each) only —
+measured by the review with a loopback server sending one header line a
+second; only the project's own storage host could do it.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_no_anonymous_model_call.py -q` |
+| work count | junit tests, floor **75** (measured 83). The sweep prints `GATE-WORK no-anonymous-model-call routes=388 requests=6356` (closed: 159 routes, 2,611 requests, 155 handlers entered, 2 walled, 2 refused by an auth dependency; open: 229 routes, 3,745 requests, 225 entered, 2 walled, 2 auth-refused; 4 framework routes, 0 mounts, 0 routes that are not APIRoutes in each) and floors them itself: 150 routes, 2,400 / 3,400 requests, 145 / 210 handlers entered, and each added variant (`raw-pdf` 207 / 288, `raw-octet-stream` 207 / 288, `declared` 204 / 303, `declared-1` 75 / 123, `declared-true` 66 / 114 sent). The source laws print `pdf_lane modules_read=455 importers=1` and `route_flags registrations=237 under_a_flag=8 create_app_conditions=7` |
+| canary | the seventeen test names in `scripts/run_battery.py` |
+
+**The law.** Over EVERY route of the real `create_app()` — the route TREE: a
+sub-application mounted with `app.mount` is walked into, at any depth, and its
+routes swept under their prefix with its own schema — every method the route
+lists, path parameters filled, for a body-carrying method a JSON `{}`, the
+bodies that matter (`pdf_b64`, `pdf_url`, `messages`, `document_id`, `run`),
+every body the route's own schema accepts (all properties; the required ones
+alone; all properties with every free string a caller-named URL; each URL /
+inline-document / message property alone; a URL property pointing at the
+project's OWN storage), a multipart file, a RAW PDF as the request body under
+`application/pdf` and under `application/octet-stream`, and every query /
+header / cookie parameter the route OR A DEPENDENCY of it declares, required
+or not, filled three ways (by its own schema or type; every boolean and every
+unconstrained string as `1`; as `true`) beside the fullest body the schema
+accepts — sent with (a) no Authorization header, (b) a forged bearer (signed
+by a key the JWKS does not hold), (c) the project's public anon key as the
+bearer (the identity headers are never filled by a variant); a planted
+non-empty model key in the environment; the `anthropic` and `openai` modules
+replaced by recorders (every client class records its construction, every
+method on it records the call and raises, so nothing consumes a made-up
+answer); `httpx` replaced at the transport, `urllib` at `OpenerDirector.open`,
+`requests` at the adapter, each ANSWERING (the shared wire harness's provider
+bodies; PostgREST-shaped empties, a signing storage and a PDF for the
+project's own Supabase host; a PDF for a caller-named host) over a socket
+tripwire; in two flag states — `closed` (no surface flag) and `open`
+(`PUBLIC_MARKETS_ENABLED` and `SEC_EDGAR_ENABLED` set, with the cockpit, the
+radar, the AI lanes and the meter on):
+
+* ZERO model clients constructed and ZERO model calls, except on the routes
+  in `DECLARED`, which must each still be seen reaching a model;
+* ZERO outbound requests to a host — or a URL — the caller supplied, on any
+  route, with no census;
+* EVERY host the backend contacts at all, over any transport or a bare
+  socket, is in `OUTBOUND_HOSTS` for the state. A model is a model at any
+  host: a completion bought over plain HTTP at an address that is neither
+  SDK's is a host nobody declared;
+* every route a request can reach is a FastAPI `APIRoute` whose endpoint was
+  ENTERED by at least one request (`Dependant.call` is wrapped), or every
+  answer was the surface wall's own 404 body or an auth dependency's 401 /
+  403 / 503. A route only ever answered 422 / 405 / a router 404 is UNPROVEN
+  and reds by name; a plain Starlette route (`app.add_route`) is swept AND
+  reds by name; a websocket route, a host route or a mount with no route list
+  reds by name (`NOT_API_ROUTES_DECLARED` is empty).
+
+And two laws over the SOURCE, for what two flag states cannot show:
+
+* **nothing but the pipeline refers to the PDF lane.** No module under `src/`
+  (455 read) refers to `financial_statements` at all — an import in any
+  spelling (`from . import financial_statements as X`, `import
+  engine.api.financial_statements`), a dynamic import, the module's dotted
+  path as a string (a list of routers to mount), a bare attribute reach —
+  except `src/engine/api/pipeline.py`, which may take only `ParseRequest`,
+  `build_router`, `parse_document`, `ParseResponse`; and there nothing taken
+  from the lane, nor anything assigned or looped from it, is handed to a
+  mount verb (`include_router`, `mount`, `add_api_route`, `add_route`, the
+  websocket forms, `host`) or to a route decorator. A mount behind any flag
+  starts with a reference. In both swept states the route tree is read too:
+  no path carries the lane's name and no route's endpoint IS the lane's
+  handler, at any path.
+* **the two states are the whole flag space.** Every route registration under
+  `src/` (237: mount verbs and `@router.<verb>("/…")` functions) that sits
+  under an `if`, a ternary, a short-circuit, a `while` or a `match` — or
+  after an `if` that returns, raises, continues or breaks in the same
+  function — is under one of `ROUTE_FLAGS` exactly as written
+  (`_public_markets_enabled()`, `_anomaly_radar_enabled()`,
+  `_firm_cockpit_enabled()`; 8 registrations today); each of those is ON in
+  `open` and OFF in `closed`, asserted by calling the predicate; inside
+  `create_app` no other condition mentions the app at all (a helper that
+  mounts, called under a condition, is a conditional mount); and one declared
+  early exit that is not a flag (`factory is None` in the markets surface's
+  sibling-router loop).
+
+**The census** (`DECLARED`, exact in the open state; the closed state declares
+nothing):
+
+| route | bound |
+|---|---|
+| `GET /api/public/intelligence/companies/{ticker}/ai-market-read` | the narrative (one completion) over the filings-derived profile (one more with `SEC_EDGAR_ENABLED`) |
+| `GET /api/public/intelligence/companies/{ticker}/exposure` | the filings-derived profile: one extraction per ticker and accession per process |
+| `GET /api/public/intelligence/companies/{ticker}/risk-score` | the same profile |
+| `GET /api/public/intelligence/supply-chain` | the same profile, for `?ticker=` |
+
+All four are mounted only with `PUBLIC_MARKETS_ENABLED`, and every completion
+is reserved in `engine.public.egress_ledger` before it is sent:
+`PUBLIC_LLM_COMPLETIONS_PER_DAY`, default 300 per UTC day per container. The
+bound is measured here — with the ceiling at 3, twenty cold anonymous reads
+over five tickers and the four routes (caches and the per-client limiter reset
+before each, the day's ledger kept) send exactly 3 completions and the last
+eight send none — and one request costs at most 2. Their behaviour is
+unchanged; the guard and cache laws are `tests/engine/test_public_egress.py`'s.
+
+**The hosts** (`OUTBOUND_HOSTS`, an upper bound per state — a provider's own
+cache decides whether a declared host is contacted in a given run; the FX
+feed memoises for five minutes):
+
+| host | state | what is asked of it |
+|---|---|---|
+| the project's own Supabase host | both | the signature keys, and PostgREST reads / writes with the service role for a caller who named rows (answered here as empty) |
+| `curs.bnr.ro` | both | `GET /api/fx-rates`: the central bank's daily reference rates, where BNR moved the feed |
+| `www.bnr.ro` | both | the feed's previous address, tried when the first does not answer |
+| `query1.finance.yahoo.com` | open | the public markets surface: quotes |
+| `www.sec.gov`, `data.sec.gov` | open | the public markets surface: EDGAR |
+
+The legacy SKU AI routes (`POST /api/analyze`, `POST /api/upload-excel`) are
+mounted and WALLED in both states. With `LEGACY_SKU_AI_ENABLED` set, the
+sweep's own rich body reaches `/api/analyze`'s model call — so the zero the
+sweep reports there is the wall, not a body that never got to the handler.
+
+The handler's own laws (63 of the 83 tests): thirty-eight URLs that are not
+this project's storage (another host; a name inside the Docker network; an
+address literal; the metadata address; http; the project's host as a
+subdomain or as the userinfo of another; a backslash before the real host;
+credentials; another port; port 0; a trailing dot; the REST and auth APIs of
+the project; another bucket; an unsigned object path; a literal and an
+encoded climb out of the bucket; an empty segment; `file:`; scheme-relative;
+a newline; a non-ASCII host; not a URL; 5,000 characters; an encoded slash or
+letter inside the fixed prefix; twice-encoded dot segments; an encoded slash,
+backslash, dot or percent sign inside the object key; two host labels that do
+not decode; a space after or before the host; a tab or a non-ASCII character
+inside the key) refused 400 with no request made and the URL not quoted;
+seven signed URLs that ARE this project's storage fetched with exactly the
+path the check read (a key with a space, raw and already encoded, sent
+`%20` once; a key ending in ` (1)`; the default port written out; the host in
+capitals; escapes inside the token only); six unconfigured shapes of the
+project setting refuse the project's own signed URL 503; no redirect is
+followed (three targets); the cap while reading (a 60 MB body with no
+declared length: at most 27 MB pulled, the stream closed; a declared length
+over the cap: no byte pulled; an encoded body refused; inline base64 over the
+cap); the body's deadline under a driven clock; a failure's text without the
+signed URL; six kinds of non-PDF bytes, inline and downloaded, never reaching
+the model; what the .pdf branch reads as a PDF still sent; the pipeline's
+in-process contract (the router's `parse_document` route is the module's
+handler; one GET with 30 s per phase, identity encoding; one client, one
+call, `claude-opus-4-7`, 8,000 tokens). And the recorders are not blind: each
+transport and both SDKs are driven once and must be in the ledger, a raw
+request to the model API counting as a model call.
+
+### no-anonymous-model-call — PLANT / RED / REVERT (2026-10-04, branch `fix/anonymous-model-routes`, second round)
+
+Runner: `specs-durable/spend_audit/parse_wall/round2/plants_after.py` — one
+PLANT at a time, ALONE, in a scratch copy of the worktree (`src/`, `tests/`,
+`packs/`, `config.yaml`), the file rewritten from the text held in memory and
+restored byte-exact (sha256 compared) after each; three copies side by side,
+no plant sharing a tree with another; records `plants_after.copy{1,2,3}.json`
+and one log per plant beside it. Every plant of the first round is re-run on
+the new gate. (The first round's own log, on the first version of the gate:
+`specs-durable/spend_audit/parse_wall/plants.json`, twenty-three of
+twenty-three.)
+
+**BASELINE** — exit `0`: `83 passed`.
+
+*The review's seven and their siblings, on the laws written for them:*
+
+| PLANT | result |
+|---|---|
+| the PDF lane mounted through a SUB-APPLICATION (app.mount('/v2', sub)) | `6 failed, 10 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client`, `no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named`, `the_pdf_model_lane_is_mounted_on_no_app`, `nothing_but_the_pipeline_refers_to_the_pdf_model_lane` |
+| a model call inside a mounted sub-application that never names the PDF lane | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| the PDF lane mounted on the main app behind a NEW FLAG (PDF_LANE_HTTP=1) | `2 failed` § — `nothing_but_the_pipeline_refers_to_the_pdf_model_lane`, `no_route_exists_behind_a_flag_the_sweep_does_not_set` |
+| an ordinary router mounted behind a NEW FLAG (no PDF lane involved) | `1 failed, 1 passed` § — `no_route_exists_behind_a_flag_the_sweep_does_not_set` |
+| a router factory returns before its routes unless a NEW FLAG is set | `1 failed, 1 passed` § — `no_route_exists_behind_a_flag_the_sweep_does_not_set` |
+| create_app() calls a helper that mounts, under a NEW FLAG | `1 failed, 1 passed` § — `no_route_exists_behind_a_flag_the_sweep_does_not_set` |
+| the pipeline hands the PDF lane's router to include_router | `2 failed` § — `nothing_but_the_pipeline_refers_to_the_pdf_model_lane`, `no_route_exists_behind_a_flag_the_sweep_does_not_set` |
+| the PDF lane's module path added to the markets surface's list of routers to mount | `4 failed, 12 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client`, `no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named`, `the_pdf_model_lane_is_mounted_on_no_app`, `nothing_but_the_pipeline_refers_to_the_pdf_model_lane` |
+| the PDF lane imported dynamically (importlib.import_module) under a NEW FLAG | `2 failed` § — `nothing_but_the_pipeline_refers_to_the_pdf_model_lane`, `no_route_exists_behind_a_flag_the_sweep_does_not_set` |
+| a router mounted by a short-circuit (`flag and app.include_router(…)`) | `1 failed, 1 passed` § — `no_route_exists_behind_a_flag_the_sweep_does_not_set` |
+| a PLAIN Starlette route (app.add_route) that calls the model | `4 failed, 12 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client`, `every_route_a_request_can_reach_is_an_api_route_the_sweep_swept` |
+| a websocket route (nothing the sweep can send to) | `2 failed, 14 passed` ‡ — `every_route_a_request_can_reach_is_an_api_route_the_sweep_swept` |
+| a bare ASGI callable mounted (no route list to read) | `2 failed, 14 passed` ‡ — `every_route_a_request_can_reach_is_an_api_route_the_sweep_swept` |
+| a model call behind an OPTIONAL bool query parameter (?ai=true) | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| a model call behind an OPTIONAL string query parameter compared with "true" | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| a model call behind an optional parameter declared by a DEPENDENCY | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| a model call behind an OPTIONAL header (X-Use-Ai: 1) | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| the same on a route the schema does not list, the header compared with "true" | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| a model call on a RAW application/pdf request body | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| a model call on a RAW application/octet-stream request body | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| a model reached over httpx at ANOTHER HOST (openrouter.ai) on the backend's key | `2 failed, 14 passed` ‡ — `the_backend_contacts_only_declared_hosts_for_an_anonymous_caller` |
+| a model server reached over a BARE SOCKET (no HTTP client) | `2 failed, 14 passed` ‡ — `the_backend_contacts_only_declared_hosts_for_an_anonymous_caller` |
+
+*The handler's URL rule:*
+
+| PLANT | result |
+|---|---|
+| a storage key that holds a space is refused again (the rewrite is gone) | `2 failed, 49 passed` † — `a_signed_url_of_the_projects_storage_is_fetched_as_written` |
+| port 0 is read as the default port (`url.port or 443`) | `1 failed, 50 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| the fixed prefix is checked on the decoded path only | `1 failed, 50 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| an escape standing for a separator, a dot or a percent sign is fetched | `4 failed, 47 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| a host label that does not decode raises instead of being refused | `2 failed, 49 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+
+*The first round's plants, on the new gate:*
+
+| PLANT | result |
+|---|---|
+| main 7ca386ec's own `server.py` and `financial_statements.py` (what production runs) | `70 failed, 13 passed` — `no_anonymous_request_constructs_or_calls_a_model_client`, `no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named`, `the_pdf_model_lane_is_mounted_on_no_app`, `nothing_but_the_pipeline_refers_to_the_pdf_model_lane` and 11 more |
+| THE INCIDENT — the PDF model lane is mounted on the app again | `7 failed, 76 passed` — `no_anonymous_request_constructs_or_calls_a_model_client`, `no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named`, `the_pdf_model_lane_is_mounted_on_no_app`, `nothing_but_the_pipeline_refers_to_the_pdf_model_lane` and 1 more |
+| the handler fetches whatever URL it is handed (no allowlist) | `44 failed, 10 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request`, `with_no_project_storage_configured_nothing_is_fetched` |
+| a public route fetches a URL its caller named (sessions/track reads its body's name) | `4 failed, 12 passed` ‡ — `no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named`, `the_backend_contacts_only_declared_hosts_for_an_anonymous_caller` |
+| the non-PDF refusal is gone (any bytes go to the model as application/pdf) | `6 failed, 1 passed` † — `bytes_that_are_not_a_pdf_never_reach_the_model` |
+| the cap is checked after the whole body is read | `1 failed, 3 passed` † — `the_size_cap_is_enforced_while_reading` |
+| redirects are followed | `1 failed, 1 passed` † — `no_redirect_is_followed` |
+| the body's deadline is gone | `1 failed, 1 passed` † — `the_download_has_a_deadline` |
+| the storage download has no timeout | `1 failed, 1 passed` † — `the_pipelines_in_process_contract_holds` |
+| with no project configured the fetch goes ahead (fails open) | `6 failed, 45 passed` † — `with_no_project_storage_configured_nothing_is_fetched` |
+| the host is not compared with the project's | `6 failed, 45 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| any path on the project's host is fetched (no bucket prefix) | `3 failed, 48 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| http is fetched | `1 failed, 50 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| a URL carrying credentials is fetched | `1 failed, 50 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| an empty or dot segment in the object path is fetched | `1 failed, 50 passed` † — `a_url_that_is_not_this_projects_storage_is_refused_before_any_request` |
+| the market read's completion is not reserved against the daily ceiling | `1 failed` † — `the_declared_public_reads_stop_at_their_daily_ceiling` |
+| the legacy SKU AI wall is removed | `3 failed, 13 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client`, `the_sweep_covered_the_whole_route_table_in_both_states` |
+| a declared public read stops reaching the model (the filings extraction returns before the wire) | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client`, `the_backend_contacts_only_declared_hosts_for_an_anonymous_caller` |
+| a new route the sweep cannot enter (a dependency answers 400 before the handler) | `2 failed, 14 passed` ‡ — `the_sweep_enters_every_handler_or_meets_a_wall` |
+| the pipeline can no longer find the handler by its route name | `1 failed` † — `the_pipelines_in_process_contract_holds` |
+| a new anonymous route constructs a model client (no call) | `2 failed, 14 passed` ‡ — `no_anonymous_request_constructs_or_calls_a_model_client` |
+| an encoded storage body is read (the cap counts decoded bytes after the fact) | `1 failed, 2 passed` † — `the_size_cap_is_enforced_while_reading` |
+| a storage failure's text carries the signed URL | `1 failed, 7 passed` † — `a_storage_failure_is_reported_without_the_signed_url` |
+
+† run on the tests that name the law (`-k`); ‡ run on the sweep's laws and the
+two source laws (`-k`, both flag states swept); § run on the two source laws
+alone (`-k`; no request is sent — these are the plants no sweep can see); the
+others on the whole file. Each row names the laws that went red.
+
+**RED** — every plant exits `1`. The sub-application's red, in both states:
+`NO-ANONYMOUS-MODEL-CALL VIOLATED [closed] — 1 route(s) construct or call a
+model client for a caller with NO verified identity`, naming `POST
+/v2/api/financial-statements/parse [anonymous, json-rich] — anthropic
+construct Anthropic(max_retries, timeout)` and `anthropic call
+messages.create model=claude-opus-4-7 max_tokens=8000`; the caller-supplied
+storage URL fetched (`the backend made 6 outbound request(s) to a host or URL
+the CALLER supplied`); `the PDF model lane is a route again: ['POST
+/v2/api/financial-statements/parse']`; and `src/engine/api/server.py refers
+to the PDF lane's module (line …: from . import financial_statements)`. The
+flag's red, which no request of either state can produce:
+`NO-ANONYMOUS-MODEL-CALL UNPROVEN — 2 route registration(s) depend on a
+condition neither swept state sets, so the sweep cannot see what they reach`,
+naming ``src/engine/api/server.py:765 — registered under
+`os.environ.get('PDF_LANE_HTTP') == '1'`, which is not a declared route
+flag``, beside the same reference red. On main 7ca386ec's own two files the
+incident's route also GETs `http://caller-named-body.invalid/…`. That is the
+proof the sweep REACHES handlers: the law is red on the code production runs.
+**REVERT** — every file restored byte-exact; each copy's closing run exits
+`0`: `83 passed`.
+Verdict: proven RED, fifty of fifty.
+
+**After the repair it reds on:** the PDF lane's handler served by any route
+of the tree in either state — a mounted sub-application included — and ANY
+reference to the lane's module under `src/` outside the pipeline's in-process
+call (which is where a mount behind a flag this gate never sets starts); the
+pipeline handing what it took from the lane to a mount verb or a route
+decorator; a route registered under a condition that is not a declared route
+flag, after an early exit, or by a condition in `create_app` that touches the
+app; a declared route flag that is not on in `open` and off in `closed`; a
+route that is not an `APIRoute`, a websocket route, or a mount the sweep
+cannot enumerate; any new route — in the app or in a mounted sub-application
+— that constructs or calls a model client for a caller with no verified
+identity, in either flag state, behind an optional declared parameter (query,
+header, cookie, its own or a dependency's) or a raw PDF body included; a host
+contacted that `OUTBOUND_HOSTS` does not declare, over any transport or a
+bare socket; a declared public read that no longer reaches a model (the
+census is stale) or whose completions are not reserved against the daily
+ceiling, or that costs more than two completions a request; the legacy SKU
+wall removed; any route that makes the backend request a host or URL its
+caller supplied; a route the sweep can no longer enter and that neither a
+wall nor an auth dependency refuses; the open state mounting no more than the
+closed one; an added variant no longer sent; the handler fetching outside the
+project's storage, with no project configured, over http, with credentials,
+on port 0, off the bucket's prefix as sent, through dot segments or an escape
+standing for a separator; a host label that does not decode raising instead
+of refusing; a storage key with a space refused, or sent other than
+percent-encoded once; a redirect followed; the cap checked after the read; no
+timeout or no body deadline; an encoded body read; non-PDF bytes sent to the
+model; a failure text quoting the signed URL; `build_router()` no longer
+carrying a route named `parse_document`; a recorder that stopped recording.
+
+**CANNOT SEE:** signed-in spend — a member's re-runs, failed runs,
+`/reconcile`, `/briefing/regenerate` — the plan a free account resolves to,
+and the breaker's counting (other lanes); a handler that reads a REAL row
+through the service role with no bearer check and goes on to a model — the
+project's Supabase host answers PostgREST-shaped EMPTIES here, which is what
+a stranger naming a made-up id gets (measured in the sweep: outside the
+public surface, the only requests the project's Supabase host receives for a
+caller with NO header are from `/api/health`, the newsletter routes and
+`/api/contact-sales`; the member wall on every mutating route is
+`test_identity_wall.py`'s census); the
+public reads' ceiling across containers or restarts (the counter is in
+memory, per process); a model call made by a thread still running five
+seconds after the sweep's last request, or from an executor worker; a
+provider reached through a transport none of the recorders replace and with
+no socket; a model reached at a host `OUTBOUND_HOSTS` already declares for
+something else (the census is by host, not by path); a switch a handler
+reads WITHOUT declaring it (`request.query_params.get("ai")`,
+`request.headers.get("x-use-ai")`) other than the keys the sweep sends
+anyway (`q`, `ticker`, `url`, `pdf_url`, `next`, `redirect_to`, `callback`;
+`Referer`, `Origin`, `X-Forwarded-Host`, `X-Org-Id`), a declared string that
+must hold a word other than `1` / `true` or what its schema names, a switch
+inside a JSON body the route's schema does not describe, and a raw body that
+is not PDF bytes under one of the two media types sent; a model call inside
+an existing handler behind an ENVIRONMENT flag neither state sets (a ROUTE
+behind such a flag is the source law's red; behaviour inside a handler is
+not); a route registered by a helper that is itself called under a condition
+outside `create_app`, or by a router factory that builds its route list from
+a setting; the PDF lane's router handed from the function that imported it to
+ANOTHER function that mounts it (the reference census follows what is taken
+from the lane inside the function that took it; the route tree of the two
+states still shows a mount that is not behind a flag); a handler that fetches from a request field the sweep does not
+fill with a URL (a non-string, a pattern-constrained or enum field, a string
+shorter than 21 characters, a header other than Referer / Origin /
+X-Forwarded-Host); the Edge Function `supabase/functions/chat-llm` (not this
+app); what the front proxy routes; whether production's `VITE_SUPABASE_URL`
+is the bare https origin the pipeline's signed URLs carry (the deploy
+pre-flight prints `_configured_storage_origin()` and accepts a signed URL
+built from the setting; with a base path in the setting, or http — a local
+Supabase stack — the PDF model lane refuses to fetch); whether the real
+storage API hands a key back raw or already encoded (both are fetched the
+same way here); the status line and the headers of the storage download
+against the 120 s deadline (30 s per read only). The route is checked live
+after each deploy: an anonymous POST must answer 404 on both hosts.
+
+**Merged into `release/r-trust` (2026-10-04).** The lane was written on main,
+where the feed is read at `www.bnr.ro`; the release reads it at
+`curs.bnr.ro` first (the exchange-rate lane). On the merged tree the host
+census went RED on `GET /api/fx-rates [anonymous]` — `curs.bnr.ro` was not
+declared — which is the gate doing its job on a textually clean merge. The
+host is declared now, with what is asked of it; 83 passed.

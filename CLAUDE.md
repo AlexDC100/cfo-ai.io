@@ -4953,3 +4953,60 @@ pass it as `periodLabel` (the grounding chip prints it only when it differs
 from the company name — i.e. never as a period). Rename before the next
 reader takes it for a date.
 
+---
+
+## 35. No anonymous request reaches a model (2026-10-04)
+
+Branch `fix/anonymous-model-routes` (four commits, engine), merged into
+`release/r-trust`. Found by the spend audit the owner's question started:
+"can I fix the backend key now … without exposing credits".
+
+**The defect.** `POST /api/financial-statements/parse` was mounted
+unconditionally with no bearer, no dependency, no meter and no limiter. It
+sent the caller's PDF (`pdf_b64`) — or fetched a URL THE CALLER named
+(`pdf_url`, addresses inside the Docker network included) — to the model on
+the backend's key (one Opus call, up to 8,000 output tokens, the whole PDF
+as input) and returned the model's text. Measured on production 2026-10-04:
+an anonymous 20-byte POST answered 502 with the model API's 401 inside.
+**Only the backend key being invalid stopped the spend; the server-side
+fetch of any URL worked the whole time.** Nothing called the route over
+HTTP — the pipeline calls the handler in-process.
+
+**The rule.** The PDF model lane is NOT a route. `server.py` neither imports
+nor mounts `financial_statements`; `pipeline.stage_extract` still finds the
+handler by name on `build_router()` and calls it in-process, unchanged. The
+handler fetches a `pdf_url` only when it is https, on the host and port of
+`VITE_SUPABASE_URL`, under `/storage/v1/object/sign/documents/`, with no
+credentials, no dot or empty segment and no escape standing for a slash, a
+dot, a backslash or a percent sign; it follows no redirect, enforces the
+25 MB cap while reading, refuses an encoded body, and refuses bytes that do
+not read as a PDF (415) before the SDK is imported. An http or base-path
+`VITE_SUPABASE_URL` (a local stack) makes the lane refuse to fetch — the
+deploy pre-flight proves production's setting. The public
+`/api/features/status` payload names `/api/pipeline/run` as the upload
+endpoint now.
+
+**Gate `no-anonymous-model-call`** (83 tests; 388 routes in two flag states,
+6,356 requests; fifty plants): every route of the real `create_app()` —
+mounts walked into, every declared query / header / cookie parameter filled,
+raw PDF bodies sent — with no header, a forged bearer and the public anon
+key. Zero model clients constructed or called outside the DECLARED census
+(the four public market reads, bounded by
+`PUBLIC_LLM_COMPLETIONS_PER_DAY`); zero requests to a caller-named host;
+every host contacted is in `OUTBOUND_HOSTS`; every handler entered or
+refused by a wall or an auth dependency; no module under `src/` but the
+pipeline refers to the lane; no route is registered under a condition that
+is not one of the three declared route flags. **A new surface flag goes into
+`ROUTE_FLAGS` and `STATES["open"]`; a new outbound host for an anonymous
+caller goes into `OUTBOUND_HOSTS` with what is asked of it** — the merge
+into this release reddened on exactly that (`curs.bnr.ro`, §30).
+
+**What the gate cannot see** (its docstring lists all of it): signed-in
+spend — re-runs, failing runs, `/reconcile`, regenerate (other lanes); a
+handler that reads a real row through the service role with no bearer check
+and then calls a model; a switch a handler reads without declaring it; the
+Edge Function; the front proxy.
+
+**Order, for whoever installs a working backend key: this image first, the
+key second.** On an image without it, the moment the key works every
+anonymous POST to that route is a paid Opus call.

@@ -61,7 +61,6 @@ from ._test_mode import build_router as create_test_mode_router
 from ._uploads import build_router as create_uploads_router
 from ._org import create_workspaces_router
 from .cfo_ai import create_cfo_router
-from .financial_statements import build_router as create_financial_statements_router
 from .frontend import create_frontend_router
 from .pipeline import build_router as create_pipeline_router
 # NASDAQ-6 — public-company surface (/api/public/*). Wraps Sharadar SF1
@@ -203,16 +202,17 @@ class SecurityHeadersMiddleware:
 #     browser uploads straight to Supabase Storage and the engine
 #     downloads by signed URL (engine/api/pipeline.py:1219). The only
 #     paths that legitimately carry a whole document in the request are
-#     `POST /api/financial-statements/parse` (`pdf_b64`, whose own
-#     ceiling is a 25 MB decoded PDF -> 33.4 MB of base64) and the firm
-#     cockpit's `POST /api/firm/requests/{token}/upload` (a 25 MB
-#     multipart file) — and, since 2026-09-21, the company-workspace upload
+#     the firm cockpit's `POST /api/firm/requests/{token}/upload` (a 25 MB
+#     multipart file) and, since 2026-09-21, the company-workspace upload
 #     flow's `POST /api/uploads/identify` and `POST /api/uploads/commit`
 #     (the same 25 MB multipart file, read by the engine because the
 #     company it lands in is decided from its content).
-#     DOCUMENT_BODY_LIMIT_BYTES is 36 MiB, which clears 33.4 MB of base64
-#     plus its JSON envelope and 25 MB plus multipart framing, and
-#     nothing more.
+#     DOCUMENT_BODY_LIMIT_BYTES is 36 MiB. It was sized for a third path,
+#     `POST /api/financial-statements/parse` (`pdf_b64`: a 25 MB decoded
+#     PDF -> 33.4 MB of base64 plus its JSON envelope). That route is no
+#     longer mounted (2026-10-04) and its path takes the general cap like
+#     any other unrouted path; the number is unchanged because the front
+#     proxy carries the same one (deploy/REQUEST_BODY_LIMITS.md).
 #
 # WHY TWO ENFORCEMENT POINTS. `nginx.conf` gets a `client_max_body_size`
 # for the hop it actually owns, and this middleware holds the same line
@@ -229,7 +229,7 @@ UPLOAD_FLOW_DOCUMENT_PATHS = frozenset({"/api/uploads/identify", "/api/uploads/c
 
 def _is_document_body_path(path):  # type: (str) -> bool
     """The paths that legitimately carry a whole document in the body."""
-    if path == "/api/financial-statements/parse" or path in UPLOAD_FLOW_DOCUMENT_PATHS:
+    if path in UPLOAD_FLOW_DOCUMENT_PATHS:
         return True
     return path.startswith("/api/firm/requests/") and path.endswith("/upload")
 
@@ -760,8 +760,16 @@ def create_app(
     app.include_router(create_frontend_router(cfg, canonical_excel))
     # CFO AI endpoints (Today / Cash / Profit / Decisions / Products)
     app.include_router(create_cfo_router(cfg, adapter))
-    # Financial Statement Intelligence pipeline (Phase 2)
-    app.include_router(create_financial_statements_router())
+    # THE PDF MODEL LANE IS NOT A ROUTE (2026-10-04). `financial_statements.
+    # build_router()` used to be mounted here, unconditionally: `POST
+    # /api/financial-statements/parse` took no bearer, no dependency, no
+    # meter and no limiter, sent the caller's PDF — or fetched a URL the
+    # caller named — and read it with the model on the backend's key. No
+    # screen called it; the upload pipeline calls the handler in-process
+    # (`pipeline.stage_extract`). Do not mount it: gate
+    # `no-anonymous-model-call` (tests/engine/test_no_anonymous_model_call.py)
+    # sweeps every route of this app anonymously and reds on a model client
+    # constructed or called.
     # Phase 3 — async pipeline orchestrator + period read endpoint
     app.include_router(create_pipeline_router())
     # One company per workspace (2026-09-21): identify a dropped file,

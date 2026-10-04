@@ -27,7 +27,7 @@ caller chose how much work the box did, and how many bytes it sent back.
 | limit | bytes | why |
 |---|---|---|
 | **general — 8 MiB** | 8,388,608 | The largest real SKU dataset in the repo (`files/Trading_analysis_YTDOct'25_LV.xlsx`, 9,604 rows), serialized in the exact shape `frontend/lib/api.ts::rawRowsToBackend` posts, is **1,925,012 bytes (1.84 MB)** at 200.4 bytes/row. 8 MiB is 4.4× that — room for a portfolio four times larger than anything the owner has ever analyzed. |
-| **document — 36 MiB** | 37,748,736 | Only two paths legitimately carry a whole document in the request body: `POST /api/financial-statements/parse` (`pdf_b64`, whose own ceiling is a 25 MB decoded PDF → **33.4 MB** of base64) and `POST /api/firm/requests/{token}/upload` (a 25 MB multipart file). 36 MiB clears 33.4 MB plus the JSON envelope, and nothing more. |
+| **document — 36 MiB** | 37,748,736 | The paths that legitimately carry a whole document in the request body: `POST /api/firm/requests/{token}/upload` and the workspace upload flow's `POST /api/uploads/identify` / `POST /api/uploads/commit` (a 25 MB multipart file each). The number was sized for a third path, `POST /api/financial-statements/parse` (`pdf_b64`: a 25 MB decoded PDF → **33.4 MB** of base64 plus the JSON envelope). **That route is no longer mounted (2026-10-04, gate `no-anonymous-model-call`)** — it took no bearer and sent the body to the model; its path now takes the general cap like any unrouted path. |
 
 The financial pipeline does **not** post documents to the engine at all —
 the browser uploads straight to Supabase Storage and the engine downloads
@@ -73,8 +73,10 @@ front today has no body ceiling of its own. Add one line-block inside the
 ```
 
 **36MB, not 8MB, at this hop on purpose.** Caddy matches on path prefix,
-so a single ceiling here has to clear the largest legitimate path
-(`/api/financial-statements/parse`). The exact per-path split — 8 MiB for
+so a single ceiling here has to clear the largest legitimate path (a
+25 MB multipart upload; the number was sized for the `pdf_b64` body of
+`/api/financial-statements/parse`, a route the app no longer mounts —
+2026-10-04). The exact per-path split — 8 MiB for
 everything else — is the app's job, and the app does it. The front's job
 is to stop the multi-gigabyte body before it reaches a Python process.
 

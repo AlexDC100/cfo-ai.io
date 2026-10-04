@@ -145,7 +145,9 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         "active",
         label="Upload financial statement",
         description="Drop a PDF/Excel financial statement; extracted statements feed the dashboard.",
-        endpoint="/api/financial-statements/parse",
+        # The pipeline's route. The PDF model lane it used to name
+        # (/api/financial-statements/parse) is not a route (2026-10-04).
+        endpoint="/api/pipeline/run",
     ),
     "upload_invoice": _feature(
         "coming_soon",

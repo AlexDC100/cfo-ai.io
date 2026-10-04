@@ -223,7 +223,9 @@ DECLARED = {
     # X-Org-Id it reads is membership-checked (`_org.resolve_org`, 403).
     ("POST", "/api/uploads/identify"): "read-only compute: identifies the uploaded file, writes nothing (JWT verified, X-Org-Id membership-checked)",
     ("POST", "/api/period/{period_id}/valuation/recompute"): "read-only compute: stateless DCF, does not persist",
-    ("POST", "/api/financial-statements/parse"): "read-only compute: stateless parse of the request body",
+    # POST /api/financial-statements/parse is no longer a route (2026-10-04):
+    # it took no bearer and sent the body to the model — the PDF lane is
+    # called in-process by the pipeline; gate no-anonymous-model-call.
     # The PDF renderer takes the HTML the CALLER already holds and hands it
     # to the Chromium sidecar. It requires a verified JWT
     # (`_report_pdf._user_id` -> `_require_jwt` -> `client.get_user`), reads
