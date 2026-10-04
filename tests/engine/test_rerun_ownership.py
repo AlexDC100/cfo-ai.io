@@ -60,8 +60,8 @@ the document's own month and takes it over on success (tests/engine/
 test_rerun_staged.py, test_rerun_restart.py — the same gate). O5, O6 and the
 accepted cells of O7 were restated then: where they said "the reset deletes
 only its own period", they now say "nothing is deleted, and the staged run
-never takes over a month that is not the document's". Stage 3 takes the AI
-lane through the same mechanism.
+never takes over a month that is not the document's". Stage 3 took the AI
+lane through the same mechanism (tests/engine/test_rerun_ai_lane.py).
 
 WHAT RUNS HERE. The REAL `create_app()` routes (`POST /api/pipeline/retry`,
 `/api/documents/{id}/restore`, `DELETE /api/documents/{id}`, the upload

@@ -138,8 +138,8 @@ CANNOT SEE.
     and `empty_live_periods` / scripts/check_no_empty_periods.py, which
     REPORT a stranded staged row as a period with no source document until
     it is cleaned up (asserted as such in the restart laws).
-  · The AI lane end to end (stage 3), make-active / move-period on a live
-    month, the browser after a re-run.
+  · The AI lane (its own file of this gate: test_rerun_ai_lane.py),
+    make-active / move-period on a live month, the browser after a re-run.
 
 PLANT LOG: docs/engine_book/gates.md "rerun-data-loss".
 """

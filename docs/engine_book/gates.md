@@ -20816,9 +20816,10 @@ each deploy, not by this gate.
 A re-run acts only on a period that is the document's own. Owner order
 2026-10-04 ("the two data-loss tickets first"), hand-over item 1; the judge's
 design of the same day, STAGE 1 OF 3 (R1: the ownership check, the refusal,
-the sibling sweep). Stages 2 and 3 replace the reset with a re-run STAGED
-beside the document's own month and take the AI lane through it; their laws
-join this gate then.
+the sibling sweep). Stages 2 and 3 (their own subsections below) replaced the
+reset with a re-run STAGED beside the document's own month and took the AI
+lane through it; their laws run in this gate (the table below is the gate as
+it stands after stage 3).
 
 THE DEFECT (measured on 7ca386ec, production's commit, through the real
 routes — `tests/engine/test_rerun_ownership.py` drives each).
@@ -20880,9 +20881,9 @@ THE REPAIR (`src/engine/api/pipeline.py`, `_period_move.py`).
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_rerun_ownership.py tests/engine/test_rerun_staged.py tests/engine/test_rerun_restart.py -q` |
-| work count | junit-xml, floor **156** tests (measured 156: ownership 38, staged 96, restart 22; stage 1 measured 38) |
-| canary | `test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing`, `test_the_refusal_is_one_answer_whatever_the_pin_names`, `test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands` (stage 1: `test_the_reset_deletes_only_a_period_this_document_is_the_source_of`, restated), `test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin`, `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was`, `test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result`, `test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything`, `test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl` |
+| command | `python -m pytest tests/engine/test_rerun_ownership.py tests/engine/test_rerun_staged.py tests/engine/test_rerun_restart.py tests/engine/test_rerun_ai_lane.py -q` |
+| work count | junit-xml, floor **170** tests (measured 170: ownership 38, staged 96, restart 22, the AI lane 14; stage 2 measured 156, stage 1 38) |
+| canary | `test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing`, `test_the_refusal_is_one_answer_whatever_the_pin_names`, `test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands` (stage 1: `test_the_reset_deletes_only_a_period_this_document_is_the_source_of`, restated), `test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin`, `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was`, `test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result`, `test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything`, `test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl`, `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun` |
 
 **SCOPE.** The real `create_app()` routes (`POST /api/pipeline/retry`,
 `/api/documents/{id}/restore`, `DELETE /api/documents/{id}`, the upload
@@ -21282,6 +21283,198 @@ and canaries: `briefing-keep-last-good` 624, `rerun-data-loss` 156,
 docstrings, `rerunRefusals.ts`'s header); every plant's edit still applies
 exactly once to the committed files.
 
+### rerun-data-loss — STAGE 3 (2026-10-04): a run that does not narrate — the AI lane and the public-records exit
+
+Hand-over item 3 (R3 of the coordinator's decisions; the judge's design,
+stage 3 of 3). The same mechanism as stage 2 — no second one.
+
+THE DEFECT. A non-Romanian document is analysed by the AI lane, which stores
+the STATEMENTS and nothing else: no briefing, no recommendations, no alerts.
+Its exit returned `analyzed` right after the persist and never reached the
+narrative stage.
+
+- On production's code the Docs panel's re-run reset the document's period:
+  the cascade took the briefing its user had GENERATED for it (an explicit,
+  metered request) and nothing put it back (the carry was neither restored
+  nor dropped on this exit).
+- Staged (stage 2), the lane's exit still called the takeover with no
+  arguments: the month's ALERTS were replaced by none (measured 4 → 0) and a
+  kept briefing was stamped `empty_reply` — a narration failure that never
+  happened.
+- With the month's row left in place, the lane's own cache — which IS that
+  row (`ai_lane._cache_lookup`: content hash + prompt versions + model on the
+  envelope) — answered the re-run of an unchanged file: "Re-run analysis"
+  was a silent no-op. The reset used to be what guaranteed the miss.
+- A re-run of a document that now reads as a PUBLIC-RECORDS summary ended
+  "analysed with no period" — over a month that still named that document as
+  its source.
+
+THE REPAIR (`src/engine/api/pipeline.py`; no schema object, no frontend
+code).
+
+- `BRIEFING_STALE_NOT_RENARRATED = "not_renarrated"` — why a kept briefing
+  is stale when the run narrated NOTHING. Not one of
+  `NARRATION_UNAVAILABLE_CODES`; `narration_unavailable_code` never returns
+  it; a row carrying it is served as prose, `stale`, never `unavailable`.
+- THE LANE'S EXIT tells the takeover what the lane is, for EVERY lane run (a
+  staged re-run and a same-month re-upload alike):
+  `narration_unavailable=BRIEFING_STALE_NOT_RENARRATED,
+  keep_recommendations=True, keep_alerts=True`. The month's briefing is
+  kept and marked, its recommendations and its alerts stay where they are —
+  never moved, never re-inserted. The same takeover, the same commit point
+  (`keep_briefing_reason: not_renarrated` and the `emptied` tables ride in
+  the marker), the same resume.
+- A STAGED re-run sets `doc["force_reextract"] = True` before `stage_extract`
+  — the lane's own switch, on the in-memory row only, AFTER the journal took
+  its copy of the row. The workspace's plan gate still runs before the lane
+  (a re-run of a counted book reserves nothing on the non-Romanian meter).
+- THE PUBLIC-RECORDS EXIT, staged: `PlainRefusal("rerun_not_a_trial_balance")`
+  before the `sku_analyses` upsert. The staged failure handler leaves the
+  document `analyzed` over its month with
+  `rerun_failed: rerun_not_a_trial_balance` on its row; the Docs panel prints
+  the "didn't finish — you're still seeing the previous analysis" line
+  (`rerun-refusal-surfaces`, stage 3). A first upload of such a file, and a
+  retry of a document that holds no period, are unchanged.
+- The lane's cache-hit exit is not reached by a staged re-run (the flag).
+
+WHAT A READER IS SERVED (a document that owns its month; "as before" as in
+stage 2's table):
+
+| the re-run | stored | served |
+|---|---|---|
+| goes through the lane and succeeds | the run's statements on the same period id; the month's briefing row (marked `not_renarrated`), recommendation rows and alert rows untouched; what was COMPUTED from the replaced statements (metrics, a valuation) gone with them — the lane computes neither | the new statements; the same briefing, shown as stale; the same recommendations and alerts |
+| is refused by the workspace's plan | nothing of the month; the row carries `rerun_failed:` + the neutral code | as before; the row says the re-run did not finish, then the plan's sentence |
+| reads as a public-records summary | nothing of the month, no summary row; `rerun_failed: rerun_not_a_trial_balance` | as before; the row says the re-run did not finish |
+| is killed before / after its commit point | as stage 2's table (the lane's run is a staged run) | as before / completed by the resume — the kept briefing marked from the marker's recorded reason |
+
+| | |
+|---|---|
+| laws | `tests/engine/test_rerun_ai_lane.py` (14) — with stage 1's and stage 2's files the gate runs **170** (38 + 96 + 22 + 14) |
+
+**SCOPE.** The `gw` world of the other files of this gate. The lane is
+reached two ways, both through the REAL `stage_extract`, its REAL
+jurisdiction gate (`_maybe_route_ai_lane`) and the REAL plan gate
+(`_usage_gate.workspace_nonro_refusal` over the store's membership and
+subscription rows): (1) a Romanian book analysed normally whose NEXT run the
+resolver routes to the lane (what a jurisdiction override on the
+balance-sheet badge does) — `run_ai_lane` replaced by a stand-in that hands
+back the first run's own parse and assembly; this is the month that HAS
+alerts and recommendations for the lane to lose; (2) THE REAL LANE — the
+Hungarian fixture ledger uploaded on the card and read by
+`engine.ai_lane.run_ai_lane` itself (format detection, extraction,
+classification, the cache), only its MODEL scripted with the canned replies
+of `tests/engine/test_ai_lane.py`. The laws: the reason is not a narration
+code, and a STRUCTURAL census of the lane's call (see below); A1 a
+Docs-panel re-run through the lane, both states of the stale migration — the
+same briefing, recommendation and alert ROWS, the document never
+re-statused, nothing of the month written in those three tables but the
+marker — and the same takeover at its own seam, the process killed after
+EVERY write (dropped before the commit point, resumed to the uninterrupted
+result after it); A2 only a staged re-run is told to re-extract (a first
+analysis, a same-month re-upload, a retry of a document with no period are
+not), the flag is never written and never in the journal's copy; on the
+real lane the cache is live (control: handed the stored row it answers from
+the month), the re-run calls the model again, the non-Romanian meter is not
+touched and the generated briefing is the same row; A3 the public-records
+re-run refused before any write, the next re-run completing — and the
+control (a first upload, and its retry, store the summary as before); A4 a
+same-month re-upload through the lane keeps the month's alerts,
+recommendations and briefing; A5 the plan gate refusing — the lane never
+reached, the month as served identical, the neutral code on the row — then
+the same re-run going through once the plan includes it; A6 a REAL restart
+(`rerun_restart_lib`, a second python process; `rerun_restart_child.py`
+gained the `lane_model` step) of a re-run of the Hungarian document, the
+real lane on both sides: killed before the commit point the reader is
+served what they were served, killed inside the takeover it is completed by
+the document's next re-run (which re-extracts) or by another document's run
+fifteen minutes later — the generated briefing there, marked.
+
+**After the repair it reds on (stage 3):** the lane's takeover replacing the
+month's alerts, recommendations or briefing with none; a kept briefing
+marked with a narration code; a staged re-run answered from the lane's cache
+(no model call, nothing replaced); the re-extract flag reaching a first
+analysis, an upload, the store or the journal's copy of the row; a re-run
+skipping the plan gate, or reserving on the non-Romanian meter; a plan
+refusal that marks the document failed or touches the month; a staged
+re-run ending "analysed with no period", or writing its summary before it is
+refused; EVERY public-records file refused (a first upload too); the lane's
+progress status written in a staged run; a lane takeover dropped after its
+commit point, or resumed without marking the kept briefing.
+
+**CANNOT SEE (stage 3):** the lane's MODEL — its replies are canned: what a
+real extraction of a changed file returns, and what the call costs (a
+re-run of a non-Romanian document is one model extraction, as it was before
+the staging; letting the cache answer instead is on the owner-rulings
+list); the non-Romanian METER and its RPCs (replaced by a recorder; the
+workspace-plan read of a re-run is real); `keep_recommendations` on its own
+— the lane stores no briefing, which already keeps the month's
+recommendations, so the argument is belt and braces and is pinned by the
+census of the call (`P-keeprecs` reds that law alone); the month's METRICS
+and VALUATION after a lane takeover — the lane computes neither, and what
+was computed from the replaced statements goes with them (asserted: never
+one run's statements beside another's figures), so a month first analysed
+as Romanian and then re-run through the lane loses its ratios until it is
+analysed as Romanian again; a same-month re-UPLOAD of a different file
+through the lane keeps the OLD file's alerts and recommendations on the new
+file's statements, with only the briefing marked (the design's decision —
+the lane brings none to replace them with); `POST
+/api/period/{id}/reextract` (the jurisdiction badge's own entry), which
+re-runs IN PLACE — not staged, not this gate's entry; a correction's re-run
+(make-active, move-period) of a non-Romanian document, also in place; and
+everything stage 2's files cannot see (Postgres itself, two live processes,
+the window between the commit point and the end of the apply).
+
+### rerun-data-loss — stage 3 PLANT / RED / REVERT (2026-10-04, branch `fix/rerun-data-loss`)
+
+Runner: `specs-durable/rerun_data_loss/plants_stage3.py` (stage 2's runner
+with stage 3's plants: one PLANT at a time, ALONE, exact-match edits in
+`src/engine/api/pipeline.py`, the laws the plant is a plant of run — `-k`
+on `tests/engine/test_rerun_ai_lane.py`, the record names each run — the
+file restored byte-exact, sha256 asserted; record `plants_stage3.json`).
+
+**BASELINE** — the gate's own command (the four files), exit `0`:
+`170 passed`.
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| P31 (A1 / A4) the lane's takeover is not told to keep the month's alerts (item 3: replaced by none) | `5 failed, 9 passed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_the_workspaces_plan_refuses_leaves_the_month_and_its_briefing_as_they_were`, `test_a_same_month_reupload_through_the_ai_lane_keeps_the_months_alerts_briefing_and_recommendations` (+1 more) |
+| P32 (A1 / A2 / A4 / A6) the lane's takeover is not told why the kept briefing is stale (the default reason: a narration code) | `9 failed, 5 passed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun`, `test_a_lane_takeover_killed_by_a_restart_is_completed_by_another_documents_run_and_the_briefing_says_so` (+4 more) |
+| P33 (A1 / A2 / A5 / A6) a staged re-run does not tell the extract stage to re-extract (the lane's cache answers: a silent no-op) | `8 failed, 6 passed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun`, `test_a_lane_takeover_killed_by_a_restart_is_completed_by_another_documents_run_and_the_briefing_says_so` (+3 more) |
+| P34 (A3) a staged re-run that reads as a public-records summary is not refused (analysed with no period over its month) | `1 failed, 1 passed` | `test_a_rerun_that_now_reads_as_a_public_records_summary_is_refused_before_any_write` |
+| P-keeprecs (the census) the lane's takeover is not told to keep the recommendations (unobservable on its own: the census) | `1 failed, 13 passed` | `test_census_the_lanes_takeover_is_told_what_the_lane_is` |
+| P-reasoncode (the reason / A1 / A2) the reason of a run that narrates nothing IS a narration code (`provider_error`) | `5 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing`, `test_a_same_month_reupload_through_the_ai_lane_keeps_the_months_alerts_briefing_and_recommendations` (+1 more) |
+| P-flagall (A2 / A4) EVERY run is told to re-extract (a first analysis, an upload, a retry with no period) | `2 failed` | `test_a_same_month_reupload_through_the_ai_lane_keeps_the_months_alerts_briefing_and_recommendations`, `test_only_a_staged_rerun_tells_the_extract_stage_to_re_extract_and_the_flag_is_never_stored` |
+| P-flagjournal (A2) the re-extract flag is set BEFORE the journal takes its copy of the row | `1 failed` | `test_only_a_staged_rerun_tells_the_extract_stage_to_re_extract_and_the_flag_is_never_stored` |
+| P-flagstored (A2) the re-extract flag is STORED (it rides in the staged row's marker) | `1 failed, 1 passed` | `test_only_a_staged_rerun_tells_the_extract_stage_to_re_extract_and_the_flag_is_never_stored` |
+| P-refuselate (A3) the public-records re-run is refused AFTER its summary was written | `1 failed, 1 passed` | `test_a_rerun_that_now_reads_as_a_public_records_summary_is_refused_before_any_write` |
+| P-refuseall (A3, control) EVERY run that reads as a public-records summary is refused (a first upload too) | `1 failed, 1 passed` | `test_a_first_upload_of_a_public_records_summary_and_its_retry_are_what_they_were` |
+| P-laneprogress (A1 / A2) the lane's exit writes its progress status in a staged run (the document is re-statused) | `3 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing` |
+| P-planskip (A5) a run told to re-extract skips the workspace's plan gate | `1 failed` | `test_a_rerun_the_workspaces_plan_refuses_leaves_the_month_and_its_briefing_as_they_were` |
+| P-meter (A2 / A5) a re-run of a counted book reserves on the non-Romanian meter | `2 failed` | `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing`, `test_a_rerun_the_workspaces_plan_refuses_leaves_the_month_and_its_briefing_as_they_were` |
+| P-coderename (A3) the stored code of a refused public-records re-run drifts | `2 failed, 1 passed` | `test_a_rerun_that_now_reads_as_a_public_records_summary_is_refused_before_any_write`, `test_the_reason_of_a_run_that_narrates_nothing_is_not_a_narration_code` |
+| R2-P19 (A1 / A2 / A6) (stage 2, replayed) THE RESET IS BACK: the route deletes the document's own period before the run | `6 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun`, `test_a_lane_takeover_killed_by_a_restart_is_completed_by_another_documents_run_and_the_briefing_says_so` (+1 more) |
+| R2-P20 (A3 / A5) (stage 2, replayed) a failed staged re-run marks its document `failed` | `2 failed` | `test_a_rerun_that_now_reads_as_a_public_records_summary_is_refused_before_any_write`, `test_a_rerun_the_workspaces_plan_refuses_leaves_the_month_and_its_briefing_as_they_were` |
+| R2-P28 (A1 seam / A6) (stage 2, replayed) a COMMITTED staged row is dropped instead of resumed (the design's first shape) | `2 failed` | `test_a_lane_takeover_killed_after_any_write_is_dropped_or_resumed_to_the_same_result`, `test_a_lane_takeover_killed_by_a_restart_is_completed_by_another_documents_run_and_the_briefing_says_so` |
+| R2-P16 (A1 / A2) (stage 2, replayed) the marker rides along in the envelope the month's row takes | `3 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing` |
+| R2-P-emptied (A1 seam) (stage 2, replayed) a resume leaves the month's old rows in a table the run stored nothing in | `1 failed` | `test_a_lane_takeover_killed_after_any_write_is_dropped_or_resumed_to_the_same_result` |
+| R2-P-nocommit (A1 seam / A6) (stage 2, replayed) the takeover never writes its commit marker (a death mid-apply is then dropped) | `3 failed, 1 passed` | `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun`, `test_a_lane_takeover_killed_after_any_write_is_dropped_or_resumed_to_the_same_result`, `test_a_lane_takeover_killed_by_a_restart_is_completed_by_another_documents_run_and_the_briefing_says_so` |
+| R2-P-progress (A1 / A2 / A3 / A5) (stage 2, replayed) a staged re-run writes its progress statuses (extracting, mapping, …) | `5 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing`, `test_a_rerun_that_now_reads_as_a_public_records_summary_is_refused_before_any_write` (+1 more) |
+
+**RED** — every plant exits `1`, 22 of 22. P31–P34 are
+the design's list. `P-keeprecs` reds the census ALONE — the stated limit:
+dropping `keep_recommendations` changes nothing a reader can see while the
+lane stores no briefing. The rows `R2-…` are STAGE 2's plants replayed
+against the stage-3 file (the lane goes through stage 2's mechanism: the
+reset coming back, a failed staged re-run marked `failed`, a committed row
+dropped instead of resumed, the marker riding into the month's envelope, a
+resume that leaves old rows, no commit marker, the progress statuses
+written). Stage 3 edited `pipeline.py`: every edit of stage 1's and stage
+2's plants still applies exactly once to the final file (`plants_stage3.py
+dry`: earlier plants: 80, no longer applying exactly once: 0).
+
+**REVERT** — the file restored byte-exact after each; the gate's own
+command, exit `0`: `170 passed`. No plant marker left in `src/`.
+
 ## rerun-refusal-surfaces
 
 The Docs panel says why a re-run was refused. `POST /api/pipeline/retry`
@@ -21305,7 +21498,7 @@ before its own re-run.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/rerunRefusals.test.ts frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx frontend/components/cfo/__tests__/docRerunNote.test.tsx frontend/lib/__tests__/orgPeriodsStagedRow.test.ts --reporter=verbose` |
-| work count | `Tests N passed`, floor **84** (measured 84: 34 + 16 + 29 + 5; stage 1 measured 35: 19 + 16) |
+| work count | `Tests N passed`, floor **86** (measured 86: 34 + 16 + 31 + 5; stage 2 measured 84: 34 + 16 + 29 + 5; stage 1 measured 35: 19 + 16) |
 | canary | "the codes are exactly the three the route answers with", "ro: document_superseded prints the stated sentence", "ro: the real route's answer for a superseded file", "en: a failure with no known code shows the title alone", "a refusal that also carries a message prints the code's sentence only", "the prefix and the two codes are the engine's own literals", "ro: an analysed file whose last re-run was interrupted", "drops the staged row and keeps the month and the empty container" |
 
 **SCOPE.** The module over the real i18n bundles, with every sentence
@@ -21408,3 +21601,29 @@ real PostgREST answering the json-path select; `NotificationsMenu` /
 document that was already `failed` over its period shows
 `rerun_failed: …` there after a re-run that fails; the page after a re-run
 (nothing refetches the period: its id no longer changes).
+
+### rerun-refusal-surfaces — stage 3 (2026-10-04): the code of a refused public-records re-run
+
+The engine stores one more neutral code after the prefix —
+`rerun_failed: rerun_not_a_trial_balance` (gate `rerun-data-loss`, A3: a
+staged re-run that reads as a public-records summary is refused before any
+write). It has no sentence of its own: the previous analysis IS still the
+one served, so the row prints the `kept` line, and never the code. No
+frontend code changed; `docRerunNote.test.tsx` gained the stored text (EN
+and RO) and the code in the list of what is never printed — the gate
+measures **86** (34 + 16 + 31 + 5).
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| P-F4nt (F4) a refused public-records re-run is read as 'the file reads as another month' | `2 failed; 84 passed (86)` | `en: "rerun_failed: rerun_not_a_trial_balance" on an analysed row → the kept line`, `ro: "rerun_failed: rerun_not_a_trial_balance" on an analysed row → the kept line` |
+| R2-P-F4a (F4) (stage 2, replayed) the row prints what the engine stored after the prefix | `27 failed; 59 passed (86)` | `an analysed file whose last re-run failed keeps its row and says so`, `en: "NonRoNotIncludedError: {"error…" → the kept line, then the sentence of the refusal's code`, `en: "rerun_failed: " on an analysed row → the kept line` (+24 more) |
+
+**RED** — 2 of 2 exit `1` (the gate's own command,
+each ALONE, the source restored byte-exact; runner `plants_stage3.py
+frontend`). **BASELINE** `86 passed (86)`.
+
+**REVERT** — exit `0`: `86 passed (86)`.
+
+**CANNOT SEE (stage 3):** a code the engine adds later without a sentence —
+it prints the `kept` line, which is true only while the engine keeps the
+rule that an unfinished staged re-run leaves the month as it was.

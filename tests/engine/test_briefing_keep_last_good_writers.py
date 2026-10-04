@@ -251,7 +251,8 @@ CANNOT SEE.
     /api/sku-analysis/latest SERVES for a stored sentinel is not driven.
   · A restart during a re-run: tests/engine/test_rerun_restart.py (the
     same staged mechanism, a second process).
-  · The AI lane's re-run (stage 3 of gate rerun-data-loss).
+  · The AI lane's re-run: tests/engine/test_rerun_ai_lane.py (gate
+    rerun-data-loss, stage 3).
 
 PLANT LOG: docs/engine_book/gates.md "briefing-keep-last-good".
 """
