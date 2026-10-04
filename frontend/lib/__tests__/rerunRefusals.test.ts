@@ -16,16 +16,33 @@
 // body's `message` (or anything but its code) being read; an unknown code
 // treated as a refusal; "Use as this period's source" being named (it empties
 // the month before its own re-run); the module moving behind a lazy import.
+//
+// F4 (stage 2 of the engine gate, 2026-10-04) — A RE-RUN THAT WAS ACCEPTED AND
+// DID NOT FINISH. "Re-run analysis" is staged beside the file's month: a run
+// that fails leaves the file `analyzed` over the analysis it had, and the
+// engine says so in `documents.error` — `rerun_failed: <remainder>`. The
+// reader gets one of three sentences by KIND; the remainder is never printed
+// (the component's law: components/cfo/__tests__/docRerunNote.test.tsx).
+// Fails on: the prefix or a code drifting from the engine's literals; a kind
+// without a sentence in either language; the English fallback drifting from
+// en.json; a stored error that is not a re-run's read as one.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import i18n from "@/i18n";
 import {
+  RERUN_FAILED_ENGLISH,
+  RERUN_FAILED_KINDS,
+  RERUN_FAILED_PREFIX,
   RERUN_REFUSAL_CODES,
   RERUN_REFUSAL_ENGLISH,
+  rerunFailedKey,
+  rerunFailedKind,
+  rerunFailedRemainder,
   rerunRefusalCode,
   rerunRefusalKey,
+  type RerunFailedKind,
   type RerunRefusalCode,
 } from "@/lib/rerunRefusals";
 
@@ -191,5 +208,121 @@ describe("F6 — the module is on an error path, so it is never behind a lazy im
     expect(files.length).toBeGreaterThan(200); // the walk found the app
     const lazy = files.filter((f) => /import\(\s*["'][^"']*rerunRefusals["']\s*\)/.test(readFileSync(f, "utf8")));
     expect(lazy).toEqual([]);
+  });
+});
+
+
+// ── F4 — a re-run that did not finish: prefix → kind → key → sentence ───
+const FAILED: Record<RerunFailedKind, { key: string; en: string; ro: string }> = {
+  interrupted: {
+    key: "panels.rerunInterrupted",
+    en: "The last re-run was interrupted while it was replacing the analysis. Run it again.",
+    ro: "Ultima reanalizare a fost întreruptă în timp ce înlocuia analiza. Reia analiza.",
+  },
+  month_taken: {
+    key: "panels.rerunMonthTaken",
+    en: "The last re-run was not applied: the file now reads as a month that already has its own analysis. Nothing was changed.",
+    ro: "Ultima reanalizare nu a fost aplicată: fișierul indică acum o lună care are deja propria analiză. Nu s-a schimbat nimic.",
+  },
+  kept: {
+    key: "panels.rerunFailedKept",
+    en: "The last re-run didn't finish. You're still seeing the previous analysis.",
+    ro: "Ultima reanalizare nu s-a încheiat. Vezi în continuare analiza anterioară.",
+  },
+};
+const KINDS = Object.keys(FAILED) as RerunFailedKind[];
+
+describe("F4 — a re-run that did not finish has its sentence, by kind, in both languages", () => {
+  it("the prefix and the two codes are the engine's own literals", () => {
+    expect(RERUN_FAILED_PREFIX).toBe("rerun_failed: ");
+    // src/engine/api/pipeline.py: RERUN_FAILED_PREFIX, RERUN_INTERRUPTED, RERUN_MONTH_TAKEN
+    const engine = readFileSync(resolve(REPO, "src/engine/api/pipeline.py"), "utf8");
+    expect(engine).toContain('RERUN_FAILED_PREFIX = "rerun_failed: "');
+    expect(engine).toContain('RERUN_INTERRUPTED = "interrupted_replacing"');
+    expect(engine).toContain('RERUN_MONTH_TAKEN = "rerun_month_taken"');
+    expect([...RERUN_FAILED_KINDS].sort()).toEqual([...KINDS].sort());
+  });
+
+  it("what the engine stores reads as its kind", () => {
+    const stored: [string, RerunFailedKind][] = [
+      ["rerun_failed: interrupted_replacing", "interrupted"],
+      ["rerun_failed: rerun_month_taken", "month_taken"],
+      ["rerun_failed: RuntimeError: compute failed", "kept"],
+      ["rerun_failed: document_superseded", "kept"],
+      ['rerun_failed: {"error": "non_ro_not_included"}', "kept"],
+      ["rerun_failed: ", "kept"],
+      // a code is the WHOLE remainder, never a word inside a sentence
+      ["rerun_failed: the takeover was interrupted_replacing something", "kept"],
+    ];
+    for (const [error, kind] of stored) expect(rerunFailedKind(error), error).toBe(kind);
+  });
+
+  it("an error that is not a re-run's is not one", () => {
+    const others: unknown[] = [
+      null,
+      undefined,
+      "",
+      42,
+      {},
+      "interrupted_replacing",
+      "rerun_month_taken",
+      "superseded_by:0d0c0000-0000-4000-8000-0000000000d2",
+      "duplicate_of:0d0c0000-0000-4000-8000-0000000000d1",
+      "RuntimeError: compute failed",
+      " rerun_failed: interrupted_replacing",
+      "rerun_failed:interrupted_replacing",
+      "RERUN_FAILED: interrupted_replacing",
+    ];
+    for (const error of others) {
+      expect(rerunFailedKind(error as string), String(error)).toBeNull();
+      expect(rerunFailedRemainder(error as string), String(error)).toBeNull();
+    }
+  });
+
+  it("the remainder is what follows the prefix (for a code lookup, never for printing)", () => {
+    expect(rerunFailedRemainder('rerun_failed: {"error": "non_ro_not_included"}')).toBe('{"error": "non_ro_not_included"}');
+    expect(rerunFailedRemainder("rerun_failed: interrupted_replacing")).toBe("interrupted_replacing");
+  });
+
+  for (const kind of KINDS) {
+    it(`${kind} → ${FAILED[kind].key}`, () => {
+      expect(rerunFailedKey(kind)).toBe(FAILED[kind].key);
+    });
+
+    for (const lang of LANGS) {
+      it(`${lang}: ${kind} prints the stated sentence`, async () => {
+        await i18n.changeLanguage(lang);
+        const printed = i18n.t(rerunFailedKey(kind));
+        expect(printed).toBe(FAILED[kind][lang]);
+        expect(printed).not.toBe(FAILED[kind].key);
+        for (const raw of ["rerun_failed", "interrupted_replacing", "rerun_month_taken"]) {
+          expect(printed).not.toContain(raw);
+        }
+      });
+    }
+  }
+
+  it("both locale files hold the stated sentences, and the English fallback equals en.json", () => {
+    for (const kind of KINDS) {
+      expect(at(locale("en"), FAILED[kind].key)).toBe(FAILED[kind].en);
+      expect(at(locale("ro"), FAILED[kind].key)).toBe(FAILED[kind].ro);
+      expect(RERUN_FAILED_ENGLISH[FAILED[kind].key]).toBe(FAILED[kind].en);
+    }
+    expect(Object.keys(RERUN_FAILED_ENGLISH).sort()).toEqual(KINDS.map((k) => FAILED[k].key).sort());
+  });
+
+  it("each sentence says what the reader is looking at, and none names the action that empties the month", () => {
+    // "kept": the previous analysis is still served; "month_taken": nothing changed;
+    // "interrupted": the one line that asks for an action — run it again.
+    expect(FAILED.kept.en).toMatch(/previous analysis/i);
+    expect(FAILED.kept.ro).toMatch(/analiza anterioară/i);
+    expect(FAILED.month_taken.en).toMatch(/nothing was changed/i);
+    expect(FAILED.month_taken.ro).toMatch(/nu s-a schimbat nimic/i);
+    expect(FAILED.interrupted.en).toMatch(/run it again/i);
+    expect(FAILED.interrupted.ro).toMatch(/reia analiza/i);
+    for (const kind of KINDS) {
+      expect(FAILED[kind].en).not.toMatch(/source|make active|workspace/i);
+      expect(FAILED[kind].ro).not.toMatch(/sursă|sursa|workspace|spațiu de lucru/i);
+    }
   });
 });

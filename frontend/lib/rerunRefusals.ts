@@ -72,3 +72,65 @@ export function rerunRefusalCode(body: unknown): RerunRefusalCode | null {
     ? (code as RerunRefusalCode)
     : null;
 }
+
+// ── A re-run that was accepted and did not finish ───────────────────────
+//
+// Since 2026-10-04 "Re-run analysis" is STAGED beside the file's own month:
+// the month keeps being served while the run goes, and a run that fails
+// leaves the file `analyzed` over the analysis it had. Nothing on the row
+// would say a re-run had been tried — so the engine stores
+//
+//     documents.error = "rerun_failed: <remainder>"
+//
+// (src/engine/api/pipeline.py RERUN_FAILED_PREFIX; the row keeps its status).
+// The remainder is one of two codes, or the run's own diagnostic text — which
+// is NEVER printed: the reader gets one of three sentences, by KIND.
+
+/** `documents.error` begins with this when the file's last re-run did not
+ *  finish. The same literal as pipeline.RERUN_FAILED_PREFIX. */
+export const RERUN_FAILED_PREFIX = "rerun_failed: ";
+
+/** What the remainder says. */
+export const RERUN_FAILED_KINDS = ["interrupted", "month_taken", "kept"] as const;
+export type RerunFailedKind = (typeof RERUN_FAILED_KINDS)[number];
+
+/** The kind of a stored `documents.error` that a staged re-run wrote, else
+ *  null. `interrupted`: the run died while it was replacing the analysis —
+ *  the month may be mid-replacement until the next re-run completes it.
+ *  `month_taken`: the file now reads as a month that has its own analysis.
+ *  `kept`: anything else — the previous analysis is still the one served. */
+export function rerunFailedKind(error: string | null | undefined): RerunFailedKind | null {
+  if (typeof error !== "string" || !error.startsWith(RERUN_FAILED_PREFIX)) return null;
+  const remainder = error.slice(RERUN_FAILED_PREFIX.length).trim();
+  if (remainder === "interrupted_replacing") return "interrupted";
+  if (remainder === "rerun_month_taken") return "month_taken";
+  return "kept";
+}
+
+/** What follows the prefix — for a caller that looks for a known CODE in it
+ *  (a plan refusal, lib/uploadRefusals). Never for printing. */
+export function rerunFailedRemainder(error: string | null | undefined): string | null {
+  return rerunFailedKind(error) === null ? null : (error as string).slice(RERUN_FAILED_PREFIX.length);
+}
+
+/** The i18n key of the sentence for a kind. */
+export function rerunFailedKey(kind: RerunFailedKind): string {
+  switch (kind) {
+    case "interrupted":
+      return "panels.rerunInterrupted";
+    case "month_taken":
+      return "panels.rerunMonthTaken";
+    case "kept":
+      return "panels.rerunFailedKept";
+  }
+}
+
+/** The same sentences in English (see RERUN_REFUSAL_ENGLISH). */
+export const RERUN_FAILED_ENGLISH: Readonly<Record<string, string>> = {
+  "panels.rerunInterrupted":
+    "The last re-run was interrupted while it was replacing the analysis. Run it again.",
+  "panels.rerunMonthTaken":
+    "The last re-run was not applied: the file now reads as a month that already has its own analysis. Nothing was changed.",
+  "panels.rerunFailedKept":
+    "The last re-run didn't finish. You're still seeing the previous analysis.",
+};
