@@ -61,8 +61,10 @@ create index if not exists plan_chat_daily_usage_user_idx on plan_chat_daily_usa
 alter table plan_chat_daily_usage enable row level security;
 
 drop policy if exists "plan_chat_daily_usage_own_select" on plan_chat_daily_usage;
+-- `to authenticated`: the one policy supabase/schema_phase_subscriptions_write_lockdown.sql
+-- keeps on this table — re-running this file after it changes nothing.
 create policy "plan_chat_daily_usage_own_select"
-  on plan_chat_daily_usage for select
+  on plan_chat_daily_usage for select to authenticated
   using (user_id = auth.uid());
 
 -- No write policy on purpose — counter bumps go through the admin

@@ -3817,45 +3817,78 @@ on a user's own `public.subscriptions` row ("subscriptions self insert" /
 table to `anon` and `authenticated`. With the public anon key and the session
 the page already holds, a signed-in user could
 `PATCH /rest/v1/subscriptions?user_id=eq.<own id>` with
-`{"tier":"multi","status":"active"}` — a paid plan with no payment. Measured
-on a stack built from this repository: every sold tier, `status`, `plan`,
-`custom_limits`, `is_founding_member`, the period / trial / intro dates, the
-billed-extras tally and the Stripe ids were writable, and the row could be
-INSERTed when none existed; `create_workspace` then allowed the plan's
-workspaces. `frontend/lib/billing.ts` still exposed two browser writers of the
-row with no caller (`cancel()`, `reactivate()` — the second wrote
-`status: "active"`).
+`{"tier":"multi","status":"active"}` — a paid plan with no payment — or make
+the same write through `/graphql/v1`. Measured on a stack built from this
+repository: 21 of the row's 22 columns were writable (every one but `user_id`),
+the row could be INSERTed when none existed, and `create_workspace` then
+allowed the plan's workspaces.
+`frontend/lib/billing.ts` still exposed two browser writers of the row with
+no caller (`cancel()`, `reactivate()`).
 
 **What closes it.** `supabase/schema_phase_subscriptions_write_lockdown.sql`.
 For every table on its one list — `subscriptions`, `user_usage`,
 `plan_chat_daily_usage`, `document_quota_ledger`, `founding_members`,
-`billing_events`, and `plan_assignment_audit` where it exists: row level
-security on; every policy that is not a SELECT policy dropped, whatever its
-name; everything revoked from `anon` and PUBLIC; the write privileges revoked
-from `authenticated` (MAINTAIN too on Postgres 17+, where the default grant
-carries it). `subscriptions` keeps exactly ONE policy (own row,
-SELECT, to authenticated). The file reads its own result back and raises —
-applying nothing — if a write privilege survives. Idempotent; safe on a
-repo-built database, on top of the hand-applied three-statement stopgap, on a
-database re-opened by hand under other names, and before or after
-`schema_phase_owner_plan.sql`. `schema.sql` no longer creates the two write
+`billing_events`, `renewal_email_queue`, and `plan_assignment_audit` where it
+exists: row level security on; every policy that is not a SELECT policy
+dropped, whatever its name; everything revoked from `anon` and PUBLIC; the
+write privileges revoked from `authenticated` (MAINTAIN too on Postgres 17+).
+`subscriptions` and the two meters keep exactly ONE policy each (own row,
+SELECT, to authenticated). `schema.sql` no longer creates the two write
 policies; `cancel()` / `reactivate()` are deleted (Settings cancels through
 `POST /api/billing/cancel`, which asks Stripe; the webhook writes the row).
+**It changes no row** — the owner's fence for production (2026-10-03: "apply
+migrations that only remove or restrict access … may not delete or alter
+customer rows"): the file holds no INSERT, UPDATE, DELETE or TRUNCATE and
+changes no table's columns, in its own text or in a string it executes.
 
 **The rule.** An entitlement table — the plan row, a meter, the quota ledger,
-a seat, a billing log — is written by the SERVICE ROLE (or a SECURITY DEFINER
-function owned by the table owner), never by a browser session and never by
-an edge function through a direct table write. A new such table gets
-Supabase's default grants on the day it is created: add it to THE LIST in the
-migration (the gate and the static law read the list from that file) and
-re-run it.
+a seat, a billing log or queue — is written by the SERVICE ROLE (or a
+SECURITY DEFINER function owned by the table owner), never by a browser
+session and never by an edge function through a direct table write. A new
+such table gets Supabase's default grants on the day it is created: add it to
+THE LIST in the migration (and in the two read-only files that carry the
+list — the static law reds when they differ) and re-run it.
 
-**The runbook is the migration's header** — read it before applying: the
-read-only pre-flight (policies, grants, row level security, and the views
-over a listed table), the read-only AUDIT of rows whose entitlement has no
-payment visible behind it (a list for a person, with its false positives —
-no email), the Dashboard "Reload schema cache" click (§14), the post-checks
-and a browser-console probe that must print `CLOSED`.
+**How it runs** (the migration's header is the runbook):
+- It is ONE BATCH and ONE TRANSACTION: no psql meta-command, nothing read
+  from a NOTICE. Its last statement returns one jsonb row, `applied` — what
+  each table held before and after, every policy dropped or created, tables
+  skipped, views named, `changed_anything`, `verified`. On any error nothing
+  is applied. (`applied.applied` null with a `note` = the client did not run
+  the file as one batch on one connection; the row cannot see the result —
+  run the pre-flight report.)
+- It waits for no one: `lock_timeout` 5 s ("canceling statement due to lock
+  timeout" = nothing applied, run it again), and a run that changes nothing
+  takes no lock.
+- It checks itself and says what to do: a listed table owned by another role
+  stops it with the owner named; a grant it cannot revoke is named with the
+  statement that removes it (a grant by another role, a column-level grant by
+  another role and a privilege inherited through a membership are three
+  different statements — the owner's plain `revoke … from authenticated`
+  answers REVOKE and removes nothing in all three).
+- A client that sends one prepared statement at a time (`supabase db query
+  --local`) refuses a multi-statement file; the `do $lockdown$ … $lockdown$;`
+  block alone is the single-statement fallback.
+
+**The files beside it — all read-only** (run in this order: report → audit →
+read both → migration → Dashboard "Reload schema cache" (§14) → report again →
+audit again → probe):
+- `…_preflight_report.sql` — ONE statement, one jsonb row `report`, with a
+  computed `verdict`: `hole_open` / `stopgap_in_place` / `fully_locked`. Run
+  again after the migration it is the post-check: `fully_locked` must be true.
+- `…_audit_report.sql` — ONE statement, one jsonb row `audit`: the rows whose
+  entitlement has no payment visible behind them, and the rows whose Stripe id
+  is in no recorded Stripe event. A list for a person, not a verdict; no
+  email, no Stripe id value; does not need `founding_members` or
+  `billing_events`. Its `row_fingerprints` — per listed table
+  `"<rows>:<md5 over every row's whole content>"`, `"absent"` where the table
+  does not exist — is THE FENCE as production can read it: the same string
+  before and after the migration = no row of that table was changed, added or
+  removed in between. A string that differs is somebody else's write (a
+  signup, a webhook, an upload) — the migration holds none.
+- `…_preflight.sql` — the same questions as grids, SELECTs only, for a person
+  in Studio or psql.
+- `…_probe.js` — the browser-console probe; must print `CLOSED`.
 
 > **⚠ Re-run the lockdown file after `supabase/schema.sql` from a checkout
 > older than 2026-10-03, after any logical restore, and in every fresh
@@ -3866,43 +3899,117 @@ and a browser-console probe that must print `CLOSED`.
 
 **A view is not closed by a revoke on its table**, and the migration changes
 no view: a plain view runs with its owner's rights and gets ALL for `anon` /
-`authenticated` by default. The migration names every view over a listed
-table (a WARNING for one that can be written through). `founder_cohort_public`
-— read by the pricing page with the anon key and by `POST /api/checkout/start`
-— is created by NO file in this repository; pre-flight (d) says how to read
-its row before applying.
+`authenticated` by default. The migration and the report name every view that
+reads a listed table DIRECTLY OR THROUGH ANOTHER VIEW and that an API role may
+use, and say which can be written through (a view over a view over
+`subscriptions` let a signed-in user update every row — measured).
+`founder_cohort_public` — read by the pricing page with the anon key — is
+created by NO file in this repository; the runbook says how to read its row.
 
-**Gates** (plant log: `docs/engine_book/gates.md`):
-- `subscriptions-write-lockdown` — `scripts/check_subscriptions_write_lockdown.sh`,
-  on the LOCAL Supabase stack through real PostgREST with a real GoTrue
-  session, from four starting states; the attack is first shown to SUCCEED
-  (through the REST API and through the GraphQL endpoint), then every write
-  refused with the row byte-identical, the reads, the service role's writes,
-  the signup row, the reserve / commit RPCs, the sibling tables, the catalog
-  laws. 281 cases without `schema_phase_owner_plan.sql` (13 skipped — printed,
-  never a pass), 298 with it. VACUOUS when no local stack runs; refuses a
-  non-loopback host. `--before <state>` / `--after <state>` print the attack
-  table.
-- `entitlement-write-laws` — `tests/engine/test_entitlement_write_laws.py`: no
-  browser or edge-function writer of a listed table, no committed SQL that
-  re-opens one, the runbook's lists equal THE LIST, no user-JWT engine client
-  on one.
+**Gates** (plant log: `docs/engine_book/gates.md`, at the end):
+- `subscriptions-write-lockdown` — `scripts/check_subscriptions_write_lockdown.sh`
+  on a LOCAL Supabase stack, through real PostgREST and GraphQL with a real
+  GoTrue session, from four starting states — (b) is the owner's stopgap on a
+  database built from the old files (the three own-row SELECT policies still
+  `to public`, SELECT and MAINTAIN left on `subscriptions`, the default ALL on
+  the meters): the shape a production database holds once the stopgap was
+  run. Every application of the migration is bracketed by a fingerprint of
+  every row of every listed table (the fence), and the audit's
+  `row_fingerprints` is held to the same sum. IT ADDRESSES NO STACK BY DEFAULT
+  (it creates users and re-opens the hole to prove it sees one): set
+  `SUBS_LOCKDOWN_DB_URL` and `SUBS_LOCKDOWN_API_URL` to an isolated local
+  stack, or it is VACUOUS. `--before <state>` / `--after <state>` print the
+  attack table.
+- `entitlement-write-laws` — `tests/engine/test_entitlement_write_laws.py`:
+  the source half — no browser or edge-function writer, no committed SQL that
+  re-opens a table, the migration one batch that changes no row and no
+  table's shape (the fence, read in its text and in the strings it executes),
+  the report files one read-only statement each (a query handed to
+  `query_to_xml` must be a literal or `format()` of one), the probe in a
+  mocked browser, the gate's own default.
+  Two of its laws over-reach on purpose and were narrowed where they would
+  have red another lane's honest files (measured by merging this branch
+  read-only with main and each sibling lane and running the laws there): the
+  "names a listed table in quotes and also writes" law is not asked of TEST
+  files — the two exact laws (a `.from("<table>")` write chain, a
+  `/rest/v1/<table>` path) still are — and the `execute` law reads the
+  keyword, not the word inside a string literal.
 
-**Unknown, and the owner's to read:** whether production carried the two
-policies and whether the hole was used (pre-flight and audit), what
-`founder_cohort_public` is there, and production's Postgres major version
-(the file was run on 17.6 only; its MAINTAIN statements are version-guarded).
+> **On the local Postgres image (supabase/postgres 17.6.1.106)
+> `grant <role> to current_user` segfaults the backend** and the whole cluster
+> restarts — as does a `permission denied for function` inside a `set role`
+> session (§ owner-plan-sql). Name the role.
 
-**Found, not fixed here** (`gates.md`, same section): the workspace cap is
-passable WITHOUT touching `subscriptions` — a member may PATCH
-`organizations.archived_at`, and `archive_workspace` → `create_workspace` →
-`restore_workspace` does it through the product's own RPCs
-(`restore_workspace` never re-checks the cap); `get_plan_state` reads `tier`,
-else `plan`, and never `status` — the signup row this repository seeds
-(`tier` NULL, `plan` 'professional') resolves to the Multi allowance in the
-engine; `feat/owner-plan`'s `owner-plan-sql` case F4 needs
-`specs-durable/owner_plan_sql_after_lockdown.patch` once the lockdown is under
-it.
+**In production** each file is sent whole with `supabase db query --linked -f
+<file>` (the Management API runs it as `postgres` and returns the LAST
+statement's rows as JSON: the one row's one column is `report`, `applied` or
+`audit`. The CLI prints a bare array of rows to a person and wraps it in an
+envelope — `{warning, boundary, rows, advisory}` — when an agent runs it;
+`jq '(if type == "array" then . else .rows end)[0]'` reads both, measured on
+the local stack with `--agent=no`, `--agent=yes` and neither). The gate cannot
+run there — it creates accounts and re-opens the hole. What proves "0 of 35" there: the post-check report's
+`verdict.fully_locked: true` (the catalog state the gate shows refusing every
+attack), anonymous `GET` / `POST /rest/v1/subscriptions` answering 401, and the
+signed-in console probe printing `CLOSED`. What proves that no customer row
+was touched there: `audit.row_fingerprints.subscriptions`, the same string in
+the audit run before the migration and in the one run after it. The "Reload schema cache" click
+(§14) is discipline here, not what closes the door: a revoke and a dropped
+policy are enforced by Postgres on the next statement — measured with no
+NOTIFY sent — so the anonymous 401 is the evidence where the Dashboard cannot
+be reached.
+
+**What only the two reports, run there, can say:** whether the hole was used,
+who owns the tables, what views and hand-made functions exist, and the
+Postgres major version (the files were run on 17.6 only; the MAINTAIN
+statements are version-guarded). The coordinator read production with both,
+read-only, on 2026-10-04 (the audit in its text before `row_fingerprints`);
+what they answered is in that run's log, not in this repository. The ops log
+of 2026-10-03 records the old `schema.sql`'s three policies and then the
+owner's three-statement stopgap — the gate's state (b), built to be exactly
+that catalog. The four-statement migration has not yet been sent through
+`supabase db query --linked` by anyone: on the local stack the same batch
+went through psql and through pg-meta's `/query` (one batch, one
+transaction, the row `applied` last).
+
+**Found, not fixed here** — a free user still gets paid entitlements by
+routes this migration does not touch (`gates.md`, same section, with the
+measurements). "Closed on another branch" = the change and its gate are
+committed THERE, not here; a SQL file closes nothing until it is applied:
+- **the workspace cap, three ways**: a member PATCHes
+  `organizations.archived_at`; `archive_workspace` → `create_workspace` →
+  `restore_workspace` (restore never re-checks the cap); `create_firm` →
+  `import_firm_client` × n → `detach_workspace_from_firm` (neither function
+  reads a plan). The first two are closed on `fix/entitlement-holes`
+  (`schema_phase_workspace_cap_guard.sql`); **the firm path is open** — the
+  owner's ruling;
+- **the Multi allowance by default**: `get_plan_state` reads `tier`, else
+  `plan`, never `status` — the signup row this repository seeds (`tier` NULL,
+  `plan` 'professional') resolves to Multi in the engine. Closed for NEW
+  signups on `fix/entitlement-holes` (`schema_phase_signup_tier_trial.sql`);
+  **open** for the rows that already hold `tier` NULL and in
+  `get_plan_state`'s fall-back to `plan`;
+- **the chat cap is skipped with no bearer**: `supabase/functions/chat-llm`
+  reserves only `if (userId)`, and is deployed `--no-verify-jwt` (read).
+  Closed on `fix/chat-cap-always` — once the function is redeployed;
+- **`upsert_dashboard_config`** is SECURITY DEFINER, executable by `anon`, and
+  trusts its `p_user_id` argument (measured: anon overwrote another user's
+  row). Closed on `fix/entitlement-holes`
+  (`schema_phase_dashboard_config_caller.sql`);
+- **twelve public-market tables with row level security off**: anyone with
+  the anon key writes the storefront's market data. Closed on
+  `fix/entitlement-holes` (`schema_phase_public_tables_write_revoke.sql`);
+- **open everywhere**: delete-your-account-and-sign-up-again restarts the
+  trial and the meters; `documents.metered_extra` / `nonro_*` billing stamps
+  sit on a browser-writable table;
+- the document reservation routes
+  (`POST /api/plan/release-document-reservation`, `…/commit-document-usage`)
+  took any user's bearer. Closed on `fix/plan-meter-routes` (62710096, gate
+  `plan-meter-routes`).
+
+When `schema_phase_workspace_cap_guard.sql` is applied to the stack the
+lockdown gate runs on, its trigger function `_organizations_guard_write` must
+be read and added to `TRIGGER_FUNCTIONS_ALLOWED` in the gate (L3c is a census:
+a new trigger function on a table an API role can write reds until it is).
 
 ---
 
