@@ -162,6 +162,7 @@ const { pickPLBuilder } = await import("@/lib/buildPlStatement");
 const { buildBSStatement } = await import("@/lib/buildBsStatement");
 const { buildCashFlowStatement } = await import("@/lib/buildCashFlowStatement");
 const { altmanRatio, computeRatios } = await import("@/lib/financialReport");
+const { buildBandMovements } = await import("@/lib/executiveSummary");
 const { computeCreditScore } = await import("@/lib/financialValuation");
 const { ComparativesViewProvider, useComparativesView, readComparativesView } = await import(
   "@/stores/comparativesView"
@@ -1849,6 +1850,39 @@ describe("S5 a comparison period that closes LATER reads backwards — and is sa
     // Whatever the reason, the lists are the served ones — empty here.
     expect(view("some_reason_of_tomorrow").improved).toEqual([]);
     statesChecked += 6;
+  });
+
+  it("the exports' band lists do not say \"no ratio moved\" over a withheld direction — they say no direction is given", () => {
+    // The report and the workbook print the served lists in sentences of
+    // their own (lib/executiveSummary.ts). Empty by the engine's hand is not
+    // "nothing moved": the crossings are listed as not comparable, with the
+    // reason.
+    const bands = (p: Pair) =>
+      buildBandMovements({ ...p.current_body.statements, comparatives: p.comparatives } as never, null, null);
+    const back = bands(later());
+    expect(back.available).toBe(true);
+    expect(back.improved).toEqual([]);
+    expect(back.deteriorated).toEqual([]);
+    for (const sentence of [back.improvedAbsence, back.deterioratedAbsence]) {
+      expect(sentence).toBe("no ratio is listed: Dec 2025 closes after Dec 2024, so no direction is given to a change");
+      expect(sentence).not.toMatch(/no ratio moved/);
+    }
+    const fwd = forward().comparatives.ratios!.band_movements;
+    expect(back.notComparable.filter((n) => /No direction given/.test(n.reason)).length).toBe(
+      fwd.improved.length + fwd.deteriorated.length,
+    );
+    // An order that could not be read has its own words.
+    const unknown = later();
+    unknown.comparatives.ratios!.band_movements.verdicts_withheld = "period_order_unknown";
+    expect(bands(unknown).improvedAbsence).toBe(
+      "no ratio is listed: the order of Dec 2025 and Dec 2024 could not be read, so no direction is given to a change",
+    );
+    // Forwards, an empty list still means what it says.
+    const quiet = forward();
+    quiet.comparatives.ratios!.band_movements.improved = [];
+    expect(bands(quiet).improvedAbsence).toBe("no ratio moved up a band between Dec 2024 and Dec 2025");
+    expect(bands(forward()).improvedAbsence).toBeNull();
+    statesChecked += 5;
   });
 
   it("a document that lists verdicts under a later comparison period is not believed", () => {

@@ -271,9 +271,12 @@ def _share_rows(body: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return dict((r["key"], r) for r in block.get("rows") or [])
 
 
-#: The statement lines whose share of turnover is a margin (a result over
-#: turnover) — the registry's own declaration (`LineSpec.margin`).
-MARGIN_LINE_KEYS = tuple(spec.key for spec in LINE_SPECS if spec.margin)
+#: The statement lines whose share of turnover is a margin — every RESULT
+#: over turnover, and nothing else. WRITTEN HERE, not read off the registry:
+#: read off it, the sweep below agreed with a registry that declared a COST
+#: line a margin (plant MM1 left the gate green until this list was its own).
+MARGIN_LINE_KEYS = ("pl.gross_profit", "pl.ebitda", "pl.ebit", "pl.pretax",
+                    "pl.net_income_operational", "pl.net_income")
 
 
 def _paths_that_differ(a: Any, b: Any, path: str = "$") -> List[str]:
@@ -337,6 +340,10 @@ def sweep_failures(active: Dict[str, Dict[str, Any]],
         moved_keys = sorted(k for k in rows_a if rows_a[k] != rows_n[k])
         if moved_keys != sorted(MARGIN_KEYS):
             failures.append("%s: the rows that moved are %s, not the five margins" % (book, moved_keys))
+        declared = sorted(spec.key for spec in LINE_SPECS if spec.margin)
+        if declared != sorted(MARGIN_LINE_KEYS):
+            failures.append("%s: the registry declares %s as margins, not the result lines %s"
+                            % (book, declared, sorted(MARGIN_LINE_KEYS)))
         shares_a, shares_n = _share_rows(a), _share_rows(n)
         moved_lines = sorted(k for k in shares_a if shares_a[k] != shares_n.get(k))
         if moved_lines != sorted(MARGIN_LINE_KEYS):
