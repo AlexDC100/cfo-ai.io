@@ -1,79 +1,76 @@
 -- ═══════════════════════════════════════════════════════════════════════
--- schema_phase_derived_tables_write_revoke.sql — what the ENGINE computes is
--- written by the engine: a browser session loses the write privileges on the
--- six tables that hold a period's derived figures.
+-- schema_phase_calibration_queue_write_revoke.sql — the operator's
+-- calibration review queue is written by the engine: a browser session loses
+-- the WRITE privileges on public.calibration_rules.
 -- ═══════════════════════════════════════════════════════════════════════
 --
--- THIS IS NOT ONE OF THE FOUR HOLES THE REVIEW MEASURED — it is the rest of
+-- THIS IS NOT ONE OF THE FOUR HOLES THE REVIEW MEASURED — it is one table of
 -- the same census (every public table where anon or authenticated holds a
 -- write privilege and a policy admits the write, and NO user-JWT path writes
--- it). Apply it on the owner's or the coordinator's decision; the other
--- files do not depend on it.
+-- it). It is a file of its own because it is open where the twelve
+-- public-market tables do not even exist: apply it on the owner's or the
+-- coordinator's decision; no other file depends on it.
 --
--- WHAT IS OPEN. Each of these tables has row level security and "member"
--- write policies (insert / update / delete where is_member_of(org_id), or
--- through the period's organization). The policies ARE scoped — no user
--- reaches another organization's rows (measured, table by table). But a
--- member can write their OWN organization's rows directly through the REST
--- API:
+-- WHAT IS OPEN (measured 2026-10-03 on a database built from this
+-- repository). calibration_rules has row level security and ONE write
+-- policy (supabase/schema_phase_f3_calibration.sql):
 --
---   statement_line_items        the trial-balance lines every statement,
---                               ratio and credit figure is assembled from
---   calculated_metrics          the stored metrics (the benchmark reads them)
---   briefings                   the narrated briefing
---   benchmark_reports           the Section 9 industry report
---   sku_analyses                the SKU analysis
---   org_coa_mappings_overrides  the account → bucket overrides a re-analysis
---                               applies
+--   "calibration_rules member write"  for insert  with check (
+--        (org_id is null or is_member_of(org_id))
+--    and status = 'pending' and source in ('review_mode', 'admin'))
 --
--- i.e. a signed-in member can make the product serve — and export as the
--- "bank report" — figures the engine never computed.
+-- `org_id is null` is a GLOBAL rule — one that applies to every company. So
+-- any signed-in user, with their own JWT and the default grants, inserts a
+-- pending GLOBAL account → bucket rule into the queue the operator approves
+-- from. (The anon key is stopped only by accident: the policy calls
+-- is_member_of, which anon may not execute.) Nothing is applied until the
+-- operator approves it — the hole is who may fill the operator's queue, for
+-- every company, not an entitlement.
 --
--- WHO WRITES THEM LEGITIMATELY. The engine, with the SERVICE ROLE, after it
--- has verified the caller (src/engine/api/pipeline.py, _benchmarks.py,
--- _industry_intelligence.py, _period_move.py — every write site is an
--- `admin()` client). No browser file, no edge function, no mobile file and
--- no `_supabase.per_user(jwt)` block writes one
--- (tests/engine/test_entitlement_hole_laws.py holds that, and reds the day
--- a user-JWT writer of one appears).
--- WHO READS THEM with a user's JWT: the engine's `per_user(jwt)` reads
--- (statement_line_items, calculated_metrics, sku_analyses, briefings) — the
--- member SELECT policies are what scope those reads. SELECT is left EXACTLY
--- as found.
+-- WHO WRITES IT LEGITIMATELY. The engine, with the SERVICE ROLE, after it
+-- has verified the caller: src/engine/api/pipeline.py — the review route's
+-- proposal insert and the operator's approve / reject updates, every one an
+-- `admin()` client. No browser file, no edge function, no mobile file and no
+-- `_supabase.per_user(jwt)` block names the table
+-- (tests/engine/test_entitlement_hole_laws.py holds that, and reds the day a
+-- user-JWT writer appears).
+-- WHO READS IT with a user's JWT: nobody directly today; the member SELECT
+-- policy is left EXACTLY as found.
 --
 -- WHAT THIS FILE DOES — restrict only, nothing deleted, no row touched: on
--- each listed table that exists, INSERT, UPDATE, DELETE and TRUNCATE are
--- revoked from anon and authenticated (and from PUBLIC where a grant to
--- PUBLIC is what gives them the privilege). No policy is created or dropped
--- — without the privilege none of the write policies admits anything — and
+-- public.calibration_rules, where it exists, INSERT, UPDATE, DELETE and
+-- TRUNCATE are revoked from anon and authenticated (and from PUBLIC where a
+-- grant to PUBLIC is what gives them the privilege). No policy is created or
+-- dropped — without the privilege the write policy admits nothing — and
 -- SELECT / REFERENCES / TRIGGER are not touched; the service role keeps
 -- everything.
 --
--- THE RISK, stated: a user-JWT writer of one of these tables that the census
--- did not find would answer 403 after this file. The census read every
--- `.from("<table>")` chain in frontend/, mobile/ and supabase/functions/
--- (and the one dynamic table list), and every per_user(jwt) block in
--- src/engine with the helpers the client is passed to.
---
 -- ── HOW IT IS APPLIED ────────────────────────────────────────────────────
 --   0. PREFLIGHT (read-only, one row):
---        supabase/preflight/schema_phase_derived_tables_write_revoke_preflight_report.sql
+--        supabase/preflight/schema_phase_calibration_queue_write_revoke_preflight_report.sql
 --      Apply this file only where it answers  "hole_open": true.
 --   1. Run this file as one batch (`supabase db query --linked -f <file>`,
 --      or pasted whole into the SQL editor). One DO block: everything or — on
 --      any error, a lock timeout included (5 s) — nothing. Its LAST statement
---      returns one jsonb row: per table, what was revoked from whom; the
---      tables that do not exist here; anything it could not close.
+--      returns one jsonb row: what was revoked from whom; whether the table
+--      exists here; anything it could not close.
 --   2. Dashboard → Settings → API → "Reload schema cache" (CLAUDE.md §14).
---   3. POST-CHECK: the preflight report again — "hole_open": false; then one
---      upload analysed end to end (the engine still writes every table).
--- Idempotent: a second run changes nothing and says so. A table that is
--- absent is skipped and named.
+--   3. POST-CHECK: the preflight report again — "hole_open": false.
+-- Idempotent: a second run changes nothing and says so. Where the table is
+-- absent it is skipped and named, and "skipped" says there was nothing to do.
+-- A privilege granted by a role the one running this file cannot act for is
+-- NOT removed by its revoke (Postgres answers a warning, not an error): the
+-- result names it under "not_closed" and the report keeps saying
+-- "hole_open": true.
 --
--- ROLLBACK, per table (re-opens it):
---   grant insert, update, delete on public.<table> to authenticated;
+-- ⚠ A NEW ENVIRONMENT: the table is created with the default grants again.
+--   Run this file after supabase/schema_phase_f3_calibration.sql.
+--   (Re-running THAT file on a database that has the table re-grants nothing.)
 --
--- Gate: scripts/check_hole_derived_tables.sh (hole-derived-tables);
+-- ROLLBACK (re-opens it):
+--   grant insert, update, delete, truncate on public.calibration_rules to anon, authenticated;
+--
+-- Gate: scripts/check_hole_calibration_queue.sh (hole-calibration-queue);
 -- static laws: tests/engine/test_entitlement_hole_laws.py.
 -- ═══════════════════════════════════════════════════════════════════════
 
@@ -82,14 +79,9 @@ declare
   -- THE LIST. One place: the gate, the static laws and the preflight report
   -- are held to it (tests/engine/test_entitlement_hole_laws.py).
   v_tables constant text[] := array[
-    -- DERIVED-TABLES-BEGIN
-    'benchmark_reports',
-    'briefings',
-    'calculated_metrics',
-    'org_coa_mappings_overrides',
-    'sku_analyses',
-    'statement_line_items'
-    -- DERIVED-TABLES-END
+    -- CALIBRATION-QUEUE-BEGIN
+    'calibration_rules'
+    -- CALIBRATION-QUEUE-END
   ];
   v_t        text;
   v_rel      regclass;
@@ -158,19 +150,19 @@ begin
   end loop;
 
   if jsonb_array_length(v_absent) = cardinality(v_tables) then
-    v_skipped := v_skipped || to_jsonb(format('none of the %s listed tables exists in this database — nothing to do', cardinality(v_tables)));
+    v_skipped := v_skipped || to_jsonb('public.calibration_rules does not exist in this database — nothing to do'::text);
   end if;
 
   notify pgrst, 'reload schema';
 
   perform set_config('cfo_holes.result', jsonb_build_object(
-    'migration', 'schema_phase_derived_tables_write_revoke.sql',
+    'migration', 'schema_phase_calibration_queue_write_revoke.sql',
     'revoked', v_revoked,
     'changed_count', v_count,
     'tables_absent_here', v_absent,
     'skipped', v_skipped,
     'not_closed', v_left,
-    'left_as_found', 'SELECT, REFERENCES, TRIGGER; row level security; every policy; the service role; every table not on the list',
+    'left_as_found', 'SELECT, REFERENCES, TRIGGER; row level security; every policy; the service role; every other table',
     'next', 'Reload the schema cache (Dashboard → Settings → API), then run the preflight report again: "hole_open" must be false.'
   )::text, false);
 end

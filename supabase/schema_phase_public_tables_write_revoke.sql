@@ -1,8 +1,8 @@
 -- ═══════════════════════════════════════════════════════════════════════
 -- schema_phase_public_tables_write_revoke.sql — the anon key (and a signed-in
 -- session) lose the WRITE privileges on the tables only the engine's service
--- role writes and nothing scopes: the public-market / intelligence tables,
--- and the calibration review queue.
+-- role writes and nothing scopes: the twelve public-market / intelligence
+-- tables that were created without row level security.
 -- ═══════════════════════════════════════════════════════════════════════
 --
 -- THE HOLE (measured 2026-10-03, review of the subscriptions lockdown; the
@@ -11,24 +11,18 @@
 -- authenticated — ALL privileges. Row level security is what stands between
 -- that grant and the internet, and
 --
---   · TWELVE tables were created WITHOUT row level security
---     (schema_phase_nasdaq_public_companies.sql,
---     schema_phase_intelligence_engine.sql): with the anon key alone, an
---     INSERT, an UPDATE or a DELETE of any row lands. No entitlement is in
---     them; what the product SHOWS about a listed company is.
---   · calibration_rules has row level security and one INSERT policy that
---     admits a row with org_id NULL — a GLOBAL rule — from any signed-in
---     user (status 'pending'): anyone can put a rule into the operator's
---     approval queue for every company (schema_phase_f3_calibration.sql).
+-- TWELVE tables were created WITHOUT row level security
+-- (schema_phase_nasdaq_public_companies.sql,
+-- schema_phase_intelligence_engine.sql): with the anon key alone, an INSERT,
+-- an UPDATE or a DELETE of any row lands. No entitlement is in them; what the
+-- product SHOWS about a listed company is.
 --
 -- WHO WRITES THEM LEGITIMATELY. The engine and the operator's seed scripts,
 -- with the SERVICE ROLE, and nothing else: src/engine/public/intelligence/
 -- filings_cache.py (`admin()`), scripts/seed_bvb_companies.py
--- (SUPABASE_SERVICE_ROLE_KEY), src/engine/api/pipeline.py's review routes
--- (`_supabase.admin()` — three write sites on calibration_rules). No browser
--- file, no edge function, no mobile file and no `_supabase.per_user(jwt)`
--- block in the engine names one of these tables
--- (tests/engine/test_entitlement_hole_laws.py holds that).
+-- (SUPABASE_SERVICE_ROLE_KEY). No browser file, no edge function, no mobile
+-- file and no `_supabase.per_user(jwt)` block in the engine names one of
+-- these tables (tests/engine/test_entitlement_hole_laws.py holds that).
 -- WHO READS THEM with the anon key or a user's JWT: nobody directly — the
 -- browser reads public-company data through the engine's API (the one
 -- direct anon read in the frontend is the founder_cohort_public view, which
@@ -50,6 +44,10 @@
 --     benchmark reports, SKU analyses, COA overrides) — a member can write
 --     their OWN organization's rows there; that is
 --     schema_phase_derived_tables_write_revoke.sql, a separate decision;
+--   · calibration_rules (the operator's review queue: row level security is
+--     ON there, and its INSERT policy admits a global rule from any signed-in
+--     user) — schema_phase_calibration_queue_write_revoke.sql, a file of its
+--     own, because that table exists where these twelve do not;
 --   · dashboard_configs — schema_phase_dashboard_config_caller.sql;
 --   · subscriptions and the meters — the subscriptions write lockdown;
 --   · any table this repository does not define (production holds some):
@@ -68,7 +66,9 @@
 --   2. Dashboard → Settings → API → "Reload schema cache" (CLAUDE.md §14).
 --   3. POST-CHECK: the preflight report again — "hole_open": false.
 -- Idempotent: a second run changes nothing and says so. A table that is
--- absent is skipped and named. A privilege granted by a role the one running
+-- absent is skipped and named; where NONE of the twelve exists (production,
+-- as read 2026-10-04) the file changes nothing and "skipped" says there was
+-- nothing to do. A privilege granted by a role the one running
 -- this file cannot act for (a table another role owns, a grantor with the
 -- grant option) is NOT removed by its revoke — Postgres answers a warning,
 -- not an error. The result then names it under "not_closed" with the table's
@@ -79,8 +79,8 @@
 -- "this_role_can_revoke" BEFORE anything is applied.
 --
 -- ⚠ A NEW ENVIRONMENT: the tables are created with the default grants again.
---   Run this file after schema_phase_nasdaq_public_companies.sql,
---   schema_phase_intelligence_engine.sql and schema_phase_f3_calibration.sql.
+--   Run this file after schema_phase_nasdaq_public_companies.sql and
+--   schema_phase_intelligence_engine.sql.
 --   (Re-running THOSE on a database that has the tables re-grants nothing.)
 --
 -- ROLLBACK (re-opens the hole), per table:
@@ -107,11 +107,8 @@ declare
     'public_company_quotes',
     'public_company_risk_scores',
     'risk_interpretations',
-    'sector_risk_models',
+    'sector_risk_models'
     -- PUBLIC-TABLES-RLS-OFF-END
-    -- PUBLIC-TABLES-UNSCOPED-POLICY-BEGIN
-    'calibration_rules'
-    -- PUBLIC-TABLES-UNSCOPED-POLICY-END
   ];
   v_t        text;
   v_rel      regclass;
@@ -178,6 +175,10 @@ begin
       v_revoked := v_revoked || jsonb_build_object(v_t, v_here);
     end if;
   end loop;
+
+  if jsonb_array_length(v_absent) = cardinality(v_tables) then
+    v_skipped := v_skipped || to_jsonb(format('none of the %s listed tables exists in this database — nothing to do', cardinality(v_tables)));
+  end if;
 
   notify pgrst, 'reload schema';
 

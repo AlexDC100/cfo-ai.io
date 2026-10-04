@@ -16,7 +16,9 @@
 --                     revoke changes nothing there and says so under
 --                     "not_closed"), row level security, the write privileges
 --                     the API roles hold, its write policies, and "open".
---   hole_open         some LISTED table is open.
+--   hole_open         some LISTED table is open. Where NONE of the twelve
+--                     exists (production, as read 2026-10-04) it is false and
+--                     "listed_existing_count" is 0: nothing to do.
 --   other_open_tables THE REST OF THE CENSUS — every other open table in
 --                     schema public, each with what this repository knows
 --                     about it:
@@ -54,12 +56,12 @@ with listed(name, block) as (values
     ('public_company_quotes',             'row level security off'),
     ('public_company_risk_scores',        'row level security off'),
     ('risk_interpretations',              'row level security off'),
-    ('sector_risk_models',                'row level security off'),
-    ('calibration_rules',                 'a policy admits a global row from any signed-in user')
+    ('sector_risk_models',                'row level security off')
 ),
 known(name, what) as (values
     -- closed by another file
     ('dashboard_configs',           'closed by schema_phase_dashboard_config_caller.sql'),
+    ('calibration_rules',           'closed by schema_phase_calibration_queue_write_revoke.sql'),
     ('subscriptions',               'closed by the subscriptions write lockdown'),
     ('user_usage',                  'closed by the subscriptions write lockdown'),
     ('plan_chat_daily_usage',       'closed by the subscriptions write lockdown'),
@@ -129,6 +131,7 @@ select jsonb_build_object(
   'migration', 'supabase/schema_phase_public_tables_write_revoke.sql',
   'hole_open', exists (select 1 from open_tables o join listed l on l.name = o.name),
   'listed_open_count', (select count(*) from open_tables o join listed l on l.name = o.name),
+  'listed_existing_count', (select count(*) from census c join listed l on l.name = c.name),
   'listed_this_role_cannot_revoke', (select coalesce(jsonb_agg(o.name order by o.name), '[]'::jsonb)
                                        from open_tables o join listed l on l.name = o.name where not o.revocable),
   'listed', (select jsonb_agg(jsonb_build_object(

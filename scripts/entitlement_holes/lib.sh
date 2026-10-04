@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # ENTITLEMENT-HOLE GATES — shared library (sourced by scripts/check_hole_*.sh).
 #
-# What the four gates have in common:
+# What the six gates have in common:
 #
 #   · LOCAL ONLY, AND NEVER BY DEFAULT. The database is
 #     ENTITLEMENT_HOLES_DB_URL and there is NO default: unset, the gate
@@ -71,6 +71,7 @@ HOLES_UNDER_TEST=(
   schema_phase_workspace_cap_guard.sql
   schema_phase_dashboard_config_caller.sql
   schema_phase_public_tables_write_revoke.sql
+  schema_phase_calibration_queue_write_revoke.sql
   schema_phase_derived_tables_write_revoke.sql
   schema_phase_signup_tier_trial.sql
 )

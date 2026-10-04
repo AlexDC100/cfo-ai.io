@@ -1,8 +1,8 @@
-"""ENTITLEMENT-HOLE LAWS — the source half of five restrict-only migrations.
+"""ENTITLEMENT-HOLE LAWS — the source half of six restrict-only migrations.
 
 An adversarial review of the subscriptions lockdown (2026-10-03) measured
-four more holes beside it, and the census behind the third found a fifth
-class. Each is closed by ONE migration that only removes or restricts
+four more holes beside it, and the census behind the third found two more
+classes. Each is closed by ONE migration that only removes or restricts
 access, read before and after by ONE read-only report:
 
   H1  supabase/schema_phase_workspace_cap_guard.sql
@@ -14,7 +14,13 @@ access, read before and after by ONE read-only report:
         key writes nothing;
   H3  supabase/schema_phase_public_tables_write_revoke.sql
         the anon key (and a signed-in session) lose the write privileges on
-        the public-market / intelligence tables and the calibration queue;
+        the twelve public-market / intelligence tables created without row
+        level security;
+  H3c supabase/schema_phase_calibration_queue_write_revoke.sql
+        the same revoke on the operator's calibration review queue, whose
+        INSERT policy admits a GLOBAL rule from any signed-in user (not one
+        of the four measured holes; a file of its own because the table
+        exists where the twelve do not — applied on its own decision);
   H3b supabase/schema_phase_derived_tables_write_revoke.sql
         the same revoke on the six tables that hold what the ENGINE computes
         (not one of the four measured holes — the rest of the same census,
@@ -85,6 +91,7 @@ HOLES = [
     ("H1", "schema_phase_workspace_cap_guard", "check_hole_workspace_cap.sh", "hole-workspace-cap"),
     ("H2", "schema_phase_dashboard_config_caller", "check_hole_dashboard_config.sh", "hole-dashboard-config"),
     ("H3", "schema_phase_public_tables_write_revoke", "check_hole_public_tables.sh", "hole-public-tables"),
+    ("H3c", "schema_phase_calibration_queue_write_revoke", "check_hole_calibration_queue.sh", "hole-calibration-queue"),
     ("H3b", "schema_phase_derived_tables_write_revoke", "check_hole_derived_tables.sh", "hole-derived-tables"),
     ("H4", "schema_phase_signup_tier_trial", "check_hole_signup_tier.sh", "hole-signup-tier"),
 ]
@@ -222,7 +229,7 @@ def tables_between(path: Path, marker: str) -> list[str]:
 
 
 RLS_OFF = tables_between(migration("schema_phase_public_tables_write_revoke"), "PUBLIC-TABLES-RLS-OFF")
-UNSCOPED = tables_between(migration("schema_phase_public_tables_write_revoke"), "PUBLIC-TABLES-UNSCOPED-POLICY")
+UNSCOPED = tables_between(migration("schema_phase_calibration_queue_write_revoke"), "CALIBRATION-QUEUE")
 DERIVED = tables_between(migration("schema_phase_derived_tables_write_revoke"), "DERIVED-TABLES")
 #: every table a user's JWT loses the write privileges on
 CLOSED_TABLES = RLS_OFF + UNSCOPED + DERIVED + ["dashboard_configs"]
@@ -231,7 +238,7 @@ GUARDED_COLUMNS = ["archived_at", "purge_after", "firm_id", "cui"]
 #: the columns a user's JWT writes today (frontend/lib/org.ts, engine _uploads.py)
 ORG_COLUMNS_A_USER_WRITES = {"name", "industry_key", "industry_display_name", "caen_code"}
 
-#: the five the review measured on a database built from this repository
+#: the twelve the review measured on a database built from this repository
 MEASURED_TWELVE = {
     "company_exposure_profiles", "company_signal_links", "intelligence_signals",
     "macro_signal_cache", "nasdaq_responses", "public_companies",
@@ -245,7 +252,7 @@ MEASURED_TWELVE = {
 # A. THE FILES ARE WHAT THE COORDINATOR'S TOOL NEEDS
 # ═════════════════════════════════════════════════════════════════════════
 
-def test_the_five_pairs_exist_and_the_gate_library_tests_exactly_them():
+def test_the_six_pairs_exist_and_the_gate_library_tests_exactly_them():
     for _hole, stem, gate, _gid in HOLES:
         assert migration(stem).is_file(), "missing supabase/%s.sql" % stem
         assert report(stem).is_file(), "missing its preflight report"
@@ -255,10 +262,11 @@ def test_the_five_pairs_exist_and_the_gate_library_tests_exactly_them():
     block = block[:block.index(")")]
     under_test = set(re.findall(r"(schema_phase_[a-z_0-9]+)\.sql", block))
     assert under_test == set(STEMS), (
-        "scripts/entitlement_holes/lib.sh HOLES_UNDER_TEST is not the five migrations — a file "
+        "scripts/entitlement_holes/lib.sh HOLES_UNDER_TEST is not the six migrations — a file "
         "missing there is applied in the BASE build, and its gate then never sees the hole open: %s"
         % sorted(under_test ^ set(STEMS)))
-    assert len(RLS_OFF) >= 12 and len(DERIVED) >= 6 and UNSCOPED, "the lists were not read from the migrations"
+    assert len(RLS_OFF) >= 12 and len(DERIVED) >= 6 and UNSCOPED == ["calibration_rules"], "the lists were not read from the migrations"
+    assert not set(RLS_OFF) & set(UNSCOPED) and not set(RLS_OFF + UNSCOPED) & set(DERIVED), "a table is on two migrations' lists"
 
 
 def migration_statements(stem: str) -> list[str]:
@@ -344,6 +352,27 @@ def test_each_report_is_one_read_only_statement_returning_one_jsonb_row(stem):
 # ═════════════════════════════════════════════════════════════════════════
 # B. RESTRICT ONLY
 # ═════════════════════════════════════════════════════════════════════════
+
+#: the three files that are one revoke loop over a list of tables
+REVOKE_STEMS = ["schema_phase_public_tables_write_revoke",
+                "schema_phase_calibration_queue_write_revoke",
+                "schema_phase_derived_tables_write_revoke"]
+
+
+@pytest.mark.parametrize("stem", REVOKE_STEMS)
+def test_a_revoke_file_run_where_none_of_its_tables_exists_says_there_was_nothing_to_do(stem):
+    """PRODUCTION DOES NOT HOLD EVERY TABLE (2026-10-04: none of the twelve
+    public-market tables is there). Run there, a revoke file must change
+    nothing AND say so under "skipped" — the coordinator reads the last
+    statement's row, and an empty "revoked" with no word why reads the same as
+    a file that did not run. (The gates measure it: an empty database, and
+    production's shape in scripts/check_hole_calibration_queue.sh.)"""
+    body = mask_nested_bodies(migration_statements(stem)[0])
+    m = re.search(r"(?s)if jsonb_array_length\(v_absent\) = cardinality\(v_tables\) then\s+v_skipped := v_skipped \|\| to_jsonb\((.*?)\);\s+end if;", body)
+    assert m and "nothing to do" in m.group(1), "%s.sql does not say `nothing to do` where every listed table is absent" % stem
+    assert body.find("if jsonb_array_length(v_absent) = cardinality(v_tables) then") < body.find("perform set_config('cfo_holes.result', jsonb_build_object("), \
+        "the nothing-to-do sentence must be written before the result"
+    assert "'skipped', v_skipped" in body and "'tables_absent_here', v_absent" in body
 
 #: statements a migration's own block may not hold (function bodies it
 #: creates are masked: they run when the function is called)
@@ -435,7 +464,7 @@ def test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raise
     and the three files that replace or attach something ask first whether
     this role may — and name it under "skipped" / "not_closed" where it may
     not. (The gates' last block measures it with objects supabase_admin owns.)"""
-    for stem in ("schema_phase_public_tables_write_revoke", "schema_phase_derived_tables_write_revoke"):
+    for stem in REVOKE_STEMS:
         body = mask_nested_bodies(migration_statements(stem)[0])
         m = re.search(r"(?s)execute format\('revoke %s on table public\.%I from %I', v_priv, v_t, v_role\);(.*?)end if;\s*end if;\s*end loop;", body)
         assert m, "%s.sql: the per-role revoke was not found" % stem
@@ -463,6 +492,7 @@ def test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raise
     for stem, key in (("schema_phase_workspace_cap_guard", "this_role_can_install_the_guard"),
                       ("schema_phase_dashboard_config_caller", "this_role_can_replace_it"),
                       ("schema_phase_public_tables_write_revoke", "this_role_can_revoke"),
+                      ("schema_phase_calibration_queue_write_revoke", "this_role_can_revoke"),
                       ("schema_phase_derived_tables_write_revoke", "this_role_can_revoke"),
                       ("schema_phase_signup_tier_trial", "this_role_can_replace_it")):
         assert "'%s'" % key in read(report(stem)), "%s does not say whether this role can change the object (%s)" % (report(stem).name, key)
@@ -604,18 +634,22 @@ def report_values(stem: str, cte: str) -> list[tuple]:
 
 def test_each_report_names_exactly_the_tables_its_migration_lists():
     listed = report_values("schema_phase_public_tables_write_revoke", "listed")
-    assert sorted(n for n, _b in listed) == sorted(RLS_OFF + UNSCOPED), \
+    assert sorted(n for n, _b in listed) == sorted(RLS_OFF), \
         "the public-tables report lists other tables than the migration closes"
-    assert {n for n, b in listed if b == "row level security off"} == set(RLS_OFF)
+    assert {b for _n, b in listed} == {"row level security off"}
+    queue = report_values("schema_phase_calibration_queue_write_revoke", "listed")
+    assert sorted(n for (n,) in queue) == sorted(UNSCOPED), "the calibration-queue report lists other tables than the migration closes"
     assert MEASURED_TWELVE <= set(RLS_OFF), "a table the review measured open is no longer on the list: %s" % sorted(MEASURED_TWELVE - set(RLS_OFF))
     derived = report_values("schema_phase_derived_tables_write_revoke", "listed")
     assert sorted(n for (n,) in derived) == sorted(DERIVED), "the derived-tables report lists other tables than the migration closes"
 
     known = dict(report_values("schema_phase_public_tables_write_revoke", "known"))
-    assert not set(known) & set(RLS_OFF + UNSCOPED), "a table is both on the list and in the census classification"
+    assert not set(known) & set(RLS_OFF), "a table is both on the public-tables list and in its census classification"
     by_file = {n for n, what in known.items() if what == "closed by schema_phase_derived_tables_write_revoke.sql"}
     assert by_file == set(DERIVED), "the census says the derived-tables file closes %s; it closes %s" % (sorted(by_file), sorted(DERIVED))
     assert known.get("dashboard_configs") == "closed by schema_phase_dashboard_config_caller.sql"
+    assert {n for n, what in known.items() if what == "closed by schema_phase_calibration_queue_write_revoke.sql"} == set(UNSCOPED), \
+        "the census must say which file closes calibration_rules (it is open where the twelve are absent)"
     assert known.get("organizations") == "a user's JWT writes it"
 
 
@@ -1028,8 +1062,8 @@ KNOWN_ORIGINALS = {
     "schema_phase_dashboard_config_caller": {"schema_phase_dashboard_config.sql"},
     "schema_phase_signup_tier_trial": {"schema.sql", "schema_phase3.sql"},
     "schema_phase_public_tables_write_revoke": {"schema_phase_nasdaq_public_companies.sql",
-                                                "schema_phase_intelligence_engine.sql",
-                                                "schema_phase_f3_calibration.sql"},
+                                                "schema_phase_intelligence_engine.sql"},
+    "schema_phase_calibration_queue_write_revoke": {"schema_phase_f3_calibration.sql"},
 }
 
 
@@ -1054,10 +1088,12 @@ def test_no_other_committed_sql_reopens_a_hole():
         "the files that seed a signup's subscriptions row are %s — the signup migration's re-run warning names %s"
         % (sorted(seeders), sorted(KNOWN_ORIGINALS["schema_phase_signup_tier_trial"])))
     assert set(creators) == set(RLS_OFF + UNSCOPED), "no committed file creates: %s" % sorted(set(RLS_OFF + UNSCOPED) - set(creators))
-    made_by = set().union(*creators.values())
-    assert made_by == KNOWN_ORIGINALS["schema_phase_public_tables_write_revoke"], (
-        "the listed tables are created by %s; the migration's new-environment warning names %s"
-        % (sorted(made_by), sorted(KNOWN_ORIGINALS["schema_phase_public_tables_write_revoke"])))
+    for stem, tables in (("schema_phase_public_tables_write_revoke", RLS_OFF),
+                         ("schema_phase_calibration_queue_write_revoke", UNSCOPED)):
+        made_by = set().union(*(creators[t] for t in tables))
+        assert made_by == KNOWN_ORIGINALS[stem], (
+            "the tables %s.sql lists are created by %s; its new-environment warning names %s"
+            % (stem, sorted(made_by), sorted(KNOWN_ORIGINALS[stem])))
 
 
 @pytest.mark.parametrize("stem", sorted(KNOWN_ORIGINALS))

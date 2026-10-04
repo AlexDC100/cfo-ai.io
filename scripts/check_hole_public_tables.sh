@@ -3,16 +3,16 @@
 #
 # The hole (measured 2026-10-03): twelve public-market / intelligence tables
 # were created WITHOUT row level security and carry Supabase's default
-# grants — the anon key alone inserts, updates and deletes their rows; and
-# calibration_rules' INSERT policy admits a GLOBAL (org_id NULL) pending rule
-# from any signed-in user.
+# grants — the anon key alone inserts, updates and deletes their rows.
+# (calibration_rules — row level security ON, a policy that admits a global
+# rule — is its own file and its own gate: hole-calibration-queue.)
 #
 # What it proves, one PASS/FAIL line per case, in a scratch database built
 # from this repository's SQL (scripts/entitlement_holes/lib.sh). THE LIST is
 # read from the migration — the one place it is written:
 #   OPEN   the report says "hole_open": true and, on EVERY listed table, the
 #          write LANDS: the anon key inserts a row, updates one and deletes
-#          one (calibration_rules: a signed-in user inserts a global rule);
+#          one;
 #   RUN 1  the migration applies as one batch and says, per table, what it
 #          revoked; the report says "hole_open": false; on every listed
 #          table every write of anon and of a signed-in user is refused and
@@ -22,10 +22,14 @@
 #          level security and the policies are as found;
 #   RUN 2  a second run changes nothing and says so;
 #   AN ABSENT TABLE  is skipped and named (production's schema is not this
-#          repository's);
+#          repository's); with ALL TWELVE absent — production, as read
+#          2026-10-04 — the report says "hole_open": false and the migration
+#          changes nothing and says there was nothing to do (that case is
+#          measured in scripts/check_hole_calibration_queue.sh, where the one
+#          table production does hold is closed beside it);
 #   RE-OPENED BY HAND  `grant all … to anon, authenticated`, a grant to
 #          PUBLIC, a column-level grant — shown OPEN again, then closed;
-#   THE CENSUS  with the three revoke files applied, every table that is
+#   THE CENSUS  with the four revoke files applied, every table that is
 #          still open is one this repository has CLASSIFIED (a user's JWT
 #          writes it, or another file closes it); a table created without
 #          row level security that nobody classified is RED; a hand-made
@@ -65,6 +69,7 @@ MIGRATION="${HOLE_MIGRATION:-$HOLES_SQL_DIR/schema_phase_public_tables_write_rev
 REPO_MIGRATION="$HOLES_SQL_DIR/schema_phase_public_tables_write_revoke.sql"
 REPORT_SQL="${HOLE_REPORT:-$HOLES_SQL_DIR/preflight/schema_phase_public_tables_write_revoke_preflight_report.sql}"
 DERIVED_MIGRATION="$HOLES_SQL_DIR/schema_phase_derived_tables_write_revoke.sql"
+CALIBRATION_MIGRATION="$HOLES_SQL_DIR/schema_phase_calibration_queue_write_revoke.sql"
 DASHBOARD_MIGRATION="$HOLES_SQL_DIR/schema_phase_dashboard_config_caller.sql"
 
 echo "HOLE-PUBLIC-TABLES GATE — $(basename "$MIGRATION")"
@@ -73,8 +78,7 @@ holes_connect
 [ -f "$REPORT_SQL" ] || holes_die "the preflight report does not exist: $REPORT_SQL"
 
 RLS_OFF="$(tables_between "$REPO_MIGRATION" PUBLIC-TABLES-RLS-OFF | tr '\n' ' ')"
-UNSCOPED="$(tables_between "$REPO_MIGRATION" PUBLIC-TABLES-UNSCOPED-POLICY | tr '\n' ' ')"
-ALL_TABLES="$RLS_OFF$UNSCOPED"
+ALL_TABLES="$RLS_OFF"
 set -- $RLS_OFF; N_RLS_OFF=$#
 set -- $ALL_TABLES; N_ALL=$#
 case " $RLS_OFF" in *" public_companies "*) ;; *) echo "FAIL the migration's list names public_companies — read: '$RLS_OFF'"; echo "GATE-WORK $GATE units=0"; exit 1 ;; esac
@@ -100,7 +104,6 @@ row_sql() { # table n → an INSERT statement (no trailing semicolon)
     public_company_risk_scores) echo "insert into public_company_risk_scores (ticker, overall_risk_score, risk_level, categories) values ('GATE$n', 50, 'medium', '{}'::jsonb)" ;;
     risk_interpretations) echo "insert into risk_interpretations (subject, subject_kind, headline, summary, model_id, feed_status) values ('GATE$n', 'ticker', 'h', 's', 'm', 'ok')" ;;
     sector_risk_models) echo "insert into sector_risk_models (sector) values ('gate sector $n')" ;;
-    calibration_rules) echo "insert into calibration_rules (coa_key, account_code, standardized_bucket, status, source) values ((select key from coa_registries order by key limit 1), '9$n', 'revenue', 'pending', 'review_mode')" ;;
     *) return 1 ;;
   esac
 }
@@ -163,13 +166,7 @@ for t in $RLS_OFF; do
   v="$(attempt anon "" "delete from public.$t where ctid = (select max(ctid) from public.$t)")"
   check "O5 OPEN $t: … and DELETES one" "$v|$(rows "$t")" "LANDED|$n0"
 done
-for t in $UNSCOPED; do
-  n0="$(rows "$t")"
-  v="$(attempt authenticated "$USER_A" "$(row_sql "$t" 2)")"
-  check "O6 OPEN $t: any signed-in user INSERTS a GLOBAL (org_id null) pending rule" "$v|$(q "select count(*) from public.$t where org_id is null;")" "LANDED|$((n0 + 1))"
-  v="$(attempt anon "" "$(row_sql "$t" 3)")"
-  check "O6b $t: anon is stopped only by a function it may not execute inside the policy" "$v" "refused: a policy's function is not executable"
-done
+check "O6 calibration_rules is NOT this file's: the report names it in the census, closed by its own file" "$(jsql "$REPORT" "select x ->> 'this_repository_says' from jsonb_array_elements(:'j'::jsonb -> 'other_open_tables') x where x ->> 'table' = 'calibration_rules';")" "closed by schema_phase_calibration_queue_write_revoke.sql"
 ANON_READ_BEFORE=""; USER_READ_BEFORE=""
 for t in $ALL_TABLES; do
   ANON_READ_BEFORE="$ANON_READ_BEFORE $t=$(sql_as anon "" "select count(*) from public.$t;")"
@@ -186,6 +183,7 @@ check "M2 its last statement names the file" "$(jget "$MIG_RESULT" '{migration}'
 check "M3 … revoked something on every listed table" "$(jsql "$MIG_RESULT" "select count(*) from jsonb_object_keys(:'j'::jsonb -> 'revoked');")" "$N_ALL"
 check_has "M4 … anon's INSERT on public_companies among them" "$(jget "$MIG_RESULT" '{revoked,public_companies}')" "anon:INSERT"
 check "M5 … no table was absent, nothing left open" "$(jget "$MIG_RESULT" '{tables_absent_here}')|$(jget "$MIG_RESULT" '{not_closed}')" "[]|[]"
+check "M5b … and calibration_rules keeps its grants (not this file's table)" "$(jget "$MIG_RESULT" '{revoked,calibration_rules}')|$(q "select has_table_privilege('authenticated', 'public.calibration_rules', 'INSERT');")" "null|t"
 report_says "C1 the report after the migration says hole_open: false" "false"
 check "C1b … no listed table is open" "$(jget "$REPORT" '{listed_open_count}')" "0"
 refused_everywhere "C2"
@@ -253,7 +251,8 @@ q "insert into sector_risk_models (sector) values ('gate sector 1');" >/dev/null
 refused_everywhere "H9"
 
 # ── THE CENSUS ───────────────────────────────────────────────────────────
-echo "── THE CENSUS — with the three revoke files applied, every open table is one the repository has classified"
+echo "── THE CENSUS — with the four revoke files applied, every open table is one the repository has classified"
+apply_migration "$CALIBRATION_MIGRATION"; check "N0 schema_phase_calibration_queue_write_revoke.sql applies" "$MIG_RC" "0"
 apply_migration "$DERIVED_MIGRATION";  check "N1 schema_phase_derived_tables_write_revoke.sql applies" "$MIG_RC" "0"
 apply_migration "$DASHBOARD_MIGRATION"; check "N2 schema_phase_dashboard_config_caller.sql applies" "$MIG_RC" "0"
 run_report "$REPORT_SQL"
