@@ -766,11 +766,14 @@ try {
     upstreamMode = "ok";
     // (give the recorder a moment to see the caller go away)
     for (let i = 0; i < 100 && hungAbortedByCaller === abortedBefore; i++) await new Promise((res) => realSetTimeout(res, 50));
+    // Read NOW, before the hung request is let go by hand: the recorder's
+    // request signal also fires once a response has been sent in full.
+    const dropped = hungAbortedByCaller - abortedBefore;
     const held = await meter(u);
     releaseHung(); // a function with no deadline is still waiting: let it go, so this run can end
     if (r === null) await pending;
     check(`14.${mode === "hang" ? 1 : 2} an upstream that ${what}: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = ${MODEL_TIMEOUT_MS / 1000} s, asked for once) — the sentinel, the upstream request ABORTED, the reservation released`,
-      [r === null ? "no answer within 12 s" : [r.status, String(r.json.answer), r.json.usage], took >= 1400 && took < 9000, seen.length - before, hungAbortedByCaller - abortedBefore, deadlineTimersAsked - timersBefore, held],
+      [r === null ? "no answer within 12 s" : [r.status, String(r.json.answer), r.json.usage], took >= 1400 && took < 9000, seen.length - before, dropped, deadlineTimersAsked - timersBefore, held],
       [[200, "Couldn't reach Claude: TimedOut: the model request timed out. Try again in a moment.", null], true, 1, 1, 1, [0, 0, 0, 0]]);
   }
   {
