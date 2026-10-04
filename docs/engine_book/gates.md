@@ -20395,3 +20395,138 @@ not exercised); that "% of revenue" needs a comparison document at all (a
 single-period common-size column is an engine change — owner ruling
 2026-10-04, after this release). The rendered page is checked live after
 each deploy, not by this gate.
+
+## links-routed
+
+**The defect (found by the pre-deploy review of the no-prior hotfix,
+2026-10-04).** The learning popover's source-account rows linked to
+`/financials?account=<code>`; the cash-flow card's "upload the prior period"
+to `/financials`. `frontend/App.tsx` has never routed `/financials` — the
+statements page was `/financial-statements` (a redirect today), then
+`/dashboard` — so both opened the not-found page in production. The hotfix
+repaired the cash-flow card; the popover's rows were left as a follow-up.
+
+**What was read, before anything was changed.** `git log -S"/financials"`:
+the literal arrived with the learning popover (2026-06) and no commit ever
+added a route for it. `?account=` IS still read — by the account view
+(`components/cfo/evidence/EvidenceDrawer`, design C4) on the dashboard, and
+the popover's own "See all accounts in …" button already builds that link
+(`lib/evidence/evidenceLink` `dashboardEvidenceHref`). So the row was meant
+to open the statements page on the account, and the receiver exists.
+
+**The repair: corrected links, not a redirect route.** A `/financials`
+redirect would have kept a path nobody was ever sent to by anything but
+these two links, would land without the period, the company or the
+statement tab (the account view needs all three to open on the row), and
+gate `compare-no-prior` holds `/financials` to being unrouted. The row now
+builds `accountEvidenceHref({period on screen, its company}, [code])` — the
+code's own statement tab, `?account=<code>` — as a router `<Link>` that
+closes the popover stack (from the dashboard the pathname does not change,
+so the stack would not close by itself); it was a plain `<a>`, a full
+reload. `AccountTrace.route` ("defaults to /financials?account=") is read by
+nothing and now says so.
+
+**Found by the law on its first run, fixed in the same change.** The
+Products page's "Sales analysis example" row (View and Download) pointed at
+`/examples/example_products_trading.xlsx`, a workbook removed from `public/`
+on 2026-07-26: nginx answers a missing file with the app's `index.html`, so
+"View" parsed HTML as a workbook and "Download" saved it under an `.xlsx`
+name. The example that is in `public/examples/` — fictional rows under the
+heading "EXAMPLE SALES ANALYSIS", referenced by nothing — is
+`example_sales_analysis.xlsx`; the row opens that one.
+
+**The law.** Every path literal in the frontend's source — a string or
+template literal that begins with `/`, an origin-prefixed template
+(`${window.location.origin}/…`), an `href` / `action` / `src` written inside
+a string of HTML (the landing page, the legal documents) or inside a
+translation — is exactly one of:
+
+| class | what it is | how it is held |
+|---|---|---|
+| page | a path `App.tsx` routes | a `:param` segment takes any segment; a `${…}` is text the source does not spell |
+| request | `/health`, and anything under a prefix the dev server proxies | the prefixes are READ from `vite.config.ts` `server.proxy` (`/api`, `/yahoo`) |
+| asset | a file under `public/` | the file must exist; for a literal ending in `${…}`, its directory |
+| not a path | prose (whitespace in the literal) or a listed price-unit suffix (`/mo`, `/lună`) | a listed suffix no source file uses any more is red — the list only shrinks |
+
+Anything else reds, wherever it is written: an attribute, a `navigate()`
+call, a nav model's `to:`, a default parameter, a builder's return. The walk
+is over the TypeScript AST (`typescript` `createSourceFile`), so a path NAMED
+in a comment is not a link. It covers `frontend/` (tests excluded),
+`mobile/App.tsx` and `mobile/src/` (the native shell's home path), and both
+translation bundles.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/linksRouted.test.tsx --reporter=verbose` |
+| work count | `GATE-WORK links-routed files=… literals=(\d+)`, floor **350** (measured: 655 files, 416 literals — 327 pages, 76 requests, 8 assets, 5 non-paths — against 50 routes; `account_rows=67`) |
+| canary | the two `GATE-WORK links-routed` lines and the titles named in `scripts/run_battery.py` |
+
+The laws: the router is read (its routes, ONE catch-all rendering the
+not-found page, the matcher on its own shapes); the walk reads every form a
+link is written in, on a synthetic file — a nav model, a default parameter,
+a call, a builder, an origin prefix, HTML in a template, JSX with and without
+braces — and reads neither a `//` nor a `/* */` comment, and it reaches the
+app, the pages, the components, the libraries and the shell; no literal is
+unrouted, and every class has members; the exemptions are still what they
+were exempted as; the popover's row, for every code of the static source map
+(67): a routed path, the period and the company on screen, the tab the
+account's class lives on, the code the receiver (`readEvidenceRequest`)
+reads back; a click moves the router to that location, empties the popover
+stack and tells the popover; with no period the row still leads to the
+dashboard; the popover hands the row the period on screen and its own close.
+
+### links-routed — PLANT / RED / REVERT (2026-10-04, branch `fix/compare-followups`)
+
+Runner: `specs-durable/compare_followups/plants.py <worktree> f3` — one PLANT
+at a time, every touched file restored from memory after each; record
+`plants_f3.json` beside it.
+
+**BASELINE** — exit `0`: `8 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the popover's account row links to `/financials?account=` again | `4 failed, 4 passed` |
+| P2 THE SECOND DEFECT — the sales example links to the workbook removed from `public/` | `1 failed, 7 passed` |
+| P3 a nav model's entry points at a path with no route (`/benchmarks`) | `1 failed, 7 passed` |
+| P4 a route is deleted from `App.tsx` while a page still links to it | `1 failed, 7 passed` |
+| P5 a link inside the landing page's HTML string leaves the routed paths | `1 failed, 7 passed` |
+| P6 a `navigate()` call names a path with no route | `1 failed, 7 passed` |
+| P7 an origin-prefixed link (the sign-up e-mail's return address) names a path with no route | `1 failed, 7 passed` |
+| P8 the native shell opens the web app on a path with no route | `1 failed, 7 passed` |
+| P9 a string that looks like a path is neither routed nor declared (a new unit suffix) | `1 failed, 7 passed` |
+| P10 the dev proxy no longer covers `/api` (the request class is the proxy table's) | `2 failed, 6 passed` |
+| P11 the account row drops the period on screen | `2 failed, 6 passed` |
+| P12 the account row opens every account on the P&L tab | `2 failed, 6 passed` |
+| P13 the account row is a plain `<a>` again (a full reload; the router never moves) | `1 failed, 7 passed` |
+| P14 the account row leaves the popover stack open over the account view | `1 failed, 7 passed` |
+| P15 the popover hands the row no period at all | `1 failed, 7 passed` |
+
+**RED** — every plant exits `1`. **REVERT** — every file restored
+byte-exact; exit `0`: `8 passed`. Verdict: proven RED, fifteen of fifteen.
+
+**After the repair it reds on:** a new literal path `App.tsx` does not route
+— a typo, a page renamed in the router and not at its callers, a route
+deleted while a link remains; a public asset linked and not in `public/`; a
+path-looking string that is neither routed nor declared; a listed unit
+suffix that nothing prints any more; the dev proxy table losing `/api`; the
+popover's row leaving the account view, dropping the period or the company,
+landing on a tab the account's class does not live on, reloading the app, or
+leaving the popover open; the popover handing the row anything but the
+period on screen.
+
+**CANNOT SEE:** a path assembled at run time (`"/" + name`; a route read
+from the feature registry or served by the engine — attention/1's actions, a
+notification's target); the VALUE of a `${…}` segment — it is held to the
+route's shape only, so `/workspace/${x}` passes whatever `x` is, and a file
+NAME held in a variable (`/examples/${file}`) is held to its directory; the
+query string and the hash (`?tab=` slugs are `evidenceLanding.test.tsx`'s
+law; whether `/#pricing` names a section that exists is nobody's); whether a
+ROUTED path renders anything useful (a `FeatureRoute`'s pending state, a
+redirect chain, a page that needs a period it was not given); `index.html`
+and the files under `public/`; links the engine renders (the public
+storefront, e-mails); external URLs; whether the account view, once open,
+shows the account (`cmdbar-evidence`); the popover's wiring beyond its
+source (the law is a match over `LearningPopover.tsx`: a harmless rename of
+`activePeriod` reds it); the rendered popover in a browser (the row's
+fallback list shows only when a concept has no account with activity in the
+period — it is checked live after the deploy, not by this gate).
