@@ -20767,3 +20767,253 @@ not exercised); that "% of revenue" needs a comparison document at all (a
 single-period common-size column is an engine change — owner ruling
 2026-10-04, after this release). The rendered page is checked live after
 each deploy, not by this gate.
+
+
+## rerun-data-loss
+
+A re-run acts only on a period that is the document's own. Owner order
+2026-10-04 ("the two data-loss tickets first"), hand-over item 1; the judge's
+design of the same day, STAGE 1 OF 3 (R1: the ownership check, the refusal,
+the sibling sweep). Stages 2 and 3 replace the reset with a re-run STAGED
+beside the document's own month and take the AI lane through it; their laws
+join this gate then.
+
+THE DEFECT (measured on 7ca386ec, production's commit, through the real
+routes — `tests/engine/test_rerun_ownership.py` drives each).
+
+- `POST /api/pipeline/retry` reset "the period the document is pinned to":
+  `documents.period_id` — a column the BROWSER writes — filtered by id and
+  company alone. Nothing asked whether the period was still the analysis of
+  THIS document (`financial_periods.source_document_id`, the engine's
+  pointer). doc1 analysed; the same company's month uploaded again (doc2)
+  takes the month over, doc1 is archived with the superseded marker and
+  STAYS pinned to the month's row; doc1 restored from "Recently deleted";
+  "Re-run analysis" on doc1 → 202, doc2's period DELETED (doc2 left
+  `analyzed`, pinned to nothing), doc2's briefing and recommendations read
+  into doc1's carry, and after the run the month was the OLDER file's
+  statements under them.
+- The same family: a pin the company filter rejected (another company's
+  period id) or no pin matched nothing, and the run then found the document's
+  period by its own tuple and went IN PLACE — the withdrawn design's path: a
+  run that fails leaves a FAILED document over a served month. And a sales
+  (SKU) workbook, which the Products upload pins to the month that is open:
+  sent through this route, its re-run reset the month's FINANCIAL period (no
+  screen sends one here; the route accepted it).
+- The sibling sweep (every place that deletes, resets or re-points a period
+  through `documents.period_id`): `make-active` / `move-period` on a DELETED
+  document did their destructive half and the re-run that rebuilds is
+  refused for a deleted document (the month emptied for good);
+  `move-period` with nobody live staying deleted the period it left
+  whatever it held — also the analysis of a document sitting in "Recently
+  deleted"; `stage_persist`'s "race-loser" re-selected by company and month
+  alone and rewrote ANOTHER document's row in place.
+
+THE REPAIR (`src/engine/api/pipeline.py`, `_period_move.py`).
+
+- `_own_periods_for_rerun(admin, document, org)` — module scope, every read
+  naming the company, the pin read FRESH: source is the document → own;
+  source is another document → `document_superseded`; another company's id,
+  or an id that names nothing → `rerun_period_not_own` (ONE answer on
+  purpose); no source → own only when the envelope's provenance names the
+  document, or — with no stamp — when no other document of the company, live
+  or deleted, is pinned to it; no pin → the periods whose
+  `source_document_id` is the document.
+- WHERE: at the route, before the claim, the meter and any write (409 with
+  the code alone — no message, no period id, no document id; 503
+  `rerun_unavailable` when ownership cannot be read); again as the first
+  statement of `_retry_rerun`, under the claim; and at the write — the
+  reset's DELETE names id + org + source (`is.null` for a legacy-own row) and
+  is followed by a re-read: a row still there changed hands, the carry is
+  put back as it was and the re-run refused. The carry reads the document's
+  OWN period, never the pin; the carried period is deleted last.
+- Siblings: `MoveRefused("document_deleted")` before the first write of
+  `make_document_active` / `move_document_to_period`; `plan_move` deletes
+  the period left behind only when its analysis is the mover's or the row is
+  an empty container, and the delete names `org_id`; the new-month branch of
+  `stage_persist` adopts only the row holding the document's own tuple (its
+  own insert whose reply was lost — still the run's to take back), else the
+  run fails.
+- The reset and the in-memory carry are otherwise production's (hand-over
+  item 2 stays open until stage 2).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_rerun_ownership.py -q` |
+| work count | junit-xml, floor **38** tests (measured 38) |
+| canary | `test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing`, `test_the_refusal_is_one_answer_whatever_the_pin_names`, `test_the_reset_deletes_only_a_period_this_document_is_the_source_of`, `test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin` |
+
+**SCOPE.** The real `create_app()` routes (`POST /api/pipeline/retry`,
+`/api/documents/{id}/restore`, `DELETE /api/documents/{id}`, the upload
+card's identify + commit), the real `_run_pipeline_sync` from `stage_extract`
+to the takeover, the real `GET /api/period` and year tiles, in the `gw` world
+of `test_workspace_v2_gates` with the helpers of the writers file of
+`briefing-keep-last-good`. Doubled: PostgREST + Storage, the provider
+(scripted per run), the meter, the daemon thread. `make-active` /
+`move-period` are driven as the functions the routes call, over the same
+store (the routes bind the service-role client when the app is built, before
+the fixture replaces it). Production's foreign keys are modelled by hand
+(`_production_foreign_keys`: a period's children go with it,
+`documents.period_id` is set NULL). The laws: O1 the hand-over's
+reproduction — 409, the body equal to the committed
+`tests/engine/fixtures/rerun/retry_refused_superseded.json`, no write, the
+store and everything served of the month identical, and the month's OWN
+document still re-runs — and the same refusal for a sales (SKU) document the
+Products upload pinned to the month's financial period; O2 one answer for
+another company's period and for an id that names nothing; O3 before the
+claim and the meter (a document whose re-run would be metered); O4 the look
+repeated under the claim, the claim given back — and a metered re-run's
+reservation released, never committed; O5 the DELETE's filter and the
+re-read, with and without an earlier carry; O6 no pin; O7 seven cells of a period that names no source;
+O8 three unreadable reads; O9–O11 the siblings; O12 an AST census of every
+`delete("financial_periods", …)` in the engine — six stated sites, each with
+its rule and the columns its filter must name. One law of
+`test_briefing_keep_last_good_writers.py` was restated (stronger): the
+reset's one delete has filters `{id, org_id, source_document_id}`.
+
+### rerun-data-loss — PLANT / RED / REVERT (2026-10-04, branch `fix/rerun-data-loss`)
+
+Runner: `specs-durable/rerun_data_loss/plants_stage1.py` — one PLANT at a
+time, ALONE, in `src/engine/api/pipeline.py` or `_period_move.py`; the
+gate's own command; the file restored byte-exact (sha256 asserted) after
+each; record `plants_stage1.json` beside it.
+
+**ON PRODUCTION'S CODE** — the same file run against the engine source of
+7ca386ec (`git archive 7ca386ec src packs`, first on the path): `29 failed,
+9 passed` — green there: the six plan cells whose rule did not change, the
+lost-reply control whose run succeeds, the census (it reads this tree) and
+the fixture's own check; the re-run of the restored superseded document and
+of the pinned sales document both answer `202 queued` there. Transcript:
+`specs-durable/rerun_data_loss/gate_on_7ca386ec.out`.
+
+**BASELINE** — exit `0`: `38 passed`.
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| P1 (O1) the predicate accepts any period of the company (a period that names ANOTHER document is 'own') | `4 failed, 34 passed` | `test_a_period_that_changes_hands_between_the_look_and_the_claim_is_refused_under_the_claim`, `test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing`, `test_a_sales_document_pinned_to_the_month_never_resets_the_months_period` (+1 more) |
+| P2 (O2) the refusal tells the periods apart: the pinned id rides in the code | `1 failed, 37 passed` | `test_the_refusal_is_one_answer_whatever_the_pin_names` |
+| P3 (O3) the route's look is gone: the refusal comes only under the claim | `10 failed, 28 passed` | `test_a_period_that_names_no_source_is_the_documents_only_when_that_can_be_shown`, `test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing`, `test_a_sales_document_pinned_to_the_month_never_resets_the_months_period` (+3 more) |
+| P4 (O4) no look under the claim: the reset trusts the row the wall read | `8 failed, 30 passed` | `test_a_document_with_no_pin_is_reset_by_the_pointer_the_engine_wrote_never_run_in_place`, `test_a_metered_rerun_refused_under_the_claim_gives_its_reservation_back`, `test_a_period_that_changes_hands_between_the_look_and_the_claim_is_refused_under_the_claim` (+2 more) |
+| P5 (O5) the reset's DELETE names the period and its company only — not its source | `8 failed, 31 passed` | `test_a_period_that_names_no_source_is_the_documents_only_when_that_can_be_shown`, `test_census_every_delete_of_a_period_is_a_stated_site_with_its_ownership_rule`, `test_the_reset_deletes_only_a_period_this_document_is_the_source_of` (+1 more) |
+| P6 (O5) no re-read after the reset's DELETE | `2 failed, 36 passed` | `test_the_reset_deletes_only_a_period_this_document_is_the_source_of` |
+| P7 (O6) a document with no pin 'holds no period': the ownership lookup is skipped | `1 failed, 37 passed` | `test_a_document_with_no_pin_is_reset_by_the_pointer_the_engine_wrote_never_run_in_place` |
+| P8 (O7) a period that names no source is anyone's | `3 failed, 35 passed` | `test_a_period_that_names_no_source_is_the_documents_only_when_that_can_be_shown` |
+| P8b (O8) ownership that cannot be read is taken for 'holds no period' (the re-run starts blind) | `3 failed, 35 passed` | `test_ownership_that_cannot_be_read_does_not_start_the_rerun` |
+| P9 (O9) a deleted document is promoted / moved again (the guard is gone) | `2 failed, 36 passed` | `test_a_deleted_document_is_neither_promoted_nor_moved` |
+| P10 (O10) nobody live stays -> the period left behind is deleted, whoever's analysis it holds | `5 failed, 33 passed` | `test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin`, `test_the_plan_deletes_the_period_left_behind_only_when_it_is_the_movers` |
+| P10b (O10) the move's DELETE of the emptied period names its id alone | `2 failed, 36 passed` | `test_a_move_that_does_delete_the_emptied_period_names_its_company`, `test_census_every_delete_of_a_period_is_a_stated_site_with_its_ownership_rule` |
+| P11 (O11) the race-loser re-selects by company and month alone (any row of the month is adopted) | `1 failed, 37 passed` | `test_a_run_whose_period_insert_was_refused_never_writes_into_another_documents_period` |
+| P11b (O11) the adopted own row is not the run's to take back (a failed run leaves its period) | `1 failed, 37 passed` | `test_a_run_whose_own_period_insert_landed_with_its_reply_lost_adopts_its_own_row` |
+| P-census (O12) a seventh, unclassified delete of a period | `1 failed, 37 passed` | `test_census_every_delete_of_a_period_is_a_stated_site_with_its_ownership_rule` |
+
+**RED** — every plant exits `1`, fifteen of fifteen. P5 was run with the
+restated law of the writers file beside the gate's file (it is RED too). Two
+plants show the layers: with the predicate accepting another document's
+period (P1) or the look under the claim gone (P4) the month is still NOT
+deleted — the DELETE's own source filter and the re-read hold — and the gate
+is RED on what the earlier layer exists for: a write, a claim, a delete
+attempted, the other document's briefing read into a carry (measured:
+`probe_P1.out`, `probe_P4.out` beside the runner — the engine logs "its
+period changed hands before the reset — nothing was reset").
+
+**REVERT** — every file restored byte-exact; exit `0`:
+`38 passed`. No plant marker left in `src/`.
+
+**After the repair it reds on:** a re-run that reads, carries from, deletes
+or resets a period whose source is another document — at the route, under
+the claim, or at the DELETE; a refusal that writes, claims, meters or
+enqueues, or that tells another company's period from no period; a refusal
+body carrying anything but its code; a document with no pin, or a pin that
+names nothing of its company, re-running in place; a source-less period
+treated as anyone's; ownership that cannot be read taken for "no period"; a
+deleted document promoted or moved; a move deleting a period whose analysis
+is another document's, or deleting by id alone; a refused period insert
+adopting another document's row, or its own adopted row left behind by a
+failed run; a seventh `delete("financial_periods"` nobody classified.
+
+**CANNOT SEE:** Postgres itself — the foreign keys (modelled by hand), row
+security, the unique tuple; how many production rows the rule refuses (a
+live document pinned to a period that names another document, a source-less
+period shared by two documents — the owner's read-only count, in the
+hand-over); a hand-over INSIDE one HTTP statement, and two backend processes
+(the look, the carry and the delete are three statements — the DELETE's
+filter and the re-read are what hold between them); a restart between the
+reset and the run (the carry is in memory until stage 2); `make-active` on a
+LIVE attachment, which deletes the month's briefing before its own re-run
+(ticket); an OLDER document's FIRST run replacing a newer document's month
+through `/api/pipeline/run` or recover-stuck (G4's rule — owner ruling
+needed); `DELETE /api/period`, permanent delete, restore and the workspace
+purge (swept, unchanged, not driven here); the AI lane; a sales (SKU)
+document's own re-run route (`/api/sales-datasets/{id}/rerun`), and whether
+a sales document sent to THIS route should run without touching any period
+rather than be refused (it is refused today, with the code of a superseded
+file — no screen sends one). The Docs panel printing the refusal is
+`rerun-refusal-surfaces`.
+
+
+## rerun-refusal-surfaces
+
+The Docs panel says why a re-run was refused. `POST /api/pipeline/retry`
+refuses with a CODE and nothing else (gate `rerun-data-loss`); the panel
+discarded the body of every failed retry and said only "Couldn't start
+re-run" — and before the refusal existed, the server deleted the newer
+upload's month instead.
+
+THE REPAIR. `frontend/lib/rerunRefusals.ts` (statically imported): the three
+codes, code → i18n key, the English fallback, `rerunRefusalCode(body)` —
+`detail.code` or `code`, known codes only, never a message.
+`retryPipelineDetailed` (lib/supabase) reads the body of a failed retry and
+returns `refusal`; `DocsPanel.handleRerun` keeps its title and prints the
+code's sentence as the toast's description. `panels.rerunSuperseded`,
+`panels.rerunPeriodNotOwn`, `panels.rerunUnavailable` in en.json and ro.json
+(RO informal). "Upload it again" is the action named: an upload stages
+beside the month and replaces it only when its analysis has succeeded. "Use
+as this period's source" is NOT named — it empties the month's analysis
+before its own re-run.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/rerunRefusals.test.ts frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx --reporter=verbose` |
+| work count | `Tests N passed`, floor **35** (measured 35: 19 + 16) |
+| canary | "the codes are exactly the three the route answers with", "ro: document_superseded prints the stated sentence", "ro: the real route's answer for a superseded file", "en: a failure with no known code shows the title alone", "a refusal that also carries a message prints the code's sentence only" |
+
+**SCOPE.** The module over the real i18n bundles, with every sentence
+written out in the test in English and Romanian and both locale files held
+equal to them; the REAL `DocsPanel` (its document row, its Radix menu) and
+the REAL `retryPipelineDetailed` over a stubbed `fetch` that answers with
+`tests/engine/fixtures/rerun/retry_refused_superseded.json` — the body
+`rerun-data-loss` O1 asserts the real route returns (an intercepted route is
+a route with no gate: the two laws read one file).
+
+**PLANT** — five, each ALONE, the two files run, the source restored
+byte-exact (the same runner):
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| P12 (F1) the bare code is printed: a code maps to itself instead of its sentence's key | `7 failed, 28 passed (35)` | `a refusal that also carries a message prints the code's sentence only`, `document_superseded → panels.rerunSuperseded`, `en: document_superseded prints the stated sentence` (+4 more) |
+| P13 (F2) the body of a refused retry is discarded again | `8 failed, 27 passed (35)` | `a refusal that also carries a message prints the code's sentence only`, `en: 409 rerun_period_not_own`, `en: 503 rerun_unavailable` (+5 more) |
+| P13b (F2) the panel shows the title alone whatever the refusal | `7 failed, 28 passed (35)` | `a refusal that also carries a message prints the code's sentence only`, `en: 409 rerun_period_not_own`, `en: 503 rerun_unavailable` (+4 more) |
+| P-F3 (F3) the server's message is read in place of the code | `3 failed, 32 passed (35)` | `a body carrying a message yields its code and nothing of the message`, `a refusal that also carries a message prints the code's sentence only`, `the module never reads a 'message', a period id or a document id` |
+| P-F6 (F6) the refusal module reached through a lazy import() | `1 failed, 34 passed (35)` | `no file reaches it through import()` |
+
+**RED** — five of five exit `1`. **BASELINE** `35 passed (35)`.
+
+**REVERT** — every file restored byte-exact; exit `0`:
+`35 passed (35)`.
+
+**After the repair it reds on:** a refused retry shown with the title alone;
+the bare code, the i18n key or the server's `message` on screen; a sentence
+in the wrong language, missing from either bundle, or drifting from the
+English fallback; a refusal shown for an answer that carries no known code;
+a second request, or one that does not name the document; an accepted
+re-run shown as a failure; the sentence naming "Use as this period's
+source"; the module reached through `import()`.
+
+**CANNOT SEE:** the real network and the real route (the engine gate holds
+the route to the fixture this one reads; a NEW refusal code added to the
+engine without its sentence shows the title alone and nothing reds — the
+codes are stated in both gates by hand); the toast as rendered (the toast
+host is doubled: the law reads what the panel hands it); every other caller
+of the retry route (the Datasets panel imports `retryPipeline` and does not
+use it); a deployed bundle older than this one (it shows the title alone);
+whether "upload it again" is offered where the reader stands (the sentence
+names the action, not a button).

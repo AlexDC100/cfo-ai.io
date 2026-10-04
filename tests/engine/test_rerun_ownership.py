@@ -27,12 +27,14 @@ and `stage_persist`'s race-loser adopting ANY row of the month.
 THE LAW.
   O1  A re-run of a restored, superseded document is REFUSED: 409, the body
       is the committed fixture, nothing is written, the month is served
-      exactly as before. (Control: the month's own document re-runs.)
+      exactly as before. (Control: the month's own document re-runs.) The
+      same for a sales document the Products upload pinned to the month.
   O2  The refusal is ONE answer whatever the pin names — another company's
       period, or an id that names nothing: same status, same body, no id.
   O3  The refusal comes BEFORE the claim and the meter: no write at all.
   O4  The period changing hands between the route's look and the claim is
-      refused under the claim, and the claim is given back.
+      refused under the claim, and the claim — and a metered re-run's
+      reservation — is given back.
   O5  The reset deletes only a period this document is the source of: the
       DELETE names id, company and source, and is followed by a re-read — a
       period that changed hands a moment before the delete is not deleted,
@@ -307,6 +309,36 @@ def test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothin
     assert d1["status"] == "analyzed" and str(d1["error"]).startswith("superseded_by:"), d1
 
 
+def test_a_sales_document_pinned_to_the_month_never_resets_the_months_period(app, gw, monkeypatch):
+    """The Products upload pins a sales (SKU) workbook to the month that is
+    open (`uploadDocument`'s `periodId`), so it nests under that month's
+    source files: its `documents.period_id` names the month's FINANCIAL
+    period — the trial balance's analysis. Sent through this route, its
+    re-run reset "the period it is pinned to": the month's financial
+    analysis, deleted by re-running a sales file. A sales document owns no
+    period; the month is another document's, so the re-run is refused and
+    nothing is written. (No screen sends a sales document here — its re-run
+    is POST /api/sales-datasets/{id}/rerun; the refusal's CODE is the one
+    today's rule answers for any pin that names another document's period.)"""
+    w = _own_month(app, gw, monkeypatch, [])
+    gw.db.insert("documents", dict(w["doc"], id=OTHER_DOC, scope="sku", original_filename="vanzari.xlsx",
+                                   content_hash="%064x" % 0x5c0, detected_type="sales_dataset"))
+    (sales,) = gw.docs(id=OTHER_DOC)
+    assert sales["period_id"] == w["month"] and sales["status"] == "analyzed"
+    month_before = _month_view(app, gw, w["org"], w["month"])
+    state_before, enqueued_before = gw.state(), list(gw.enqueued)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    r = _retry(app, w["org"], OTHER_DOC)
+
+    assert r.status_code == 409 and r.json() == REFUSED_SUPERSEDED, (r.status_code, r.text[:300])
+    assert spy.writes == [], "a refused re-run wrote: %r" % spy.writes
+    assert gw.state() == state_before
+    _nothing_was_started(gw, OTHER_DOC, enqueued_before)
+    assert P._RERUN_CARRY == {}
+    assert _month_view(app, gw, w["org"], w["month"]) == month_before
+
+
 # ══════════════════════════════════════════════════════════════════════
 # O2 — one answer whatever the pin names
 # ══════════════════════════════════════════════════════════════════════
@@ -456,6 +488,57 @@ def test_a_period_that_changes_hands_between_the_look_and_the_claim_is_refused_u
     again = W._docs_panel_rerun(app, gw, w)
     assert again["status"] == "analyzed", (again["status"], again.get("error"))
     assert W._served_period(app, w["org"], again["period_id"])["briefing"]["body"] == W.BODY_A
+
+
+def test_a_metered_rerun_refused_under_the_claim_gives_its_reservation_back(app, gw, monkeypatch):
+    """A re-run that is the book's FIRST analysis reserves on the meter
+    between the claim and the reset. Refused under the claim, it must leave
+    nothing behind: the reservation released (never committed), the claim
+    given back, the month untouched. Here a failed, uncounted upload holds
+    no period at the route's look; the browser pins it to the month's
+    period a moment later."""
+    w = _own_month(app, gw, monkeypatch, [])
+    second = V.one_tap(app, W._corrected_december(), "balanta_corectata.xlsx")
+    doc2 = second["commit"]["document_id"]
+    real_compute = P.stage_compute
+
+    def _boom(*a: Any, **kw: Any) -> Any:
+        raise RuntimeError("compute failed")
+
+    monkeypatch.setattr(P, "stage_compute", _boom)
+    failed = V.run_analysis(gw, doc2)
+    monkeypatch.setattr(P, "stage_compute", real_compute)
+    assert failed["status"] == "failed" and failed["period_id"] is None, failed
+    (d2_before,) = copy.deepcopy(gw.docs(id=doc2))
+    month_before = _month_view(app, gw, w["org"], w["month"])
+    reserved, committed, released = (list(gw.meter.reserved), list(gw.meter.committed), list(gw.meter.released))
+    enqueued_before = list(gw.enqueued)
+    real_start = P._start_rerun
+    pinned = []  # type: List[str]
+
+    def start_after_the_browser_pinned_it(doc: Dict[str, Any], caller_id: str, start: Any) -> Any:
+        if not pinned:
+            pinned.append(str(doc["id"]))
+            for row in gw.docs(id=doc2):
+                row["period_id"] = w["month"]           # what a browser can write
+        return real_start(doc, caller_id, start)
+
+    monkeypatch.setattr(P, "_start_rerun", start_after_the_browser_pinned_it)
+
+    r = _retry(app, w["org"], doc2)
+
+    assert pinned == [doc2], "the scenario never happened"
+    assert r.status_code == 409 and r.json() == REFUSED_SUPERSEDED, (r.status_code, r.text[:300])
+    # The meter WAS asked (this is the book's first analysis) — and the
+    # reservation went straight back; nothing was counted.
+    assert gw.meter.reserved == reserved + [V.USER], "the scenario never happened: the re-run was not metered"
+    assert gw.meter.released == released + [(V.USER, False)], \
+        "a re-run refused under the claim kept its reservation: %r" % (gw.meter.released,)
+    assert gw.meter.committed == committed
+    _nothing_was_started(gw, doc2, enqueued_before)
+    assert gw.docs(id=doc2) == [dict(d2_before, period_id=w["month"])], "the refusal did not give the claim back"
+    assert _month_view(app, gw, w["org"], w["month"]) == month_before
+    assert P._RERUN_CARRY == {}
 
 
 # ══════════════════════════════════════════════════════════════════════

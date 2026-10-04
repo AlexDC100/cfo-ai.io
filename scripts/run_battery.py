@@ -494,6 +494,64 @@ def _engine_gates() -> List[Gate]:
                        "test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_keeps_the_carry_for_the_next_run",
                        "test_a_failed_narration_never_replaces_a_usable_sku_briefing",
                        "test_the_runs_alerts_are_written_even_when_a_narrative_write_raises")),
+        # A RE-RUN ACTS ONLY ON A PERIOD THAT IS THE DOCUMENT'S OWN (owner
+        # order 2026-10-04, "the two data-loss tickets first"; stage 1 of 3).
+        # Measured on 7ca386ec through the real routes: a document superseded
+        # for its month by a newer upload stays pinned to that month's row;
+        # restored and re-run from the Docs panel, POST /api/pipeline/retry
+        # answered 202, DELETED the newer document's period (by
+        # documents.period_id — browser-written — and company alone), carried
+        # the newer document's briefing and recommendations, and the month
+        # came back as the OLDER file's statements under them; a pin the
+        # company filter rejected, or no pin, ran IN PLACE. The sibling sweep
+        # found make-active / move-period emptying a month for a DELETED
+        # document, move-period deleting a month whose own document was in
+        # the bin, and stage_persist's race-loser rewriting another
+        # document's row. The laws, on the real create_app() routes and the
+        # real run in the gw world: the re-run of a restored superseded
+        # document is 409 with the committed body, writes nothing and leaves
+        # the month served as before; one answer whatever the pin names; the
+        # refusal precedes the claim and the meter, and is repeated under the
+        # claim and at the DELETE itself (id + company + source, re-read
+        # after); no pin is reset by the engine's own pointer; a source-less
+        # period is never "anyone's"; unreadable ownership is 503; a sales
+        # document pinned to the month by the Products upload never resets
+        # it; a metered re-run refused under the claim gives its reservation
+        # back; the three sibling fixes; an AST census of every delete of a
+        # period. Measured 38. Plant log (15 plants, each alone, byte-exact
+        # restore): docs/engine_book/gates.md "rerun-data-loss".
+        Gate("rerun-data-loss",
+             [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py", "-q"],
+             work_junit=True, floor=38, units="tests",
+             canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
+                       "test_the_refusal_is_one_answer_whatever_the_pin_names",
+                       "test_the_reset_deletes_only_a_period_this_document_is_the_source_of",
+                       "test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin")),
+        # … AND THE DOCS PANEL SAYS SO. The refusal is a CODE and nothing
+        # else (no sentence, no period id, no document id); the panel used
+        # to discard the body of every failed retry and say "Couldn't start
+        # re-run". The REAL panel and the REAL client call
+        # (`retryPipelineDetailed`) over a fetch that answers with
+        # tests/engine/fixtures/rerun/retry_refused_superseded.json — the
+        # body the engine gate above holds the real route to (an intercepted
+        # route is a route with no gate): each code prints its sentence in
+        # EN and RO, written out in the test and held equal to both locale
+        # files; an answer with no known code shows the title alone; a
+        # server `message` is never read or printed; the module is never
+        # behind import(). Measured 35. Plant log: gates.md
+        # "rerun-refusal-surfaces".
+        Gate("rerun-refusal-surfaces",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/rerunRefusals.test.ts",
+              "frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=35,
+             units="tests",
+             canaries=("the codes are exactly the three the route answers with",
+                       "ro: document_superseded prints the stated sentence",
+                       "ro: the real route's answer for a superseded file",
+                       "en: a failure with no known code shows the title alone",
+                       "a refusal that also carries a message prints the code's sentence only")),
         # THE PUBLIC DEMO STORE (owner ticket 2026-10-02). engine.db — the
         # SQLite file create_app() opens through PostgresAdapter — has six
         # tables and no tenant column on any of them. Anonymous POST
