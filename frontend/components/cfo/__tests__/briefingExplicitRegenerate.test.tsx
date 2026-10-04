@@ -351,6 +351,42 @@ describe("exactly one request per click, with the D9 body", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["period", PERIOD] });
     expect(screen.queryByTestId("cfo-briefing-unavailable")).toBeNull();
   });
+
+  // Review 2026-10-03: every action sent the DISPLAY currency. With the display
+  // currency EUR, "Generate the briefing" and the language action were narrated
+  // converted — metered, returned for the session, never stored: after a reload
+  // the period was unavailable (or in the other language) again. An action that
+  // creates or replaces the STORED briefing asks for RON.
+  it("with the display currency EUR, 'Generate the briefing' asks for RON — the narration is stored", async () => {
+    env.currency = "EUR";
+    answer = { status: 200, body: { ok: true, regenerated: true, persisted: true, briefing: ENGLISH, language: "en", currency: "RON", stale: false } };
+    render(card({ baseBriefing: null, unavailable: true }));
+    expect(button().textContent).toBe("Generate the briefing");
+    fireEvent.click(button());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(String(fetchMock.mock.calls[0][1]?.body)).toBe('{"intent":"user","language":"en","currency":"RON"}');
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["period", PERIOD] }));
+  });
+
+  it("with the display currency EUR, the language action asks for RON too — and the currency action still asks for EUR", async () => {
+    await i18n.changeLanguage("ro");
+    env.currency = "EUR";
+    answer = { status: 200, body: { ok: true, regenerated: true, persisted: true, briefing: ROMANIAN, language: "ro", currency: "RON", stale: false } };
+    const view = render(card()); // an English stored briefing, a Romanian reader, EUR on display
+    expect(button().textContent).toBe("Regenerează în română"); // the language comes first
+    fireEvent.click(button());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(String(fetchMock.mock.calls[0][1]?.body)).toBe('{"intent":"user","language":"ro","currency":"RON"}');
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["period", PERIOD] }));
+    // the period query hands the card the stored Romanian briefing: the
+    // currency action is offered next, and IT asks for the display currency
+    view.rerender(card({ baseBriefing: ROMANIAN, baseLanguage: "ro" }));
+    await waitFor(() => expect(button().textContent).toBe("Regenerează în EUR"));
+    answer = { status: 200, body: { ok: true, regenerated: true, persisted: false, briefing: ROMANIAN, language: "ro", currency: "EUR", stale: false } };
+    fireEvent.click(button());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(String(fetchMock.mock.calls[1][1]?.body)).toBe('{"intent":"user","language":"ro","currency":"EUR"}');
+  });
 });
 
 describe("a failed regeneration keeps the briefing", () => {

@@ -85,12 +85,17 @@ the test asserts the ruling.
       exist. Now: no staged row is not a replacement.
         test_a_same_month_reupload_whose_staged_briefing_write_fails_…  (pipeline)
         test_a_takeover_whose_staged_run_left_no_briefing_row_…         (seam)
-  R2  The Docs panel's "Re-run analysis" deleted the document's period
-      BEFORE the run: keep-last-good never engaged. Now a period that holds
-      a usable briefing is not reset before its re-run (the run goes in
-      place); a period without one is reset as before; a re-run that files
-      the document under another month retires the old row only on success.
-        test_a_docs_panel_rerun_…
+  R2  The Docs panel's "Re-run analysis" deletes the document's period
+      BEFORE the run (production's foreign keys cascade the briefing and
+      the recommendations away): keep-last-good never engaged. Now the
+      reset stays as it was and what it takes is CARRIED across it and put
+      back when the run's narration brings nothing — the briefing as it
+      was, marked stale; the recommendations with their statuses, owners
+      and due dates, whatever the briefing row held. (A first repair ran
+      the re-run in place; review found three wrong states and it was
+      withdrawn — see the W6 section.)
+        test_a_docs_panel_rerun_…, test_the_reset_is_what_it_always_was_…,
+        test_the_carry_holds_only_…, test_carried_recommendations_…
   R3  A failed narration over a stored FAILURE text (or no briefing row)
       deleted the period's recommendations — the state the pre-repair
       regenerate left in production. RULED: never.
@@ -115,9 +120,17 @@ DECIDED BY THE REPAIR (the rulings do not dictate these; each is reported).
     briefing is a failure text: the month's row is left as it is.
   · The kept briefing of a takeover whose staged run delivered no briefing
     and no code (a write that was lost, the AI lane) is marked `empty_reply`.
-  · A Docs-panel re-run whose narration fails AND which files the document
-    under another month leaves the old period in place: it is the only home
-    of the last good briefing.
+  · The carry of a Docs-panel re-run lives in process memory: a re-run
+    whose RUN fails leaves no period (as it always did) and the carry waits
+    for the document's next re-run; a restart in between loses it.
+  · A period that cannot be read refuses the re-run (503 `rerun_unavailable`)
+    rather than being reset blind.
+  · A recommendations INSERT the database refuses after the delete puts the
+    period's previous recommendations back (the raise still reaches the
+    caller).
+  · A takeover whose staged period row is gone refuses (`StagedPeriodGone`)
+    and touches nothing of the month; one whose run wrote no alerts keeps
+    the month's.
 
 OBSERVED — NOT ASSERTED (reported to the owner).
   · With the stale migration NOT applied, a briefing kept by a failed
@@ -228,11 +241,7 @@ CANNOT SEE.
     as before — only the reset itself is driven here, on a classical
     period holding a failure text).
 
-PLANT LOG: docs/engine_book/gates.md, "briefing-keep-last-good" — NOT YET
-WRITTEN (2026-10-03: neither that section nor the Gate(...) in
-scripts/run_battery.py exists; this file's plants are proposed in the
-session's report and must be logged there when the gate is registered —
-the plants for R1-R6 are the reversals of the repair's own diff).
+PLANT LOG: docs/engine_book/gates.md "briefing-keep-last-good".
 """
 from __future__ import annotations
 
@@ -3066,3 +3075,47 @@ def test_a_usable_reply_replaces_the_recommendations_only_when_it_carries_a_list
         "%s: recommendations after the re-run: %r" % (reply, gw.db.rows("recommendations")))
     if titles_after == TITLES_A:
         assert gw.db.rows("recommendations") == first["recommendations"]
+
+
+_SKU_RERUNS = {
+    "provider_raises": lambda: RuntimeError(PROVIDER_ERROR_TEXT),
+    "reply_is_not_json": lambda: REPLY_FRAGMENT,
+    "narration_works": lambda: _reply(BODY_B, TITLES_B),
+}  # type: Dict[str, Callable[[], Any]]
+
+
+@pytest.mark.parametrize("second", sorted(_SKU_RERUNS))
+def test_a_sales_documents_rerun_through_the_real_orchestrator_keeps_the_sku_briefing_when_its_narration_fails(
+        app, gw, monkeypatch, second):
+    """THE LINE THAT JOINS THEM. The SKU ruling is gated at the writer
+    (`_persist_sku_analysis`) and at the narrator; the orchestrator's own
+    `if scope == "sku":` branch — `stage_narrate` -> `_persist_sku_analysis`
+    — was driven by no test: a branch that handed the writer the narration
+    WITHOUT its `unavailable` code left this whole file green (review
+    2026-10-03, plant M17). Here the real `_run_pipeline_sync` runs a
+    document whose scope is `sku`, over a stored usable SKU analysis."""
+    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), _SKU_RERUNS[second]()])
+    first = _first_analysis(app, gw)
+    doc_id, org_id = first["doc"]["id"], first["org_id"]
+    gw.db.update("documents", {"scope": "sku"}, filters={"id": "eq.%s" % doc_id})
+    gw.db.insert("sku_analyses", {"org_id": org_id, "document_id": doc_id,
+                                  "briefing": SKU_GOOD_BRIEFING, "summary": {"sku_count": 405},
+                                  "recommendations": copy.deepcopy(SKU_RECOMMENDATIONS),
+                                  "language": "en", "model": "the-model-of-the-stored-write"})
+
+    rerun = V.run_analysis(gw, doc_id)
+
+    assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
+    _assert_every_run_reached_the_provider(2)       # the SKU branch DID narrate
+    (row,) = [r for r in gw.db.rows("sku_analyses") if r["document_id"] == doc_id]
+    if second == "narration_works":
+        # POSITIVE CONTROL: a usable narration replaces the briefing and the
+        # recommendations, and is stamped with this run's model.
+        assert row["briefing"] == BODY_B, row["briefing"]
+        assert [r["title"] for r in row["recommendations"]] == TITLES_B
+        assert row["model"] != "the-model-of-the-stored-write"
+    else:
+        assert row["briefing"] == SKU_GOOD_BRIEFING, (
+            "%s: the sales document's re-run stored %r over its briefing" % (second, row["briefing"]))
+        assert row["recommendations"] == SKU_RECOMMENDATIONS, row["recommendations"]
+        assert row["model"] == "the-model-of-the-stored-write" and row["language"] == "en", row

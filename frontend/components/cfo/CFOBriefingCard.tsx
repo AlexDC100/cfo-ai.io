@@ -160,7 +160,17 @@ export function CFOBriefingCard({
     const forPeriod = periodId;
     const hadProse = !!text;
     const language = activeLang;
-    const currency = display;
+    // WHICH CURRENCY THE CLICK ASKS FOR. A converted briefing is returned
+    // for the session and never stored — so only the CURRENCY action asks
+    // for the display currency. "Generate the briefing" and the language
+    // action create or replace the STORED briefing: they ask for RON, the
+    // currency it is stored in, whatever the display currency is. Sending
+    // the display currency there spent the reader's message on a briefing
+    // that was never stored: after a reload the period was unavailable (or
+    // in the other language) again, and the report, the chat and the
+    // command bar never saw it (review 2026-10-03). The currency action is
+    // offered next, on the stored prose.
+    const currency = !hadProse || langMismatch ? "RON" : display;
     setLoading(true);
     setNotice(null);
     const isCurrent = () => mounted.current && periodRef.current === forPeriod;

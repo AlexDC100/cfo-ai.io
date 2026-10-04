@@ -249,10 +249,10 @@ nothing durable says the prose is older than the figures — SPEC D7 accepts
 this ("optional until applied"), so apply the migration BEFORE the backend;
 a row that holds a failure text AND carries a marker (no writer of this
 hotfix produces it): it is served unavailable, its `stale` is not ruled and
-not asserted; the regenerate route's LEGACY answer (it carries no `stale`
-here) and a failed NON-RON regenerate (ruled: it marks nothing and answers
-the row's existing state — gated with the route seam, where the currency
-law lives); a write that names the table through a
+not asserted; the regenerate route's LEGACY answer (it carries the stored
+row's `stale` since 2026-10-03) and a failed NON-RON regenerate (ruled: it
+marks nothing and answers the row's existing state) — both asserted by the
+route seam's gate, where the currency law lives, not here; a write that names the table through a
 VARIABLE (the takeover's `TAKEOVER_TABLES` loop, `delete_period`,
 `_period_move` — all older than this change; the call-site censuses read
 literal `"briefings"` first arguments only — the stale-column census does
@@ -1331,6 +1331,57 @@ def test_get_period_serves_only_a_briefing_row_of_the_periods_own_workspace():
     own = _world(briefing=_usable_row())
     _reader_of_both_workspaces(own)
     assert _served(own)["body"] == GOOD
+
+
+#: Who the reader says they are working in, and when they joined it — the two
+#: other places a route could take "the tenant" from.
+_WHERE_THE_READER_STANDS = {
+    # The app's active workspace (the `X-Org-Id` every request carries) is the
+    # OTHER company, while the period opened belongs to this one.
+    "the_header_names_the_other_workspace": dict(header=OTHER_ORG, other_joined="2026-02-01T00:00:00+00:00"),
+    # The reader's OLDEST membership is the other company (what
+    # `_org.resolve_org` falls back to when a request names none).
+    "the_oldest_membership_is_the_other_workspace": dict(header=None, other_joined="2019-01-01T00:00:00+00:00"),
+    "both": dict(header=OTHER_ORG, other_joined="2019-01-01T00:00:00+00:00"),
+}  # type: Dict[str, Dict[str, Any]]
+
+
+@pytest.mark.parametrize("where", sorted(_WHERE_THE_READER_STANDS))
+def test_the_tenant_of_the_briefing_read_is_the_periods_own_never_the_requests(where):
+    """The tenant in the filter must be THE PERIOD'S org. Two plants of the
+    plant run left this file green (2026-10-03): the filter taking the
+    tenant from the request's `X-Org-Id`, and from the caller's oldest
+    membership — every request here named the period's own workspace, and
+    the reader had joined it first. A reader of two companies who opens a
+    period of one while the app's active workspace (or their first
+    membership) is the other must be served the PERIOD's briefing — not the
+    other company's row on it, and not nothing."""
+    stands = _WHERE_THE_READER_STANDS[where]
+    double = _world()
+    double.add("organizations", {"id": OTHER_ORG, "name": "another company", "default_currency": "RON"})
+    double.add("memberships", {"user_id": USER, "org_id": OTHER_ORG, "role": "member",
+                               "created_at": stands["other_joined"]})
+    own = dict({"period_id": PID, "org_id": ORG}, **_usable_row())
+    for row in (FOREIGN_BRIEFING, own):
+        double.add("briefings", dict(row))
+    headers = {"Authorization": "Bearer " + D.mint_jwt(USER)}
+    if stands["header"]:
+        headers["X-Org-Id"] = stands["header"]
+    with RA.installed(double):
+        resp = TestClient(_app(), raise_server_exceptions=False).get("/api/period/%s" % PID, headers=headers)
+    assert resp.status_code == 200, resp.text[:400]
+    payload = resp.json()
+    assert (payload["briefing"] or {}).get("body") == GOOD, payload["briefing"]
+    assert "Foreign prose" not in json.dumps(payload, ensure_ascii=False)
+    # … and with only the other company's row on the period: nothing.
+    alone = _world()
+    alone.add("organizations", {"id": OTHER_ORG, "name": "another company", "default_currency": "RON"})
+    alone.add("memberships", {"user_id": USER, "org_id": OTHER_ORG, "role": "member",
+                              "created_at": stands["other_joined"]})
+    alone.add("briefings", dict(FOREIGN_BRIEFING))
+    with RA.installed(alone):
+        resp = TestClient(_app(), raise_server_exceptions=False).get("/api/period/%s" % PID, headers=headers)
+    assert resp.status_code == 200 and resp.json()["briefing"] is None, resp.text[:300]
 
 
 @pytest.mark.parametrize("foreign_first", [True, False], ids=["foreign_row_first", "own_row_first"])

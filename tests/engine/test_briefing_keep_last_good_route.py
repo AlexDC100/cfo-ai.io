@@ -171,9 +171,7 @@ test_the_persisted_language_is_the_true_one_clamped_to_the_column, not ruled
 on). `briefings.period_id` is UNIQUE, so "this workspace's row AND another
 workspace's row on one period" is not a state the table can hold.
 
-PLANT LOG: docs/engine_book/gates.md "briefing-keep-last-good" — to be
-written with the gate's registration in scripts/run_battery.py (neither
-exists on this tree yet; the proposed plants travel with this file's report).
+PLANT LOG: docs/engine_book/gates.md "briefing-keep-last-good".
 """
 from __future__ import annotations
 
@@ -1790,16 +1788,22 @@ def test_a_briefing_that_was_written_is_never_left_marked_stale_when_the_period_
         w.store_briefing(stale_since="2026-09-30T10:00:00+00:00", stale_reason="provider_error")
         w.provider.replies(USABLE_REPLY)
         w.failing_updates.add("financial_periods")
-        before = w.snapshot()
-        w.post(EXPLICIT)
+        resp = w.post(EXPLICIT)
         # The scenario did happen: a narration, and a refused period touch.
         assert len(w.provider.calls) == 1
         assert w.writes("financial_periods"), "the period touch was never attempted"
+        # The touch is a cache-bust, not part of the write (review 2026-10-03):
+        # the briefing IS stored, and the answer says so — it used to be a bare
+        # 500 for a replaced briefing, and the card then told the reader "the
+        # previous briefing was kept".
+        assert resp.status_code == 200, resp.text[:300]
+        answer = resp.json()
+        assert (answer["ok"], answer["regenerated"], answer["persisted"], answer["stale"]) == \
+            (True, True, True, False), answer
+        assert answer["briefing"] == NEW_BODY
         row = w.briefing_rows()[0]
-        if row["body"] == NEW_BODY:
-            assert (row["stale_since"], row["stale_reason"]) == (None, None), row
-        else:
-            assert row == before["briefings"][0]
+        assert row["body"] == NEW_BODY
+        assert (row["stale_since"], row["stale_reason"]) == (None, None), row
 
 
 def test_the_marker_is_cleared_right_after_the_upsert_and_before_the_period_touch(monkeypatch):

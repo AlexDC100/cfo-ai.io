@@ -3419,8 +3419,9 @@ NARRATION_UNAVAILABLE_CODES = ("no_api_key", "sdk_missing", "provider_error",
 #: the same predicate for the browser — change both together.
 _PROVIDER_ERROR_TEXT_RX = re.compile(r"Error code: \d", re.IGNORECASE)
 
-#: The languages `stage_narrate` has an instruction for; anything else is
-#: narrated in English.
+#: The languages `stage_narrate` has an instruction for. The regenerate route
+#: refuses any other (422 `unsupported_language`, before the meter); a
+#: document whose detected language is another is narrated in English.
 NARRATION_LANGUAGES = ("en", "ro", "de", "fr", "es", "it", "pt", "nl", "pl")
 
 
@@ -5340,11 +5341,30 @@ def stage_persist_narrative(
                 _restore_carried_recommendations(admin_client, carry, org_id, period_id)
                 _drop_rerun_carry(document_id)
                 return
+            # What the period holds, read BEFORE the delete: the replacement
+            # is a delete then an insert, and an insert the database refused
+            # (a timeout) used to leave the period with none — its worked
+            # recommendations gone although the narration had not failed
+            # (review 2026-10-03, measured 2 -> 0). They are put back.
+            previous_recs = admin_client.select(
+                "recommendations",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+            ) or []
             admin_client.delete(
                 "recommendations",
                 filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"})
-            if recs:
-                admin_client.insert("recommendations", recs, returning=False)
+            try:
+                if recs:
+                    admin_client.insert("recommendations", recs, returning=False)
+            except Exception:
+                if previous_recs:
+                    try:
+                        admin_client.insert("recommendations", previous_recs, returning=False)
+                    except Exception:  # noqa: BLE001 — the original failure is what is raised
+                        logger.exception(
+                            "[stage_persist_narrative] the period's previous recommendations "
+                            "could not be put back for period %s", period_id)
+                raise
             stored["recommendations"] = True
             # The run's own narration replaced everything a re-run carried.
             _drop_rerun_carry(document_id)
@@ -12247,11 +12267,23 @@ def build_router() -> APIRouter:
                     # the marker columns).
                     if _clear_briefing_stale(admin_client, period_id, org_id):
                         row_is_stale = False
-                    admin_client.update(
-                        "financial_periods",
-                        {"updated_at": _now_iso()},
-                        filters={"id": f"eq.{period_id}"},
-                    )
+                    # The period touch is a cache-bust, not part of the
+                    # write: when it fails the briefing IS stored — the
+                    # answer says so and the caller's unit is committed. It
+                    # used to raise: a bare 500 for a briefing that had been
+                    # replaced, the unit released, and a card telling the
+                    # reader "the previous briefing was kept" (review
+                    # 2026-10-03).
+                    try:
+                        admin_client.update(
+                            "financial_periods",
+                            {"updated_at": _now_iso()},
+                            filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+                        )
+                    except Exception:  # noqa: BLE001
+                        logger.exception(
+                            "[/api/period/{id}/briefing/regenerate] the period touch failed "
+                            "(non-fatal) — the briefing of period %s is stored", period_id)
 
             if reserved:
                 _ug.commit_chat(caller_id)
