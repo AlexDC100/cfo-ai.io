@@ -192,7 +192,7 @@ describe("S7 — a sign flip renders in words on every converted consumer", () =
           <div data-testid="cmp-ebitda"><CmpCells rowKey="pl.ebitda" amount={EBITDA_PLAN} /></div>
           <div data-testid="cmp-revenue"><CmpCells rowKey="pl.revenue" amount={120} /></div>
           <div data-testid="bs-flip">
-            <BsCmpCells opening={CASH_BASE} closing={CASH_PLAN} baseCurrent={null} basePrior={null} />
+            <BsCmpCells opening={CASH_BASE} closing={CASH_PLAN} />
           </div>
         </ComparativeProvider>
       </Providers>,

@@ -91,7 +91,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/sonner";
-import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
+import { useActivePeriod } from "@/lib/activePeriod";
+import { resetPeriodAnswers } from "@/lib/periodReset";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { forgetPeriodVerdictFor } from "@/lib/dataPresence";
 import { formatDateTime, useActiveLocale } from "@/lib/locale";
@@ -400,7 +401,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
       return false;
     }
     refreshPeriodLists();
-    void qc.resetQueries({ queryKey: periodQueryKey(p.period_id) });
+    resetPeriodAnswers(qc, p.period_id);
     toast.success(t("wsSet.periods.renamed", { month: monthLabelOf(monthKey) }));
     return true;
   }
@@ -439,7 +440,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
       forgetPeriodVerdictFor(p.period_id);
       qc.removeQueries({ queryKey: ["period-documents", p.period_id] });
       refreshPeriodLists();
-      void qc.resetQueries({ queryKey: periodQueryKey(target.period_id) });
+      resetPeriodAnswers(qc, target.period_id);
       toast.success(t("wsSet.periods.merged", { month: monthLabelOf(monthKey) }));
       return true;
     } catch (err) {
@@ -512,7 +513,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
         if (next.status === "analyzed") {
           unsub();
           refreshPeriodLists();
-          if (next.period_id) void qc.resetQueries({ queryKey: periodQueryKey(next.period_id) });
+          if (next.period_id) resetPeriodAnswers(qc, next.period_id);
           toast.success(t("ws.periodReady", { label: lbl }));
         } else if (next.status === "failed") {
           unsub();

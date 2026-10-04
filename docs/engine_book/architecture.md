@@ -41,7 +41,7 @@ graph LR
     pkg_benchmarks_ro["benchmarks_ro (5 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
-    pkg_comparatives["comparatives (6 modules)"]
+    pkg_comparatives["comparatives (7 modules)"]
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
@@ -120,7 +120,7 @@ graph LR
     pkg_benchmarks_ro -->|1| pkg_public_ro
     pkg_benchmarks_ro -->|1| pkg_ratios
     pkg_benchmarks_ro -->|1| pkg_serving
-    pkg_comparatives -->|1| pkg_ratios
+    pkg_comparatives -->|2| pkg_ratios
     pkg_comparatives -->|2| pkg_serving
     pkg_consensus -->|1| pkg_core
     pkg_consensus -->|1| pkg_frontends

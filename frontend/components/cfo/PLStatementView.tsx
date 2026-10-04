@@ -37,9 +37,11 @@ import {
   CmpCells,
   CmpColumnHeader,
   ComparativeDefinitionProvider,
+  SHARE_ONLY_COLUMNS,
   activeColumnCount,
   cmpColumnTemplate,
   useComparativeContext,
+  useShareOnlyContext,
 } from "./ComparativeCells";
 import { sourceDocumentLine } from "@/lib/comparatives";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -112,10 +114,15 @@ export function PLStatementView({ statement, hideGuide = false }: Props) {
   // <ComparativeProvider> with an engine document. The grid widens by the
   // columns the reader switched on; every cell is painted by <CmpCells>,
   // which refuses any row whose figure is not the engine's own line.
+  // With NO document the grid carries ONE extra column, the period's own
+  // share of net turnover (`statements.common_size`) — the share is not a
+  // comparison column (owner ruling 2026-10-04).
   const cmp = useComparativeContext();
-  const cmpCount = cmp ? activeColumnCount(cmp.columns) : 0;
-  const cmpStyle = cmp && cmpCount > 0
-    ? ({ "--cmp-cols": cmpColumnTemplate(cmp.columns) } as React.CSSProperties)
+  const shareOnly = useShareOnlyContext();
+  const cmpColumns = cmp ? cmp.columns : shareOnly ? SHARE_ONLY_COLUMNS : null;
+  const cmpCount = cmpColumns ? activeColumnCount(cmpColumns) : 0;
+  const cmpStyle = cmpColumns && cmpCount > 0
+    ? ({ "--cmp-cols": cmpColumnTemplate(cmpColumns) } as React.CSSProperties)
     : undefined;
   // THE DIAL — Simple opens totals-first; "Show all lines" expands to the
   // untouched full table. keyOnly hides only `style: "item"` rows —
@@ -142,6 +149,7 @@ export function PLStatementView({ statement, hideGuide = false }: Props) {
       className={`pl-statement${cmpCount > 0 ? " pl-cmp" : ""}`}
       data-testid="pl-statement"
       data-comparative={cmp ? cmp.doc.prior.period_id : undefined}
+      data-share-only={!cmp && shareOnly ? "true" : undefined}
       style={cmpStyle}
     >
       <div className="pl-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -171,6 +179,14 @@ export function PLStatementView({ statement, hideGuide = false }: Props) {
           priorTitle={sourceDocumentLine(cmp.doc.prior)}
           shareLabel={t("statements.cmp.colShare")}
           columns={cmp.columns}
+        />
+      )}
+      {!cmp && shareOnly && (
+        <CmpColumnHeader
+          currentLabel={statement.period}
+          priorLabel=""
+          shareLabel={t("statements.cmp.colShare")}
+          columns={SHARE_ONLY_COLUMNS}
         />
       )}
       {/* Every row on the one EBITDA is held to a prior served on the same

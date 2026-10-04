@@ -1,0 +1,4813 @@
+{
+ "_source": "GET /api/period/{id} -> line_items, for the two periods of pair_served.json (the field pair_served.json and pair_prior_later.json trim)",
+ "periods": {
+  "period-agras-fy2025": {
+   "line_items": [
+    {
+     "amount": 8795850.0,
+     "bucket": "shareCapital",
+     "is_derived": false,
+     "ro_account_code": "1012.01",
+     "ro_account_name": "Nnsefni mkxmwzem dnzmnf 2420.42",
+     "statement": "BS"
+    },
+    {
+     "amount": 5.0,
+     "bucket": "otherEquity",
+     "is_derived": false,
+     "ro_account_code": "1042.01",
+     "ro_account_name": "Rmbhy vy kolbody / vbublxmy 9380.39",
+     "statement": "BS"
+    },
+    {
+     "amount": 1888792.0,
+     "bucket": "otherEquity",
+     "is_derived": false,
+     "ro_account_code": "1051.01",
+     "ro_account_name": "Fvlvguv iow gvvubsfbgv 4574.54",
+     "statement": "BS"
+    },
+    {
+     "amount": 5767389.1,
+     "bucket": "otherEquity",
+     "is_derived": false,
+     "ro_account_code": "1068.01",
+     "ro_account_name": "Qswkxa smxvbmyaxa 8967.98",
+     "statement": "BS"
+    },
+    {
+     "amount": -61628.4,
+     "bucket": "retainedEarnings",
+     "is_derived": false,
+     "ro_account_code": "1171.01",
+     "ro_account_name": "Slmrtdzdrt klgckdzd klgklmlidzib gkcjhdrt ilklgzkdhmzd qzr ghlkblklz ilzwcglkhdz 7767.97",
+     "statement": "BS"
+    },
+    {
+     "amount": 552921.67,
+     "bucket": "ltDebt",
+     "is_derived": false,
+     "ro_account_code": "1621.81",
+     "ro_account_name": "Aisaqp bxiswp ACA RWROE SYQCUV 1391.81",
+     "statement": "BS"
+    },
+    {
+     "amount": 275434.04,
+     "bucket": "ltDebt",
+     "is_derived": false,
+     "ro_account_code": "167.201",
+     "ro_account_name": "Quvsbmy vgaj igquma (xva.gqfva.36 egmb) 317.603 317.603",
+     "statement": "BS"
+    },
+    {
+     "amount": 612063.52,
+     "bucket": "ltDebt",
+     "is_derived": false,
+     "ro_account_code": "167.401",
+     "ro_account_name": "Phfdrct cmcexz-fozm 457.364 457.364",
+     "statement": "BS"
+    },
+    {
+     "amount": 5106502.31,
+     "bucket": "intangibles",
+     "is_derived": false,
+     "ro_account_code": "2050.01",
+     "ro_account_name": "Kvisolxmix, unoaowo, cxsoiwo, zknsx svzonsxkco, tnoewmnx lx kswxao lxzxckno 6010.08",
+     "statement": "BS"
+    },
+    {
+     "amount": 194568.94,
+     "bucket": "intangibles",
+     "is_derived": false,
+     "ro_account_code": "2080.01",
+     "ro_account_name": "Mlbv xsmhxlxadox rvjmoymodlv 8121.15",
+     "statement": "BS"
+    },
+    {
+     "amount": 983882.24,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111.02",
+     "ro_account_name": "UW997149 EBMSAW.3542 TISBIZLKI 03 0999.70 0999.70",
+     "statement": "BS"
+    },
+    {
+     "amount": 17148.67,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111.04",
+     "ro_account_name": "MZ84254 ESGJBZ.9569 ADJSDWRXD 25 2999.64 2999.64",
+     "statement": "BS"
+    },
+    {
+     "amount": 37484.85,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111.05",
+     "ro_account_name": "ZV80491 LQWKOV.5416 YBKQBRCEB 49 4666.29 4666.29",
+     "statement": "BS"
+    },
+    {
+     "amount": 35565.48,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111.06",
+     "ro_account_name": "BO8761 JTURPO.7227 ICRTCASXC 96 9222.04 9222.04",
+     "statement": "BS"
+    },
+    {
+     "amount": 205798.25,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111.07",
+     "ro_account_name": "LS74642 BOMWIS.484 JYWOYTHFY 84I 2333.57 2333.57",
+     "statement": "BS"
+    },
+    {
+     "amount": 524083.0,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111.08",
+     "ro_account_name": "PW76965_Kfzfk wktzdswndk_JdzadHhvhwxqhnhw0D_566ce 0222.97",
+     "statement": "BS"
+    },
+    {
+     "amount": 270680.0,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111.09",
+     "ro_account_name": "YP83138_Hnwny xymwclxqcy_ScwpcUsbsxtzsqsx4L_843dv 4999.10",
+     "statement": "BS"
+    },
+    {
+     "amount": 498894.23,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2112.01",
+     "ro_account_name": "Xkjogdgen yj qjejomen 6336.83",
+     "statement": "BS"
+    },
+    {
+     "amount": 5604426.88,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2121.01",
+     "ro_account_name": "Btkhaosqayy 5656.06",
+     "statement": "BS"
+    },
+    {
+     "amount": 1046579.0,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2121.02",
+     "ro_account_name": "QU69495_Q7Qdtqaiuahqklxiatdt_ BtiqtLklkaerkdka2V_599mb  2727.42",
+     "statement": "BS"
+    },
+    {
+     "amount": 17528035.29,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2131.01",
+     "ro_account_name": "Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13",
+     "statement": "BS"
+    },
+    {
+     "amount": 701762.41,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2132.01",
+     "ro_account_name": "Rbjdjgn tw wytgjpjgww sn rjtcdjdn, eiygdip tw dnupjdn 0530.45",
+     "statement": "BS"
+    },
+    {
+     "amount": 9341916.0,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2133.01",
+     "ro_account_name": "Hmlsktwo eo bptvrukpb 6011.30",
+     "statement": "BS"
+    },
+    {
+     "amount": 554867.72,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "214.001",
+     "ro_account_name": "Rlvqgqrf, ikifisxfi vqflsqbi, rbmqkinresr hr kflsrbsqr i oiglfqglf xnier wq nisrfqigr wq igsr ibsqor blfklfigr 275.667",
+     "statement": "BS"
+    },
+    {
+     "amount": 49773.0,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "231.010",
+     "ro_account_name": "Spueca Kewigwe 564.848",
+     "statement": "BS"
+    },
+    {
+     "amount": 3293.58,
+     "bucket": "otherNonCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "2678.27",
+     "ro_account_name": "UTRTVGIH JTRGIWIJTRH JHVIGHVWITRMD YHLT WV1952282 3526.32",
+     "statement": "BS"
+    },
+    {
+     "amount": -699.24,
+     "bucket": "otherNonCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "2678.31",
+     "ro_account_name": "WLJLBPYA HLJPYEYHLJA HABYPLBEYLJSN LJLX 4916.32",
+     "statement": "BS"
+    },
+    {
+     "amount": 1300.0,
+     "bucket": "otherNonCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "2678.32",
+     "ro_account_name": "HQOQFXZI CQOXZDZCQOI CIFZXIFDZQOMY QZMK DF8207473 9506.49",
+     "statement": "BS"
+    },
+    {
+     "amount": 60011.46,
+     "bucket": "otherNonCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "2678.33",
+     "ro_account_name": "BGOGJRMF YFW PLBMHRMU UFJRFO HOP 8521.00",
+     "statement": "BS"
+    },
+    {
+     "amount": 2748.62,
+     "bucket": "otherNonCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "2678.36",
+     "ro_account_name": "TQFQGSIK XQFSIOIXQFK XKGISKGOIQFUD SIAICMQFQ 0467.54",
+     "statement": "BS"
+    },
+    {
+     "amount": 1250.0,
+     "bucket": "otherNonCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "2678.37",
+     "ro_account_name": "QUGUHJCK MDCGCK MGCOUH WUTKGCU 8093.59",
+     "statement": "BS"
+    },
+    {
+     "amount": -4472847.31,
+     "bucket": "intangibles",
+     "is_derived": false,
+     "ro_account_code": "2805.01",
+     "ro_account_name": "Torkwxlvksv nrfnsixefxyrk, jkstswsyrk, yxnsfwsyrk, ovknxyrk nrosknxvys, bkscwekxyrk ix vnwxtsyrk ixoxyvks 9653.58",
+     "statement": "BS"
+    },
+    {
+     "amount": -155133.81,
+     "bucket": "intangibles",
+     "is_derived": false,
+     "ro_account_code": "2808.01",
+     "ro_account_name": "Xrmtvhkdtpd djvmt hrmzhjhkdth upnmtwmtdjp 0595.92",
+     "statement": "BS"
+    },
+    {
+     "amount": -434488.49,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2811.01",
+     "ro_account_name": "Omuhgoqehie emisevehowuh bi gihisjho 8399.79",
+     "statement": "BS"
+    },
+    {
+     "amount": -4094529.08,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2812.01",
+     "ro_account_name": "Dlrdqwuadba trijqdftqwwmrd 7987.08",
+     "statement": "BS"
+    },
+    {
+     "amount": -21362608.76,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2813.01",
+     "ro_account_name": "Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27",
+     "statement": "BS"
+    },
+    {
+     "amount": -453821.15,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2814.01",
+     "ro_account_name": "Qrxeqpgleil lzqxe prxupzpglep axenxelzi 3491.69",
+     "statement": "BS"
+    },
+    {
+     "amount": 3019768.26,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "301.201",
+     "ro_account_name": "Uxsyann zanpy - fxaby 467.067",
+     "statement": "BS"
+    },
+    {
+     "amount": 1680.72,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "301.202",
+     "ro_account_name": "Pfhlkww jkwml jkbhlwil 906.707",
+     "statement": "BS"
+    },
+    {
+     "amount": 633356.8,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "301.203",
+     "ro_account_name": "Bxfvkmm lkmjv - nogsmjvgfv 281.582",
+     "statement": "BS"
+    },
+    {
+     "amount": 323980.56,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3021.01",
+     "ro_account_name": "Ocs.cgi.-ezetucpz 9518.58",
+     "statement": "BS"
+    },
+    {
+     "amount": 322018.08,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3023.21",
+     "ro_account_name": "Xkh.kxz.xtwtl.(jlidu,uapksk,th.xtxz,lkok jkshpn,dfnyi) 7297.91",
+     "statement": "BS"
+    },
+    {
+     "amount": 7288.23,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3023.22",
+     "ro_account_name": "Qse.sry.soeq(nvoiq,yswjs,aoiut,qe.usoqe-usoqeidsfq) 5295.99",
+     "statement": "BS"
+    },
+    {
+     "amount": 4342.46,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3024.01",
+     "ro_account_name": "Tbpkp kuibtv rlbcayp 0187.12 0187.12",
+     "statement": "BS"
+    },
+    {
+     "amount": 26583.74,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.01",
+     "ro_account_name": "Ils.zvew.nesapsnepap -msnyldp/zylgnan 4539.56",
+     "statement": "BS"
+    },
+    {
+     "amount": 1603.53,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.02",
+     "ro_account_name": "Uxk.oeit.odrxkuilu-lcluilqxru 8527.52",
+     "statement": "BS"
+    },
+    {
+     "amount": 11712.72,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.03",
+     "ro_account_name": "Eni.bqlvum.stzjwvj 4518.54",
+     "statement": "BS"
+    },
+    {
+     "amount": 6115.0,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.04",
+     "ro_account_name": "Yxc.lnbq.ovubdc.kdunv 7061.03",
+     "statement": "BS"
+    },
+    {
+     "amount": 10900.82,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3031.01",
+     "ro_account_name": "Uhmfpnhgf rf whmyph aenfomfgap rf nwdfwmhp 8587.57",
+     "statement": "BS"
+    },
+    {
+     "amount": 995988.37,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "341.010",
+     "ro_account_name": "Fpdfgeylfmerp 891.515",
+     "statement": "BS"
+    },
+    {
+     "amount": 795942.72,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "345.010",
+     "ro_account_name": "Ialgijc qswsrc 103.787",
+     "statement": "BS"
+    },
+    {
+     "amount": 661216.57,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "348.102",
+     "ro_account_name": "Lmkwgwehw vw jgwh ur jgovpbw 510.739",
+     "statement": "BS"
+    },
+    {
+     "amount": 8386.78,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.001",
+     "ro_account_name": "Nyejueg seyzd 037.667 037.667",
+     "statement": "BS"
+    },
+    {
+     "amount": 1812639.13,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.010",
+     "ro_account_name": "Kxkupkr DNIKNRQZITZ - 564.94 564.949",
+     "statement": "BS"
+    },
+    {
+     "amount": 8161.96,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.050",
+     "ro_account_name": "Kisayse ONUDZEW BRLRANFWE 921.868",
+     "statement": "BS"
+    },
+    {
+     "amount": 80581.14,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.081",
+     "ro_account_name": "Tovyuvd GERSPLD CVBYE NJCJBEQDL 098.638",
+     "statement": "BS"
+    },
+    {
+     "amount": 154502.36,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.093",
+     "ro_account_name": "Zsmvcmw BVRCXDE YSWUV SQLS LMU 509.735",
+     "statement": "BS"
+    },
+    {
+     "amount": -11.52,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.095",
+     "ro_account_name": "Ffwohwp Ntfugpf Wvdywb Hyuazwlz",
+     "statement": "BS"
+    },
+    {
+     "amount": 0.63,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "378.078",
+     "ro_account_name": "Atqwuwoew vw guwe na mauqkut M Awglpte Snba 406.306",
+     "statement": "BS"
+    },
+    {
+     "amount": 0.17,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "378.080",
+     "ro_account_name": "Krhocoumo no wcom pz dzchgcr N Kowxkrm Qgtgcoqmr 234.646",
+     "statement": "BS"
+    },
+    {
+     "amount": 52648.19,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "381.001",
+     "ro_account_name": "SLCOQP 719.449",
+     "statement": "BS"
+    },
+    {
+     "amount": -6075.0,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "398",
+     "ro_account_name": "271 Qwumvkbc qedvbu geqbeocebek kankzkwezjb",
+     "statement": "BS"
+    },
+    {
+     "amount": 1843676.17,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "401.003",
+     "ro_account_name": "Ifxkcnyxc dljdxkc - 861.63 861.663",
+     "statement": "BS"
+    },
+    {
+     "amount": 2476804.2,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "401.01",
+     "ro_account_name": "Zchgynjhy ygbohgy - 940.40 940.40",
+     "statement": "BS"
+    },
+    {
+     "amount": 2363596.3,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "401.110",
+     "ro_account_name": "Ypurclfuc BVN 976.667",
+     "statement": "BS"
+    },
+    {
+     "amount": 439477.55,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "403.001",
+     "ro_account_name": "Wwjvfj oj tqxfef 084.887",
+     "statement": "BS"
+    },
+    {
+     "amount": 62819.55,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "404.001",
+     "ro_account_name": "Iktsdmntd vo dznudpdmftd - 313 313.118",
+     "statement": "BS"
+    },
+    {
+     "amount": 368473.48,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "408.001",
+     "ro_account_name": "Roaienwae - vjpgoae ihywyegh 452.551 452.551",
+     "statement": "BS"
+    },
+    {
+     "amount": 29588.85,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4091.01",
+     "ro_account_name": "Shpsjzrpj qlwjmrpj chyi whshpj FBYAGCB 4231.21 4231.21",
+     "statement": "BS"
+    },
+    {
+     "amount": 19614.76,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4092.34",
+     "ro_account_name": "HWHBU E.XB  9304.59",
+     "statement": "BS"
+    },
+    {
+     "amount": 4600644.59,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4111.01",
+     "ro_account_name": "Kukipmk Tuoc - 5444.84 5444.84",
+     "statement": "BS"
+    },
+    {
+     "amount": 1270793.58,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4111.02",
+     "ro_account_name": "Ptfpkjf Imbmlpgjf 5444.89",
+     "statement": "BS"
+    },
+    {
+     "amount": 511694.82,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4111.03",
+     "ro_account_name": "Ryifrki fhkfjri 8333.07",
+     "statement": "BS"
+    },
+    {
+     "amount": 2190160.47,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4111.10",
+     "ro_account_name": "Urqkjfq qjf.VUF 5444.43 5444.43",
+     "statement": "BS"
+    },
+    {
+     "amount": 138104.01,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "418",
+     "ro_account_name": "871 Iadynid - qlxigkd ty dniuxfdi",
+     "statement": "BS"
+    },
+    {
+     "amount": 50289.1,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "419.01",
+     "ro_account_name": "Imspnzs - qbpuszjbs- BXBYC IEYADBIA 826.32 826.32",
+     "statement": "BS"
+    },
+    {
+     "amount": 791069.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "421.001",
+     "ro_account_name": "Kxgyudnp - ynpngii hnjugnjx 762.112",
+     "statement": "BS"
+    },
+    {
+     "amount": 9043.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "427.01",
+     "ro_account_name": "FVFXCXC 679.81",
+     "statement": "BS"
+    },
+    {
+     "amount": 390653.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4281.01",
+     "ro_account_name": "Stfk sdfrnbb tkodfk sk qknurwdt 6842.72",
+     "statement": "BS"
+    },
+    {
+     "amount": 26325.99,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4281.02",
+     "ro_account_name": "Uhthelzz Jktdvehp 9237.82",
+     "statement": "BS"
+    },
+    {
+     "amount": 400367.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4281.03",
+     "ro_account_name": "Bhrtdodrv orvojldd vjjyjouwbuj 7098.64",
+     "statement": "BS"
+    },
+    {
+     "amount": -132380.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4313.02",
+     "ro_account_name": "LAFL 9.74 - 2565.91 2565.91",
+     "statement": "BS"
+    },
+    {
+     "amount": 430542.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4315",
+     "ro_account_name": "Zfnebsacesz snusjsuczgz ut zlsxcbzbs lfwszgt btesncez ut gz zlsxcbzes                    5421 5421",
+     "statement": "BS"
+    },
+    {
+     "amount": 183867.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4316",
+     "ro_account_name": "Iypjfkhujkd mepjfu daklufdfk ayzkdxe te adpdjdje fejkpujd te xd daklufdjk 0517 0517",
+     "statement": "BS"
+    },
+    {
+     "amount": 38424.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "436",
+     "ro_account_name": "Szufdnbyfnm psniydpfzdnm tmufdy hyurp 678 678",
+     "statement": "BS"
+    },
+    {
+     "amount": 519035.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4411",
+     "ro_account_name": "1188 Nptdnfmib tz tydcfm",
+     "statement": "BS"
+    },
+    {
+     "amount": 250756.47,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4423",
+     "ro_account_name": "3368 ZOU rq dgcjc",
+     "statement": "BS"
+    },
+    {
+     "amount": 38228.13,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4428.010",
+     "ro_account_name": "JVK kbbuwdwlwyr NKCWKUEPCXP - 1164.959 1164.959",
+     "statement": "BS"
+    },
+    {
+     "amount": 10505.59,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4428.26",
+     "ro_account_name": "4462.65 LGA yllqabawazu - LGA ayeutunl hgnyakdn",
+     "statement": "BS"
+    },
+    {
+     "amount": 122141.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "444",
+     "ro_account_name": "444 Zqworbgnx wf zfpbgnyb lf pvgnyv kvxvybbxoy",
+     "statement": "BS"
+    },
+    {
+     "amount": 10521.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "446.09",
+     "ro_account_name": "EC cotikfoy ZB 551 - 559.73 559.73",
+     "statement": "BS"
+    },
+    {
+     "amount": 7536754.9,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4511.01",
+     "ro_account_name": "Ndqe te cnifmfy NLC 3299.59",
+     "statement": "BS"
+    },
+    {
+     "amount": 143709.49,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "461.016",
+     "ro_account_name": "Svwzgdnz czkvnozz qlzazqgz 092.829 092.829",
+     "statement": "BS"
+    },
+    {
+     "amount": 5637.91,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "461.06",
+     "ro_account_name": "Jhjvabrv ivthrzvv Zwjhwqk Wikwri 260.96",
+     "statement": "BS"
+    },
+    {
+     "amount": 6100.44,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "461.07",
+     "ro_account_name": "Aplhzbah thdpaghh YRWP YAJCYM DCZVY 045.81",
+     "statement": "BS"
+    },
+    {
+     "amount": 129399.72,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "471.004",
+     "ro_account_name": "Ge.uduoy iujg ulin&uyfw 547.885 547.885",
+     "statement": "BS"
+    },
+    {
+     "amount": 20442.81,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "471.008",
+     "ro_account_name": "Zf.adawm acxu 286.117 286.117",
+     "statement": "BS"
+    },
+    {
+     "amount": 1490.0,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "471.009",
+     "ro_account_name": "Tt. vf obofs zyfx xq tofxvioh 328.550",
+     "statement": "BS"
+    },
+    {
+     "amount": 44835.35,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "473.01",
+     "ro_account_name": "176.58 Ewsjgimbk akg jqwbmikk kg slbu aw sombkxksmbw",
+     "statement": "BS"
+    },
+    {
+     "amount": 941634.37,
+     "bucket": "otherNonCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4752",
+     "ro_account_name": "9642 Ynjponofopc ybprnaophrackb zo zrprzfbp eb hoaxbyfcc jbyfpo cyxbhfcfcc",
+     "statement": "BS"
+    },
+    {
+     "amount": -1953.0,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "481",
+     "ro_account_name": "347 Wegodufcx xduce ndxufue yx ynpndxufux",
+     "statement": "BS"
+    },
+    {
+     "amount": -48170.15,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "491",
+     "ro_account_name": "509 Ujrdqnlm gubqlr ougluxmulun xlunbqukil - xkmubqm",
+     "statement": "BS"
+    },
+    {
+     "amount": -11738.35,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "496",
+     "ro_account_name": "983 Fnxlhfoq rbjhox zbrobpqbobf pobfjhbemo - zbwqhmoq zqvbolq",
+     "statement": "BS"
+    },
+    {
+     "amount": 906526.42,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "5081.01",
+     "ro_account_name": "Cnezlbq vi qnjmng QPQ ZEUG 6498.48",
+     "statement": "BS"
+    },
+    {
+     "amount": 16818.29,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.01",
+     "ro_account_name": "Fymtdbe cz hzmwe em cve FXF 6212.32",
+     "statement": "BS"
+    },
+    {
+     "amount": 1096.0,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.02",
+     "ro_account_name": "Bmptnhw zg vgprw wp zow ugzghww 0131.83",
+     "statement": "BS"
+    },
+    {
+     "amount": 16954.4,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.03",
+     "ro_account_name": "Ygpofly th whpmy yp try syuh uohpnhln mhln hxrpoy 3656.08",
+     "statement": "BS"
+    },
+    {
+     "amount": 470668.87,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.07",
+     "ro_account_name": "Xsvtalk xf nfvck kv xzk LEHKTEHEVH 9878.52",
+     "statement": "BS"
+    },
+    {
+     "amount": 133402.89,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5124.01",
+     "ro_account_name": "UTYX UAU AJOT 8652.36",
+     "statement": "BS"
+    },
+    {
+     "amount": 1620.0,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5125",
+     "ro_account_name": "9459 Qjht qg vjdp ot otvfgasdt",
+     "statement": "BS"
+    },
+    {
+     "amount": 2199783.1,
+     "bucket": "stDebt",
+     "is_derived": false,
+     "ro_account_code": "5191.01",
+     "ro_account_name": "Txkxs zs bfszxi Tsx SUS 2070.30 2070.30",
+     "statement": "BS"
+    },
+    {
+     "amount": 139874.48,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.01",
+     "ro_account_name": "Tifi EHZE 1055.45",
+     "statement": "BS"
+    },
+    {
+     "amount": 461.6,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.02",
+     "ro_account_name": "Vlkl Telkwv0 2600.48",
+     "statement": "BS"
+    },
+    {
+     "amount": 8915.47,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.03",
+     "ro_account_name": "Csws Jzbvpjm 0766.17",
+     "statement": "BS"
+    },
+    {
+     "amount": 546.22,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.04",
+     "ro_account_name": "Bono Cgoe 4322.06",
+     "statement": "BS"
+    },
+    {
+     "amount": 1795.3,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.05",
+     "ro_account_name": "Xmhm Ttsthlmbm 0 9100.89",
+     "statement": "BS"
+    },
+    {
+     "amount": 6484.12,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.06",
+     "ro_account_name": "Ixix Pjlvi 9055.86",
+     "statement": "BS"
+    },
+    {
+     "amount": 10208.13,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.08",
+     "ro_account_name": "Otat Ofqw 6522.17",
+     "statement": "BS"
+    },
+    {
+     "amount": 157164.49,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.09",
+     "ro_account_name": "Cdod Ledxrxt Lfcgdp 6044.59",
+     "statement": "BS"
+    },
+    {
+     "amount": 1793.45,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.10",
+     "ro_account_name": "Pfbf Lncnbefpf7 9255.51",
+     "statement": "BS"
+    },
+    {
+     "amount": 5914.03,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.11",
+     "ro_account_name": "Pqaq Evpgh0 8100.00",
+     "statement": "BS"
+    },
+    {
+     "amount": 17183.29,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.12",
+     "ro_account_name": "Gono Ihpyj1 3788.81",
+     "statement": "BS"
+    },
+    {
+     "amount": 5179.27,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.13",
+     "ro_account_name": "Qkwk Rhubrk4 7699.96",
+     "statement": "BS"
+    },
+    {
+     "amount": 638.82,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.18",
+     "ro_account_name": "Ptdt Pstvmbt6 9266.67",
+     "statement": "BS"
+    },
+    {
+     "amount": 2900.53,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.32",
+     "ro_account_name": "Iete Gxetwd5 0644.65",
+     "statement": "BS"
+    },
+    {
+     "amount": 2667.21,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.33",
+     "ro_account_name": "Hcec Vzizq9 8911.99",
+     "statement": "BS"
+    },
+    {
+     "amount": 2299.03,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.34",
+     "ro_account_name": "Nxhx Uanat0 7288.23",
+     "statement": "BS"
+    },
+    {
+     "amount": 12048.24,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.35",
+     "ro_account_name": "Sueu Vuxqku0 6200.26",
+     "statement": "BS"
+    },
+    {
+     "amount": 3477.91,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.38",
+     "ro_account_name": "Komo Woxdbo9 2633.61",
+     "statement": "BS"
+    },
+    {
+     "amount": 1271.2,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.39",
+     "ro_account_name": "Etot Eetasxt2 4877.89",
+     "statement": "BS"
+    },
+    {
+     "amount": 3880.17,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.41",
+     "ro_account_name": "Tyky Nlpwry Iiolp 3011.51",
+     "statement": "BS"
+    },
+    {
+     "amount": 0.08,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.42",
+     "ro_account_name": "Xqjq Cfpfjlqeq 6 7644.51",
+     "statement": "BS"
+    },
+    {
+     "amount": 613.45,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.43",
+     "ro_account_name": "Arjr Aporjbr 4733.07",
+     "statement": "BS"
+    },
+    {
+     "amount": 2902.9,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.44",
+     "ro_account_name": "Wxax Cwjq-Awaupwux 0755.88",
+     "statement": "BS"
+    },
+    {
+     "amount": 4.84,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.51",
+     "ro_account_name": "Vawa Hqbqixwzp 9-1 7699.79",
+     "statement": "BS"
+    },
+    {
+     "amount": 1306.51,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.53",
+     "ro_account_name": "Dimi Hvsvfbmrp 7-0 7433.74",
+     "statement": "BS"
+    },
+    {
+     "amount": 684.35,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.54",
+     "ro_account_name": "Esgs Xpsivcs 9300.98",
+     "statement": "BS"
+    },
+    {
+     "amount": 926.89,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.57",
+     "ro_account_name": "Apxp Rpzfutgmp 5977.50",
+     "statement": "BS"
+    },
+    {
+     "amount": 134699.9,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.58",
+     "ro_account_name": "Teue Jkqte Kfqte 6344.68",
+     "statement": "BS"
+    },
+    {
+     "amount": 28.35,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.60",
+     "ro_account_name": "Beje Uinei 2855.63",
+     "statement": "BS"
+    },
+    {
+     "amount": 1616.36,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "542",
+     "ro_account_name": "403 Wafetvbh lo rbosibobho",
+     "statement": "BS"
+    },
+    {
+     "amount": 32069192.41,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "601.201",
+     "ro_account_name": "Xr.kvy.dxmka kaiag.zvxba 258.658",
+     "statement": "PL"
+    },
+    {
+     "amount": 54804.15,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "601.202",
+     "ro_account_name": "Fj.vxf.or.vmami.emumf (vxf.oryvx ordfmyhm) 295.696",
+     "statement": "PL"
+    },
+    {
+     "amount": 4818234.49,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "601.203",
+     "ro_account_name": "Ar.but.ho.bzjzg.ugtz (wcyavbzytz) 453.657",
+     "statement": "PL"
+    },
+    {
+     "amount": 2228148.31,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6021.01",
+     "ro_account_name": "Wq.sef.ehc.sndna.snswreun 0325.35",
+     "statement": "PL"
+    },
+    {
+     "amount": 850425.83,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.01",
+     "ro_account_name": "Xf.qwyioywnku wokxkoyujrs 2877.84",
+     "statement": "PL"
+    },
+    {
+     "amount": 91424.91,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.02",
+     "ro_account_name": "Cc.ymibfimukp lkpefpk 2155.15",
+     "statement": "PL"
+    },
+    {
+     "amount": 2068365.93,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.03",
+     "ro_account_name": "Xu.qczhkzcmyl wcjlml wczsc 2088.07",
+     "statement": "PL"
+    },
+    {
+     "amount": 18995.19,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.21",
+     "ro_account_name": "Qf.xakg rxsmbkfgvxak 0399.94",
+     "statement": "PL"
+    },
+    {
+     "amount": 59347.85,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.23",
+     "ro_account_name": "Bh.juoc ndzcfc ndxpd 7122.26",
+     "statement": "PL"
+    },
+    {
+     "amount": 1448354.37,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6023.21",
+     "ro_account_name": "Sn.brw.rbc. bstse.(heuvz,zqirpr,sw.bsbcprlr;erkr hrpwil,vflmu swh) 7625.29",
+     "statement": "PL"
+    },
+    {
+     "amount": 34534.09,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6023.22",
+     "ro_account_name": "Md.lyk.ylu.lzjzt.ytkz lyk(iftpz,uygwy,xtpnh,zk.nytzk-iyjy nytzkpjybz) 5842.44",
+     "statement": "PL"
+    },
+    {
+     "amount": 243737.48,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.01",
+     "ro_account_name": "Rv.xhgtg twvhpe kahoimg 2437.49",
+     "statement": "PL"
+    },
+    {
+     "amount": 524481.92,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.03",
+     "ro_account_name": "Ccxed.obxkx kscbyq XPI 4698.65",
+     "statement": "PL"
+    },
+    {
+     "amount": 194346.49,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.05",
+     "ro_account_name": "Gz.wmnhn hxzmts Xjul 4908.91",
+     "statement": "PL"
+    },
+    {
+     "amount": 89123.07,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.01",
+     "ro_account_name": "Tk.hed.nmuq.hed.ludpydlu.-adlteby/ntezlpy 9268.24",
+     "statement": "PL"
+    },
+    {
+     "amount": 102953.14,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.02",
+     "ro_account_name": "En.jmb.gqvy.jmb.gwrmbzvuz-uiuzvudmrz 4326.32",
+     "statement": "PL"
+    },
+    {
+     "amount": 76106.96,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.03",
+     "ro_account_name": "To.qen.faku.qen.lbypzup 2687.63",
+     "statement": "PL"
+    },
+    {
+     "amount": 15383.88,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.06",
+     "ro_account_name": "Eq.jxl.ctah. Wblt 4360.34",
+     "statement": "PL"
+    },
+    {
+     "amount": 43625.37,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.07",
+     "ro_account_name": "Vm.kji.nohz. ZRI 7231.20",
+     "statement": "PL"
+    },
+    {
+     "amount": 45677.21,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "603.001",
+     "ro_account_name": "Nd.bs.ukiwkatl 287.883",
+     "statement": "PL"
+    },
+    {
+     "amount": 13236.6,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "603.002",
+     "ro_account_name": "Zr.id.xmuymkfp VB 350.552",
+     "statement": "PL"
+    },
+    {
+     "amount": 597.27,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "604.004",
+     "ro_account_name": "Gg.asq.eilq.lqvwxvqjsui 986.886",
+     "statement": "PL"
+    },
+    {
+     "amount": 249850.86,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "604.006",
+     "ro_account_name": "Gn.xsa.hiua.yhawiayhiwi 735.337",
+     "statement": "PL"
+    },
+    {
+     "amount": 6147.4,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "604.011",
+     "ro_account_name": "Xg.jlv.bhuv.AP 478.722",
+     "statement": "PL"
+    },
+    {
+     "amount": 52344.38,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "604.012",
+     "ro_account_name": "Lv.cbf.toef.whijfhsb 527.243",
+     "statement": "PL"
+    },
+    {
+     "amount": 143282.73,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "604.014",
+     "ro_account_name": "Dz.fpi.qmji,pviot. jkvrpam-oqri.cykimsmim 854.504",
+     "statement": "PL"
+    },
+    {
+     "amount": 247.94,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "604.015",
+     "ro_account_name": "Ja. osq. bdpq. umvdkpd 985.830 985.830",
+     "statement": "PL"
+    },
+    {
+     "amount": 1931723.37,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6051.01",
+     "ro_account_name": "Hi.kjhcpn Zhrmqvr rgrkwmvkl 0921.91",
+     "statement": "PL"
+    },
+    {
+     "amount": 304290.71,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6051.02",
+     "ro_account_name": "Rb.svfhru Wqwx fqorzqex 3297.25",
+     "statement": "PL"
+    },
+    {
+     "amount": 169170.62,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6052.01",
+     "ro_account_name": "Ev.cewhio Qrn 3410.42",
+     "statement": "PL"
+    },
+    {
+     "amount": 99400.07,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6052.02",
+     "ro_account_name": "Bv.zoiplr Eng-Bgigk 1865.85",
+     "statement": "PL"
+    },
+    {
+     "amount": 280882.83,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.001",
+     "ro_account_name": "Sbxpswhxph kchfhdm otcawchpx XMQNF 741.442",
+     "statement": "PL"
+    },
+    {
+     "amount": 7617879.99,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.010",
+     "ro_account_name": "Syzidokzik wrkjkfx vlrmorkiz SHCQHEUTCFT - 469.65. 469.656",
+     "statement": "PL"
+    },
+    {
+     "amount": 652356.44,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.050",
+     "ro_account_name": "Eguqipauqa loatavs hcokpoaqu HWJPBNU KGEGMWYUN 301.080",
+     "statement": "PL"
+    },
+    {
+     "amount": 5316057.6,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.078",
+     "ro_account_name": "Wmrtcnwrtw ajwiwvh zljgnjwtr I AOMTHBZ QKYQ 845.453",
+     "statement": "PL"
+    },
+    {
+     "amount": 604179.04,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.080",
+     "ro_account_name": "Mwytovzytz ujznzif xmjbvjzty P ANRJHYE SIMIQNKEY 287.808",
+     "statement": "PL"
+    },
+    {
+     "amount": 836637.03,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.081",
+     "ro_account_name": "Azwhorswhs pfstsiv clfnrfshw ZBRVKNT AUPSB OIAIPBJTN 752.586",
+     "statement": "PL"
+    },
+    {
+     "amount": 10223601.44,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.093",
+     "ro_account_name": "Rljgdvqjgq ktqmqna owtivtqgj ZJMDVLN RXYSJ XPKX KHS 463.691",
+     "statement": "PL"
+    },
+    {
+     "amount": 956500.36,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.095",
+     "ro_account_name": "Dyxbwedxbd qldndrt gvlzeldbx Yhvrtdv Usqklw Dkrjxlnx 730.359",
+     "statement": "PL"
+    },
+    {
+     "amount": -67198.73,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "609.402",
+     "ro_account_name": "Zrcgfrlr fmarlfuivi gvqrlumili Yijlufi 890.796",
+     "statement": "PL"
+    },
+    {
+     "amount": 159980.06,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "611.001",
+     "ro_account_name": "Jx.yiluzl&uzqau.vlyjawz 388.228",
+     "statement": "PL"
+    },
+    {
+     "amount": 86324.03,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "611.002",
+     "ro_account_name": "Ht.saeqbe&qbruq.uceynbtsf 477.221",
+     "statement": "PL"
+    },
+    {
+     "amount": 263679.22,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "611.003",
+     "ro_account_name": "Sn.yatput&pukfp.rfeyay rfpvf 022.337",
+     "statement": "PL"
+    },
+    {
+     "amount": 76183.17,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "612.001",
+     "ro_account_name": "Oy.pyhghh kizezighcsd 978.227",
+     "statement": "PL"
+    },
+    {
+     "amount": 415979.39,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "612.003",
+     "ro_account_name": "Wx.sxctcc mahlcc,lutujvtc 814.227",
+     "statement": "PL"
+    },
+    {
+     "amount": 8192.81,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "612.017",
+     "ro_account_name": "Qs wsuyuu/udwsuyuzyu -inmznz (pubj, qgmznuz, qimzyuz) 951.653 951.653",
+     "statement": "PL"
+    },
+    {
+     "amount": 19950.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "612.018",
+     "ro_account_name": "Uv. bvzpzl mrzfozrkqpl 305.806",
+     "statement": "PL"
+    },
+    {
+     "amount": 8059.8,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "613.001",
+     "ro_account_name": "Rh.spigjtsti resditi  320.112",
+     "statement": "PL"
+    },
+    {
+     "amount": 4425.51,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "613.002",
+     "ro_account_name": "De.aljownanj wdjfaks 938.662",
+     "statement": "PL"
+    },
+    {
+     "amount": 3682.68,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "613.003",
+     "ro_account_name": "Ad.ozjwnaoaj zvrsnaj 657.887",
+     "statement": "PL"
+    },
+    {
+     "amount": 131086.84,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "613.004",
+     "ro_account_name": "Ax.wbvgtqwqv wtecetqvbuz 089.556",
+     "statement": "PL"
+    },
+    {
+     "amount": 262538.8,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "613.005",
+     "ro_account_name": "Cw.lguxeflfu vlguhu vlfjl 719.880",
+     "statement": "PL"
+    },
+    {
+     "amount": 71542.29,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "613.007",
+     "ro_account_name": "Khhiaojd odkxaioif Zgvohf 268.440",
+     "statement": "PL"
+    },
+    {
+     "amount": 100.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "623.011",
+     "ro_account_name": "Jncdokjcdj vkldjzjoqoc vqwak maoahadoqjzc 279.688",
+     "statement": "PL"
+    },
+    {
+     "amount": 92103.27,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6231.01",
+     "ro_account_name": "Lxdrdydf - 527.84 5274.84",
+     "statement": "PL"
+    },
+    {
+     "amount": 740.15,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6231.02",
+     "ro_account_name": "Kn.hrjojmjq mjphzfsl (rltozvrzfo) 8417.64",
+     "statement": "PL"
+    },
+    {
+     "amount": 3899.22,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6231.04",
+     "ro_account_name": "Sj.ceowomov qtxtx. 3920.54",
+     "statement": "PL"
+    },
+    {
+     "amount": 31095.91,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6231.05",
+     "ro_account_name": "Ogtclq Jzgfgogj 4872.59",
+     "statement": "PL"
+    },
+    {
+     "amount": 96110.83,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6231.07",
+     "ro_account_name": "DNAPVAN 2739.15",
+     "statement": "PL"
+    },
+    {
+     "amount": 523613.02,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6232.05",
+     "ro_account_name": "Ievzoro Jordzfgk 0696.53",
+     "statement": "PL"
+    },
+    {
+     "amount": 118824.9,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6232.208",
+     "ro_account_name": "Lvfhkud jwvcdlgbs 2757.710",
+     "statement": "PL"
+    },
+    {
+     "amount": 658841.71,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "624.001",
+     "ro_account_name": "Aw.vagczk.kaut.eg remjcvm 425.779",
+     "statement": "PL"
+    },
+    {
+     "amount": 13114.7,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "624.002",
+     "ro_account_name": "Xi.othsrcpto cktrphsk (ekmkxholk) 791.449",
+     "statement": "PL"
+    },
+    {
+     "amount": 187204.56,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "624.004",
+     "ro_account_name": "Ov.tcrfog.gsco.rmtwdrc (rfbryrtz) 879.009",
+     "statement": "PL"
+    },
+    {
+     "amount": 8639.49,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "624.005",
+     "ro_account_name": "Sd.qieyjohiq euqxux 605.229 605.229",
+     "statement": "PL"
+    },
+    {
+     "amount": -0.1,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "624.01",
+     "ro_account_name": "GUGTHDSYSF 283.46",
+     "statement": "PL"
+    },
+    {
+     "amount": 6500.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "625.101",
+     "ro_account_name": "Xg.oxwehk onowivxpxdk 294.010",
+     "statement": "PL"
+    },
+    {
+     "amount": 148766.92,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "625.201",
+     "ro_account_name": "Nb.sngnip jplrnynif 782.894",
+     "statement": "PL"
+    },
+    {
+     "amount": 34948.12,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "626.002",
+     "ro_account_name": "Dm.wlrlazhvl izcvrt 939.553",
+     "statement": "PL"
+    },
+    {
+     "amount": 4096.38,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "626.003",
+     "ro_account_name": "Dd.bxsokwb.wkgrnkrg 787.441",
+     "statement": "PL"
+    },
+    {
+     "amount": 137.41,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "627.10",
+     "ro_account_name": "OUCDQDUK gxjwxy 149.87 149.87",
+     "statement": "PL"
+    },
+    {
+     "amount": 28785.52,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "627.161",
+     "ro_account_name": "Gmwjq tkxgkpy GYG 586.252",
+     "statement": "PL"
+    },
+    {
+     "amount": 193027.3,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.202",
+     "ro_account_name": "Zk.phfw.trzofjubtch 150.575",
+     "statement": "PL"
+    },
+    {
+     "amount": 81833.58,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.203",
+     "ro_account_name": "Ep.ochx.cnuj&dljzjnlzhc-zselw/nujosrwzjwz 169.653",
+     "statement": "PL"
+    },
+    {
+     "amount": 119411.16,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.204",
+     "ro_account_name": "Fc.tzns.qjnflfiz 960.653",
+     "statement": "PL"
+    },
+    {
+     "amount": 5774.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.205",
+     "ro_account_name": "Mj. Sozv. XSCT wbtb dbzsp 205.068",
+     "statement": "PL"
+    },
+    {
+     "amount": 28517.77,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.207",
+     "ro_account_name": "Fn.wjoq hqxk.pmuhzjowuow 935.341",
+     "statement": "PL"
+    },
+    {
+     "amount": 71255.9,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.209",
+     "ro_account_name": "Ifqpldvqpv cd rplq wqbzvcvv JRWOLVV 052.598",
+     "statement": "PL"
+    },
+    {
+     "amount": 14813.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.210",
+     "ro_account_name": "Ht.dswj. kyvmu ehuhjhxukmls 845.430",
+     "statement": "PL"
+    },
+    {
+     "amount": 88340.21,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.301",
+     "ro_account_name": "Dt.yqks.meciceklynq 601.574",
+     "statement": "PL"
+    },
+    {
+     "amount": 126079.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.302",
+     "ro_account_name": "Tl.rtum.svrdnd svuyv 702.610",
+     "statement": "PL"
+    },
+    {
+     "amount": 57903.34,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.401",
+     "ro_account_name": "Mi.egka.ernvprk agpgkvn. (rnryvzg,lkxmg) 796.452",
+     "statement": "PL"
+    },
+    {
+     "amount": 219078.62,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.404",
+     "ro_account_name": "Yehr tirehdcrec qarxhoac xranctcc 731.949 731.949",
+     "statement": "PL"
+    },
+    {
+     "amount": 131327.85,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.406",
+     "ro_account_name": "Xs.xzve.gtbzgfcvz nzxzlvw 148.071",
+     "statement": "PL"
+    },
+    {
+     "amount": 58500.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.407",
+     "ro_account_name": "Qmaiqfyaiy xf oaswyxyyia JRUMDWMVN 521.834",
+     "statement": "PL"
+    },
+    {
+     "amount": 15113.14,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.501",
+     "ro_account_name": "Lt.yguz.ugpuwncug 546.328",
+     "statement": "PL"
+    },
+    {
+     "amount": 68773.54,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.503",
+     "ro_account_name": "Lg.iutr.pucm azfds&ptcfj. 314.287",
+     "statement": "PL"
+    },
+    {
+     "amount": 34079.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "628.504",
+     "ro_account_name": "Bvugf ouxe.oujnxyf oy mut 563.472",
+     "statement": "PL"
+    },
+    {
+     "amount": 270794.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.02",
+     "ro_account_name": "Oxdlcfukuq- gd. ryhducyt 986.41 986.41",
+     "statement": "PL"
+    },
+    {
+     "amount": 86599.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.101",
+     "ro_account_name": "Gd.arfeiav tgcpama 405.737",
+     "statement": "PL"
+    },
+    {
+     "amount": 11433.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.102",
+     "ro_account_name": "Ak.yaefbys siliqdly 632.857",
+     "statement": "PL"
+    },
+    {
+     "amount": 39189.55,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.103",
+     "ro_account_name": "Zh.fpy&amsw meazaerfcpw 796.109",
+     "statement": "PL"
+    },
+    {
+     "amount": 19821.37,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.104",
+     "ro_account_name": "Ki.krh&aebn HCA 257.831",
+     "statement": "PL"
+    },
+    {
+     "amount": 261.62,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.202",
+     "ro_account_name": "Bd.Lrzq mqegy 831.090 831.090",
+     "statement": "PL"
+    },
+    {
+     "amount": 8386.8,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.203",
+     "ro_account_name": "Yv.rxdi osezwodi & drji 792.619 792.619",
+     "statement": "PL"
+    },
+    {
+     "amount": 14119936.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "641.001",
+     "ro_account_name": "Sa.hjpocjhktrr vjhzucke 654.004",
+     "statement": "PL"
+    },
+    {
+     "amount": 3123700.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "641.003",
+     "ro_account_name": "Io.eflvb dhtmftwnlpn 289.446",
+     "statement": "PL"
+    },
+    {
+     "amount": 548195.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "641.005",
+     "ro_account_name": "Jd.lvr cfqytsrzjkvr 956.884",
+     "statement": "PL"
+    },
+    {
+     "amount": 488312.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "641.007",
+     "ro_account_name": "Ho.lgfy.fyd sfpgkd; lgfy nddj 173.994",
+     "statement": "PL"
+    },
+    {
+     "amount": 129618.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "641.008",
+     "ro_account_name": "Xu.tqbqckk gomw.goygfdkk 601.554",
+     "statement": "PL"
+    },
+    {
+     "amount": 4580.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "641.111",
+     "ro_account_name": "Zunchxmm xh uxmsnv (wouf.cunc.nhha) 463.333",
+     "statement": "PL"
+    },
+    {
+     "amount": 37919.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "641.112",
+     "ro_account_name": "Xaqxj us bsznazdtqpt 758.884",
+     "statement": "PL"
+    },
+    {
+     "amount": 1586820.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6422.001",
+     "ro_account_name": "Wq.mrkqxmx hbpb exapgnbj 0655.332",
+     "statement": "PL"
+    },
+    {
+     "amount": 81200.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6422.002",
+     "ro_account_name": "Vg.ditgcdchc txwnf_tgc ant 1500.660",
+     "statement": "PL"
+    },
+    {
+     "amount": 101213.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6458.01",
+     "ro_account_name": "Nhje tmehjouehu faupusw bnugoabauhe nu faqjetjub nqtubhb 9568.32 9568.32",
+     "statement": "PL"
+    },
+    {
+     "amount": 4749.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6458.04",
+     "ro_account_name": "FOZJUQ OFXZIQCO QCTBXDCO 1520.45",
+     "statement": "PL"
+    },
+    {
+     "amount": 416492.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "646",
+     "ro_account_name": "Cnlhewsthww quwy rp ztliq 616",
+     "statement": "PL"
+    },
+    {
+     "amount": 7006.77,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6581.02",
+     "ro_account_name": "Mianots.hrase.hrfiehtnoi 2831.94",
+     "statement": "PL"
+    },
+    {
+     "amount": 7705.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6581.04",
+     "ro_account_name": "Apevcn 3461.90",
+     "statement": "PL"
+    },
+    {
+     "amount": 15000.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6582.02",
+     "ro_account_name": "wpaowaxslnxg 0439.89 0439.89",
+     "statement": "PL"
+    },
+    {
+     "amount": 51596.17,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6583",
+     "ro_account_name": "6204 Ratbjzytby xcykyin upjyktbt ptnujt vy ubjt wxtcujyy nt puxyjub",
+     "statement": "PL"
+    },
+    {
+     "amount": 69.15,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6588.01",
+     "ro_account_name": "Whjn zgnhjfynhy xn nkdhcbjbon - 5122.76 5122.76",
+     "statement": "PL"
+    },
+    {
+     "amount": 65946.65,
+     "bucket": "financialExpense",
+     "is_derived": false,
+     "ro_account_code": "665",
+     "ro_account_name": "115 Azwecapwep jph jpkwswhcw jw dasl gteacts",
+     "statement": "PL"
+    },
+    {
+     "amount": 210406.98,
+     "bucket": "interestExpense",
+     "is_derived": false,
+     "ro_account_code": "666.01",
+     "ro_account_name": "Lsgcyfxgcx hlxdxqz zkbwqjxcg  333.71 333.71",
+     "statement": "PL"
+    },
+    {
+     "amount": 67523.37,
+     "bucket": "interestExpense",
+     "is_derived": false,
+     "ro_account_code": "666.111",
+     "ro_account_name": "Vaugb.nxe. olbx  guoytjc 222.888 222.888",
+     "statement": "PL"
+    },
+    {
+     "amount": 1914886.81,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6811.01",
+     "ro_account_name": "Cbytgmoyto wy yahtfsgscy hcokovw slfcgodscys olfzotodscotfc - wywmngozot 1588.48",
+     "statement": "PL"
+    },
+    {
+     "amount": 905076.22,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6811.03",
+     "ro_account_name": "Ej.ysolc.qui.dupn.zyrpgo. 8522.43",
+     "statement": "PL"
+    },
+    {
+     "amount": 65411.16,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6812.01",
+     "ro_account_name": "Srofl.oixf.xgzmkj.doqoqeblkvkf 3457.65 3457.65",
+     "statement": "PL"
+    },
+    {
+     "amount": 52158.85,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6814.01",
+     "ro_account_name": "Kz.bfto.ip.xbtu.iwv.weuw. 6029.32",
+     "statement": "PL"
+    },
+    {
+     "amount": 11738.35,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6814.02",
+     "ro_account_name": "OXZXZGWKYMYH -Wtzah.Xbwa.wdnu,rycmh.wh.ezwdzp.rphnu.pndpcarvhz 9742.80 9742.80",
+     "statement": "PL"
+    },
+    {
+     "amount": 6075.0,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6814.03",
+     "ro_account_name": "Mrecfpfey kbhkukwg 8041.67",
+     "statement": "PL"
+    },
+    {
+     "amount": 1471550.0,
+     "bucket": "taxExpense",
+     "is_derived": false,
+     "ro_account_code": "691",
+     "ro_account_name": "831 Tqojypnojn mp nzuwbnypj uo utwxny",
+     "statement": "PL"
+    },
+    {
+     "amount": 79311635.03,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "7015.01",
+     "ro_account_name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
+     "statement": "PL"
+    },
+    {
+     "amount": 15252.34,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "704",
+     "ro_account_name": "605 Weqwpvgw xwq uegrwfww kgeupype",
+     "statement": "PL"
+    },
+    {
+     "amount": 183977.61,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "706.001",
+     "ro_account_name": "Vuypdhap bpy ktpapp 873.772",
+     "statement": "PL"
+    },
+    {
+     "amount": 11109802.02,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.010",
+     "ro_account_name": "Mpgcjrzc xcg wfgnfzpf hfzurzcikz JLPRLKCQPGQ - 080.86 080.868",
+     "statement": "PL"
+    },
+    {
+     "amount": 740805.0,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.050",
+     "ro_account_name": "Adasyrcs jsa vlaglcdl wlcircseoc ODWVCPU SXKXHDBUP 989.838",
+     "statement": "PL"
+    },
+    {
+     "amount": 7251052.26,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.078",
+     "ro_account_name": "Ngoricur jro kvoyvugv tvuzcursdu U ZEYBQVC SXOS 474.746",
+     "statement": "PL"
+    },
+    {
+     "amount": 863014.61,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.080",
+     "ro_account_name": "Gptgemog sgt yntinopn anovmogkqo T IMZOKQP LJDJCMSPQ 383.818",
+     "statement": "PL"
+    },
+    {
+     "amount": 1036525.29,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.081",
+     "ro_account_name": "Vqwhcvah ehw itwotaqt dtarvahxfa FBRWNIT DZELB QYDYEBATI 606.012",
+     "statement": "PL"
+    },
+    {
+     "amount": 13022563.0,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.093",
+     "ro_account_name": "Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329",
+     "statement": "PL"
+    },
+    {
+     "amount": 1152937.23,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.095",
+     "ro_account_name": "Yortcpst utr jlrelsol dlsmpstfvs Ewlrutl Izivsc Ovraosjo 494.907",
+     "statement": "PL"
+    },
+    {
+     "amount": -2087418.08,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "709.304",
+     "ro_account_name": "Ccovyuhvivtutv kcgcilov 348.640 348.640",
+     "statement": "PL"
+    },
+    {
+     "amount": -1797564.61,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "709.401",
+     "ro_account_name": "Hgdioluv oss bhkhnlxg 517.019",
+     "statement": "PL"
+    },
+    {
+     "amount": -4272.56,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "709.904",
+     "ro_account_name": "Vzkmljlkn slfr IFF 718.819",
+     "statement": "PL"
+    },
+    {
+     "amount": 192091846.33,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "711",
+     "ro_account_name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
+     "statement": "PL"
+    },
+    {
+     "amount": 95681.37,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7581",
+     "ro_account_name": "5642 Rwvfqtlf mfv mwgapktuflf, piwvnf gf awvphfqpqf",
+     "statement": "PL"
+    },
+    {
+     "amount": 34481.39,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7583",
+     "ro_account_name": "2365 Zmjhoxbh thj eyjkybmy ylohemdsb gh ydom szmbyohh tm lyzhoyd",
+     "statement": "PL"
+    },
+    {
+     "amount": 85603.12,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7584.15",
+     "ro_account_name": "Iyacw.dgsryawcc Ffwfrfxwocpy 3254.82",
+     "statement": "PL"
+    },
+    {
+     "amount": 617.69,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.01",
+     "ro_account_name": "Jmfn cnihfdyh xhi nuwmbkfkyn. 9844.52 9844.52",
+     "statement": "PL"
+    },
+    {
+     "amount": 11166.56,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.02",
+     "ro_account_name": "Hxek vkdsewys psng. lwydshqys XV 4500.17",
+     "statement": "PL"
+    },
+    {
+     "amount": 23158.72,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.05",
+     "ro_account_name": "Bxdq hqb.qiyx.juhqpeq 7511.45",
+     "statement": "PL"
+    },
+    {
+     "amount": 135393.0,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.07",
+     "ro_account_name": "Eixh rhv.zyvt.ayictjmcxjx 3166.53",
+     "statement": "PL"
+    },
+    {
+     "amount": 157000.88,
+     "bucket": "financialIncome",
+     "is_derived": false,
+     "ro_account_code": "765",
+     "ro_account_name": "928 Sslzqytz czl czfstslqs cs gytr xonyqot",
+     "statement": "PL"
+    },
+    {
+     "amount": 299383.26,
+     "bucket": "financialIncome",
+     "is_derived": false,
+     "ro_account_code": "766",
+     "ro_account_name": "800 Ixmdahbd zdm zqjfmcd",
+     "statement": "PL"
+    },
+    {
+     "amount": 3988.7,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7814.01",
+     "ro_account_name": "Qteyisdy tclq.au.ptld.abi.bydb. 7624.02",
+     "statement": "PL"
+    }
+   ]
+  },
+  "period-carniprod-fy2024": {
+   "line_items": [
+    {
+     "amount": 50000.0,
+     "bucket": "shareCapital",
+     "is_derived": false,
+     "ro_account_code": "1012.01",
+     "ro_account_name": "Gstnxsb rclrjznr gszrsx",
+     "statement": "BS"
+    },
+    {
+     "amount": 60154926.76,
+     "bucket": "otherEquity",
+     "is_derived": false,
+     "ro_account_code": "105.01",
+     "ro_account_name": "Smfmklm ztv kmmlpwepkm",
+     "statement": "BS"
+    },
+    {
+     "amount": 10000.0,
+     "bucket": "otherEquity",
+     "is_derived": false,
+     "ro_account_code": "1061",
+     "ro_account_name": "Yaoalja wagrwa",
+     "statement": "BS"
+    },
+    {
+     "amount": 59660517.94,
+     "bucket": "otherEquity",
+     "is_derived": false,
+     "ro_account_code": "1068.1",
+     "ro_account_name": "Ljko vocovpo- voruvkncuvo rvtfnk uwn rvoqoyowkn",
+     "statement": "BS"
+    },
+    {
+     "amount": 530742.0,
+     "bucket": "otherEquity",
+     "is_derived": false,
+     "ro_account_code": "1068.2",
+     "ro_account_name": "Udtp npfpnvp- hnyjzt npzmvpwtzt 0259",
+     "statement": "BS"
+    },
+    {
+     "amount": -11068585.13,
+     "bucket": "retainedEarnings",
+     "is_derived": false,
+     "ro_account_code": "117.1",
+     "ro_account_name": "Vavofd. wajhwd. wajxwdpv. jwhmpdofop uawajxwdpvxd nxo jpawtawax",
+     "statement": "BS"
+    },
+    {
+     "amount": -7836599.14,
+     "bucket": "retainedEarnings",
+     "is_derived": false,
+     "ro_account_code": "117.4",
+     "ro_account_name": "Ibw.yrobyfxob boroq yft",
+     "statement": "BS"
+    },
+    {
+     "amount": 3959431.89,
+     "bucket": "retainedEarnings",
+     "is_derived": false,
+     "ro_account_code": "1175",
+     "ro_account_name": "Qbujmavajm pbewpava pbepbubgavgn fjpemjfjm pbvmhuva nhg pbubpzb nhg pbbzvmjvpb",
+     "statement": "BS"
+    },
+    {
+     "amount": 902506.97,
+     "bucket": "intangibles",
+     "is_derived": false,
+     "ro_account_code": "2080.01",
+     "ro_account_name": "Uhlo xkas.cotaieainho hxtoclo",
+     "statement": "BS"
+    },
+    {
+     "amount": 31473556.58,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2111",
+     "ro_account_name": "Swzwnazi",
+     "statement": "BS"
+    },
+    {
+     "amount": 51105957.17,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "212",
+     "ro_account_name": "Rtvsqfirquu",
+     "statement": "BS"
+    },
+    {
+     "amount": 53150134.56,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2131",
+     "ro_account_name": "Agvxhsezkpz pzvkdaduxgz (eswxkx,mpxaslz,xkwpsaspxx)",
+     "statement": "BS"
+    },
+    {
+     "amount": 2924107.08,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2132",
+     "ro_account_name": "Asubukn za apzkulukaa in ruzwbubn, ctpkbtl, bnelubn",
+     "statement": "BS"
+    },
+    {
+     "amount": 10206629.67,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2133",
+     "ro_account_name": "Ovdaxqcw ow hbqjynxbh",
+     "statement": "BS"
+    },
+    {
+     "amount": 833743.67,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "214",
+     "ro_account_name": "Fglmemsa, zq. lmagbmkz, zebs u.t.",
+     "statement": "BS"
+    },
+    {
+     "amount": 2223751.1,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2311.01",
+     "ro_account_name": "Rqylbfbcezb jyzsyzefg bk jxzp",
+     "statement": "BS"
+    },
+    {
+     "amount": 1189502.97,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2312.01",
+     "ro_account_name": "Zqjoesx pm ywfqes pebx fxpxajqe cmfxbx jf imfpqjmfx",
+     "statement": "BS"
+    },
+    {
+     "amount": 49841.24,
+     "bucket": "otherNonCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "2678",
+     "ro_account_name": "Xnyz kcztryz awjpanastyz",
+     "statement": "BS"
+    },
+    {
+     "amount": -21559.43,
+     "bucket": "intangibles",
+     "is_derived": false,
+     "ro_account_code": "2805",
+     "ro_account_name": "Hiopk.gomgrvhemh, xpryrkr, bhgrmkr, iwpgh, wgkhyr vhihbwpr",
+     "statement": "BS"
+    },
+    {
+     "amount": -787784.1,
+     "bucket": "intangibles",
+     "is_derived": false,
+     "ro_account_code": "2808",
+     "ro_account_name": "Flpnb. mybpn xlprxyxwmnx fqtpncpnmyq",
+     "statement": "BS"
+    },
+    {
+     "amount": -2822355.63,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2812",
+     "ro_account_name": "Vhtzo. Ptmqozlwoccstz",
+     "statement": "BS"
+    },
+    {
+     "amount": -44628674.93,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2813.01",
+     "ro_account_name": "Linpauy.mjcukfimwam amcwnbnqujm",
+     "statement": "BS"
+    },
+    {
+     "amount": -2413122.19,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2813.02",
+     "ro_account_name": "Atlwnes.ipiwinfwi,tikfwi,oljnwlh",
+     "statement": "BS"
+    },
+    {
+     "amount": -8635838.16,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2813.03",
+     "ro_account_name": "Irvekytgea rynjvgxa keghwpvek",
+     "statement": "BS"
+    },
+    {
+     "amount": -506358.96,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "2814",
+     "ro_account_name": "Tyhsg. ipghs myhfmpmu. lhsxhsipv (yhfmpmvs, fmshgmli)",
+     "statement": "BS"
+    },
+    {
+     "amount": 2136250.18,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "301.01",
+     "ro_account_name": "Nwjhyph uypbw ujy. Nhqhn. Fwyvh",
+     "statement": "BS"
+    },
+    {
+     "amount": 14599.83,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "301.08",
+     "ro_account_name": "Kxlabjj sbjza XYL",
+     "statement": "BS"
+    },
+    {
+     "amount": 1154.42,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3021.02",
+     "ro_account_name": "Hkmavjbtj ma wjrov sejmogf",
+     "statement": "BS"
+    },
+    {
+     "amount": 2052828.26,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3021.1",
+     "ro_account_name": "Qdaqmpsd, ousthadskd, zxqzkpskd",
+     "statement": "BS"
+    },
+    {
+     "amount": 2581.08,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3021.4",
+     "ro_account_name": "Zkcn xvnkrbvik veobibvrk",
+     "statement": "BS"
+    },
+    {
+     "amount": 928433.51,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3021.5",
+     "ro_account_name": "Asqgzdsd,tvaiq,tnwfd",
+     "statement": "BS"
+    },
+    {
+     "amount": 8731.32,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3022.1",
+     "ro_account_name": "Mwqyavcxyxr kcu zacwcauxvqj",
+     "statement": "BS"
+    },
+    {
+     "amount": 823.27,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3022.6",
+     "ro_account_name": "Ddno wuoavoujkfn,vuodkln",
+     "statement": "BS"
+    },
+    {
+     "amount": 1758.92,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3022.7",
+     "ro_account_name": "Ajti krwo-wmksflomw dkmxk",
+     "statement": "BS"
+    },
+    {
+     "amount": 102337.35,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3022.9",
+     "ro_account_name": "Usponhjqoqk UYN,zcszrt",
+     "statement": "BS"
+    },
+    {
+     "amount": 94.84,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3023.01",
+     "ro_account_name": "Cydbrjyub pdr. Kqayuyd prjhkjpyub",
+     "statement": "BS"
+    },
+    {
+     "amount": 31917.14,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3023.02",
+     "ro_account_name": "Yurxjaupx erj. Nfhupur vxqndzujx",
+     "statement": "BS"
+    },
+    {
+     "amount": 235.88,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3023.03",
+     "ro_account_name": "Meolqdeml koq. Irsemeo emolml",
+     "statement": "BS"
+    },
+    {
+     "amount": 453295.29,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3024.1",
+     "ro_account_name": "Nduau vu ankdoc (vuvbnedcdiu)",
+     "statement": "BS"
+    },
+    {
+     "amount": 61328.37,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3024.3",
+     "ro_account_name": "Hardr dupail hxaswnr",
+     "statement": "BS"
+    },
+    {
+     "amount": 1167.26,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3024.4",
+     "ro_account_name": "Auoao ro abduyf axuctuxqjeo",
+     "statement": "BS"
+    },
+    {
+     "amount": 161.33,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3024.5",
+     "ro_account_name": "Byoco ctgyma zhsi-sxzjcqixs mzxpz",
+     "statement": "BS"
+    },
+    {
+     "amount": 1403.16,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3024.6",
+     "ro_account_name": "Qtcic ivwthd rtbcjic",
+     "statement": "BS"
+    },
+    {
+     "amount": 51021.78,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3027",
+     "ro_account_name": "Xkspyxyw.vfxcguga.fplgugaf",
+     "statement": "BS"
+    },
+    {
+     "amount": 85621.3,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.1",
+     "ro_account_name": "Xuwe gywetmyue hsqbjgylmue mqwtewmqete",
+     "statement": "BS"
+    },
+    {
+     "amount": 7723.7,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.4",
+     "ro_account_name": "Yeoy kpo.ngav-npaohap har.",
+     "statement": "BS"
+    },
+    {
+     "amount": 5936.91,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.5",
+     "ro_account_name": "Dnl.ifge.bpyvzev",
+     "statement": "BS"
+    },
+    {
+     "amount": 26737.71,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.6",
+     "ro_account_name": "Atn.jzah.jkwtnfamf",
+     "statement": "BS"
+    },
+    {
+     "amount": 46.66,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.7",
+     "ro_account_name": "Jid.kjsogd.lgsfj",
+     "statement": "BS"
+    },
+    {
+     "amount": 421.46,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3028.8",
+     "ro_account_name": "Eov. Vzujwb yoezsovzs",
+     "statement": "BS"
+    },
+    {
+     "amount": 126485.6,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "303",
+     "ro_account_name": "Orzfhkrqf df srzihr bckftzfqbh df kswfszrh",
+     "statement": "BS"
+    },
+    {
+     "amount": 1390689.23,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "341.02",
+     "ro_account_name": "Jylwhfxowmfsy ev",
+     "statement": "BS"
+    },
+    {
+     "amount": 2147572.21,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "345.01",
+     "ro_account_name": "Hwmxqyi urkrni rkxqynwradrtawi",
+     "statement": "BS"
+    },
+    {
+     "amount": -357303.26,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "348",
+     "ro_account_name": "Jquozowao rzoa lv rznxtko",
+     "statement": "BS"
+    },
+    {
+     "amount": 118162.52,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.1",
+     "ro_account_name": "Scfmofn vyudgf njw (ton)",
+     "statement": "BS"
+    },
+    {
+     "amount": 322921.22,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.4",
+     "ro_account_name": "Tuqmkqg Wnectq yqnyuqucn Weuasgu",
+     "statement": "BS"
+    },
+    {
+     "amount": 291943.14,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "371.7",
+     "ro_account_name": "Svarlak (wdonvkota)",
+     "statement": "BS"
+    },
+    {
+     "amount": 112107.73,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "381.01",
+     "ro_account_name": "Mgclolwj vjnirbt nejnleltj",
+     "statement": "BS"
+    },
+    {
+     "amount": 111661.76,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "381.02",
+     "ro_account_name": "Gnmzxzqc acitfyu ochoybcozuc",
+     "statement": "BS"
+    },
+    {
+     "amount": 75110.3,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "381.11",
+     "ro_account_name": "Mufjmjkt htcsziq ysovtmjpt",
+     "statement": "BS"
+    },
+    {
+     "amount": 15921.54,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "381.14",
+     "ro_account_name": "Fnrwhwta Bwhazg pg acjodwhazg",
+     "statement": "BS"
+    },
+    {
+     "amount": -260586.25,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3920.01",
+     "ro_account_name": "WFGYE.JBVI.AWE.RMKYGAWQSTB",
+     "statement": "BS"
+    },
+    {
+     "amount": -43484.0,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3921.01",
+     "ro_account_name": "Lzjeagho puch. tgauhogiu fsvejt.",
+     "statement": "BS"
+    },
+    {
+     "amount": -52017.87,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3921.04",
+     "ro_account_name": "Oestilgh pnygnchngh hufgltlrhuin, yntihchpn hngqhchpn",
+     "statement": "BS"
+    },
+    {
+     "amount": -119768.0,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3922.01",
+     "ro_account_name": "Iypaojfw qblf. tewbdob wxmbxojf",
+     "statement": "BS"
+    },
+    {
+     "amount": -60000.0,
+     "bucket": "inventory",
+     "is_derived": false,
+     "ro_account_code": "3981.01",
+     "ro_account_name": "Warlcfig vmwcir umvimxgmim wfemcm",
+     "statement": "BS"
+    },
+    {
+     "amount": 7014971.54,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "401.01",
+     "ro_account_name": "Ktigvfliv vgcjigv",
+     "statement": "BS"
+    },
+    {
+     "amount": 2690725.69,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "401.03",
+     "ro_account_name": "Upvmukqvu umeavmu rvpq",
+     "statement": "BS"
+    },
+    {
+     "amount": 3296980.38,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "401.21",
+     "ro_account_name": "Uhxkjmtxj qocqxkj LOIN",
+     "statement": "BS"
+    },
+    {
+     "amount": 19747.94,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "404.01",
+     "ro_account_name": "Rnmlhrbmh hjbohphrkmh hlgimlh",
+     "statement": "BS"
+    },
+    {
+     "amount": -349886.08,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "408.101",
+     "ro_account_name": "Gxmyzesmz rvad.ybjsjzdb jdsaxmz",
+     "statement": "BS"
+    },
+    {
+     "amount": 272930.82,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "408.102",
+     "ro_account_name": "Rfjwngxjn tvmpfjn wybxbnpy byjqnmnn",
+     "statement": "BS"
+    },
+    {
+     "amount": 447275.94,
+     "bucket": "ap",
+     "is_derived": false,
+     "ro_account_code": "408.2",
+     "ro_account_name": "Qsonuz.gbtm.ncfhfumc eohxuzuhn",
+     "statement": "BS"
+    },
+    {
+     "amount": 68373.95,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4091",
+     "ro_account_name": "Ukzvijgzi - xnqicgzi bcz sacnziatn xn vackza mcgpkzitgz",
+     "statement": "BS"
+    },
+    {
+     "amount": 48185.9,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4092",
+     "ro_account_name": "Pupzaigpa - ysdabgpa rbp rpsmbjpa msphalaa",
+     "statement": "BS"
+    },
+    {
+     "amount": 324848.43,
+     "bucket": "ppe",
+     "is_derived": false,
+     "ro_account_code": "4093",
+     "ro_account_name": "Oqdvlsyp drgywdnx an. Eugt. Igyagydkx",
+     "statement": "BS"
+    },
+    {
+     "amount": 8744555.39,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4111.01",
+     "ro_account_name": "Bmjhqdj",
+     "statement": "BS"
+    },
+    {
+     "amount": 2143673.52,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4111.03",
+     "ro_account_name": "Pibmksb GPX",
+     "statement": "BS"
+    },
+    {
+     "amount": 31938.16,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4111.21",
+     "ro_account_name": "Gpudilu deldwiu",
+     "statement": "BS"
+    },
+    {
+     "amount": 1260792.62,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "4118",
+     "ro_account_name": "Qydbpmd dpobkmd qcw dp ydmdtdw",
+     "statement": "BS"
+    },
+    {
+     "amount": 175202.66,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "418.01",
+     "ro_account_name": "Wvroczr eunz fo rczbnwrz",
+     "statement": "BS"
+    },
+    {
+     "amount": 976326.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4210.01",
+     "ro_account_name": "Fbekwtlc-klclexx hlswelsb",
+     "statement": "BS"
+    },
+    {
+     "amount": 11470.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4230.01",
+     "ro_account_name": "ebsk.qlzm.pqm.hqmasqmb",
+     "statement": "BS"
+    },
+    {
+     "amount": 2501.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4260.01",
+     "ro_account_name": "Sypdj.dpyk.xpycicbzjp.",
+     "statement": "BS"
+    },
+    {
+     "amount": 14562.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4270.02",
+     "ro_account_name": "Kza.nzykr-npaz",
+     "statement": "BS"
+    },
+    {
+     "amount": 1083156.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4283.01",
+     "ro_account_name": "Vulv sdlipww uvadlv sv tvpjiodu",
+     "statement": "BS"
+    },
+    {
+     "amount": 565757.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4315.01",
+     "ro_account_name": "Mnt nsdnynr MKR",
+     "statement": "BS"
+    },
+    {
+     "amount": 215678.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4316.01",
+     "ro_account_name": "NEPP alfazag NHO",
+     "statement": "BS"
+    },
+    {
+     "amount": 44902.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4360.01",
+     "ro_account_name": "Unscmkv.lokftmlc.wc.jtsul",
+     "statement": "BS"
+    },
+    {
+     "amount": 126409.0,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4382.01",
+     "ro_account_name": "LY wr prcohrpnd Lnin Vnkndndr",
+     "statement": "BS"
+    },
+    {
+     "amount": 117533.58,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "441.1",
+     "ro_account_name": "Zzqpadujl qv qxpcdu",
+     "statement": "BS"
+    },
+    {
+     "amount": 300671.64,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4423",
+     "ro_account_name": "KAR nf cvzhz",
+     "statement": "BS"
+    },
+    {
+     "amount": 0.07,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4428.03",
+     "ro_account_name": "GQF NEHOLFNMUFNM",
+     "statement": "BS"
+    },
+    {
+     "amount": 14030.73,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4428.1",
+     "ro_account_name": "LVO hzzxtftstwg (rgdqijt ujtmtqz)",
+     "statement": "BS"
+    },
+    {
+     "amount": 141455.0,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4440.01",
+     "ro_account_name": "Oyhofvs he deivsujv qvi ngcgjvv",
+     "statement": "BS"
+    },
+    {
+     "amount": 22097.2,
+     "bucket": "otherCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "4470.01",
+     "ro_account_name": "Rdyo kvyosbvi",
+     "statement": "BS"
+    },
+    {
+     "amount": 1000.0,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "461.1",
+     "ro_account_name": "Vmnotjso koemsao",
+     "statement": "BS"
+    },
+    {
+     "amount": 19323.03,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4610.01",
+     "ro_account_name": "Xegcqlxc bcmerxc",
+     "statement": "BS"
+    },
+    {
+     "amount": 1600.14,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "4610.3",
+     "ro_account_name": "Wxfbigdb jbnxdyb LI",
+     "statement": "BS"
+    },
+    {
+     "amount": 283298.95,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "471",
+     "ro_account_name": "Jpfgdqmfgm mybfl.my nrnys",
+     "statement": "BS"
+    },
+    {
+     "amount": 4467.79,
+     "bucket": "otherCurrentAssets",
+     "is_derived": false,
+     "ro_account_code": "473.1",
+     "ro_account_name": "Tigyrjskx xr ghkt ai gqskxfxgski - vsj bkxvi, vsj",
+     "statement": "BS"
+    },
+    {
+     "amount": 1274798.0,
+     "bucket": "otherNonCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "475.1.3",
+     "ro_account_name": "Gvrnwatjj dwatuv janwetjtjj - ogevug 4.4",
+     "statement": "BS"
+    },
+    {
+     "amount": 214967.46,
+     "bucket": "otherNonCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "475.1.4",
+     "ro_account_name": "Wzqoirykk viryuz kroiaykykk - gbazub 2.9.5",
+     "statement": "BS"
+    },
+    {
+     "amount": 24960.46,
+     "bucket": "otherNonCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "475.3",
+     "ro_account_name": "Sshbakk mdhauq khodzakakk",
+     "statement": "BS"
+    },
+    {
+     "amount": 395690.14,
+     "bucket": "otherNonCurrentLiab",
+     "is_derived": false,
+     "ro_account_code": "475.4",
+     "ro_account_name": "Zmdr agjygbws aveiamalwsa",
+     "statement": "BS"
+    },
+    {
+     "amount": -1351238.62,
+     "bucket": "ar",
+     "is_derived": false,
+     "ro_account_code": "491",
+     "ro_account_name": "Xidrok.qjli.yijvbsj-yfojbso",
+     "statement": "BS"
+    },
+    {
+     "amount": 15.46,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.04.01",
+     "ro_account_name": "Scjdiy pilmjd kj ymk yt WHDI",
+     "statement": "BS"
+    },
+    {
+     "amount": 1618522.03,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.04.02",
+     "ro_account_name": "Xzmwbf pm fsp rsyws mzerws fe YCZW",
+     "statement": "BS"
+    },
+    {
+     "amount": 612000.0,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.04.03",
+     "ro_account_name": "Dflgvaw wl sew - heufywge - sr ARSX",
+     "statement": "BS"
+    },
+    {
+     "amount": 5969.18,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.04.05",
+     "ro_account_name": "Wgqs aq zda - wlbo odias ZS",
+     "statement": "BS"
+    },
+    {
+     "amount": 11044.6,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.04.07",
+     "ro_account_name": "Cbgpv hg vjh-ldan njthx BC",
+     "statement": "BS"
+    },
+    {
+     "amount": 7381.66,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.04.08",
+     "ro_account_name": "Bilngyj jl bmj -hdyr rmpjn AR",
+     "statement": "BS"
+    },
+    {
+     "amount": 465958.33,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.07.01",
+     "ro_account_name": "Mqmgyt pyihmg lm thl tx MQM",
+     "statement": "BS"
+    },
+    {
+     "amount": 170108.41,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.90.01",
+     "ro_account_name": "Wapczw gzohp vp whv wy Rohsaohovh",
+     "statement": "BS"
+    },
+    {
+     "amount": 58.66,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.90.03",
+     "ro_account_name": "Wrwqik nw ken xe tipaewqnn ku Kmesrmemne",
+     "statement": "BS"
+    },
+    {
+     "amount": 3.54,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.90.04",
+     "ro_account_name": "Jzjpkw hj wfh dfjpqk akeofjphh -lzpzqhjt - wt Kqfxzqfqhf",
+     "statement": "BS"
+    },
+    {
+     "amount": 0.83,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5121.90.05",
+     "ro_account_name": "Sdyckp ly pfl zfycmk akbjfycll -iqqlni xdcdmlyi - Imfn",
+     "statement": "BS"
+    },
+    {
+     "amount": 1927.23,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5124.9.1",
+     "ro_account_name": "Iupn ip otdu cq Y Ddqpsiczqpiq",
+     "statement": "BS"
+    },
+    {
+     "amount": 65.78,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5124.9.3",
+     "ro_account_name": "Qyjv nj ayqxkn qx V Dkxjenqoxjnx",
+     "statement": "BS"
+    },
+    {
+     "amount": 786477.02,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5124.9.7",
+     "ro_account_name": "Pzdv ad ewtz PZP",
+     "statement": "BS"
+    },
+    {
+     "amount": 6388420.5,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5124.9.8",
+     "ro_account_name": "Slzw qz hydl phclgqw SPS",
+     "statement": "BS"
+    },
+    {
+     "amount": 53606.37,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5125.03",
+     "ro_account_name": "Mlvc ed nlhq scn.nzecdwe",
+     "statement": "BS"
+    },
+    {
+     "amount": 1324.56,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5311.1",
+     "ro_account_name": "Tqlq luvzi Tqbozkbgv",
+     "statement": "BS"
+    },
+    {
+     "amount": 1984.88,
+     "bucket": "cash",
+     "is_derived": false,
+     "ro_account_code": "5314.1",
+     "ro_account_name": "Otct bz ylqu",
+     "statement": "BS"
+    },
+    {
+     "amount": 38605630.84,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "601.101",
+     "ro_account_name": "Bs.ngf.cb.napam.jgbta",
+     "statement": "PL"
+    },
+    {
+     "amount": 78363.77,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "601.102",
+     "ro_account_name": "Hx. wnd. touwb UNH",
+     "statement": "PL"
+    },
+    {
+     "amount": 7340672.69,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6021.01",
+     "ro_account_name": "Ir.pok.oix.pzezj.pzpqlobz",
+     "statement": "PL"
+    },
+    {
+     "amount": 1001.41,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6021.02",
+     "ro_account_name": "Bjrgz.vo ycvodrizr vo frxnd klrvnag",
+     "statement": "PL"
+    },
+    {
+     "amount": 1360747.05,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6021.05",
+     "ro_account_name": "Ct.ejzfmyjxf if jebjxjz(fzyntfzf,swloy,sxjvf)",
+     "statement": "PL"
+    },
+    {
+     "amount": 411856.0,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.01",
+     "ro_account_name": "Ri.mqtlntqxjr qnjzjntrayd",
+     "statement": "PL"
+    },
+    {
+     "amount": 25980.68,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.02",
+     "ro_account_name": "Geprw.gabujbaxwy ipxwpxaxwa",
+     "statement": "PL"
+    },
+    {
+     "amount": 1139318.26,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.03",
+     "ro_account_name": "Ko.lgmetmgjhp gthn-hmgjzunmh qgmfg",
+     "statement": "PL"
+    },
+    {
+     "amount": 9964.88,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.04",
+     "ro_account_name": "Gm.ybqo xafcktrax tqakrfcq",
+     "statement": "PL"
+    },
+    {
+     "amount": 547.9,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.05",
+     "ro_account_name": "Vl.fjqg ifwowfzgrvq(ugrwzgafwgq)",
+     "statement": "PL"
+    },
+    {
+     "amount": 71.52,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.06",
+     "ro_account_name": "Bm.pleo zaoupoajife",
+     "statement": "PL"
+    },
+    {
+     "amount": 11689.79,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.07",
+     "ro_account_name": "Ah.vngx ovqi-qbozplibq uobjo",
+     "statement": "PL"
+    },
+    {
+     "amount": 871754.62,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.08",
+     "ro_account_name": "Jigqv.uz uwly (Jqz, Hfwbor)",
+     "statement": "PL"
+    },
+    {
+     "amount": 3268.29,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.09",
+     "ro_account_name": "Ei.thfz mfldflcldc",
+     "statement": "PL"
+    },
+    {
+     "amount": 85910.73,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6022.11",
+     "ro_account_name": "Wr.muyaxyudjt uxjs-jyudgq.qfyg.",
+     "statement": "PL"
+    },
+    {
+     "amount": 86537.28,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6023.02",
+     "ro_account_name": "Vr.xnd.vdz nxenfnd byjclunzy",
+     "statement": "PL"
+    },
+    {
+     "amount": 12864.49,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.01",
+     "ro_account_name": "Zr.owvuv uerwzi djkskjpwuzv",
+     "statement": "PL"
+    },
+    {
+     "amount": 310143.51,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.03",
+     "ro_account_name": "Fe.zrnfn fqermt oyrckjn",
+     "statement": "PL"
+    },
+    {
+     "amount": 4303.65,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.04",
+     "ro_account_name": "Kj.gqhmh mljqyi mpqwtqpbxuh",
+     "statement": "PL"
+    },
+    {
+     "amount": 101398.94,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.05",
+     "ro_account_name": "Ud.segxg xuderv hqnz-nmhyxszmn rhmih",
+     "statement": "PL"
+    },
+    {
+     "amount": 37525.13,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.06",
+     "ro_account_name": "Ym.zhlal ajmhbq dhelpal",
+     "statement": "PL"
+    },
+    {
+     "amount": 11871.91,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.07",
+     "ro_account_name": "Rn.uxpyp ygnxri zadw-dsztyu.upsy.",
+     "statement": "PL"
+    },
+    {
+     "amount": 40817.28,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6024.2",
+     "ro_account_name": "Xmhsa.dzhoh ofmzwq vhcwhwqylyz",
+     "statement": "PL"
+    },
+    {
+     "amount": 6225.0,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6026",
+     "ro_account_name": "Uwotr.qxablo",
+     "statement": "PL"
+    },
+    {
+     "amount": 2415.2,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6027.01",
+     "ro_account_name": "Aofqr.dx ypbthwhe.ufwrydym.ftvydymf",
+     "statement": "PL"
+    },
+    {
+     "amount": 237914.67,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.01",
+     "ro_account_name": "Pd.wjl.trcv.wjl.mclgilmcigi",
+     "statement": "PL"
+    },
+    {
+     "amount": 224974.9,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.02",
+     "ro_account_name": "Vw.lrv.jxfz.lrv.jisrvgfpg",
+     "statement": "PL"
+    },
+    {
+     "amount": 53872.04,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.03",
+     "ro_account_name": "Yr.pdw.ncgv.pdw.zoiutvu",
+     "statement": "PL"
+    },
+    {
+     "amount": 38412.52,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.04",
+     "ro_account_name": "Is.ahl.ikdyzl.ozdjk",
+     "statement": "PL"
+    },
+    {
+     "amount": 675.59,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.05",
+     "ro_account_name": "Gsjub. wcb hnvq.wjvbjvcvbc",
+     "statement": "PL"
+    },
+    {
+     "amount": 17470.33,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.06",
+     "ro_account_name": "Nhlow igw qxcuyigrjol lqhjv vkxwlqwjl",
+     "statement": "PL"
+    },
+    {
+     "amount": 60570.76,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.07",
+     "ro_account_name": "Sefgw yaw ujqkryabtgf - lpfjq",
+     "statement": "PL"
+    },
+    {
+     "amount": 9542.69,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.08",
+     "ro_account_name": "On.yoxkbgork roacboxcb(ovgi hurfubgv)",
+     "statement": "PL"
+    },
+    {
+     "amount": 116060.17,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.09",
+     "ro_account_name": "Sjvbl rfl wxtcurfghbv-gulvbhh dfk fbhrvtlfa",
+     "statement": "PL"
+    },
+    {
+     "amount": 33986.95,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.10'",
+     "ro_account_name": "Cxqdh.vkh. Cfyi. Fahf vkpzk",
+     "statement": "PL"
+    },
+    {
+     "amount": 10947.54,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.11",
+     "ro_account_name": "Rwsdq.zrq,vyjm.reqy.nstmyrjs",
+     "statement": "PL"
+    },
+    {
+     "amount": 8875.8,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.12",
+     "ro_account_name": "Ojtpx. Wuxgcfx bzpzagzxg",
+     "statement": "PL"
+    },
+    {
+     "amount": 282.42,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6028.13",
+     "ro_account_name": "Erhuz. ycz. FME",
+     "statement": "PL"
+    },
+    {
+     "amount": 48036.7,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6030.01",
+     "ro_account_name": "Mkeys.ums.te zms.pxdens.dzf.",
+     "statement": "PL"
+    },
+    {
+     "amount": 65467.29,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6030.02",
+     "ro_account_name": "Cymvk.qlk.cm olk.ihamwk.aoe.Vwyaglqmokm gtikmwkam",
+     "statement": "PL"
+    },
+    {
+     "amount": 1219.02,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6030.03",
+     "ro_account_name": "Yjeht.opt.ue qpt.mnleyt.lqd.PO",
+     "statement": "PL"
+    },
+    {
+     "amount": 170387.97,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6040.13",
+     "ro_account_name": "Pj.kcg.vupg.lzxuipu",
+     "statement": "PL"
+    },
+    {
+     "amount": 2121480.49,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6051.01",
+     "ro_account_name": "Jmpoz.iw plpvgne popizvnie",
+     "statement": "PL"
+    },
+    {
+     "amount": 11687.48,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6052.01",
+     "ro_account_name": "Trmdy.ls qkq",
+     "statement": "PL"
+    },
+    {
+     "amount": 5791.26,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "607.401",
+     "ro_account_name": "Du.rovcqvm imphvbh",
+     "statement": "PL"
+    },
+    {
+     "amount": 695579.55,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6071.01",
+     "ro_account_name": "Scfmofn vyudgf njw (ton)",
+     "statement": "PL"
+    },
+    {
+     "amount": 4974061.35,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6071.04",
+     "ro_account_name": "Lnqcwqg xjuraq bqjbnqnrj Qunihgn",
+     "statement": "PL"
+    },
+    {
+     "amount": 898821.78,
+     "bucket": "cogs",
+     "is_derived": false,
+     "ro_account_code": "6076.01",
+     "ro_account_name": "Fcboabx(uhsjcxslb)",
+     "statement": "PL"
+    },
+    {
+     "amount": 69136.08,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6080.91",
+     "ro_account_name": "Gkomz.ebaemero fwx.wcloczey",
+     "statement": "PL"
+    },
+    {
+     "amount": -28135.62,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6090.01",
+     "ro_account_name": "Zdyipdwb pgvdwp.mwbvbzd",
+     "statement": "PL"
+    },
+    {
+     "amount": -9728.65,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6090.02",
+     "ro_account_name": "Srtlmrfg micrfmgqpr dfgcgyr cqyrfgg dfgcr, cqyrfgqpr",
+     "statement": "PL"
+    },
+    {
+     "amount": 892.09,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6090.03",
+     "ro_account_name": "Dufxpuas pbduapseyu qasdsiu deavxas",
+     "statement": "PL"
+    },
+    {
+     "amount": -123045.43,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6090.05",
+     "ro_account_name": "Xukvduts dlgutdsryu ptsgshu Xlgpuhtly",
+     "statement": "PL"
+    },
+    {
+     "amount": 50183.3,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6110.01",
+     "ro_account_name": "Bjrpa.qdahra&hrlshsa.xaqpsmr",
+     "statement": "PL"
+    },
+    {
+     "amount": 99896.97,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6110.02",
+     "ro_account_name": "Qj.ekfvmf&vmdtv.trfplmjes.",
+     "statement": "PL"
+    },
+    {
+     "amount": 299719.78,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6110.03",
+     "ro_account_name": "Oq.xwjrcj&rcufrfj fdja tfrpf",
+     "statement": "PL"
+    },
+    {
+     "amount": 20660.42,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6110.05",
+     "ro_account_name": "Okpax.rdxhpx&hpzihixrr ijcrd",
+     "statement": "PL"
+    },
+    {
+     "amount": 20963.76,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6120.02",
+     "ro_account_name": "On.lnetee akxzee, zgtgyjte",
+     "statement": "PL"
+    },
+    {
+     "amount": 10252.69,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6120.03",
+     "ro_account_name": "NE. Nbjkjj opgfhjj wfyyfk",
+     "statement": "PL"
+    },
+    {
+     "amount": 456.78,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "613.1.1.8",
+     "ro_account_name": "Neuxy.qzvr.dbvg.doyt (kupupowyvfvxu)",
+     "statement": "PL"
+    },
+    {
+     "amount": 18777.18,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.01",
+     "ro_account_name": "Kjoeh.gwrfbkgkr legmrkr",
+     "statement": "PL"
+    },
+    {
+     "amount": 12839.21,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.02",
+     "ro_account_name": "Hpswk.alfygiaif gkfwaes",
+     "statement": "PL"
+    },
+    {
+     "amount": 9948.17,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.03",
+     "ro_account_name": "Szwje.xusr. Fevbfqs",
+     "statement": "PL"
+    },
+    {
+     "amount": 75520.07,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.04",
+     "ro_account_name": "Yxnpo qrlvheqel qhofohelrcn",
+     "statement": "PL"
+    },
+    {
+     "amount": 70480.5,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.05",
+     "ro_account_name": "Kbjla.ewfo eman ayevws xeyre",
+     "statement": "PL"
+    },
+    {
+     "amount": 103384.45,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.06",
+     "ro_account_name": "Ajfwc. Jmruvxsxr hfnrkswf",
+     "statement": "PL"
+    },
+    {
+     "amount": 43333.32,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.07",
+     "ro_account_name": "Ezjcs.yquxpoyou bcujfsu",
+     "statement": "PL"
+    },
+    {
+     "amount": 214.69,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.09",
+     "ro_account_name": "Nzvgt.rinx.kric.ynmngr tvktn",
+     "statement": "PL"
+    },
+    {
+     "amount": 2110.07,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6130.11",
+     "ro_account_name": "Vwqgt.iyvlfsisq vhtsqsfe iptvavt",
+     "statement": "PL"
+    },
+    {
+     "amount": 2042.44,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6150.01",
+     "ro_account_name": "Hzgcnrhgch vr magetnhagt mgawxjtcrcrh",
+     "statement": "PL"
+    },
+    {
+     "amount": 47961.34,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6220.01",
+     "ro_account_name": "Zchxw.zudqfqupah, uaurprqq frq xpaghnq",
+     "statement": "PL"
+    },
+    {
+     "amount": 1493.1,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6220.02",
+     "ro_account_name": "Lbtjh.urnyvyrlwt, rwriliyy - lqrulhy",
+     "statement": "PL"
+    },
+    {
+     "amount": 87653.7,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6231.01",
+     "ro_account_name": "Gvqla.cq xwjajgjl",
+     "statement": "PL"
+    },
+    {
+     "amount": 199377.83,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6232.01",
+     "ro_account_name": "Mwrcb.vr urqcsos af ymlcfqfbsbr",
+     "statement": "PL"
+    },
+    {
+     "amount": 41854.27,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6232.02",
+     "ro_account_name": "Kmbhu.erubl.alzezuqzfrhb wq nb apohqiqurub",
+     "statement": "PL"
+    },
+    {
+     "amount": 127353.76,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6232.03",
+     "ro_account_name": "Jjuoh. cohu kch ( kyahdu)",
+     "statement": "PL"
+    },
+    {
+     "amount": 579574.35,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6240.01",
+     "ro_account_name": "Tq.zhbfjy.yhwk.sb tslrfzl(zhbfjy.vbhmb)",
+     "statement": "PL"
+    },
+    {
+     "amount": 118282.11,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6240.02",
+     "ro_account_name": "Ln.isucqoysi ovsqyucv",
+     "statement": "PL"
+    },
+    {
+     "amount": 437.39,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6240.04",
+     "ro_account_name": "Da.rnkjul.lbnuqjkx kjvkokr kmrqckn, IZD",
+     "statement": "PL"
+    },
+    {
+     "amount": 17610.88,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6240.05",
+     "ro_account_name": "Un.bymtvr.sahqyvq",
+     "statement": "PL"
+    },
+    {
+     "amount": 13460.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6251.01",
+     "ro_account_name": "Vs.wmlxyj wnwlhimumqj",
+     "statement": "PL"
+    },
+    {
+     "amount": 170568.01,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6252.01",
+     "ro_account_name": "Lv.efjfpr lrtnfyfpx",
+     "statement": "PL"
+    },
+    {
+     "amount": 27229.88,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6260.01",
+     "ro_account_name": "Ut.aqdqvsibq vbzx",
+     "statement": "PL"
+    },
+    {
+     "amount": 45362.79,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6260.02",
+     "ro_account_name": "Zz.bcsceqxoc vqjosf",
+     "statement": "PL"
+    },
+    {
+     "amount": 74525.62,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6260.03",
+     "ro_account_name": "Ol.dnzhy.byvueyuv",
+     "statement": "PL"
+    },
+    {
+     "amount": 471.17,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6260.04",
+     "ro_account_name": "Rg.bjmbrybay mopcfdb",
+     "statement": "PL"
+    },
+    {
+     "amount": 3.12,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "627.2",
+     "ro_account_name": "Ec.gqrlp.jvwg.qk.EUE",
+     "statement": "PL"
+    },
+    {
+     "amount": 0.83,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "627.4",
+     "ro_account_name": "Mt.brlfz.pcub.rg.OEX",
+     "statement": "PL"
+    },
+    {
+     "amount": 6920.04,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6271.21",
+     "ro_account_name": "Rm.eoasy.nrier oh.OS",
+     "statement": "PL"
+    },
+    {
+     "amount": 17967.59,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6271.61",
+     "ro_account_name": "Db.yejqi.zvgyv eu.DSD",
+     "statement": "PL"
+    },
+    {
+     "amount": 49824.74,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6281.02",
+     "ro_account_name": "Rl.baet.fecdctgea Hizlgw",
+     "statement": "PL"
+    },
+    {
+     "amount": 41572.07,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6281.03",
+     "ro_account_name": "Bx.bqrh.lacibtivg",
+     "statement": "PL"
+    },
+    {
+     "amount": 65256.39,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.01",
+     "ro_account_name": "Dt mbsx.iadmcylodlo",
+     "statement": "PL"
+    },
+    {
+     "amount": 379227.91,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.02",
+     "ro_account_name": "Si.xvdq.trzsdbhjtav",
+     "statement": "PL"
+    },
+    {
+     "amount": 80491.33,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.03",
+     "ro_account_name": "Jc.luay.ufts-hoszsfozau",
+     "statement": "PL"
+    },
+    {
+     "amount": 53706.97,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.04",
+     "ro_account_name": "Ks.nijh. Drjkzkyi",
+     "statement": "PL"
+    },
+    {
+     "amount": 249.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.05",
+     "ro_account_name": "Vg.wotycior ytou.kiovr",
+     "statement": "PL"
+    },
+    {
+     "amount": 42204.96,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.06",
+     "ro_account_name": "Rc.gfnx.jqrdo zsdflod",
+     "statement": "PL"
+    },
+    {
+     "amount": 341843.92,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.07",
+     "ro_account_name": "Oelrg. wrgl blvjyfyy fasbtrgwsgw frylsgy",
+     "statement": "PL"
+    },
+    {
+     "amount": 86314.08,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.09",
+     "ro_account_name": "Djmcd.gcdm imkhlwll vgrkpcc",
+     "statement": "PL"
+    },
+    {
+     "amount": 189070.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6282.11",
+     "ro_account_name": "Em.puec.jkgphlbqgbq iqfekll",
+     "statement": "PL"
+    },
+    {
+     "amount": 40087.33,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6283.01",
+     "ro_account_name": "Df.quik.xgwawgioqlu",
+     "statement": "PL"
+    },
+    {
+     "amount": 96040.06,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6283.02",
+     "ro_account_name": "Ws.mero.yhmuku yhrth",
+     "statement": "PL"
+    },
+    {
+     "amount": 1095.28,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6283.03",
+     "ro_account_name": "Hz.hfbs.hewsmwepdbf",
+     "statement": "PL"
+    },
+    {
+     "amount": 95906.51,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6284.01",
+     "ro_account_name": "Al.xhga.xqtsoqg ahohgst.",
+     "statement": "PL"
+    },
+    {
+     "amount": 36852.74,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6284.02",
+     "ro_account_name": "Rj.hepz.cblpelcbepe-qfacb",
+     "statement": "PL"
+    },
+    {
+     "amount": 107189.47,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6284.04",
+     "ro_account_name": "Fkop cw.japzomab zpanbcbb",
+     "statement": "PL"
+    },
+    {
+     "amount": 72340.96,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6284.05",
+     "ro_account_name": "Eo.mqtf.ldwtqwldqtq-wqodls",
+     "statement": "PL"
+    },
+    {
+     "amount": 166781.28,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6284.06",
+     "ro_account_name": "Vt.msni.lvjslpzns hsmscny",
+     "statement": "PL"
+    },
+    {
+     "amount": 32679.49,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6285.01",
+     "ro_account_name": "Wq.tjek.ejleimaej",
+     "statement": "PL"
+    },
+    {
+     "amount": 31318.92,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6285.03",
+     "ro_account_name": "Km.usly.wszj cefpq&wlzfn",
+     "statement": "PL"
+    },
+    {
+     "amount": 993629.4,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6285.04",
+     "ro_account_name": "Nw.prol.prbxotz pt drh",
+     "statement": "PL"
+    },
+    {
+     "amount": 166251.84,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6285.05",
+     "ro_account_name": "Cdyxc.kywt. prhr kq pwgcyncqy",
+     "statement": "PL"
+    },
+    {
+     "amount": 34.79,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.5.8",
+     "ro_account_name": "E ejkx jaeu (buto - wxdxdaleqrqyx)",
+     "statement": "PL"
+    },
+    {
+     "amount": 1784.62,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.8",
+     "ro_account_name": "Zvmiq. GAD (tmzmzblqyayi)",
+     "statement": "PL"
+    },
+    {
+     "amount": 9461.35,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "635.9",
+     "ro_account_name": "Fxtswlir SUF",
+     "statement": "PL"
+    },
+    {
+     "amount": 864741.07,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6351.01",
+     "ro_account_name": "Ej.rsiocrz pdugrhr",
+     "statement": "PL"
+    },
+    {
+     "amount": 67785.64,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6351.02",
+     "ro_account_name": "Pz.aurmbas snwntdwa",
+     "statement": "PL"
+    },
+    {
+     "amount": 10317.78,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6351.03",
+     "ro_account_name": "Zi.fpmtufqk vf qwlk wgqtqgcfvpk",
+     "statement": "PL"
+    },
+    {
+     "amount": 19275.65,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6351.04",
+     "ro_account_name": "Qr.ujxkduch lu cfmh fvck-cifslx.jfibf",
+     "statement": "PL"
+    },
+    {
+     "amount": 695.94,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6351.05",
+     "ro_account_name": "Yr.uto.eu jqga oqmyk okcxuzujqw",
+     "statement": "PL"
+    },
+    {
+     "amount": 506242.25,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6352.01",
+     "ro_account_name": "Lz.Hrmg ztmghetctdh",
+     "statement": "PL"
+    },
+    {
+     "amount": 29406.02,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6352.03",
+     "ro_account_name": "Amsqp.xqps iol gi pxbs (cfuv, pb tczo, pb ofdiqs))",
+     "statement": "PL"
+    },
+    {
+     "amount": 16366632.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6410.01",
+     "ro_account_name": "Ob.fotymofkshh uofwzmkd",
+     "statement": "PL"
+    },
+    {
+     "amount": 2789803.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6410.03",
+     "ro_account_name": "Ik.dmaxi wqcgmcjsahs",
+     "statement": "PL"
+    },
+    {
+     "amount": 723494.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6410.05",
+     "ro_account_name": "Lp.cvk unyrtokimhvk",
+     "statement": "PL"
+    },
+    {
+     "amount": 114915.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6410.07",
+     "ro_account_name": "Di.otrj.rjq drktwq",
+     "statement": "PL"
+    },
+    {
+     "amount": 621126.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6410.10'",
+     "ro_account_name": "Hz.ubnbdxx urwd py txpynxlbly",
+     "statement": "PL"
+    },
+    {
+     "amount": 153766.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6410.12",
+     "ro_account_name": "Lz.qrufk lrvsoutb",
+     "statement": "PL"
+    },
+    {
+     "amount": 143292.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6411.11",
+     "ro_account_name": "Lhxdfegg ef hegpxk",
+     "statement": "PL"
+    },
+    {
+     "amount": -43330.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6411.12",
+     "ro_account_name": "Rqzka si eiuhquobzjb",
+     "statement": "PL"
+    },
+    {
+     "amount": 124500.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6420.02",
+     "ro_account_name": "op.uaoptut oxvlz_optbu. Blo",
+     "statement": "PL"
+    },
+    {
+     "amount": 1512320.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6422.01",
+     "ro_account_name": "Zr.mqcrzmz dnvn pzhvkjnw",
+     "statement": "PL"
+    },
+    {
+     "amount": 5518.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6451.01",
+     "ro_account_name": "UBD Gbcnjns",
+     "statement": "PL"
+    },
+    {
+     "amount": 1587.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6453.01",
+     "ro_account_name": "Awodnhl.aohd.xd.AHTT",
+     "statement": "PL"
+    },
+    {
+     "amount": 54588.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6458.01",
+     "ro_account_name": "Bwysc. Gbpk. Lrpd rp ubhc rhj (BNMBXJII CXJIBLAX-4582)",
+     "statement": "PL"
+    },
+    {
+     "amount": 185190.75,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6458.02",
+     "ro_account_name": "Bpmj tx tr zkum vut tf EEU (gnrmugkj, mitxjmj tgaur, tgwmiwg)",
+     "statement": "PL"
+    },
+    {
+     "amount": 471761.0,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6460.01",
+     "ro_account_name": "Svzejowdeoo byoi hu sdzrb",
+     "statement": "PL"
+    },
+    {
+     "amount": 85312.2,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6520.01",
+     "ro_account_name": "Oivpt.mw gxhtvmtan jvfawpwa",
+     "statement": "PL"
+    },
+    {
+     "amount": 19434.13,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6520.02",
+     "ro_account_name": "Lkami.idpipdap phamvd daujbxpma",
+     "statement": "PL"
+    },
+    {
+     "amount": 1704.23,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6581.01",
+     "ro_account_name": "Gwkclsbcbs xcb itvwb abcb",
+     "statement": "PL"
+    },
+    {
+     "amount": 2508.84,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6581.02",
+     "ro_account_name": "Bnlbpdgbgd mwlgq.mwjnqmdbpn",
+     "statement": "PL"
+    },
+    {
+     "amount": 32457.03,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6581.04",
+     "ro_account_name": "Sbvpzh",
+     "statement": "PL"
+    },
+    {
+     "amount": 0.02,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6588.01",
+     "ro_account_name": "Prye liery.efwrkl.dkt wjey",
+     "statement": "PL"
+    },
+    {
+     "amount": 18323.92,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6588.02",
+     "ro_account_name": "Hforn.URSAJXYANATXTA Loworibt",
+     "statement": "PL"
+    },
+    {
+     "amount": 18054.59,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6588.03",
+     "ro_account_name": "Bglo xp.owug.niroeqo",
+     "statement": "PL"
+    },
+    {
+     "amount": 30861.93,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6588.13",
+     "ro_account_name": "Mexl rklex.lyde.pnt.nwglwxhm",
+     "statement": "PL"
+    },
+    {
+     "amount": 33247.84,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6588.8",
+     "ro_account_name": "Plmd vudlm. dqzltamaxd (edwdwnvmcfcld)",
+     "statement": "PL"
+    },
+    {
+     "amount": 80424.06,
+     "bucket": "operatingExpenses",
+     "is_derived": false,
+     "ro_account_code": "6588.9",
+     "ro_account_name": "Hypzn.bpkmdvsmzmnvnm awc vcvxrxnrz",
+     "statement": "PL"
+    },
+    {
+     "amount": 122627.67,
+     "bucket": "financialExpense",
+     "is_derived": false,
+     "ro_account_code": "6651",
+     "ro_account_name": "Opgyayuny uygwvsawcpfy ry dbaz vwfbnwa fyewny ry yfykyunyfy ksuynway yliapkwny pu vwfbnw",
+     "statement": "PL"
+    },
+    {
+     "amount": 3274309.11,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6811.01",
+     "ro_account_name": "Xhkyq.kiuy. egz.rgps.jpmu.",
+     "statement": "PL"
+    },
+    {
+     "amount": 28093.32,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6811.02",
+     "ro_account_name": "Cjioz.igyo.rfv.bfdu.pisday.",
+     "statement": "PL"
+    },
+    {
+     "amount": 260586.25,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6814.02",
+     "ro_account_name": "Vhmkz.brjqlcljdom tzjywrl",
+     "statement": "PL"
+    },
+    {
+     "amount": 52017.87,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6814.04",
+     "ro_account_name": "Fdshk.erfvnunfoas naxropomnaks, espknjnis, nsrwnjnis",
+     "statement": "PL"
+    },
+    {
+     "amount": 20519.04,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6814.05",
+     "ro_account_name": "Mofgu.kzdhqiqdtjf bgqfjuq",
+     "statement": "PL"
+    },
+    {
+     "amount": 60000.0,
+     "bucket": "depreciation",
+     "is_derived": false,
+     "ro_account_code": "6814.06",
+     "ro_account_name": "Hbdiu.hcrnmymrjzd jpfjijad",
+     "statement": "PL"
+    },
+    {
+     "amount": 287686.0,
+     "bucket": "taxExpense",
+     "is_derived": false,
+     "ro_account_code": "691",
+     "ro_account_name": "Mkzod.qghwsqd hbwaqd",
+     "statement": "PL"
+    },
+    {
+     "amount": 13207469.43,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "701.00'",
+     "ro_account_name": "Hzydj kdylbxz nxqeguz fbxyz",
+     "statement": "PL"
+    },
+    {
+     "amount": 74735909.68,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "701.01",
+     "ro_account_name": "Wfham uahwdsf zserbqf zsfzdsdmf",
+     "statement": "PL"
+    },
+    {
+     "amount": 27982.83,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "701.09",
+     "ro_account_name": "Icvjz ajvfhkc cv.cycmzkjmh",
+     "statement": "PL"
+    },
+    {
+     "amount": 8849.09,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "7030.01",
+     "ro_account_name": "Boa.gkaykso msqwfto soypwfklo",
+     "statement": "PL"
+    },
+    {
+     "amount": 194490.98,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "70400",
+     "ro_account_name": "Spuav xpdiayaa",
+     "statement": "PL"
+    },
+    {
+     "amount": 48000.0,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "706",
+     "ro_account_name": "Loi.couoqoito,swy.eodt.,yjpcpp",
+     "statement": "PL"
+    },
+    {
+     "amount": 1097999.86,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.1",
+     "ro_account_name": "Hcq.hmqgmec xmerved wcblye dqf ivd",
+     "statement": "PL"
+    },
+    {
+     "amount": 6475352.68,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.4",
+     "ro_account_name": "Taewphiw tcelcia rcim. Jaopzi qiaqcicpa Jocebwc",
+     "statement": "PL"
+    },
+    {
+     "amount": 46089.46,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.5",
+     "ro_account_name": "Iugvumn yumqu yuonmww smwyn",
+     "statement": "PL"
+    },
+    {
+     "amount": 1125196.05,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "707.7",
+     "ro_account_name": "Tdm. Tu qxprepf nfypxpd wzmsxfmdp",
+     "statement": "PL"
+    },
+    {
+     "amount": -987775.35,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "7093.04",
+     "ro_account_name": "Bpafhbwfxfrbrf npjpxmaf",
+     "statement": "PL"
+    },
+    {
+     "amount": -1336597.29,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "7094.01",
+     "ro_account_name": "Uymrzycq zxkyczqjny jzxcmjay",
+     "statement": "PL"
+    },
+    {
+     "amount": -133027.46,
+     "bucket": "revenue",
+     "is_derived": false,
+     "ro_account_code": "7099.04",
+     "ro_account_name": "Erpfzjzph szoy JXX",
+     "statement": "PL"
+    },
+    {
+     "amount": 67241438.47,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "711.01.01",
+     "ro_account_name": "Xwvz. Esasw. Agz.- Xwvzojs begeas",
+     "statement": "PL"
+    },
+    {
+     "amount": 21184554.4,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "711.01.02",
+     "ro_account_name": "Inax. Nzlzn. Zbx -IT YVRP",
+     "statement": "PL"
+    },
+    {
+     "amount": 28002.63,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "711.102",
+     "ro_account_name": "Jwazmhgz bza rgkbhqmzt imkqtmt wa wlwqmgzqt",
+     "statement": "PL"
+    },
+    {
+     "amount": 6868.18,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7581.01",
+     "ro_account_name": "Wdo.tdhwuvnpaza,wdougacuca",
+     "statement": "PL"
+    },
+    {
+     "amount": 112434.58,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7581.02",
+     "ro_account_name": "Wse.fsaqzwtpnun - zanw. qselut fztes ztlh dzujz",
+     "statement": "PL"
+    },
+    {
+     "amount": 14973.26,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7581.03",
+     "ro_account_name": "Fdxzjilz gdbq.ybzeilyld gyixd yijmjilzbwd",
+     "statement": "PL"
+    },
+    {
+     "amount": 64862.55,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7583.01",
+     "ro_account_name": "Ygwhjpch yuwluch ufjhyg",
+     "statement": "PL"
+    },
+    {
+     "amount": 133022.4,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7584.1.1.1",
+     "ro_account_name": "Rgpybdthh hdy.yhsxtb fx ybdht.",
+     "statement": "PL"
+    },
+    {
+     "amount": 25992.0,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7584.1.2.3",
+     "ro_account_name": "Rgpybdthh hdy.yhsxtb fx ybdht.",
+     "statement": "PL"
+    },
+    {
+     "amount": 2150.07,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.01",
+     "ro_account_name": "Pwgv ivbmgpzm vuew.mqepgjgmm",
+     "statement": "PL"
+    },
+    {
+     "amount": 118427.08,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.05",
+     "ro_account_name": "Hhzr crkmzwvm rdph.emcrvbr",
+     "statement": "PL"
+    },
+    {
+     "amount": 253063.0,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.07",
+     "ro_account_name": "Cesg vgi. Mciu ocewupfwspsg",
+     "statement": "PL"
+    },
+    {
+     "amount": 11794.5,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.08",
+     "ro_account_name": "Fbkv fvq. DX 30 LYW",
+     "statement": "PL"
+    },
+    {
+     "amount": 130465.42,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.1",
+     "ro_account_name": "Dsmp fphlmaol tlh pbisqzmzop",
+     "statement": "PL"
+    },
+    {
+     "amount": 29726.95,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.91",
+     "ro_account_name": "Snmt ktu.tscn.cney vuktumxh",
+     "statement": "PL"
+    },
+    {
+     "amount": 42123.6,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7588.92",
+     "ro_account_name": "Pnkc pcr.cvbn.bnyw trpcrkqx qhgqnqfc",
+     "statement": "PL"
+    },
+    {
+     "amount": 214598.26,
+     "bucket": "financialIncome",
+     "is_derived": false,
+     "ro_account_code": "7651",
+     "ro_account_name": "Imaxwxeux ahpcwhtmrx sx ogwy phrguhw rxnhux sx xrxkxeuxrx kcexuhwx xdlwmkhux me phrguh",
+     "statement": "PL"
+    },
+    {
+     "amount": 145945.47,
+     "bucket": "financialIncome",
+     "is_derived": false,
+     "ro_account_code": "766",
+     "ro_account_name": "Mxsdrafd kds kvbnsqd",
+     "statement": "PL"
+    },
+    {
+     "amount": 460317.48,
+     "bucket": "otherIncome",
+     "is_derived": false,
+     "ro_account_code": "7814",
+     "ro_account_name": "Wsz.kuvqot.cskusf.xfhoqs fouf.",
+     "statement": "PL"
+    }
+   ]
+  }
+ }
+}

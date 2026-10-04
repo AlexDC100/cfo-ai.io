@@ -479,14 +479,20 @@ describe("G2 every census row, composite and sub-score has all six cells", () =>
     expect(cell(prior, "prior")).toBe(cell(tr, "prior"));
   });
 
-  it("without a comparison the table states why and prints no prior column; tiles print no prior line", () => {
+  // 2026-10-04 (single-year-share, S7): the sentence used to print above the
+  // band movements AND above the table — the same fact twice on one tab,
+  // three times with the page's own notice. The tab says it ONCE, at the
+  // top; the table at its foot does not repeat it.
+  it("without a comparison the tab states why ONCE and the table prints no prior column; tiles print no prior line", () => {
     const p = fresh();
     renderTab(p, viewOf(p, { withComparison: false }));
     const table = screen.getByTestId("ratio-compare-table");
     expect(table.getAttribute("data-prior-state")).toBe("no_comparison");
-    expect(within(table).getByTestId("ratio-prior-state").textContent).toBe(
+    expect(within(screen.getByTestId("band-movements")).getByTestId("ratio-prior-state").textContent).toBe(
       bundle("en", "statements.ratioCmp.ui.noComparison").replace("{{current}}", "Dec 2025"),
     );
+    expect(within(table).queryByTestId("ratio-prior-state"), "the table repeats the tab's sentence").toBeNull();
+    expect(screen.getAllByTestId("ratio-prior-state").length).toBe(1);
     expect(tableRow("current_ratio").querySelector('[data-col="prior"]')).toBeNull();
     expect(document.querySelector('[data-testid="ratio-prior"]')).toBeNull();
     // the tiles still read the served current
@@ -835,8 +841,10 @@ describe("G9 the page feeds every ratio surface the served documents", () => {
       const view = ratioSurfacesOf({ ...base(p), comparatives }).ratioCompareView!;
       const r = renderTab(p, view);
       const table = screen.getByTestId("ratio-compare-table");
-      expect(within(table).getByTestId("ratio-prior-state").textContent).toBe(sentence);
       expect(within(screen.getByTestId("band-movements")).getByTestId("ratio-prior-state").textContent).toBe(sentence);
+      // …once on the tab (single-year-share, S7): not again above the table.
+      expect(within(table).queryByTestId("ratio-prior-state")).toBeNull();
+      expect(screen.getAllByTestId("ratio-prior-state").length).toBe(1);
       r.unmount();
     }
   });

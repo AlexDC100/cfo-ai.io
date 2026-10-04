@@ -49,6 +49,7 @@ from .lines import (
     coverage_from_envelope,
     read_value,
     refusal_of,
+    share_withheld_of,
     unwrap_envelope,
 )
 
@@ -74,6 +75,9 @@ __all__ = [
     "ComparativeColumn",
     "ComparativeTable",
     "build_comparative_columns",
+    "disclose_side",
+    "round_money",
+    "refusal_text",
 ]
 
 #: A base whose magnitude is below half a cent is a zero base. The same
@@ -160,6 +164,13 @@ class ComparativeTable:
     current_coverage_source: str
     prior_coverage_source: str
     columns: Tuple[ComparativeColumn, ...]
+    #: Per side, the lines whose SHARE of the statement base is withheld
+    #: though the line is reported — `(key, why)` pairs from
+    #: `lines.share_withheld_of` (the one margin rule). Read by
+    #: `analysis.common_size` only: a column's value, delta and percentage
+    #: are not a margin and do not move with it.
+    current_share_withheld: Tuple[Tuple[str, str], ...] = ()
+    prior_share_withheld: Tuple[Tuple[str, str], ...] = ()
 
     def by_key(self, key: str) -> Optional[ComparativeColumn]:
         for col in self.columns:
@@ -176,37 +187,60 @@ class ComparativeTable:
         return tuple(c for c in self.columns if c.status not in MOVEMENT_STATUSES)
 
 
-def _round_money(value: float) -> float:
+def round_money(value: float) -> float:
     rounded = round(value, MONEY_DP)
     # -0.0 and 0.0 are the same money; only one of them should ever be
     # rendered, or two hosts print different strings for one fact.
     return 0.0 if rounded == 0 else rounded
 
 
+_round_money = round_money
+
+
 def _fmt(value: float) -> str:
     return "%.2f" % value
 
 
-def _disclosure(
+def disclose_side(
     envelope: Mapping[str, Any],
     spec: LineSpec,
     coverage: Optional[FrozenSet[str]],
     level: str,
     level_known: bool,
 ) -> Tuple[Optional[float], str]:
+    """What ONE period says about one line: `(value, disclosure)`, the
+    value unrounded and None unless the disclosure is REPORTED.
+
+    THE PER-SIDE READER, and the only one. `build_comparative_columns`
+    calls it once per side; `shares.side_lines` calls it for a period read
+    on its own (the single-period common size served on every period
+    payload). One function, so the current column of a comparison and the
+    same period read alone cannot disagree about what the period said."""
     if level_known and spec.requires == ANALYTIC and not carries_analytic_detail(level):
         return None, DISCLOSURE_NOT_AT_LEVEL
+    # THE REFUSAL IS READ BEFORE THE VALUE. A refused figure can still be
+    # in its field: total equity short by a refused year's result stays
+    # there (it is what the equity rows sum to) with its refusal BESIDE it.
+    # Read value-first, that figure moved, took a percentage and a share of
+    # total assets — the equity ratio the same body's ratio table refuses
+    # (review of 2026-10-04).
+    if refusal_of(envelope, spec) is not None:
+        return None, DISCLOSURE_REFUSED
     value = read_value(envelope, spec, coverage)
     if value is None:
-        if refusal_of(envelope, spec) is not None:
-            return None, DISCLOSURE_REFUSED
         return None, DISCLOSURE_ABSENT
     return value, DISCLOSURE_REPORTED
 
 
-def _refusal_text(envelope: Mapping[str, Any], spec: LineSpec) -> str:
+_disclosure = disclose_side
+
+
+def refusal_text(envelope: Mapping[str, Any], spec: LineSpec) -> str:
     refusal = refusal_of(envelope, spec) or {}
     return str(refusal.get("text_en") or refusal.get("code") or "refused")
+
+
+_refusal_text = refusal_text
 
 
 def build_comparative_columns(
@@ -353,4 +387,6 @@ def build_comparative_columns(
         prior_coverage_source=(
             COVERAGE_UNKNOWN if pri_cov is None else COVERAGE_FROM_LINE_ITEMS),
         columns=tuple(columns),
+        current_share_withheld=tuple(sorted(share_withheld_of(current_envelope, specs).items())),
+        prior_share_withheld=tuple(sorted(share_withheld_of(prior_envelope, specs).items())),
     )

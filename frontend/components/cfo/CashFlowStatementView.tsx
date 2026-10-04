@@ -51,9 +51,15 @@ interface Props {
    *  default. (It pointed at `/financials`, a path with no route: the link
    *  opened the not-found page.) */
   uploadHref?: string;
+  /** The balance the company is missing for the previous year, as the month
+   *  the comparison notice names ("Dec 2023" / "dec. 2023") — the card's
+   *  call to action then asks for THAT balance, in the notice's own words,
+   *  instead of "the prior period". Null when the page does not know one
+   *  (the year before is uploaded, or the close cannot be read). */
+  missingPriorLabel?: string | null;
 }
 
-export function CashFlowStatementView({ statement, hideGuide = false, prior = null, uploadHref = "/workspace" }: Props) {
+export function CashFlowStatementView({ statement, hideGuide = false, prior = null, uploadHref = "/workspace", missingPriorLabel = null }: Props) {
   const { t, i18n } = useTranslation();
   // The engine REFUSED the net result the indirect method starts from: its
   // reason, never a statement built on a net profit of 0.
@@ -71,10 +77,18 @@ export function CashFlowStatementView({ statement, hideGuide = false, prior = nu
       </div>
     );
   }
-  return <CashFlowStatementBody statement={figures} hideGuide={hideGuide} prior={prior} uploadHref={uploadHref} />;
+  return (
+    <CashFlowStatementBody
+      statement={figures}
+      hideGuide={hideGuide}
+      prior={prior}
+      uploadHref={uploadHref}
+      missingPriorLabel={missingPriorLabel}
+    />
+  );
 }
 
-function CashFlowStatementBody({ statement, hideGuide = false, prior = null, uploadHref = "/workspace" }: Omit<Props, "statement"> & {
+function CashFlowStatementBody({ statement, hideGuide = false, prior = null, uploadHref = "/workspace", missingPriorLabel = null }: Omit<Props, "statement"> & {
   statement: CashFlowStatementFigures;
 }) {
   const { t, i18n } = useTranslation();
@@ -115,6 +129,12 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null, upl
   const depreciationTermId = addBackHoldsCharges ? null : "depreciation";
   const driftExceedsTolerance = Math.abs(reconciliation.drift) > 1;
   const showApproximationBanner = statement.isApproximated;
+  // ONE WAY TO NAME THE MISSING BALANCE: when the page knows which month the
+  // company lacks, the card asks for it in the comparison notice's own words
+  // ("Upload the Dec 2023 balance"); otherwise the general call to action.
+  const uploadCta = missingPriorLabel
+    ? t("statements.cmp.noPriorUpload", { prior: missingPriorLabel })
+    : t("statements.cf.approximated.cta");
   // 2026-05-24 — currency conversion via display-currency toggle.
   const fmt = useAmountFormatter(statement.currency);
   const display = useDisplayCurrency();
@@ -418,7 +438,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null, upl
                         data-testid="cf-upload-prior-cta"
                         className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
                       >
-                        {t("statements.cf.approximated.cta")}
+                        {uploadCta}
                       </Link>
                     ) : (
                       <a
@@ -426,12 +446,16 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null, upl
                         data-testid="cf-upload-prior-cta"
                         className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
                       >
-                        {t("statements.cf.approximated.cta")}
+                        {uploadCta}
                       </a>
                     )}
-                    <span className="text-[11.5px] text-brand-d/70 dark:text-ink/70">
-                      {t("statements.cf.approximated.hint")}
-                    </span>
+                    {/* The example names two arbitrary years; beside a call to
+                        action that names the month it would contradict it. */}
+                    {!missingPriorLabel && (
+                      <span className="text-[11.5px] text-brand-d/70 dark:text-ink/70" data-testid="cf-upload-prior-hint">
+                        {t("statements.cf.approximated.hint")}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

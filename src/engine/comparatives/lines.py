@@ -50,6 +50,9 @@ __all__ = [
     "coverage_from_envelope",
     "read_value",
     "refusal_of",
+    "equity_refusal_of",
+    "SHARE_NOT_MEANINGFUL",
+    "share_withheld_of",
 ]
 
 #: Every figure in this registry is a money amount in the envelope's own
@@ -95,13 +98,22 @@ class LineSpec:
     #: figure (tests/engine/test_evidence_lines.py). Coverage still reads
     #: the buckets. EMPTY: every leaf of the buckets feeds the line.
     source_accounts: Tuple[str, ...] = ()
+    #: The margin this line's share of net turnover IS — a RESULT divided by
+    #: turnover is a margin (EBITDA over turnover is the EBITDA margin, to
+    #: the digit). Named with the ratio table's own key where the table has
+    #: a row for it (gross, operating, EBITDA, net) and in words where it has
+    #: none (profit before tax; the net result built up before the stock
+    #: variation). Declared so the share asks the one margin rule before it
+    #: is taken (`share_withheld_of`). EMPTY: the line is not a result (a
+    #: cost line, turnover itself, a balance-sheet line).
+    margin: str = ""
 
 
-def _pl(key, label, field, buckets, requires=SYNTHETIC, accounts=()):
+def _pl(key, label, field, buckets, requires=SYNTHETIC, accounts=(), margin=""):
     return LineSpec(key="pl." + key, statement="PL", label=label,
                     path=("assembled_pl", field), unit=UNIT_MONEY,
                     source_buckets=tuple(buckets), requires=requires,
-                    source_accounts=tuple(accounts))
+                    source_accounts=tuple(accounts), margin=margin)
 
 
 def _bs(key, label, field, buckets, requires=SYNTHETIC):
@@ -147,7 +159,7 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
     # assembly refused it. A derived line: presence is the measurement.
     _pl_path("inventory_variation", "Variația stocurilor de produse (711)",
              ("inventory_variation", "value")),
-    _pl("gross_profit", "Gross profit", "gross_profit", ()),
+    _pl("gross_profit", "Gross profit", "gross_profit", (), margin="gross_margin"),
     _pl("opex_total", "Operating expenses", "opex_total",
         ("operatingExpenses", "opex_third_party")),
     # The served field is the 758 leaves ALONE: never the 711 memo (the
@@ -168,8 +180,8 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
     # assembler serves it on every period it assembles under the ruling.
     _pl_path("net_provisions", "Net provisions (outside EBITDA)",
              ("net_provisions", "value")),
-    _pl("ebitda", "EBITDA", "ebitda", ()),
-    _pl("ebit", "EBIT", "ebit", ()),
+    _pl("ebitda", "EBITDA", "ebitda", (), margin="ebitda_margin"),
+    _pl("ebit", "EBIT", "ebit", (), margin="operating_margin"),
     _pl("interest_expense", "Interest expense", "interest_expense",
         ("interest_expense", "interestExpense")),
     _pl("interest_income", "Interest income", "interest_income",
@@ -180,12 +192,12 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
     _pl("financial_expense", "Financial expense", "financial_expense_total",
         ("financialExpense", "fx_loss", "interest_expense")),
     _pl("net_financial_result", "Net financial result", "net_financial_result", ()),
-    _pl("pretax", "Profit before tax", "pretax", ()),
+    _pl("pretax", "Profit before tax", "pretax", (), margin="pre-tax margin"),
     _pl("tax", "Income tax", "tax", ("taxExpense",)),
     _pl("net_income_operational",
         "Net income — build-up before the stock variation and own work (excl. 711, 72x)",
-        "net_income_operational", ()),
-    _pl("net_income", "Net income", "net_income_statutory", ()),
+        "net_income_operational", (), margin="net margin before the stock variation"),
+    _pl("net_income", "Net income", "net_income_statutory", (), margin="net_margin"),
     # ── Balance sheet, the statement spine ───────────────────────────
     _bs("cash", "Cash & equivalents", "cash", ("cash", "cash_fx")),
     _bs("trade_receivables_net", "Trade receivables, net", "ar_net",
@@ -318,23 +330,106 @@ def coverage_from_envelope(
     return frozenset(buckets)
 
 
+def _served_refusal(envelope: Mapping[str, Any], block: str, name: str) -> Optional[Mapping[str, Any]]:
+    node = (unwrap_envelope(envelope).get("statements") or {}).get(block)
+    refusal = node.get(name) if isinstance(node, Mapping) else None
+    return refusal if isinstance(refusal, Mapping) else None
+
+
+def equity_refusal_of(envelope: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+    """The period's COMPLETENESS refusal beside total equity
+    (`assembled_bs.total_equity_refusal`), or None. Served when the year's
+    result is refused and the sheet does not balance without it: the figure
+    in `total_equity` stays (it is what the equity rows sum to) and is
+    short by the missing result, so nothing may be struck on it as total
+    equity — the ratio table refuses the equity ratio on it, and a share of
+    total assets taken on it IS that ratio."""
+    return _served_refusal(envelope, "assembled_bs", "total_equity_refusal")
+
+
 def refusal_of(envelope: Mapping[str, Any], spec: LineSpec) -> Optional[Mapping[str, Any]]:
-    """The typed refusal the period's assembled P&L serves for this line,
-    or None. Since the one-EBITDA ruling (2026-09-26) the assembler REFUSES
-    EBITDA, EBIT, gross profit, PBT and the net 711 itself when the stock
-    variation cannot be measured on a book that posts to 711
-    (`assembled_pl.ebitda_refusal`, whose `fields` name every refused
-    figure). A refused line is not an absent one: the period DID say
-    something about it — that it cannot be stated — and the column says
-    so with the reason."""
-    if len(spec.path) < 2 or spec.path[0] != "assembled_pl":
+    """The typed refusal the period's assembly serves for this line, or
+    None. A refused line is not an absent one: the period DID say something
+    about it — that it cannot be stated — and the column says so with the
+    reason. Three refusals reach a registry line:
+
+      `assembled_pl.ebitda_refusal`     the one EBITDA and what is built on
+          it (EBIT, gross profit, PBT, the net 711 itself), when the stock
+          variation cannot be measured on a book that posts to 711 — its
+          `fields` name every refused figure (owner ruling 2026-09-26);
+      `assembled_pl.net_income_refusal` the net result, when that book also
+          carries no account 121 to anchor it — again by its `fields`;
+      `assembled_bs.total_equity_refusal`  total equity short by that
+          refused result (`equity_refusal_of`). The figure is still IN the
+          field, which is why the reader asks this BEFORE it reads a value
+          (`columns.disclose_side`).
+
+    Until 2026-10-04 only the first was read: a refused net income was
+    served "the period did not report Net income" (absent — the wrong
+    reason), and a refused equity as 47.6 % of total assets beside a ratio
+    table that refused the equity ratio on the same body."""
+    if len(spec.path) < 2:
         return None
-    apl = (unwrap_envelope(envelope).get("statements") or {}).get("assembled_pl")
-    refusal = apl.get("ebitda_refusal") if isinstance(apl, Mapping) else None
-    if not isinstance(refusal, Mapping):
+    block, field = spec.path[0], spec.path[1]
+    if block == "assembled_pl":
+        refusal = _served_refusal(envelope, block, "ebitda_refusal")
+        if refusal is not None and field in (
+                set(refusal.get("fields") or ()) | {"inventory_variation"}):
+            return refusal
+        refusal = _served_refusal(envelope, block, "net_income_refusal")
+        if refusal is not None and field in set(refusal.get("fields") or ()):
+            return refusal
         return None
-    fields = set(refusal.get("fields") or ()) | {"inventory_variation"}
-    return refusal if spec.path[1] in fields else None
+    if block == "assembled_bs" and field == "total_equity":
+        return equity_refusal_of(envelope)
+    return None
+
+
+#: The status of a reported line whose share of turnover is a margin the
+#: period's margin rule refuses — the rule's own closed code
+#: (`engine.ratios.margin_meaning.MARGIN_NOT_MEANINGFUL`; held equal by
+#: tests/engine/test_common_size_single.py).
+SHARE_NOT_MEANINGFUL = "margin_not_meaningful"
+
+
+def share_withheld_of(
+    envelope: Mapping[str, Any],
+    specs: Optional[Sequence[LineSpec]] = None,
+) -> Dict[str, str]:
+    """{line key: why} for every line whose SHARE of its base is withheld
+    although the line itself is reported. Empty on every book but one kind.
+
+    THE ONE MARGIN RULE (`engine.ratios.margin_meaning`, the pack beside
+    it): "every surface that prints a margin over turnover asks that module
+    first". A share of turnover on a result line IS a margin — on the
+    corpus developer the block served EBITDA at 3.393432 of turnover and
+    net income at -4.937036, the EBITDA and net margins the same body's
+    ratio table refused as `margin_not_meaningful` (review of 2026-10-04).
+    The verdict is the module's (`period_verdict`, the very call
+    `statements.margin_meaning` is built from) over this period's own
+    statements, and it is ONE verdict per period ("every one of them refuses
+    together"): every line that declares a `margin` — every result over
+    turnover, the two the ratio table has no row for included (profit before
+    tax on that developer is the net result, -493.7 % of turnover) — carries
+    no share. The line's amount, its movement and every other line's share
+    are untouched: a margin is refused, not the figure it divides."""
+    from engine.ratios import margin_meaning as rule
+
+    if specs is None:
+        specs = LINE_SPECS
+    statements = unwrap_envelope(envelope).get("statements")
+    if not isinstance(statements, Mapping):
+        return {}
+    verdict, _inputs = rule.period_verdict(statements)
+    if not verdict.refused:
+        return {}
+    currency = statements.get("currency")
+    text = (rule.refusal_display(verdict, currency if isinstance(currency, str) and currency else None)
+            or {}).get("en") or rule.MARGIN_NOT_MEANINGFUL
+    return dict(
+        (spec.key, "%s over net turnover is a margin (%s), and the period's margin rule refuses "
+                   "its margins — %s; no share is taken" % (spec.label, spec.margin, text))
+        for spec in specs if spec.margin)
 
 
 def read_value(

@@ -139,10 +139,15 @@ function Row({ row, compared, view, highlighted = false }: {
   );
 }
 
-export function RatioComparisonTable({ view, highlightKey = null }: {
+export function RatioComparisonTable({ view, highlightKey = null, stateNote = true }: {
   view: RatioCompareView;
   /** The ratio key an evidence link named — its row is marked. */
   highlightKey?: string | null;
+  /** Say why no prior is printed. The Ratios tab switches it off here: it
+   *  says so ONCE, at the top (<BandMovementLists>), and the table at the
+   *  foot of the same tab does not repeat the sentence. On its own the table
+   *  still explains its missing columns. */
+  stateNote?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const loc = i18n.language;
@@ -169,7 +174,7 @@ export function RatioComparisonTable({ view, highlightKey = null }: {
           : view.currentLabel}
       </h2>
       <p className="text-[12px] text-ink-mute leading-snug max-w-[860px]">{t("statements.ratioCmp.ui.tableCaption")}</p>
-      <PriorStateNote view={view} />
+      {stateNote ? <PriorStateNote view={view} /> : null}
       <div className="overflow-x-auto rounded-md border border-rule bg-surface">
         <table className="w-full min-w-[760px] text-[12.5px]">
           <thead>

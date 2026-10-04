@@ -418,6 +418,7 @@
       "noPriorCompareWith": "Compară cu {{label}}",
       "columns": "Coloane",
       "colPrior": "Anterior",
+      "colComparison": "Comparație",
       "colDelta": "Δ",
       "colDeltaPct": "Δ %",
       "colShare": "% din venituri",
@@ -427,6 +428,7 @@
       "gone": "nu mai apare",
       "notAtLevel": "nedezvăluit la acest nivel de detaliu",
       "noBase": "fără bază",
+      "notMeaningful": "nesemnificativ",
       "definitionDiffers": "Rândul este construit din conturile balanței; linia comparativă a motorului pentru el e definită altfel, așa că nu afișăm o valoare anterioară lângă el.",
       "levelSynthetic": "condensată (conturi sintetice)",
       "levelAnalytic": "detaliată (conturi analitice)",
@@ -456,7 +458,33 @@
       "refusedNotInWorkspace": "Perioada de comparație aparține altei companii.",
       "refusedNotServable": "Perioada de comparație nu are cifre analizate de comparat.",
       "refusedGeneric": "Aceste două perioade nu pot fi comparate.",
-      "refused": "refuzat"
+      "refused": "refuzat",
+      "columnsRefused": "Comparația nu este disponibilă, deci aceste coloane nu au ce afișa.",
+      "columnsFailed": "Comparația nu a putut fi încărcată — coloanele apar după ce se încarcă.",
+      "baseRevenue": "venituri",
+      "baseAssets": "total active",
+      "bridgePeriod": "{{label}} — {{period}}",
+      "onlyCurrent": "doar în perioada afișată",
+      "onlyComparison": "doar în comparație",
+      "failedTitle": "Comparația nu a putut fi încărcată.",
+      "failedBody": "Cererea a eșuat (HTTP {{status}}), așa că perioada apare fără comparație.",
+      "failedBodyNoResponse": "Nu a sosit niciun răspuns, așa că perioada apare fără comparație.",
+      "failedRetry": "Încearcă din nou",
+      "backwardsLater": "Perioada de comparație ({{prior}}) se încheie după perioada afișată ({{current}}), așa că fiecare diferență se citește înapoi în timp și nimic nu este numit îmbunătățit sau deteriorat.",
+      "backwardsLaterPlain": "Perioada de comparație ({{prior}}) se încheie după perioada afișată ({{current}}), așa că fiecare diferență se citește înapoi în timp.",
+      "backwardsUnknown": "Ordinea celor două perioade nu a putut fi citită (lipsește o dată de închidere), așa că nimic nu este numit îmbunătățit sau deteriorat.",
+      "backwardsUnknownPlain": "Ordinea celor două perioade nu a putut fi citită (lipsește o dată de închidere), așa că o diferență se poate citi înapoi în timp.",
+      "share": {
+        "notServed": "Ponderile nu sunt disponibile pentru această perioadă.",
+        "noBasePl": "Cifra de afaceri netă este zero sau lipsește în această perioadă, deci nicio linie nu are o pondere din ea.",
+        "noBaseBs": "Totalul activelor este zero sau lipsește în această perioadă, deci nicio linie nu are o pondere din el.",
+        "absent": "Linia nu este raportată în această perioadă — lipsește, ceea ce nu înseamnă zero.",
+        "refused": "Motorul a refuzat această cifră, deci nu are pondere.",
+        "notAtLevel": "Nedezvăluit la acest nivel de detaliu, deci nu are pondere.",
+        "marginNotMeaningful": "Cifra de afaceri este o parte prea mică din activitatea companiei pentru ca o marjă pe ea să spună ceva, deci linia nu are pondere.",
+        "unavailable": "Pentru această linie nu este servită nicio pondere.",
+        "definitionDiffers": "Rândul este construit din conturile balanței; linia motorului pentru el e definită altfel, așa că nu afișăm o pondere lângă el."
+      }
     },
     "ratioCmp": {
       "unit": {
@@ -569,7 +597,9 @@
         "cash_from_operations_approximated": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este aproximat pentru această perioadă (fără balanța anului anterior); nu există scor compozit și nici rating.",
         "cash_from_operations_refused": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este refuzat pentru această perioadă; nu există scor compozit și nici rating.",
         "inventory_days_refused": "Necalculat: zilele de stoc pe tipuri de stoc sunt refuzate pentru această perioadă — motivul este afișat lângă cifră.",
-        "basis_differs": "Necomparat: zilele de stoc ale celor două perioade sunt măsurate pe baze de stoc diferite, deci nu se afișează nici o variație, nici o mișcare de bandă — ar fi schimbarea bazei, nu a stocului."
+        "basis_differs": "Necomparat: zilele de stoc ale celor două perioade sunt măsurate pe baze de stoc diferite, deci nu se afișează nici o variație, nici o mișcare de bandă — ar fi schimbarea bazei, nu a stocului.",
+        "prior_is_later": "Fără direcție: perioada de comparație se încheie după perioada afișată, deci diferența se citește înapoi în timp.",
+        "period_order_unknown": "Fără direcție: ordinea celor două perioade nu a putut fi citită."
       },
       "label": {
         "current_ratio": "Lichiditate curentă",
@@ -637,6 +667,9 @@
         "movementsTitle": "Mișcări de bandă, {{prior}} către {{current}}",
         "movementsCounts": "{{improved}} s-au îmbunătățit și {{deteriorated}} s-au deteriorat; {{unchanged}} și-au păstrat banda și {{notComparable}} nu au putut fi comparați, din {{bothSides}} cu valoare în ambele perioade. Fără valoare în cel puțin una dintre perioade: {{refused}}.",
         "nothingCrossed": "Niciun indicator nu a trecut într-o altă bandă între {{prior}} și {{current}}.",
+        "movementsTitlePlain": "Mișcări de bandă",
+        "verdictsWithheldLater": "Niciun indicator nu este listat ca îmbunătățit sau deteriorat: perioada de comparație se încheie după perioada afișată. Benzile ambelor perioade sunt în tabelul de mai jos.",
+        "verdictsWithheldUnknown": "Niciun indicator nu este listat ca îmbunătățit sau deteriorat: ordinea celor două perioade nu a putut fi citită. Benzile ambelor perioade sunt în tabelul de mai jos.",
         "rankBasisLead": "Ordine: {{sentence}}",
         "noComparison": "Nu este încărcată o perioadă de comparație, deci tabelul arată doar {{current}} și nu afișează perioadă anterioară, variație sau mișcare de bandă.",
         "comparisonRefused": "Fără comparație: {{message}}",
@@ -666,7 +699,7 @@
       "indirectMethod": "Metoda indirectă",
       "approximated": {
         "heading": "Flux de numerar aproximat",
-        "body": "Aceasta este o încărcare cu o singură perioadă, astfel încât mișcările capitalului de lucru și detaliile de finanțare nu pot fi calculate exact. Reconcilierea absoarbe conturile nemodelate. Pentru cifre exacte, încărcați și balanța anului precedent.",
+        "body": "Aceasta este o încărcare cu o singură perioadă, astfel încât mișcările capitalului de lucru și detaliile de finanțare nu pot fi calculate exact. Reconcilierea absoarbe conturile nemodelate. Pentru cifre exacte, încarcă și balanța anului precedent.",
         "cta": "Încarcă perioada anterioară",
         "hint": "ex. balanță FY2024 alături de FY2025"
       },

@@ -2714,6 +2714,209 @@ def _engine_gates() -> List[Gate]:
                        "a period still loading is neither served nor missing",
                        "not found, or nothing landed: no snapshot",
                        "the fallback hook remembers only what the engine's lookup answered")),
+        # "% DIN VENITURI" ON ONE YEAR, AND WHICH WAY TIME RUNS (owner ruling
+        # 2026-10-04: "'% din venituri' must work for a single year without a
+        # comparison. Engine change, with a gate." The share column was
+        # painted from the two-period comparatives document, so a company
+        # with one year on file \u2014 or its earliest year on screen \u2014 had none;
+        # and the balance-sheet tab's share was divided in the browser):
+        #   common-size-single  the engine serves ONE period's shares on the
+        #                    period payload (statements.common_size, schema
+        #                    common_size/1: every registry line of net
+        #                    turnover / total assets, and every canonical
+        #                    balance-sheet row, subtotal and total), computed
+        #                    by the function the comparison's two sides run:
+        #                    on every corpus pair, offline and through
+        #                    create_app(), single(current).share ==
+        #                    current_share and single(prior).share ==
+        #                    prior_share for every key, statuses included; one
+        #                    division site; a refused or absent line and a
+        #                    base below the zero floor carry no share (never
+        #                    0 %); the same request twice gives the same
+        #                    bytes and nothing is persisted. And the
+        #                    comparatives document says which way time runs
+        #                    (`direction`): a prior that closes LATER, or an
+        #                    order that cannot be read, serves every figure,
+        #                    delta, bridge and share and NO improved /
+        #                    deteriorated verdict (swap law). The committed
+        #                    frontend fixtures are the engine's bytes; the
+        #                    deploy pre-flight (check_served_periods.py
+        #                    --require-common-size) reads the block.
+        #                    FIX ROUND (the pre-deploy review): a REFUSED
+        #                    figure takes no share — total equity short by a
+        #                    refused result, the canonical equity subtotal and
+        #                    grand total, the net result — and the refusal is
+        #                    read before the value; a result line's share of
+        #                    turnover is a MARGIN and asks the one margin rule
+        #                    (the developer: status margin_not_meaningful, the
+        #                    amount kept, in both documents); the ratio block
+        #                    of a backwards document serves no improved /
+        #                    deteriorated delta, crossing, list or finding
+        #                    (the swap law, every pair); the date order is the
+        #                    dates' (same-year and one-day-apart closes); an
+        #                    incomparable pair serves no share on any row; the
+        #                    zero floor is witnessed at its boundary.
+        #                    SECOND REVIEW ROUND: the deploy pre-flight cannot
+        #                    pass on nothing (a period served without the
+        #                    block is RED unless the operator names it; no
+        #                    lawful block at all is RED whatever is named;
+        #                    the block is held in substance) — driven through
+        #                    main() over a world whose serve-time re-assembly
+        #                    fails; the margin rule's FLOOR reason has a
+        #                    witness; a statement with no base has one
+        #                    reason; the attention document (GET …/attention)
+        #                    judges no statement line and fills no
+        #                    improvement slot under a later or unreadable
+        #                    prior; Piotroski's year-over-year checks are not
+        #                    judged there; the liabilities + equity bridge is
+        #                    refused with a refused total equity.
+        #                    Plant log: docs/engine_book/gates.md.
+        #   single-year-share   the PAGE prints it. With no comparison
+        #                    document on screen — no prior resolves, "No
+        #                    comparison", a one-period company, a refused or
+        #                    failed request — the P&L and the balance sheet
+        #                    offer the share box, enabled, and paint ONE
+        #                    column from statements.common_size: every cell
+        #                    the served fraction through formatShare, in the
+        #                    reader's number shape; the row guard is the
+        #                    comparison's own; a line with no share says why
+        #                    and never prints 0 %; a payload without the block
+        #                    switches the box off and computes nothing; no
+        #                    state writes the stored columns; the document's
+        #                    share IS the block's (one figure per page), on
+        #                    the balance sheet too, where the browser no
+        #                    longer divides. No division, multiplication or
+        #                    rounding in any file on the share path (read off
+        #                    the syntax tree). A later comparison period is
+        #                    said to read backwards, lists no improved /
+        #                    deteriorated line, is never called "prior" and
+        #                    no line is called "new" or "gone" against it;
+        #                    a refused or failed request is said once on each
+        #                    of the five tabs, "try again" asks once more and
+        #                    nothing asks on its own; "no prior" is said one
+        #                    way (the Ratios tab at most once, the cash-flow
+        #                    card in the informal register, naming the month);
+        #                    a pre-deploy persisted payload is not hydrated.
+        #                    compare-no-prior is amended where its law changed
+        #                    (the share box, a one-period company, the
+        #                    refusal note).
+        #                    FIX ROUND (the pre-deploy review): the gate
+        #                    renders the PAGE'S OWN composition
+        #                    (lib/comparisonSurface.ts + ComparisonSurface.tsx,
+        #                    which the page renders too) and holds the page's
+        #                    one call and three elements to their exact text;
+        #                    every share cell prints the period's OWN share in
+        #                    every state — a document adds only its points,
+        #                    when its share IS that share — so a stale
+        #                    document (the month replaced under the same id)
+        #                    paints nothing, and every period reset also resets
+        #                    the comparisons that name it; a pair refusal does
+        #                    not blank the period's share; a refused equity and
+        #                    a refused margin print a word; a tab that cannot
+        #                    paint its share column has none and says why; the
+        #                    Ratios tab lists no verdict under a later prior;
+        #                    a share-path file imports no new local module.
+        #                    SECOND REVIEW ROUND: the gate MOUNTS THE REAL
+        #                    PAGE (pages/cfo/__tests__/singleYearSharePage.
+        #                    test.tsx — FinancialStatements.tsx itself, the
+        #                    network mocked at its two seams, the engine's
+        #                    committed bytes with their line items put back):
+        #                    the first review's page defects planted one
+        #                    wrapper element away left the text laws green.
+        #                    The source laws: every use of Math beyond abs /
+        #                    max / min / sign is arithmetic (a division needs
+        #                    no "/"); no dynamic import, no re-export to an
+        #                    unscanned module and no new package on the share
+        #                    path; every TRUSTED module holds the
+        #                    arithmetic it held when trusted (pinned by text,
+        #                    fixtures/sharePathTrustedArithmetic.json). The
+        #                    Ratios tab reads the DOCUMENT's direction, not
+        #                    the ratio block's flag alone; the P&L's share
+        #                    cell is the period's own on a row the document
+        #                    cannot be held to; the workspace upload card
+        #                    resets the period its file landed on.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("common-size-single",
+             [PY, "-m", "pytest", "tests/engine/test_common_size_single.py",
+              "tests/engine/test_common_size_fe_fixture.py", "-q", "-s"],
+             # measured 2026-10-04 (second review round): 14,548 share cells
+             # over 68 offline pairs (plus 7,748 through the real routes over
+             # 12 periods, 36 pairs; 174 band verdicts and 50 Piotroski
+             # year-over-year checks withheld backwards; 11 backwards
+             # attention documents; 13 periods through the pre-flight's
+             # main() with the re-assembly failing).
+             work_rx=r"GATE-WORK common-size-single rows=(\d+)", floor=12000,
+             units="share cells held equal between the two documents",
+             # One line per law that has a witness of its own: a law that is
+             # removed or skipped takes its line with it.
+             canaries=("GATE-WORK common-size-single rows=",
+                       "GATE-WORK common-size-single served_periods=",
+                       "GATE-WORK common-size-single swaps=",
+                       "band_verdicts=",
+                       "piotroski_yoy_withheld=",
+                       "GATE-WORK common-size-single margin_floor_lines=",
+                       "no_base_lines=",
+                       "GATE-WORK common-size-single zero_floor_lines=",
+                       "GATE-WORK common-size-single refused_lines=",
+                       "refused_equity_bridges=",
+                       "GATE-WORK common-size-single margin_lines_withheld=",
+                       "GATE-WORK common-size-single same_year_crossings_withheld=",
+                       "GATE-WORK common-size-single incomparable_rows=",
+                       "GATE-WORK common-size-single unreadable_close_crossings_withheld=",
+                       "GATE-WORK common-size-single attention_backwards=",
+                       "GATE-WORK common-size-single preflight_unassembled_periods=")),
+        Gate("single-year-share",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/singleYearShare.test.tsx",
+              "frontend/pages/cfo/__tests__/singleYearSharePage.test.tsx",
+              "--reporter=verbose"],
+             # measured 2026-10-04 (second review round): 1,476 share cells
+             # and movers held to the served documents (112 tests, 545
+             # states), and 121 share cells on the REAL page (8 tests).
+             work_rx=r"GATE-WORK single-year-share cells=(\d+)", floor=1300,
+             units="share cells held to the served block and document",
+             canaries=("GATE-WORK single-year-share cells=",
+                       # the real page (the gate's second file)
+                       "GATE-WORK single-year-share page_cells=",
+                       "pl: the controls are visible, the share box alone, on and ticked",
+                       "balance_sheet: the controls are visible, the share box alone, on and ticked",
+                       "one no-prior notice, the comparison boxes off, the share box on, the column printed",
+                       "one sentence under the tab bar, the comparison boxes off, the period's own share column still printed",
+                       "every share cell is the period's OWN share, the document's points only beside a share it describes",
+                       "a document that LISTS band verdicts under a later comparison period is not believed",
+                       # the source laws of the second review round
+                       "no module is reached without an import declaration",
+                       "a share-path file imports values only from the packages it imported before",
+                       "a trusted module holds the arithmetic it held when it was trusted, and no other",
+                       "the Ratios tab does not believe one either (prior_is_later)",
+                       "the share cell is the on-screen book's own",
+                       "the share box is on, the other three are off, and ONE column is printed from the served block",
+                       "every canonical balance-sheet row, subtotal and total on screen prints its served share",
+                       "a row whose amount is not the block's is blank; the rule is the comparison's own guard",
+                       "a book whose EBITDA the engine refused prints the word, with the reason, on every refused line",
+                       "a company with ONE period: no picker, no notice, the share box alone",
+                       "the share box alone is off, unticked, and says why beside it; no column",
+                       "the share a row prints is the same string with the document and without it",
+                       "the reader's stored columns are the same key in every state, and no state writes them",
+                       "no improved / deteriorated list, and the bridge names each period by its own month",
+                       "the code's sentence, once, on each of the five tabs; the comparison boxes off",
+                       "asks the engine once more",
+                       "the Ratios tab says it ONCE on its own, and not at all when the page already does",
+                       "the persisted cache of the previous version is never hydrated, and is removed",
+                       "the share path holds no arithmetic at all",
+                       "a share-path file imports values only from scanned modules",
+                       "the composition is called ONCE, with exactly these inputs",
+                       "the controls: ONE element, the sticky bar's own child",
+                       "the notes: ONE element, below the sticky bar",
+                       "each statement tab's provider is the shared one",
+                       "every share on screen is the on-screen book's own; the stale document adds nothing",
+                       "resetting a period resets every comparison that names it",
+                       "does not blank the share of the period on screen",
+                       "an equity the engine refuses as incomplete prints the word",
+                       "a margin the engine's rule refuses is not printed as a share",
+                       "no column of blank cells, the box off with its reason",
+                       "the share box alone, enabled",
+                       "no ratio is listed improved or deteriorated, none is coloured")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,

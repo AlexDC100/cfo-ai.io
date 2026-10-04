@@ -418,6 +418,7 @@
       "noPriorCompareWith": "Compare with {{label}}",
       "columns": "Columns",
       "colPrior": "Prior",
+      "colComparison": "Comparison",
       "colDelta": "Δ",
       "colDeltaPct": "Δ %",
       "colShare": "% of revenue",
@@ -427,6 +428,7 @@
       "gone": "no longer present",
       "notAtLevel": "not disclosed at this detail level",
       "noBase": "no base",
+      "notMeaningful": "not meaningful",
       "definitionDiffers": "This row is built from the book's own buckets; the engine's comparative line for it is defined differently, so no prior is shown beside it.",
       "levelSynthetic": "condensed (synthetic accounts)",
       "levelAnalytic": "detailed (analytic accounts)",
@@ -456,7 +458,33 @@
       "refusedNotInWorkspace": "The comparison period belongs to another company.",
       "refusedNotServable": "The comparison period has no analysed figures to compare.",
       "refusedGeneric": "These two periods can't be compared.",
-      "refused": "refused"
+      "refused": "refused",
+      "columnsRefused": "The comparison is unavailable, so these columns have nothing to show.",
+      "columnsFailed": "The comparison could not be loaded — these columns appear once it is.",
+      "baseRevenue": "revenue",
+      "baseAssets": "total assets",
+      "bridgePeriod": "{{label}} — {{period}}",
+      "onlyCurrent": "only in this period",
+      "onlyComparison": "only in the comparison",
+      "failedTitle": "The comparison could not be loaded.",
+      "failedBody": "The request failed (HTTP {{status}}), so this period is shown on its own.",
+      "failedBodyNoResponse": "No response arrived, so this period is shown on its own.",
+      "failedRetry": "Try again",
+      "backwardsLater": "The comparison period ({{prior}}) closes after the period on screen ({{current}}), so every change reads backwards in time and nothing is called improved or deteriorated.",
+      "backwardsLaterPlain": "The comparison period ({{prior}}) closes after the period on screen ({{current}}), so every change reads backwards in time.",
+      "backwardsUnknown": "The order of the two periods could not be read (a closing date is missing), so nothing is called improved or deteriorated.",
+      "backwardsUnknownPlain": "The order of the two periods could not be read (a closing date is missing), so a change may read backwards in time.",
+      "share": {
+        "notServed": "Shares are not available for this period.",
+        "noBasePl": "Net turnover is zero or missing in this period, so no line has a share of it.",
+        "noBaseBs": "Total assets are zero or missing in this period, so no line has a share of them.",
+        "absent": "This line is not reported in this period — absent, which is not zero.",
+        "refused": "The engine refused this figure, so it has no share.",
+        "notAtLevel": "Not disclosed at this detail level, so it has no share.",
+        "marginNotMeaningful": "Turnover is too small a part of this company's activity for a margin on it to mean anything, so this line has no share.",
+        "unavailable": "No share is served for this line.",
+        "definitionDiffers": "This row is built from the book's own buckets; the engine's line for it is defined differently, so no share is shown beside it."
+      }
     },
     "ratioCmp": {
       "unit": {
@@ -569,7 +597,9 @@
         "cash_from_operations_approximated": "Not scored: under the stock-build credit regime this component is graded on cash from operations, which is approximated for this period (no prior-year trial balance); there is no composite and no letter.",
         "cash_from_operations_refused": "Not scored: under the stock-build credit regime this component is graded on cash from operations, which is refused for this period; there is no composite and no letter.",
         "inventory_days_refused": "Not computed: inventory days split by stock type are refused for this period — the reason is shown with the figure.",
-        "basis_differs": "Not compared: the two periods' inventory days are measured on different stock bases, so neither a change nor a band movement is printed — it would be the change of basis, not of the stock."
+        "basis_differs": "Not compared: the two periods' inventory days are measured on different stock bases, so neither a change nor a band movement is printed — it would be the change of basis, not of the stock.",
+        "prior_is_later": "No direction given: the comparison period closes after the period on screen, so the change reads backwards in time.",
+        "period_order_unknown": "No direction given: the order of the two periods could not be read."
       },
       "label": {
         "current_ratio": "Current ratio",
@@ -637,6 +667,9 @@
         "movementsTitle": "Band movement, {{prior}} to {{current}}",
         "movementsCounts": "{{improved}} improved and {{deteriorated}} deteriorated; {{unchanged}} held their band and {{notComparable}} could not be compared, of {{bothSides}} valued in both periods. Without a figure in at least one period: {{refused}}.",
         "nothingCrossed": "No ratio crossed a band between {{prior}} and {{current}}.",
+        "movementsTitlePlain": "Band movement",
+        "verdictsWithheldLater": "No ratio is listed as improved or deteriorated: the comparison period closes after the period on screen. Both periods' bands are in the table below.",
+        "verdictsWithheldUnknown": "No ratio is listed as improved or deteriorated: the order of the two periods could not be read. Both periods' bands are in the table below.",
         "rankBasisLead": "Order: {{sentence}}",
         "noComparison": "No comparison period is loaded, so this table shows {{current}} only and states no prior, change or band movement.",
         "comparisonRefused": "No comparison: {{message}}",

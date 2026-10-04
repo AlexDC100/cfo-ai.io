@@ -17,13 +17,21 @@
 //     next step: where a balance is uploaded, and the company's EARLIER
 //     periods (nearest first, at most three) one click away — never a later
 //     one, which would read the change backwards;
-//   · every column box is OFF (disabled, unticked): no column is on screen;
+//   · every COMPARISON column box (Prior, Δ, Δ %) is OFF (disabled,
+//     unticked): no such column is on screen — and the share box with them
+//     on a tab that has no share column of its own (cash flow, ratios);
+//     AMENDED 2026-10-04 by gate single-year-share: on the P&L and the
+//     balance sheet the share box stays the reader's own, because the share
+//     of turnover / of total assets is the period's own figure and needs no
+//     comparison (owner ruling: "'% din venituri' must work for a single
+//     year without a comparison");
 //   · AUTO never picks another period in its place, and the reader's stored
 //     columns are not overwritten by the state;
 //   · NO DOCUMENT OF ANOTHER PAIR IS ON SCREEN: stepping here from a period
 //     that was compared leaves no comparison behind (the app's query client
 //     keeps the previous result as a placeholder; the comparison does not).
-// And whenever a prior DOES resolve: no notice, no disabled box.
+// And whenever a prior DOES resolve and the engine serves the comparison: no
+// notice, no disabled box.
 //
 // Fails on: the notice not rendered (the incident), a box left enabled or
 // ticked with nothing compared, AUTO's label silent about the missing
@@ -36,9 +44,18 @@
 // What it cannot see: whether the engine's document, once a prior exists,
 // fills the columns (comparatives.test.ts, plCompareSubtotals.test.tsx); the
 // same-length rule itself (comparatives.test.ts owns it); a company with ONE
-// period, where the page renders no controls at all; the page's own render
-// condition around the controls (the wiring law below reads the source).
-// Plant log: docs/engine_book/gates.md, "compare-no-prior".
+// period — no picker and no notice there, the share box alone on the P&L and
+// the balance sheet (gate single-year-share owns it; the page used to render
+// no controls at all); a comparison that WAS requested and was refused or
+// failed, whose sentence is the outcome note's (single-year-share — the two
+// per-tab copies of the refusal are gone); the page's own render condition
+// around the controls — since the fix round of 2026-10-04 the controls and
+// the notice are rendered by components/cfo/ComparisonSurface.tsx over the
+// one composition (lib/comparisonSurface.ts), which gate single-year-share
+// renders and holds; the wiring law below reads that the prior, the periods
+// and the close reach both through it.
+// Plant log: docs/engine_book/gates.md, "compare-no-prior" and "compare-no-prior
+// — amended by single-year-share".
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -126,11 +143,16 @@ function Page({
   currentId,
   currentEnd,
   columns = true,
+  share = null,
 }: {
   rows: Row[];
   currentId: string;
   currentEnd: string | null;
   columns?: boolean;
+  /** What the tab on screen can paint from the period's own share block —
+   *  null on a tab with no share column of its own (cash flow, ratios),
+   *  which is what every law here models unless it says otherwise. */
+  share?: { base: "PL" | "BS"; served: boolean } | null;
 }) {
   const view = useComparativesView();
   const choice = comparisonChoiceOf(
@@ -148,6 +170,7 @@ function Page({
         priorId={choice.priorId}
         currency="RON"
         columns={columns}
+        share={share}
       />
       <ComparativesNoPriorNote
         periods={choice.periods}
@@ -331,7 +354,28 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
       expect(cols.getAttribute("data-disabled")).toBe("true");
       expect(cols.getAttribute("title")).toBe(w.disabled);
       noRawKeys();
-      statesChecked += 1;
+
+      // AMENDED 2026-10-04 (single-year-share). The above is a tab with no
+      // share column of its own. On the P&L and the balance sheet the three
+      // COMPARISON boxes are off as above, and the share box stays the
+      // reader's own: the period's shares need no comparison.
+      cleanup();
+      render(mount({ rows: TWO_YEARS, currentId: P24, currentEnd: "2024-12-31", share: { base: "PL", served: true } }));
+      const again = notice();
+      expect(again).not.toBeNull();
+      for (const b of boxes().slice(0, 3)) {
+        expect(b.disabled, `${b.dataset.testid} is enabled with nothing compared`).toBe(true);
+        expect(b.checked, `${b.dataset.testid} is ticked with no column on screen`).toBe(false);
+        expect(b.getAttribute("aria-describedby")).toBe(again!.id);
+        expect(b.closest("label")!.getAttribute("title")).toBe(w.disabled);
+      }
+      const share = screen.getByTestId("comparatives-col-share") as HTMLInputElement;
+      expect(share.disabled, "the share box is off although the tab can paint the period's own shares").toBe(false);
+      expect(share.checked).toBe(true);
+      expect(share.getAttribute("aria-describedby")).toBeNull();
+      expect(screen.getByTestId("comparatives-columns").getAttribute("data-disabled")).toBe("false");
+      noRawKeys();
+      statesChecked += 2;
     });
   }
 
@@ -389,7 +433,15 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
     expect(controls().getAttribute("data-comparison")).toBe("off");
     expect(notice()).toBeNull();
     expect(boxes()).toEqual([]);
-    statesChecked += 1;
+    // AMENDED 2026-10-04 (single-year-share): on a tab that can paint the
+    // period's own shares, the share box — alone — is still offered.
+    cleanup();
+    render(mount({ rows: TWO_YEARS, currentId: P24, currentEnd: "2024-12-31", share: { base: "PL", served: true } }));
+    expect(notice()).toBeNull();
+    expect(boxes().map((b) => [b.getAttribute("data-testid"), b.disabled, b.checked])).toEqual([
+      ["comparatives-col-share", false, true],
+    ]);
+    statesChecked += 2;
   });
 
   it("the previous year IS uploaded, as a half-year: never 'missing' — 'no period of the same length', and it is one click away", () => {
@@ -736,24 +788,44 @@ describe("no comparison is left behind — the document on screen is the one for
 // ── The page hands the controls the prior it requests ──────────────────
 
 describe("the dashboard — the controls and the notice read the prior the page requests", () => {
-  const page = readFileSync(resolve(process.cwd(), "frontend/pages/cfo/FinancialStatements.tsx"), "utf8");
-  const element = (name: string): string => {
-    const uses = page.match(new RegExp(`<${name}\\b[\\s\\S]*?/>`, "g")) ?? [];
-    expect(uses.length, `the page renders <${name}> once`).toBe(1);
+  // AMENDED 2026-10-04 (single-year-share, fix round). The page no longer
+  // renders <ComparativesControls> and <ComparativesNoPriorNote> itself: it
+  // composes the comparison once (`comparisonSurfaceOf`) and renders
+  // <ComparisonControlsBar> and <ComparisonNotes>, which hand the two
+  // components their props. The law is the same — both read the prior the
+  // request is made with — held along that one path.
+  const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8").replace(/\s+/g, " ");
+  const page = read("frontend/pages/cfo/FinancialStatements.tsx");
+  const shared = read("frontend/components/cfo/ComparisonSurface.tsx");
+  const surface = read("frontend/lib/comparisonSurface.ts");
+  const element = (source: string, name: string): string => {
+    const uses = source.match(new RegExp(`<${name}\\b[\\s\\S]*?/>`, "g")) ?? [];
+    expect(uses.length, `<${name}> is rendered once`).toBe(1);
     return uses[0];
   };
 
   it("one <ComparativesControls> and one <ComparativesNoPriorNote>, fed by the choice the request is made with", () => {
-    const ctl = element("ComparativesControls");
-    expect(ctl).toMatch(/\bpriorId=\{cmpPriorId\}/);
-    expect(ctl).toMatch(/\bautoPick=\{cmpAutoPick\}/);
-    expect(ctl).toMatch(/\bperiods=\{cmpPeriods\}/);
-    expect(ctl).toMatch(/\bcurrentEnd=\{remotePeriod\.periodEnd\}/);
-    const note = element("ComparativesNoPriorNote");
-    expect(note).toMatch(/\bpriorId=\{cmpPriorId\}/);
-    expect(note).toMatch(/\bperiods=\{cmpPeriods\}/);
-    expect(note).toMatch(/\bcurrentEnd=\{remotePeriod\.periodEnd\}/);
-    expect(note).toMatch(/\buploadHref=\{/);
+    // The page hands the composition the rule's own answers…
+    const call = /comparisonSurfaceOf\(\{([\s\S]*?)\}\)/.exec(page)?.[1] ?? "";
+    expect(call).toContain("priorId: cmpPriorId,");
+    expect(call).toContain("autoPick: cmpAutoPick,");
+    expect(call).toContain("periods: cmpPeriods,");
+    expect(call).toContain("currentEnd: remotePeriod.periodEnd,");
+    expect(element(page, "ComparisonControlsBar")).toBe("<ComparisonControlsBar surface={cmpSurface} />");
+    expect(element(page, "ComparisonNotes")).toMatch(/^<ComparisonNotes surface=\{cmpSurface\} uploadHref=\{/);
+    // …and the shared components hand them on, untouched.
+    const ctl = element(shared, "ComparativesControls");
+    expect(ctl).toMatch(/\bpriorId=\{surface\.priorId\}/);
+    expect(ctl).toMatch(/\bautoPick=\{surface\.autoPick\}/);
+    expect(ctl).toMatch(/\bperiods=\{surface\.periods\}/);
+    expect(ctl).toMatch(/\bcurrentEnd=\{surface\.currentEnd\}/);
+    const note = element(shared, "ComparativesNoPriorNote");
+    expect(note).toMatch(/\bpriorId=\{surface\.priorId\}/);
+    expect(note).toMatch(/\bperiods=\{surface\.periods\}/);
+    expect(note).toMatch(/\bcurrentEnd=\{surface\.currentEnd\}/);
+    expect(note).toMatch(/\buploadHref=\{uploadHref\}/);
+    // The page itself renders neither: one path, not two.
+    expect(page).not.toMatch(/<ComparativesControls\b|<ComparativesNoPriorNote\b/);
     // …and `cmpPriorId` is the rule's answer, the one the request is made with.
     expect(page).toMatch(/\bcmpPriorId\b[^=\n]*=\s*cmpChoice\.priorId\b/);
     expect(page).toMatch(/useComparatives\(\s*remotePeriod\.id,\s*cmpPriorId,\s*cmpCompanyId\s*\)/);
@@ -761,18 +833,22 @@ describe("the dashboard — the controls and the notice read the prior the page 
   });
 
   it("the notice is rendered on every tab the controls are, outside the sticky tab bar", () => {
-    const ctlAt = page.indexOf("<ComparativesControls");
-    const noteAt = page.indexOf("<ComparativesNoPriorNote");
-    const guard = (at: number) => page.slice(Math.max(0, at - 420), at);
-    for (const tab of ["overview", "pl", "balance_sheet", "cash_flow", "ratios"]) {
-      expect(guard(ctlAt), `controls on ${tab}`).toContain(`activeTab === "${tab}"`);
-      expect(guard(noteAt), `notice on ${tab}`).toContain(`activeTab === "${tab}"`);
-    }
-    expect(guard(noteAt)).toContain("cmpPeriods.length > 1");
+    // ONE list of tabs decides both.
+    expect(surface).toContain(
+      'export const COMPARISON_TABS: readonly string[] = ["overview", "pl", "balance_sheet", "cash_flow", "ratios"];',
+    );
+    expect(surface).toContain("const onComparisonTab = COMPARISON_TABS.includes(input.tab);");
+    expect(surface).toContain("controlsShown: loaded && onComparisonTab,");
+    // The notice needs another period to speak of.
+    expect(surface).toContain("const hasOtherPeriods = input.periods.length > 1;");
+    expect(surface).toContain("notesShown: loaded && onComparisonTab && hasOtherPeriods,");
+    expect(shared).toContain("if (!surface.notesShown) return null;");
     // After the controls, and after the sticky bar's closing tags.
+    const ctlAt = page.indexOf("<ComparisonControlsBar");
+    const noteAt = page.indexOf("<ComparisonNotes");
+    expect(ctlAt).toBeGreaterThan(0);
     expect(noteAt).toBeGreaterThan(ctlAt);
-    const between = page.slice(ctlAt, noteAt);
-    expect(between).toMatch(/<\/div>\s*\)\}/);
+    expect(page.slice(ctlAt, noteAt)).toMatch(/<\/div>\s*\)\}/);
     statesChecked += 1;
   });
 

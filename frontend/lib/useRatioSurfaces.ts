@@ -60,6 +60,11 @@ export interface RatioSurfaces {
   /** The engine's refusal of the comparison — its CODE only (the sentence
    *  is the code's, lib/comparisonRefusal.ts), or null. */
   cmpRefused: { code: string } | null;
+  /** THE COMPARISON REQUEST'S OUTCOME, said once: none asked, pending,
+   *  refused (its code), failed (its status) or served. The column boxes,
+   *  the note under the tab bar, the Ratios tab and the exports all read
+   *  THIS — none of them sorts the fetch again (lib/comparisonState.ts). */
+  comparison: ExportComparisonState;
   /** The view every RatioCompareCtx provider on the page is handed. */
   ratioCompareView: RatioCompareView | null;
   /** What the Export tab hands the report and the workbook. */
@@ -111,6 +116,9 @@ export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
       : requested && data === undefined
         ? { kind: "pending" }
         : null;
+  const comparison: ExportComparisonState = cmpDoc
+    ? { kind: "served" }
+    : comparisonOutcome ?? { kind: "none" };
   const ratioCompareView = buildRatioCompareView({
     periodTable: readRatioTable(input.assembledMetrics),
     comparativesDoc: cmpDoc,
@@ -122,6 +130,7 @@ export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
   return {
     cmpDoc,
     cmpRefused,
+    comparison,
     ratioCompareView,
     statementsForExport: withSector(
       statementsForExportOf(input.statements, cmpDoc, comparisonOutcome), input.sector),

@@ -5052,3 +5052,95 @@ upload replaced the dashboard) and the benchmark cache of 2026-09-20.
 **For whoever verifies on the live site with a customer's browser:** never
 open a period id of another account by URL in the owner's signed-in
 session. Until this ships, that one navigation dead-ends their dashboard.
+
+---
+
+## 37. "% din venituri" on one year, and which way time runs (2026-10-04)
+
+Branch `feat/single-period-share` (engine + frontend), release
+`release/r-share`. Owner ruling 2026-10-04: **"'% din venituri' must work
+for a single year without a comparison. Engine change, with a gate."** Two
+independent review rounds (both lenses "do not ship" each time, each fixed);
+the coordinator read both fix rounds' engine diffs.
+
+**What was wrong.** The share column was painted from the two-period
+comparatives document, so a company with one year on file — or its earliest
+year on screen — had none. And the balance-sheet tab's share was never an
+engine figure: `BsCmpCells` DIVIDED in the browser.
+
+**The one computation.** `engine.comparatives.shares` — each line of ONE
+period as a share of its base (P&L: net turnover; balance sheet: total
+assets), with the registry and bases the two-period document's current side
+uses. Served on the period payload as `statements.common_size`
+(`common_size/1`: `bases`, `rows` of key / statement / base_key / current /
+share / status / note), computed at serve time, never stored. The document's
+`common_size[]` carries the canonical balance-sheet rows too, so no share on
+either tab is divided in the browser. A line with no share says why and is
+never 0 %: `absent`, `not_disclosed_at_this_detail_level`, `no_base` (asked
+first — one reason per statement), `refused` (the one EBITDA, a refused net
+income, a refused total equity and what is built on it),
+`margin_not_meaningful`.
+
+**Which way time runs.** The document serves `direction` (`prior_is_earlier`
+/ `prior_is_later` / `same_close` / `unknown`, read from the two closes by
+the engine). When the comparison period closes LATER than the one on screen,
+or the order cannot be read, NOTHING is called improved or deteriorated: the
+movers, the ratio table's band movements and `delta.favourable`, the band
+findings, Piotroski's year-over-year checks (score capped at four), and the
+attention document's statement verdicts and improvement slot. Figures, bands
+and deltas are served unchanged — a size is not a verdict.
+
+**The frontend prints it.** One composition (`lib/comparisonSurface.ts`,
+`components/cfo/ComparisonSurface.tsx`) that the page and the gate both
+render. Every share cell prints the period's OWN served share in every
+state; the document adds only the change in points, and only where its
+`current_share` equals that share. The share box is offered with no
+comparison; the other three boxes stay comparison columns. A request in
+flight / refused / failed is said once, on every tab that has the controls.
+`lib/periodReset.resetPeriodAnswers` resets a period AND every comparison
+naming it (a month replaced under the same id left the previous book's
+shares beside the new amounts).
+
+**Decisions the lane took, each the owner's to reverse** (they follow
+existing rulings — a refusal is never a figure; a refused margin is not
+served):
+- a result line's share of turnover IS a margin (`LineSpec.margin`): on a
+  book whose margin rule refuses (the developer) gross profit, EBITDA, EBIT,
+  profit before tax, the net result before the stock variation and net
+  income read "nesemnificativ" — with a comparison on screen too, where
+  four of them used to print. Cost lines and the financial result keep their
+  shares (thousands of percent on that book): whether the whole column
+  should fall silent there is open;
+- `bs.total_equity` and `pl.net_income` are `refused` in the two-period
+  columns on a book carrying those refusals, and the liabilities + equity
+  bridge is refused with the reason (the assets bridge is untouched);
+- under a later or unreadable comparison period the Ratios tab shows one
+  sentence and no lists, the exports count 0 / 0 with each crossing "not
+  comparable", the command bar serves no improvement item;
+- a balance sheet with no canonical rows, or a payload with no block, has no
+  share column and says why.
+
+**Gates.** `common-size-single` (the identity between the single-period
+block and the document's current side over every corpus pair — 14,548 cells;
+refusals; the direction and swap laws; the pre-flight), `single-year-share`
+(two files: 112 laws over the shared composition and source, 8 states on the
+REAL page mounted with the network mocked; no arithmetic on the share path —
+`Math` beyond abs / max / min / sign, a dynamic import, a new package and
+any change in a trusted module's pinned arithmetic red), `compare-no-prior`
+(amended where the law changed on purpose). **A red on the trusted-module
+pin after a merge is the gate asking you to LOOK**: read the difference,
+then `SHARE_PATH_PIN=write npx vitest run … -t "trusted module"`.
+
+**Deploy.** Backend before or with the frontend (an older engine serves no
+block; the new frontend then says "not available"). Pre-flight in the new
+image: `check_served_periods.py --require-common-size` — exit 1 for a period
+served without the block unless named with `--accept-withheld`, exit 2 when
+no period serves a lawful one. **Read every NOTE before shipping; do not
+override a substance failure.**
+
+**Not done (S8, and the reviewers' residue):** the exported report /
+workbook / PDF's own share column; the command bar still labels a later
+comparison "vs prior"; printer conventions on shares (ungrouped
+"17995,1%", an ASCII hyphen on negatives, "+0.0 pp"); `same_close` pairs
+serve verdicts; `statements.subAggregates` is built in hash order (on main
+too).

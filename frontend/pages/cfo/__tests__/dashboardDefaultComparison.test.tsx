@@ -279,6 +279,15 @@ describe("the Overview's key figures carry the prior period", () => {
     ]) {
       expect(page, fig).toContain(`trendAgainstPrior(overviewPrior, "${fig}", ${value})`);
     }
-    expect(page).toMatch(/activeTab === "overview" \|\| activeTab === "pl"/);
+    // The picker on the Overview. Since 2026-10-04 (single-year-share, fix
+    // round) the page renders ONE controls bar over the one composition of
+    // the comparison, and the tabs that carry it are that composition's list
+    // — the Overview first (lib/comparisonSurface.ts; gate single-year-share
+    // renders it on each of them).
+    expect(page).toContain("<ComparisonControlsBar surface={cmpSurface} />");
+    expect(page).toMatch(/comparisonSurfaceOf\(\{\s*tab: activeTab,/);
+    const surface = readFileSync(resolve(process.cwd(), "frontend/lib/comparisonSurface.ts"), "utf8");
+    expect(surface).toContain('export const COMPARISON_TABS: readonly string[] = ["overview", "pl",');
+    expect(surface).toContain("const onComparisonTab = COMPARISON_TABS.includes(input.tab);");
   });
 });

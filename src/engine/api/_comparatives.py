@@ -27,7 +27,16 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Mapping, Optional
 
 from engine.comparatives import build_comparative_columns
-from engine.comparatives.analysis import bs_bridge, canonical_totals, common_size, movers, pl_bridge
+from engine.comparatives.analysis import (
+    bs_bridge,
+    canonical_common_size,
+    canonical_totals,
+    common_size,
+    movers,
+    period_common_size,
+    pl_bridge,
+    time_direction,
+)
 # The synthetic/analytic boundary is a chart-of-accounts fact and lives in
 # the pack. Today every served period is a Romanian book; when a second
 # pack lands it exposes its own detector and this import becomes a
@@ -48,6 +57,7 @@ __all__ = [
     "load_period_in_org",
     "envelope_from_payload",
     "detail_level_of",
+    "common_size_block",
     "compare_payloads",
 ]
 
@@ -126,6 +136,32 @@ def detail_level_of(payload: Mapping[str, Any]):
     items = list(payload.get("line_items") or [])
     codes = [li.get("ro_account_code") for li in items if isinstance(li, Mapping)]
     return classify_detail_level(codes, row_count=len(items))
+
+
+def common_size_block(payload: Mapping[str, Any]) -> Dict[str, Any]:
+    """`statements.common_size` (schema common_size/1) for ONE served
+    period: every statement line as a share of the period's own base —
+    net turnover for the P&L, total assets for the balance sheet — with no
+    second period read (owner ruling 2026-10-04: "% din venituri" works on
+    a single year).
+
+    ONE READING. The envelope and the detail level are built by the very
+    functions `compare_payloads` calls for each side, so this block and the
+    current column of any comparison of the same period are one
+    computation over one input (`engine.comparatives.shares.side_shares`).
+
+    Pure over the payload: no clock, no I/O; the payload is not touched."""
+    return period_common_size(envelope_from_payload(payload), detail_level_of(payload).level)
+
+
+def _period_end_of(row: Mapping[str, Any], payload: Mapping[str, Any]) -> Any:
+    """The period's close: the workspace row's, else the one the served
+    body names for the same period."""
+    end = row.get("period_end")
+    if end:
+        return end
+    period = payload.get("period")
+    return period.get("period_end") if isinstance(period, Mapping) else None
 
 
 def _source_document_of(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
@@ -250,10 +286,22 @@ def compare_payloads(
     )
     pl_b = pl_bridge(cur_env, pri_env, table)
     bs_assets, bs_le = bs_bridge(cur_env, pri_env, table)
-    mv = movers(table)
-    cs = common_size(table)
+    # WHICH WAY TIME RUNS, from the two closes. A prior that closes LATER
+    # (the picker allows it) leaves every figure, delta, bridge and share
+    # as they are and withholds the improved / deteriorated verdicts: an
+    # adjective judged on current − later reads history backwards.
+    direction = time_direction(_period_end_of(current_row, current_payload),
+                               _period_end_of(prior_row, prior_payload))
+    mv = movers(table, verdicts_withheld=direction.reason)
+    # The registry lines, then the canonical balance-sheet rows the BS tab
+    # renders (`bs.row.<id>`, `bs.section.<id>`, `bs.total.*`).
+    cs = common_size(table) + canonical_common_size(cur_env, pri_env, table)
 
-    prior_statements = prior_payload.get("statements") or {}
+    # The prior's served statements, verbatim — less its own share block:
+    # the prior's shares are this document's `prior_share` column, and a
+    # second copy nothing reads cost every comparison about 19 KB.
+    prior_statements = dict(prior_payload.get("statements") or {})
+    prior_statements.pop("common_size", None)
     # The two-period ratio block (engine.comparatives.ratio_compare): both
     # periods' ratios, bands, deltas, movements and credit composites,
     # computed from these two served payloads under one model revision.
@@ -267,11 +315,15 @@ def compare_payloads(
         current_period_id=current_row.get("id"), prior_period_id=prior_row.get("id"),
         current_snapshot_id=snapshot_id_of(current_row),
         prior_snapshot_id=snapshot_id_of(prior_row),
+        # The same reading of the two closes the movers get: a document
+        # that says no verdict is served serves none in ANY of its blocks.
+        verdicts_withheld=direction.reason,
     )
     return {
         "ratios": ratios,
         "current": cur_block,
         "prior": pri_block,
+        "direction": asdict(direction),
         "comparability": asdict(table.comparability),
         "coverage_source": {
             "current": table.current_coverage_source,
