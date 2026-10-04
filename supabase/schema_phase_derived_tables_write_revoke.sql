@@ -119,28 +119,36 @@ begin
     v_here := '[]'::jsonb;
     foreach v_priv in array array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'] loop
       -- A grant to PUBLIC gives the privilege to every role: it goes first.
+      -- "revoked" names only what the READ-BACK confirms is gone: a grant
+      -- made by a role this one cannot act for (a table another role owns)
+      -- is not removed by this role's revoke — Postgres answers a warning,
+      -- not an error.
       if exists (select 1 from pg_class c, aclexplode(c.relacl) a
                   where c.oid = v_rel and a.grantee = 0 and a.privilege_type = v_priv) then
         execute format('revoke %s on table public.%I from public', v_priv, v_t);
-        v_here := v_here || to_jsonb(format('PUBLIC:%s', v_priv));
-        v_count := v_count + 1;
+        if not exists (select 1 from pg_class c, aclexplode(c.relacl) a
+                        where c.oid = v_rel and a.grantee = 0 and a.privilege_type = v_priv) then
+          v_here := v_here || to_jsonb(format('PUBLIC:%s', v_priv));
+          v_count := v_count + 1;
+        end if;
       end if;
       foreach v_role in array array['anon', 'authenticated'] loop
         if has_table_privilege(v_role, v_rel, v_priv)
            or (v_priv in ('INSERT', 'UPDATE') and has_any_column_privilege(v_role, v_rel, v_priv)) then
           execute format('revoke %s on table public.%I from %I', v_priv, v_t, v_role);
-          v_here := v_here || to_jsonb(format('%s:%s', v_role, v_priv));
-          v_count := v_count + 1;
-        end if;
-        -- Read back. Do not pretend.
-        if has_table_privilege(v_role, v_rel, v_priv)
-           or (v_priv in ('INSERT', 'UPDATE') and has_any_column_privilege(v_role, v_rel, v_priv)) then
-          v_left := v_left || to_jsonb(format('%s still holds %s on public.%s (granted by: %s)', v_role, v_priv, v_t,
-            coalesce((select string_agg(distinct pg_get_userbyid(a.grantor), ', ')
-                        from pg_class c, aclexplode(c.relacl) a
-                       where c.oid = v_rel and a.privilege_type = v_priv
-                         and a.grantee in (0, (select oid from pg_roles where rolname = v_role))),
-                     'a column-level grant or a role membership')));
+          if has_table_privilege(v_role, v_rel, v_priv)
+             or (v_priv in ('INSERT', 'UPDATE') and has_any_column_privilege(v_role, v_rel, v_priv)) then
+            v_left := v_left || to_jsonb(format('%s still holds %s on public.%s (table owner: %s; granted by: %s)', v_role, v_priv, v_t,
+              (select pg_get_userbyid(c.relowner) from pg_class c where c.oid = v_rel),
+              coalesce((select string_agg(distinct pg_get_userbyid(a.grantor), ', ')
+                          from pg_class c, aclexplode(c.relacl) a
+                         where c.oid = v_rel and a.privilege_type = v_priv
+                           and a.grantee in (0, (select oid from pg_roles where rolname = v_role))),
+                       'a column-level grant or a role membership')));
+          else
+            v_here := v_here || to_jsonb(format('%s:%s', v_role, v_priv));
+            v_count := v_count + 1;
+          end if;
         end if;
       end loop;
     end loop;

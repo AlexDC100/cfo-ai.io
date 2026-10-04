@@ -28,7 +28,13 @@
 #          NOTHING and says why, and signups still land;
 #   A BODY IT DOES NOT KNOW  a signup function whose subscriptions insert is
 #          not the repository's statement is NOT patched, the result names
-#          it, and the report stays "hole_open": true (honest, not green).
+#          it, and the report stays "hole_open": true (honest, not green);
+#   AN EMPTY DATABASE  the report and the migration answer where auth.users
+#          has no trigger and public.subscriptions does not exist;
+#   OBJECTS ANOTHER ROLE OWNS  (what the dashboard's role created): the
+#          report says the hole is open and that this role cannot change the
+#          object; the migration applies WITHOUT an error, changes nothing and
+#          names what it could not close; the report still says open.
 #
 # WHAT IT CANNOT SEE. GoTrue (a signup is reproduced as the auth.users row it
 # inserts); what the ENGINE gives the row — that half is the static law
@@ -184,5 +190,19 @@ report_says "U6 with the repository's function back, the migration closes it" "f
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — auth.users has no trigger and public.subscriptions does not exist"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+
+# ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
+echo "── OBJECTS ANOTHER ROLE OWNS — the signup function created by the dashboard's role, with its own grants"
+holes_on_objects_another_role_owns "X1" "$REPORT_SQL" "$MIGRATION" '{signup_triggers,0,this_role_can_replace_it}' 'false' <<'SQL'
+create table public.subscriptions (user_id uuid primary key, plan text, tier text, billing_cycle text, status text, trial_start timestamptz, trial_end timestamptz, current_period_start timestamptz, current_period_end timestamptz, stripe_subscription_id text);
+create or replace function public.handle_new_user_v2() returns trigger language plpgsql security definer set search_path = public as $f$
+begin
+  insert into public.subscriptions (user_id, plan, billing_cycle, status, trial_start, trial_end, current_period_start, current_period_end)
+  values (new.id, 'professional', 'monthly', 'trial', now(), now() + interval '14 days', now(), now() + interval '14 days')
+  on conflict (user_id) do nothing;
+  return new;
+end $f$;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user_v2();
+SQL
 
 holes_finish

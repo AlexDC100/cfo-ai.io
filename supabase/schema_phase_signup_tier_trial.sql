@@ -147,7 +147,9 @@ begin
     v_skipped := v_skipped || to_jsonb(v_refused || ' — NOTHING was installed; signups are written as before');
   else
     for v_fn in
-      select distinct p.oid, p.oid::regprocedure::text as name, p.prosrc
+      select distinct p.oid, p.oid::regprocedure::text as name, p.prosrc,
+             pg_get_userbyid(p.proowner) as owner,
+             pg_has_role(current_user, p.proowner, 'USAGE') as replaceable
         from pg_proc p
        where p.prokind = 'f'
          and (   p.oid in (to_regprocedure('public.handle_new_user_v2()'),
@@ -168,6 +170,15 @@ begin
         v_skipped := v_skipped || to_jsonb(format(
           '%s inserts into subscriptions, but not with the repository''s statement — NOT patched (md5 %s). Read it; add `tier` to its column list and ''trial'' to its values by hand.',
           v_fn.name, md5(v_fn.prosrc)));
+        continue;
+      end if;
+
+      if not v_fn.replaceable then
+        -- Another role owns it: `create or replace` would answer "must be
+        -- owner of function" and roll the whole file back with nothing said.
+        v_skipped := v_skipped || to_jsonb(format(
+          '%s is owned by %s: the role running this file (%s) cannot replace it — NOT patched. Run this file as %s.',
+          v_fn.name, v_fn.owner, current_user, v_fn.owner));
         continue;
       end if;
 

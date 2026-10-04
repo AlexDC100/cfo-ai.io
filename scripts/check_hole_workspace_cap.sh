@@ -44,7 +44,11 @@
 #          firm functions (schema_phase_firm.sql was never applied there):
 #          the migration installs the same guard and it holds;
 #   AN EMPTY DATABASE  the report and the migration answer where none of the
-#          objects exist.
+#          objects exist;
+#   OBJECTS ANOTHER ROLE OWNS  (what the dashboard's role created): the
+#          report says the hole is open and that this role cannot change the
+#          object; the migration applies WITHOUT an error, changes nothing and
+#          names what it could not close; the report still says open.
 #
 # Path (iii) — create_firm → import_firm_client ×N → detach — is NOT closed
 # (the owner's ruling). The gate prints what it measures there as a NOTE,
@@ -130,6 +134,10 @@ attack_ii() { # user → archive (RPC), create, restore (RPC)
 # call and then holds its transaction open (pg_sleep) — the way a slow
 # request does; the second starts once the first is seen sleeping, so the
 # first has made its write and has not committed. Sets RACE_FIRST / RACE_SECOND.
+# The hold is 3 s: on a loaded host starting the second session takes a
+# second or more, and a second request that starts AFTER the first committed
+# is no race at all (the OPEN case would then read 1 live workspace — a red
+# from load, never a green).
 wait_for_the_first_request() { # → 0 once a session of this database is in pg_sleep
   local i
   for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
@@ -140,7 +148,7 @@ wait_for_the_first_request() { # → 0 once a session of this database is in pg_
 }
 two_at_once() { # user first-statement second-statement
   local u="$1" f; f="$(mktemp "${TMPDIR:-/tmp}/holes_race.XXXXXX")"
-  ( sql_as authenticated "$u" "$2 select pg_sleep(1.5);" > "$f" 2>&1 ) &
+  ( sql_as authenticated "$u" "$2 select pg_sleep(3);" > "$f" 2>&1 ) &
   local pid=$!
   wait_for_the_first_request || echo "     | the first request was never seen holding its transaction open"
   RACE_SECOND="$(sql_as authenticated "$u" "$3")"
@@ -410,5 +418,14 @@ check "P11 the workspace functions are still byte-identical to the start" "$(fn_
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — none of the objects"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+
+# ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
+echo "── OBJECTS ANOTHER ROLE OWNS — the table created by the dashboard's role, with its own grants"
+holes_on_objects_another_role_owns "X1" "$REPORT_SQL" "$MIGRATION" '{organizations,this_role_can_install_the_guard}' 'false' <<'SQL'
+create table public.organizations (id uuid primary key default gen_random_uuid(), name text, archived_at timestamptz, purge_after timestamptz);
+alter table public.organizations enable row level security;
+create policy "organizations owner update" on public.organizations for update using (true) with check (true);
+grant select, insert, update, delete on public.organizations to anon, authenticated, service_role;
+SQL
 
 holes_finish

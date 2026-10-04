@@ -28,7 +28,13 @@
 #          their JWT and the derived rows cascade; the policies are as found;
 #   RUN 2  a second run changes nothing and says so;
 #   RE-OPENED BY HAND  the privileges granted back on two tables — shown OPEN
-#          again (the amount is rewritten), then closed.
+#          again (the amount is rewritten), then closed;
+#   AN EMPTY DATABASE  the report and the migration answer where none of the
+#          listed tables exists;
+#   OBJECTS ANOTHER ROLE OWNS  (what the dashboard's role created): the
+#          report says the hole is open and that this role cannot change the
+#          object; the migration applies WITHOUT an error, changes nothing and
+#          names what it could not close; the report still says open.
 #
 # WHAT IT CANNOT SEE. PostgREST itself (a request is reproduced as the SQL it
 # is, in an `authenticator` session); a user-JWT WRITER of a listed table in
@@ -235,5 +241,12 @@ refused_everywhere "H6"
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — none of the listed tables"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+
+# ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
+echo "── OBJECTS ANOTHER ROLE OWNS — a listed table created by the dashboard's role, with its own grants"
+holes_on_objects_another_role_owns "X1" "$REPORT_SQL" "$MIGRATION" '{listed_this_role_cannot_revoke}' '["statement_line_items"]' <<'SQL'
+create table public.statement_line_items (id int primary key, amount numeric);
+grant all on public.statement_line_items to anon, authenticated, service_role;
+SQL
 
 holes_finish

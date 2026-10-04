@@ -32,12 +32,17 @@
 #          VIEW an API role can write through is named by the report (and
 #          the write through it is shown to land, past the revoke);
 #   AN EMPTY DATABASE  the report and the migration answer where none of the
-#          listed tables exists.
+#          listed tables exists;
+#   OBJECTS ANOTHER ROLE OWNS  (what the dashboard's role created): the
+#          report says the hole is open and that this role cannot change the
+#          object; the migration applies WITHOUT an error, changes nothing and
+#          names what it could not close; the report still says open.
 #
 # WHAT IT CANNOT SEE. PostgREST and pg_graphql themselves (a request is
 # reproduced as the SQL it is, in an `authenticator` session); a grant made
-# by a role other than the table's owner (the migration reports it under
-# "not_closed" — not exercisable here); TABLES THIS REPOSITORY DOES NOT
+# by a THIRD role holding the grant option on a table this role owns (the
+# migration reports it under "not_closed" — not exercised; a table ANOTHER
+# role owns is, in the last block); TABLES THIS REPOSITORY DOES NOT
 # DEFINE — production holds some; only the preflight report, run there, sees
 # them; whether a classified "a user's JWT writes it" table is scoped (that
 # is the tenancy probe in the builder's report, not this gate).
@@ -275,5 +280,12 @@ q "drop view public.handmade_company_view; delete from public.public_companies w
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — none of the listed tables"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+
+# ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
+echo "── OBJECTS ANOTHER ROLE OWNS — a listed table created by the dashboard's role, with its own grants"
+holes_on_objects_another_role_owns "X1" "$REPORT_SQL" "$MIGRATION" '{listed_this_role_cannot_revoke}' '["public_companies"]' <<'SQL'
+create table public.public_companies (id int primary key, ticker text, name text);
+grant all on public.public_companies to anon, authenticated, service_role;
+SQL
 
 holes_finish

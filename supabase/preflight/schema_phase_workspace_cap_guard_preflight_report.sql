@@ -27,6 +27,11 @@
 --                      nothing — inside it current_user is the function's
 --                      owner, never `authenticated` — so it is NOT in place.
 --
+-- "organizations.this_role_can_install_the_guard": whether the role running
+-- this report may create a trigger on the table (its owner, or a role that
+-- holds TRIGGER). Where it is false the migration installs nothing and says
+-- so under "not_closed" — run it as "organizations.owner".
+--
 -- It reads ROWS in one place only, and returns a COUNT, never a user:
 -- "users_over_their_cap" — how many users hold more LIVE workspaces than
 -- create_workspace would let them have. The tier → cap mapping is READ OUT OF
@@ -39,7 +44,9 @@
 -- workspace and cannot restore another until they are under the cap.
 
 with org as (
-  select c.oid, c.relrowsecurity as rls
+  select c.oid, c.relrowsecurity as rls,
+         pg_get_userbyid(c.relowner) as owner,
+         has_table_privilege(current_user, c.oid, 'TRIGGER') as can_trigger
     from pg_class c
    where c.oid = to_regclass('public.organizations')
 ),
@@ -134,6 +141,8 @@ select jsonb_build_object(
   'guard_trigger', coalesce((select detail from guard), 'null'::jsonb),
   'organizations', jsonb_build_object(
       'exists', exists (select 1 from org),
+      'owner', (select owner from org),
+      'this_role_can_install_the_guard', (select can_trigger from org),
       'row_level_security', (select rls from org),
       'guarded_columns_present', (select present from cols),
       'api_roles_holding_update_on_archived_at', (select coalesce(jsonb_agg(rolname order by rolname), '[]'::jsonb) from writers),

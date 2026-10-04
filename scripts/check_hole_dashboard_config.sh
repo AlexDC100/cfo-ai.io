@@ -32,12 +32,17 @@
 #   A BODY IT DOES NOT KNOW  a function edited by hand is left byte for
 #          byte and closed at the door (the service role only);
 #   AN EMPTY DATABASE  the report and the migration answer where neither the
-#          function nor the table exists.
+#          function nor the table exists;
+#   OBJECTS ANOTHER ROLE OWNS  (what the dashboard's role created): the
+#          report says the hole is open and that this role cannot change the
+#          object; the migration applies WITHOUT an error, changes nothing and
+#          names what it could not close; the report still says open.
 #
 # WHAT IT CANNOT SEE. PostgREST itself (the RPC is called as a SQL function
 # under `set local role` + request.jwt.claims — what PostgREST does, not
-# PostgREST); a grant made by a role other than the table's owner (the
-# migration reports it under "not_closed" — not exercisable here); another
+# PostgREST); a grant made by a THIRD role holding the grant option on an
+# object this role owns (the migration reports it under "not_closed" — not
+# exercised; an object ANOTHER role owns is, in the last block); another
 # function, under another name, that writes dashboard_configs for a caller-
 # supplied user id (the static law names the writers the repository has);
 # production's own catalog (the preflight report is what reads that).
@@ -237,5 +242,14 @@ holes_psql "$HOLES_DB" --single-transaction -f - < "$ORIGINAL" >/dev/null 2>&1  
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — neither the function nor the table"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+
+# ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
+echo "── OBJECTS ANOTHER ROLE OWNS — the function and the table created by the dashboard's role, with its own grants"
+holes_on_objects_another_role_owns "X1" "$REPORT_SQL" "$MIGRATION" '{function,this_role_can_replace_it}' 'false' <<'SQL'
+create table public.dashboard_configs (user_id uuid primary key, cards jsonb not null default '[]', updated_at timestamptz default now());
+grant all on public.dashboard_configs to anon, authenticated, service_role;
+create or replace function public.upsert_dashboard_config(p_user_id uuid, p_cards jsonb) returns jsonb language sql security definer set search_path = public as $f$ select p_cards $f$;
+grant execute on function public.upsert_dashboard_config(uuid, jsonb) to anon, authenticated, service_role;
+SQL
 
 holes_finish

@@ -103,8 +103,9 @@
 --      or pasted whole into the SQL editor). One DO block: everything or — on
 --      any error, a lock timeout included (5 s) — nothing. A lock timeout
 --      means nothing was applied: run it again. Its LAST statement returns
---      one jsonb row: what it changed, what it skipped, and the md5 of each
---      workspace function before and after.
+--      one jsonb row: what it changed, what it skipped, what it could NOT
+--      close ("not_closed" — empty unless another role owns the table), and
+--      the md5 of each workspace function before and after.
 --   2. Dashboard → Settings → API → "Reload schema cache" (CLAUDE.md §14).
 --      No table, column or function signature changes; the click is the
 --      discipline.
@@ -128,6 +129,7 @@ declare
   v_org       regclass := to_regclass('public.organizations');
   v_changed   jsonb := '[]'::jsonb;
   v_skipped   jsonb := '[]'::jsonb;
+  v_left      jsonb := '[]'::jsonb;
   v_before    jsonb;
   v_after     jsonb;
   v_guard_before text;
@@ -143,6 +145,13 @@ begin
   elsif not exists (select 1 from pg_attribute
                      where attrelid = v_org and attname = 'archived_at' and not attisdropped) then
     v_skipped := v_skipped || to_jsonb('public.organizations has no archived_at column (schema_phase_multi_workspace.sql is not applied) — there is no archive to come back from; nothing installed'::text);
+  elsif not has_table_privilege(current_user, v_org, 'TRIGGER') then
+    -- Another role owns the table and this one may not put a trigger on it
+    -- (Postgres would answer "must be owner of relation organizations" and
+    -- the whole file would roll back with nothing said). Say it instead.
+    v_left := v_left || to_jsonb(format('public.organizations is owned by %s and the role running this file (%s) may not create a trigger on it — the guard is NOT installed. Run this file as %s.',
+      (select pg_get_userbyid(c.relowner) from pg_class c where c.oid = v_org), current_user,
+      (select pg_get_userbyid(c.relowner) from pg_class c where c.oid = v_org)));
   else
     -- The workspace functions, before: this file must not change one byte of them.
     select coalesce(jsonb_object_agg(p.oid::regprocedure::text, md5(p.prosrc)), '{}'::jsonb)
@@ -279,6 +288,7 @@ $$;
     'changed', v_changed,
     'changed_count', jsonb_array_length(v_changed),
     'skipped', v_skipped,
+    'not_closed', v_left,
     'workspace_function_md5_before', coalesce(v_before, '{}'::jsonb),
     'workspace_function_md5_after', coalesce(v_after, '{}'::jsonb),
     'workspace_function_bodies_unchanged', coalesce(v_after, '{}'::jsonb) = coalesce(v_before, '{}'::jsonb),

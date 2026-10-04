@@ -426,6 +426,48 @@ def test_no_migration_touches_a_row_or_widens_access(stem):
         "restrict access'; no customer row, no policy, no grant: %s" % (stem, found))
 
 
+def test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raises_on_another_owner():
+    """PRODUCTION'S OBJECTS ARE NOT ALL THIS ROLE'S. A revoke by a role that
+    cannot act for the table's owner answers a WARNING and changes nothing; a
+    `create or replace` / `create trigger` on another role's object answers
+    "must be owner" and rolls the file back with nothing said. So: a revoke is
+    named under "revoked" / "changed" only in the ELSE of its own read-back,
+    and the three files that replace or attach something ask first whether
+    this role may — and name it under "skipped" / "not_closed" where it may
+    not. (The gates' last block measures it with objects supabase_admin owns.)"""
+    for stem in ("schema_phase_public_tables_write_revoke", "schema_phase_derived_tables_write_revoke"):
+        body = mask_nested_bodies(migration_statements(stem)[0])
+        m = re.search(r"(?s)execute format\('revoke %s on table public\.%I from %I', v_priv, v_t, v_role\);(.*?)end if;\s*end if;\s*end loop;", body)
+        assert m, "%s.sql: the per-role revoke was not found" % stem
+        after = m.group(1)
+        read_back, left, named = after.find("if has_table_privilege(v_role, v_rel, v_priv)"), after.find("v_left := v_left ||"), after.find("v_here := v_here ||")
+        assert 0 <= read_back < left < after.find("else") < named, (
+            "%s.sql names a privilege as revoked BEFORE reading back whether it is gone — on a table another "
+            "role owns the result would say `revoked` over a privilege that is still held" % stem)
+        assert "table owner: %s" in after, "%s.sql: not_closed must name the table's owner" % stem
+    h2 = mask_nested_bodies(migration_statements("schema_phase_dashboard_config_caller")[0])
+    m = re.search(r"(?s)execute format\('revoke %s on table public\.dashboard_configs from %I', v_priv, v_role\);(.*?)end if;\s*end if;", h2)
+    assert m and 0 <= m.group(1).find("v_left := v_left ||") < m.group(1).find("else") < m.group(1).find("v_changed := v_changed ||"), \
+        "the dashboard file names a table privilege as revoked before reading back whether it is gone"
+    assert re.search(r"elsif not \(select pg_has_role\(current_user, proowner, 'USAGE'\) from pg_proc where oid = v_fn\) then", h2), \
+        "the dashboard file must ask whether this role owns the function BEFORE it tries to replace it"
+    assert h2.find("pg_has_role(current_user, proowner, 'USAGE')") < h2.find("create or replace function public.upsert_dashboard_config"), \
+        "the ownership question must come before the replacement"
+    h1 = mask_nested_bodies(migration_statements("schema_phase_workspace_cap_guard")[0])
+    assert 0 < h1.find("elsif not has_table_privilege(current_user, v_org, 'TRIGGER') then") < h1.find("create or replace function public._organizations_guard_write()"), \
+        "the workspace file must ask whether this role may put a trigger on organizations BEFORE it creates anything"
+    assert "'not_closed', v_left" in h1
+    h4 = mask_nested_bodies(migration_statements("schema_phase_signup_tier_trial")[0])
+    assert 0 < h4.find("if not v_fn.replaceable then") < h4.find("execute v_new_def;"), \
+        "the signup file must ask whether this role owns the function BEFORE it replaces it"
+    for stem, key in (("schema_phase_workspace_cap_guard", "this_role_can_install_the_guard"),
+                      ("schema_phase_dashboard_config_caller", "this_role_can_replace_it"),
+                      ("schema_phase_public_tables_write_revoke", "this_role_can_revoke"),
+                      ("schema_phase_derived_tables_write_revoke", "this_role_can_revoke"),
+                      ("schema_phase_signup_tier_trial", "this_role_can_replace_it")):
+        assert "'%s'" % key in read(report(stem)), "%s does not say whether this role can change the object (%s)" % (report(stem).name, key)
+
+
 def test_the_signup_migration_says_it_alters_no_existing_row_and_the_others_say_what_they_leave():
     h4 = read(migration("schema_phase_signup_tier_trial"))
     assert "'existing_rows_altered', 0" in h4

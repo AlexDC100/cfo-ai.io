@@ -10,7 +10,11 @@
 -- admits a write (INSERT / UPDATE / DELETE / ALL).
 --
 --   listed            the migration's tables, one entry each: whether it
---                     exists here, row level security, the write privileges
+--                     exists here, its owner and whether the role running
+--                     this report can revoke that owner's grants
+--                     ("this_role_can_revoke" — where false the migration's
+--                     revoke changes nothing there and says so under
+--                     "not_closed"), row level security, the write privileges
 --                     the API roles hold, its write policies, and "open".
 --   hole_open         some LISTED table is open.
 --   other_open_tables THE REST OF THE CENSUS — every other open table in
@@ -100,6 +104,8 @@ known(name, what) as (values
 ),
 census as (
   select c.oid, c.relname::text as name, c.relrowsecurity as rls,
+         pg_get_userbyid(c.relowner) as owner,
+         pg_has_role(current_user, c.relowner, 'USAGE') as revocable,
          array(select r.rolname || ':' || pr
                  from (values ('anon'), ('authenticated')) as r(rolname)
                 cross join unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) as pr
@@ -123,10 +129,14 @@ select jsonb_build_object(
   'migration', 'supabase/schema_phase_public_tables_write_revoke.sql',
   'hole_open', exists (select 1 from open_tables o join listed l on l.name = o.name),
   'listed_open_count', (select count(*) from open_tables o join listed l on l.name = o.name),
+  'listed_this_role_cannot_revoke', (select coalesce(jsonb_agg(o.name order by o.name), '[]'::jsonb)
+                                       from open_tables o join listed l on l.name = o.name where not o.revocable),
   'listed', (select jsonb_agg(jsonb_build_object(
                 'table', l.name,
                 'why_listed', l.block,
                 'exists', c.oid is not null,
+                'owner', c.owner,
+                'this_role_can_revoke', c.revocable,
                 'row_level_security', c.rls,
                 'api_write_privileges', coalesce(to_jsonb(c.privs), '[]'::jsonb),
                 'write_policies', coalesce(to_jsonb(c.write_policies), '[]'::jsonb),

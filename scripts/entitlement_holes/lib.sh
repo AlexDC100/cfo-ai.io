@@ -238,11 +238,13 @@ holes_connect() {
     HOLES_VIA="psql → $HOLES_HOST:$HOLES_PORT"
     holes_psql() { local db="$1"; shift; PGPASSWORD="$HOLES_PASSWORD" psql -h "$HOLES_HOST" -p "$HOLES_PORT" -U "$HOLES_USER" -d "$db" -X -q -v ON_ERROR_STOP=1 "$@"; }
     holes_api_psql() { local db="$1"; shift; PGPASSWORD="$HOLES_PASSWORD" psql -h "$HOLES_HOST" -p "$HOLES_PORT" -U authenticator -d "$db" -X -q -v ON_ERROR_STOP=1 "$@"; }
+    holes_other_owner_psql() { local db="$1"; shift; PGPASSWORD="$HOLES_PASSWORD" psql -h "$HOLES_HOST" -p "$HOLES_PORT" -U supabase_admin -d "$db" -X -q -v ON_ERROR_STOP=1 "$@"; }
   elif [ -n "$container" ] && command -v docker >/dev/null 2>&1 \
        && docker port "$container" 5432/tcp 2>/dev/null | grep -q ":$HOLES_PORT\$"; then
     HOLES_VIA="docker exec $container psql"
     holes_psql() { local db="$1"; shift; docker exec -i "$ENTITLEMENT_HOLES_DB_CONTAINER" psql -U "$HOLES_USER" -d "$db" -X -q -v ON_ERROR_STOP=1 "$@"; }
     holes_api_psql() { local db="$1"; shift; docker exec -i "$ENTITLEMENT_HOLES_DB_CONTAINER" psql -h 127.0.0.1 -U authenticator -d "$db" -X -q -v ON_ERROR_STOP=1 "$@"; }
+    holes_other_owner_psql() { local db="$1"; shift; docker exec -i -e PGPASSWORD="$HOLES_PASSWORD" "$ENTITLEMENT_HOLES_DB_CONTAINER" psql -h 127.0.0.1 -U supabase_admin -d "$db" -X -q -v ON_ERROR_STOP=1 "$@"; }
   else
     holes_die "no psql on this host, and ENTITLEMENT_HOLES_DB_CONTAINER is not a running container that publishes port $HOLES_PORT"
   fi
@@ -433,6 +435,49 @@ holes_on_an_empty_database() { # tag report-file migration-file
   check "$tag the migration applies there (exit 0)" "$MIG_RC" "0"
   [ "$MIG_RC" = 0 ] || echo "     | $MIG_OUT"
   check "$tag … and changes nothing" "$(jget "$MIG_RESULT" '{changed_count}')" "0"
+  HOLES_DB="$keep"
+  holes_psql "$HOLES_ADMIN_DB" -c "drop database if exists $HOLES_EMPTY_DB with (force)" >/dev/null 2>&1 && HOLES_EMPTY_DB=""
+}
+
+# OBJECTS ANOTHER ROLE OWNS. Production's objects are not all `postgres`'s:
+# what the dashboard creates belongs to its own role (supabase_admin). The
+# role these files run as can then neither replace such a function, nor put a
+# trigger on such a table, nor revoke that owner's grants — and through the
+# Management API a "must be owner" is all the coordinator would get, or
+# worse, a revoke that answers a warning and changes nothing. Four cases per
+# file pair, on a bootstrap-only database whose objects are created by
+# `supabase_admin` (a session of that role in the SCRATCH database only, over
+# loopback with the URL's password — a local stack gives every login role the
+# same one): the report says the hole is open and that this role cannot
+# change the object; the migration applies WITHOUT an error, changes nothing,
+# and names what it could not close; the report still says open.
+# Where the cluster gives no such login the cases are NOTED as not run —
+# never passed.
+holes_on_objects_another_role_owns() { # tag report-file migration-file report-path want  (setup SQL on stdin)
+  local tag="$1" report="$2" migration="$3" path="$4" want="$5" keep="$HOLES_DB" setup
+  setup="$(cat)"
+  if [ "$(holes_other_owner_psql "$HOLES_ADMIN_DB" -At -c 'select current_user' 2>/dev/null)" != "supabase_admin" ]; then
+    echo "NOTE $tag objects another role owns: NOT RUN — this cluster gives no supabase_admin login with the URL's password. Neither a pass nor a fail."
+    return
+  fi
+  HOLES_EMPTY_DB="${keep}_owner"
+  if ! holes_psql "$HOLES_ADMIN_DB" -c "create database $HOLES_EMPTY_DB template template0" >/dev/null 2>&1 \
+     || ! holes_psql "$HOLES_EMPTY_DB" --single-transaction -f - < "$HOLES_BOOTSTRAP" >/dev/null 2>&1 \
+     || ! printf '%s\n' "$setup" | holes_other_owner_psql "$HOLES_EMPTY_DB" --single-transaction -f - >/dev/null 2>&1; then
+    fail "$tag a database whose objects another role owns could be built" "create database / bootstrap / setup as supabase_admin failed"
+    HOLES_DB="$keep"
+    holes_psql "$HOLES_ADMIN_DB" -c "drop database if exists $HOLES_EMPTY_DB with (force)" >/dev/null 2>&1 && HOLES_EMPTY_DB=""
+    return
+  fi
+  HOLES_DB="$HOLES_EMPTY_DB"
+  run_report "$report"
+  check "$tag another role's objects: the report says hole_open true — and that this role cannot change them" "$REPORT_RC|$(jget "$REPORT" '{hole_open}')|$(jget "$REPORT" "$path")" "0|true|$want"
+  apply_migration "$migration"
+  check "$tag … the migration applies WITHOUT an error (exit 0)" "$MIG_RC" "0"
+  [ "$MIG_RC" = 0 ] || echo "     | $(printf '%s' "$MIG_OUT" | grep -E 'ERROR' | head -2)"
+  check "$tag … changes nothing, and names what it could not close" "$(jget "$MIG_RESULT" '{changed_count}')|$(jsql "$MIG_RESULT" "select (jsonb_array_length(:'j'::jsonb -> 'not_closed') > 0)::text;")" "0|true"
+  run_report "$report"
+  check "$tag … and the report still says hole_open true (not closed is not green)" "$(jget "$REPORT" '{hole_open}')" "true"
   HOLES_DB="$keep"
   holes_psql "$HOLES_ADMIN_DB" -c "drop database if exists $HOLES_EMPTY_DB with (force)" >/dev/null 2>&1 && HOLES_EMPTY_DB=""
 }

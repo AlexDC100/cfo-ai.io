@@ -24,6 +24,7 @@ with fn as (
   select p.oid,
          p.prosecdef,
          pg_get_userbyid(p.proowner) as owner,
+         pg_has_role(current_user, p.proowner, 'USAGE') as replaceable,
          md5(p.prosrc) as body_md5,
          pg_get_function_result(p.oid) as returns,
          has_function_privilege('anon', p.oid, 'execute') as anon_x,
@@ -38,7 +39,8 @@ with fn as (
 tbl as (
   select c.oid,
          c.relrowsecurity as rls,
-         pg_get_userbyid(c.relowner) as owner
+         pg_get_userbyid(c.relowner) as owner,
+         pg_has_role(current_user, c.relowner, 'USAGE') as revocable
     from pg_class c
    where c.oid = to_regclass('public.dashboard_configs')
 ),
@@ -88,11 +90,13 @@ select jsonb_build_object(
       'exists', true,
       'security_definer', fn.prosecdef,
       'owner', fn.owner,
+      'this_role_can_replace_it', fn.replaceable,
       'returns', fn.returns,
       'body_md5', fn.body_md5,
       'body_checks_the_caller', fn.body_md5 = 'e44e90445fd49871e00e4d3451bc9738',
       'body_is_the_repository_original', fn.body_md5 = 'ea2c5ab53ed8b7ee97994e05a8b48a10',
       'migration_will', case
+          when not fn.replaceable then 'NOT touch it: another role owns it — run the migration as that role'
           when fn.body_md5 = 'e44e90445fd49871e00e4d3451bc9738' then 'leave the body (it already checks the caller)'
           when fn.body_md5 = 'ea2c5ab53ed8b7ee97994e05a8b48a10' and fn.returns = 'jsonb' then 'replace the body with the caller-checked one'
           else 'NOT replace the body (not one this repository committed): EXECUTE goes from PUBLIC, anon and authenticated — the service role only' end,
@@ -110,6 +114,7 @@ select jsonb_build_object(
       'exists', true,
       'row_level_security', tbl.rls,
       'owner', tbl.owner,
+      'this_role_can_revoke_its_grants', tbl.revocable,
       'api_write_privileges', (select coalesce(jsonb_agg(p.role || ':' || p.privilege order by p.role, p.privilege), '[]'::jsonb) from privs p),
       'policies', (select coalesce(jsonb_agg(jsonb_build_object(
                       'name', pols.name, 'cmd', pols.cmd, 'roles', to_jsonb(pols.roles),

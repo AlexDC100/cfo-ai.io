@@ -30,6 +30,8 @@ with listed(name) as (values
 ),
 census as (
   select c.oid, c.relname::text as name, c.relrowsecurity as rls,
+         pg_get_userbyid(c.relowner) as owner,
+         pg_has_role(current_user, c.relowner, 'USAGE') as revocable,
          array(select r.rolname || ':' || pr
                  from (values ('anon'), ('authenticated')) as r(rolname)
                 cross join unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) as pr
@@ -53,9 +55,14 @@ select jsonb_build_object(
                         where cardinality(c.privs) > 0 and (not c.rls or cardinality(c.write_policies) > 0)),
   'listed_open_count', (select count(*) from census c
                          where cardinality(c.privs) > 0 and (not c.rls or cardinality(c.write_policies) > 0)),
+  'listed_this_role_cannot_revoke', (select coalesce(jsonb_agg(c.name order by c.name), '[]'::jsonb) from census c
+                                       where cardinality(c.privs) > 0 and (not c.rls or cardinality(c.write_policies) > 0)
+                                         and not c.revocable),
   'listed', (select jsonb_agg(jsonb_build_object(
                 'table', l.name,
                 'exists', c.oid is not null,
+                'owner', c.owner,
+                'this_role_can_revoke', c.revocable,
                 'row_level_security', c.rls,
                 'api_write_privileges', coalesce(to_jsonb(c.privs), '[]'::jsonb),
                 'write_policies', coalesce(to_jsonb(c.write_policies), '[]'::jsonb),

@@ -48,7 +48,11 @@
 --
 -- WHAT IT LEAVES. The engine route (service role) — unchanged, measured.
 -- Any OTHER overload of upsert_dashboard_config (none in this repository)
--- is reported, not touched.
+-- is reported, not touched. A function or a table ANOTHER ROLE OWNS (the
+-- report prints each owner and whether this role can change it): this role
+-- cannot replace such a function or revoke that owner's grants — the file
+-- touches nothing of it, the result names it under "skipped" / "not_closed",
+-- and the report keeps saying "hole_open": true. Run the file as that role.
 --
 -- ── HOW IT IS APPLIED ────────────────────────────────────────────────────
 --   0. PREFLIGHT (read-only, one row):
@@ -87,6 +91,7 @@ declare
   v_left     jsonb := '[]'::jsonb;
   v_auth_had boolean;
   v_svc_had  boolean;
+  v_owner    text;
   -- md5(prosrc) of the two bodies this file knows: the one
   -- supabase/schema_phase_dashboard_config.sql creates, and the one below
   -- (tests/engine/test_entitlement_hole_laws.py holds both to the files).
@@ -99,6 +104,13 @@ begin
   -- ── 1. the function ──────────────────────────────────────────────────
   if v_fn is null then
     v_skipped := v_skipped || to_jsonb('upsert_dashboard_config(uuid, jsonb) does not exist — nothing to close'::text);
+  elsif not (select pg_has_role(current_user, proowner, 'USAGE') from pg_proc where oid = v_fn) then
+    -- Another role owns the function: this one can neither replace its body
+    -- (Postgres: "must be owner of function") nor revoke a grant it did not
+    -- make. Say so and leave it; the read-back below says what stays open.
+    select pg_get_userbyid(proowner) into v_owner from pg_proc where oid = v_fn;
+    v_skipped := v_skipped || to_jsonb(format('upsert_dashboard_config is owned by %s: the role running this file (%s) cannot replace its body or revoke its EXECUTE — not touched. Run this file as %s.',
+      v_owner, current_user, v_owner));
   elsif (select prorettype <> 'jsonb'::regtype or md5(prosrc) not in (c_original, c_checked)
            from pg_proc where oid = v_fn) then
     -- A body this repository never committed: do not replace what nobody
@@ -180,6 +192,10 @@ $$;
   if v_fn is not null and has_function_privilege('anon', v_fn, 'execute') then
     v_left := v_left || to_jsonb('anon can still EXECUTE upsert_dashboard_config (a grant made by another role, or inherited through a role membership)'::text);
   end if;
+  if v_fn is not null and has_function_privilege('authenticated', v_fn, 'execute')
+     and (select prosecdef and md5(prosrc) <> c_checked from pg_proc where oid = v_fn) then
+    v_left := v_left || to_jsonb('authenticated can still EXECUTE upsert_dashboard_config and its body does not check the caller: a signed-in user writes another user''s row'::text);
+  end if;
 
   -- ── 2. the table ─────────────────────────────────────────────────────
   if v_table is null then
@@ -190,18 +206,21 @@ $$;
         if has_table_privilege(v_role, v_table, v_priv)
            or (v_priv in ('INSERT', 'UPDATE') and has_any_column_privilege(v_role, v_table, v_priv)) then
           execute format('revoke %s on table public.dashboard_configs from %I', v_priv, v_role);
-          v_changed := v_changed || to_jsonb(format('dashboard_configs: %s revoked from %s', v_priv, v_role));
-        end if;
-        -- Read back: a grant made by a role other than the one running this
-        -- file is not removed by its revoke. Say so; do not pretend.
-        if has_table_privilege(v_role, v_table, v_priv)
-           or (v_priv in ('INSERT', 'UPDATE') and has_any_column_privilege(v_role, v_table, v_priv)) then
-          v_left := v_left || to_jsonb(format('%s still holds %s on dashboard_configs (granted by: %s)', v_role, v_priv,
-            coalesce((select string_agg(distinct pg_get_userbyid(a.grantor), ', ')
-                        from pg_class c, aclexplode(c.relacl) a
-                       where c.oid = v_table and a.privilege_type = v_priv
-                         and a.grantee in (0, (select oid from pg_roles where rolname = v_role))),
-                     'a column-level grant or a role membership')));
+          -- Read back: a grant made by a role this one cannot act for (a
+          -- table another role owns) is not removed by its revoke — a
+          -- warning, not an error. "changed" names only what is gone.
+          if has_table_privilege(v_role, v_table, v_priv)
+             or (v_priv in ('INSERT', 'UPDATE') and has_any_column_privilege(v_role, v_table, v_priv)) then
+            v_left := v_left || to_jsonb(format('%s still holds %s on dashboard_configs (table owner: %s; granted by: %s)', v_role, v_priv,
+              (select pg_get_userbyid(c.relowner) from pg_class c where c.oid = v_table),
+              coalesce((select string_agg(distinct pg_get_userbyid(a.grantor), ', ')
+                          from pg_class c, aclexplode(c.relacl) a
+                         where c.oid = v_table and a.privilege_type = v_priv
+                           and a.grantee in (0, (select oid from pg_roles where rolname = v_role))),
+                       'a column-level grant or a role membership')));
+          else
+            v_changed := v_changed || to_jsonb(format('dashboard_configs: %s revoked from %s', v_priv, v_role));
+          end if;
         end if;
       end loop;
     end loop;

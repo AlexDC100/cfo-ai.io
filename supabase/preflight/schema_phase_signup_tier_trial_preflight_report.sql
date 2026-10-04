@@ -49,6 +49,7 @@ trg as (
          md5(p.prosrc) as fn_md5,
          p.prosecdef,
          pg_get_userbyid(p.proowner) as fn_owner,
+         pg_has_role(current_user, p.proowner, 'USAGE') as replaceable,
          p.prosrc ~* 'insert\s+into\s+(?:public\.)?subscriptions\M' as seeds,
          p.prosrc ~* ('insert\s+into\s+(?:public\.)?subscriptions\s*\(\s*user_id\s*,\s*plan\s*,\s*tier\s*,'
                    || '\s*billing_cycle\s*,\s*status\s*,\s*trial_start\s*,\s*trial_end\s*,'
@@ -96,6 +97,7 @@ select jsonb_build_object(
           else 'a body this repository does not define' end end,
       'security_definer', prosecdef,
       'owner', fn_owner,
+      'this_role_can_replace_it', replaceable,
       'seeds_a_subscriptions_row', seeds,
       'writes_tier_trial', writes_tier_trial,
       'seed_columns', btrim(regexp_replace(seed[1], '\s+', ' ', 'g')),
