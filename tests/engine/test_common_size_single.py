@@ -892,3 +892,13 @@ def test_the_deploy_preflight_reads_the_block_and_prints_no_figure(world):
     assert gate._judge(pid, 200, stripped) is None
     assert "common_size" in gate._judge(pid, 200, stripped, require_common_size=True)
     assert gate._judge(pid, 200, body, require_common_size=True) is None
+    # …and the run: every period counted, the one without a block the one failure.
+    rows = [{"id": b["period"]["id"], "org_id": ORG, "period_end": None} for b in world.bodies.values()]
+    served = dict((b["period"]["id"], b) for b in world.bodies.values())
+    served[pid] = stripped
+    for required, failed in ((False, 0), (True, 1)):
+        report = gate.check_periods(rows, lambda p: (200, served[p]), require_common_size=required)
+        assert (report["checked"], report["failed"]) == (len(rows), failed), report
+        assert report["common_size"] == {"lawful": len(rows) - 1, "required": required}
+        assert gate.exit_code(report) == (1 if failed else 0)
+    assert report["failures"][0]["period_id"] == pid and "common_size" in report["failures"][0]["problem"]
