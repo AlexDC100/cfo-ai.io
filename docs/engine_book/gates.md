@@ -30175,6 +30175,7 @@ corpus book. Two things are doubled and nothing else: PostgREST (the tenancy dou
 | **S6** the hint for ro / en is not taken from figure_format (the one-example hint stays) | `4 failed, 257 passed` (exit 1) |
 | **S7** the regenerate route's writer strips the joiners before storing (stored != answered) | `1 failed, 260 passed` (exit 1) |
 | **S8** the pass is moved before the numeral guard's verdict | `6 failed, 255 passed` (exit 1) |
+| **S9** the hint's module is imported at the top of the pipeline, not inside its try (an unimportable module would take the whole pipeline down) | `2 failed, 259 passed` (exit 1) |
 
 **PLANT** — the detector and the fixtures (run against all three gates):
 
@@ -30190,7 +30191,14 @@ corpus book. Two things are doubled and nothing else: PostgREST (the tenancy dou
 no longer be read out, exit 2), each planted ALONE in the worktree by a runner that restores the
 planted files from the bytes read before the plant and compares their sha256 after each.
 Baseline before the first plant: `261 passed`. **REVERT** — exit `0`: `261 passed`
-(and `15 passed (15)`, `114 passed (114)` on the two vitest runs). Verdict: proven RED, 31 of 31.
+(and `15 passed (15)`, `114 passed (114)` on the two vitest runs). Verdict: proven RED, 32 of 32
+(S9 was planted after the others, by the same runner: REVERT `261 passed`).
+
+E10 has no plant — nothing here can be made to open a socket without leaving the machine. What was
+run instead: the gate WITHOUT its plugin (`python -m pytest tests/engine/test_ai_figure_format.py -q`)
+→ `260 passed, 1 skipped`: the law refuses to call itself checked, and the battery's floor (261, the
+number of laws; a junit gate counts tests minus skips) makes that run **RED**. With `-p netblock`:
+`261 passed`, `netblock: 0 outbound socket attempts`.
 
 D2, D3 and F2 are seen by `ai-figures` too (its positive controls / its regenerate-and-compare law);
 D1 — a pattern RENAMED — is seen by this gate alone, which is the one that reads the pattern by name.
@@ -30277,6 +30285,10 @@ reference, a date, a code span, a lone three-digit group).
 each planted ALONE (same runner, sha256 compared after each restore). Baseline: `15 passed (15)`,
 `114 passed (114)`. **REVERT** — exit `0`: `15 passed (15)`, `114 passed (114)`, `261 passed`. Verdict:
 proven RED, 12 of 12.
+
+One more, not a source plant: the write mode LEFT ON (`AI_FIGURES_WRITE=1 npx vitest run …`) →
+`1 failed, 14 passed (15)` ("AI_FIGURES_WRITE=1 re-writes the fixtures: run again without it") — a
+law that compared a file with the bytes it had just written would be green over anything.
 
 Read with the table: V2 and V3 are seen by all three files that read the prompt; V6 (the rule
 reworded) is seen ONLY by the pin in `chatLlmPrompt.test.ts` — a rewording that keeps every example
