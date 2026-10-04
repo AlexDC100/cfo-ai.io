@@ -52,8 +52,10 @@ export const QUERY_SESSION_STARTED_AT = Date.now();
  * answer is this session's, so the question is asked exactly once.
  */
 export function answeredBeforeThisSession(client: QueryClient, queryKey: QueryKey): boolean {
-  const updatedAt = client.getQueryState(queryKey)?.dataUpdatedAt ?? 0;
-  return updatedAt > 0 && updatedAt < QUERY_SESSION_STARTED_AT;
+  const state = client.getQueryState(queryKey);
+  // Never asked, or asked and not answered yet: there is no answer to date.
+  if (!state || !state.dataUpdatedAt) return false;
+  return state.dataUpdatedAt < QUERY_SESSION_STARTED_AT;
 }
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // localStorage quota is ~5MB; leave headroom for chat history + prefs +

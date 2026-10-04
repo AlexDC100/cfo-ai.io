@@ -32,12 +32,9 @@ function useBsExtraColumns(): { on: boolean; compared: boolean; deltaPct: boolea
   const cmp = useComparativeContext();
   const single = useShareOnlyContext();
   if (cmp) {
-    return {
-      on: cmp.columns.deltaPct || cmp.columns.share,
-      compared: true,
-      deltaPct: cmp.columns.deltaPct,
-      share: cmp.columns.share,
-    };
+    // The reader's two column choices (not served figures).
+    const { deltaPct, share } = cmp.columns;
+    return { on: deltaPct || share, compared: true, deltaPct, share };
   }
   return { on: !!single, compared: false, deltaPct: false, share: !!single };
 }
