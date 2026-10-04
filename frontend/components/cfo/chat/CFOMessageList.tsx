@@ -3,13 +3,14 @@
 // has scrolled up to read history), and surfaces a typing indicator
 // for the trailing pending assistant turn.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 
 import { useChatSearchHighlight } from "./useChatSearchHighlight";
 import { CFOMessageBubble } from "./CFOMessageBubble";
 import { CFOTypingIndicator } from "./CFOTypingIndicator";
+import { languageHints } from "@/lib/readerFigures";
 import type { ChatMessage } from "./types";
 
 interface Props {
@@ -156,6 +157,16 @@ export function CFOMessageList({
     }
   }, [messages, documentScroll, documentEndTop]);
 
+  // For each message: the language of the nearest EARLIER turn whose language
+  // can be read. An answer too short to tell its own language ("EBITDA: 4.58M
+  // RON.") is shown in the language of the question it answers — never the
+  // UI's. A pending, failed, interrupted or refused turn (the app's own
+  // notice, written in the UI language) is nobody's prose and gives no hint.
+  const hints = useMemo(
+    () => languageHints(messages.map((m) => (m.pending || m.failed || m.interrupted || m.refused ? null : m.content))),
+    [messages],
+  );
+
   const lastIsPendingAssistant =
     messages.length > 0 &&
     messages[messages.length - 1].role === "assistant" &&
@@ -183,10 +194,12 @@ export function CFOMessageList({
 
   const body = (
     <div className={wideContent ? "w-full max-w-[1760px]" : "w-full"}>
-      {visible.map((m) => (
+      {visible.map((m, i) => (
         <CFOMessageBubble
           key={m.id}
           message={m}
+          // `visible` is `messages` or its prefix: the indices are the same.
+          languageHint={hints[i] ?? null}
           animate={m.id === animateId}
           onType={m.id === animateId ? scrollToBottom : undefined}
           // Retry only on the trailing failed turn — the one whose user

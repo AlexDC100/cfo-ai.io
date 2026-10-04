@@ -17,7 +17,7 @@
 // Ask CFO AI message of their own allowance (cfoApi.regenerateBriefing, the
 // `intent: "user"` body). Gate: __tests__/briefingExplicitRegenerate.test.tsx.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Loader2, RefreshCcw, Sparkles } from "lucide-react";
@@ -27,6 +27,7 @@ import { periodQueryKey } from "@/lib/activePeriod";
 import { isUnusableNarrative, type BriefingStale } from "@/lib/briefingDefinition";
 import { CfoApiError, cfoApi, type RegenerateBriefingBody } from "@/lib/cfoApi";
 import { queryClient } from "@/lib/queryClient";
+import { displayModelText } from "@/lib/readerFigures";
 import "@/components/cfo/dashInstrumentI18n";
 
 // The text predicate lives beside `briefingVisibility` (the one chokepoint);
@@ -145,6 +146,24 @@ export function CFOBriefingCard({
   const text = live ? live.text : baseText;
   const shownLang = live ? live.lang : briefingLanguageOf(baseText, baseLanguage);
   const shownCurrency = live ? live.currency : "RON";
+
+  // WHAT THE READER IS SHOWN (owner order 2026-10-04): the same narration,
+  // its figures in the format of the language it is WRITTEN in — its own
+  // prose; else, for this session's narration, the language the engine says
+  // it narrated in; else a served `ro` stamp. A served `en` stamp is never
+  // trusted: every row written before 2026-10-02 carries it whatever its
+  // language. Never the UI language. DISPLAY ONLY — notation, never a value
+  // (lib/readerFigures); a briefing narrated after the release is already
+  // stored this way by the engine, so this repairs the rows that predate it.
+  // `text` stays the served bytes: the unusable-narrative test, the stale
+  // logic, the session comparison and the effect above keep reading those.
+  const liveLang = live ? live.lang : null;
+  const shownText = useMemo(() => {
+    if (!text) return "";
+    const stamp = liveLang ?? (baseLanguage ?? "").slice(0, 2).toLowerCase();
+    const known = stamp === "ro" ? "ro" : stamp === "en" && liveLang !== null ? "en" : null;
+    return displayModelText(text, { fallback: known }).text;
+  }, [text, liveLang, baseLanguage]);
 
   const activeLang = (i18n.language || "en").slice(0, 2);
   const langMismatch = !!text && (activeLang === "ro" || activeLang === "en") && activeLang !== shownLang;
@@ -281,7 +300,7 @@ export function CFOBriefingCard({
           data-testid="cfo-briefing-body"
           className={`text-[14px] sm:text-[14.5px] text-ink-soft leading-relaxed transition-opacity ${loading ? "opacity-60" : ""} ${collapsed ? "line-clamp-2" : ""}`}
         >
-          {text}
+          {shownText}
         </p>
       ) : (
         <p
