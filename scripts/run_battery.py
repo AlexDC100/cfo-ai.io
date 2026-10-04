@@ -2213,6 +2213,50 @@ def _engine_gates() -> List[Gate]:
                        "5.2489 in English, 5,2489 in Romanian — the same digits",
                        "compact and full money are lib/money's, in the page's language, cents under one unit",
                        "every bilingual string the engine serves the cockpit and the margin note")),
+        # A COMPARISON THAT IS ON SAYS WHAT IT COMPARES — OR THAT IT COMPARES
+        # NOTHING (production, 2026-10-04: a company's EARLIEST year on screen,
+        # "Previous year (auto)" selected, the Prior / Δ / Δ % / share boxes
+        # ticked, and the P&L, balance sheet and cash flow each showed one
+        # column with no word why — no balance for the year before existed, so
+        # AUTO resolved to nothing and the controls went on implying a
+        # comparison):
+        #   compare-no-prior  the dashboard's comparison controls and notice
+        #                    over the one rule (comparisonChoiceOf): with the
+        #                    comparison ON and no prior, AUTO's option names
+        #                    the balance it looked for as missing (never one
+        #                    that is in the list at another length), a notice
+        #                    below the sticky bar says which balance is
+        #                    missing and offers the upload and up to three
+        #                    EARLIER periods one click away (never a later
+        #                    one), every column box is disabled and unticked,
+        #                    the reader's stored columns are untouched; month
+        #                    names in the reader's language; with a prior, no
+        #                    notice and no disabled box; no document of
+        #                    another pair on screen (the app's own query
+        #                    defaults; ratioSurfacesOf); the page hands both
+        #                    the prior it requests on the same five tabs; the
+        #                    upload links are routed and a finished upload
+        #                    refreshes the period lists. Eight company shapes
+        #                    x period on screen x six stored choices.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("compare-no-prior",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/comparativesNoPrior.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=26,
+             units="comparison-state tests",
+             canaries=("GATE-WORK compare-no-prior states=",
+                       "ro: the picker names the missing balance, the notice says why and what to do, every box is off",
+                       "en: the picker names the missing balance, the notice says why and what to do, every box is off",
+                       "the rule resolves no prior, and does not pick the later year in its place",
+                       "ro: every month in the sentence is a Romanian month",
+                       "the reader's columns survive the no-prior state: off while nothing is compared, back as stored",
+                       "every company shape \u00d7 period on screen \u00d7 stored choice",
+                       "stepping from a compared period to one with no prior: the previous document is gone",
+                       "a document of another pair, or with no request, is no document",
+                       "fed by the choice the request is made with",
+                       "every upload link of the comparison goes to a path the app routes",
+                       "each key, with its placeholders, in both bundles \u2014 and the two differ")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,

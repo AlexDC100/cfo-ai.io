@@ -20590,3 +20590,180 @@ effect — the engine's inert legacy shape is what makes that harmless, gate
 `briefing-keep-last-good`); the period query's own re-read after a persisted
 regeneration; the diacritics probe offering "Regenerate in English" on
 English prose that names a Romanian company (ticket); the real network.
+
+
+## compare-no-prior
+
+**The incident (owner, production, 2026-10-04).** The dashboard of a company
+with two analysed year-ends, the EARLIER one on screen. "Compare with:
+Previous year (auto)" was selected; the Prior, Δ, Δ % and "% of revenue"
+boxes were ticked; the P&L, the balance sheet and the cash flow each showed
+ONE column, and nothing on the page said why.
+
+**What was read, before anything was changed.** No period for the year before
+exists in that company (its two periods are the year on screen and the year
+after it). The engine's `GET /api/period/{id}/comparatives?prior=` answers
+200 for the pair in both directions — nothing was broken by the deploy of
+that morning, which touched no comparison code. The cause is the page's own
+rule, working as written: AUTO is "the nearest EARLIER period of the same
+length" (`pickDefaultPrior`), there was none, `comparisonChoiceOf` returned
+`priorId: null` ("a company with one period has no prior: no request, no
+error"), no request was made — and the controls went on rendering the picker
+on AUTO with nothing after it and four enabled, ticked boxes. A state with a
+reason and no sentence.
+
+**The rule now.** Whenever the comparison is ON (the reader did not choose
+"No comparison") and no prior resolves (`lib/comparatives` `noPriorStateOf`):
+
+- the picker's AUTO option names the balance it looked for —
+  `previousYearEnd` of the period on screen — as missing ("Anul precedent
+  (automat) — dec. 2023 lipsește"), unless a balance closing that month IS in
+  the list at another length (then nothing is called missing);
+- a notice (`ComparativesNoPriorNote`, `role="status"`), rendered by the page
+  BELOW the sticky tab bar, says which balance is missing and which period is
+  therefore shown without a comparison, and offers the next step: the
+  workspace, where a balance is uploaded, and the company's EARLIER periods —
+  nearest first, at most `NO_PRIOR_ALTERNATIVES` (3) — as one-click "Compare
+  with …". Never a later period: under "Prior" it reads the change backwards
+  (the Δ and the improved / deteriorated lists turn round); it stays one pick
+  away in the list, as before;
+- every column box is disabled and unticked — no column is on screen —
+  described by the notice (`aria-describedby`); the reader's stored columns
+  are not written over and come back with a prior;
+- AUTO never picks another period in place of the missing one;
+- month names follow the UI language (`useActiveLocale`): "dec. 2023" in a
+  Romanian sentence, "Dec 2023" in an English one — the picker's options too.
+
+**Found by the pre-deploy review, fixed in the same change.**
+
+- *The previous comparison stayed on screen.* The app's query client keeps
+  the previous result as a placeholder when a key changes
+  (`lib/queryClient.ts`). Opening the later year and stepping back to the
+  earlier one left the later year's comparison document — its header, its
+  summary — under a period it does not describe, beside the new notice; a
+  disabled query kept it for good. `useComparatives` now takes no placeholder,
+  and `ratioSurfacesOf` paints a document only when a comparison is requested
+  AND the document names the pair on screen. No gate could see it: every
+  comparison test used a client without the app's defaults.
+- *The cash-flow card's "upload the prior period" link* pointed at
+  `/financials`, a path with no route (the not-found page). It leads to the
+  workspace now.
+- *A balance uploaded from the redesigned workspace* did not refresh the
+  period lists the dashboard reads (the client never refetches on mount), so
+  the notice would have gone on calling it missing until a reload.
+  `UploadFlowHost` invalidates `periods-with-documents` and `org-periods` on a
+  finished upload.
+
+`priorId` — the prior the page REQUESTS — is a required prop of
+`ComparativesControls` and `ComparativesNoPriorNote`: a caller that cannot
+say what is compared cannot render either.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/__tests__/comparativesNoPrior.test.tsx --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **26** (measured 26; `GATE-WORK compare-no-prior states=190`) |
+| canary | `GATE-WORK compare-no-prior states=` and the titles named in `scripts/run_battery.py` |
+
+The laws: `previousYearEnd` over thirteen dates (a month's last day stays the
+month's last day across a leap year; an unreadable date is null);
+`comparisonHasNoPrior`'s truth table; `noPriorStateOf` (the missing close,
+the earlier periods nearest first); the incident in Romanian and in English,
+sentence for sentence, the later year not offered and still in the list; a
+June close in Romanian ("iun. 2024", no English month); the later year chosen
+from the list compares, and back on AUTO the notice returns; "No comparison"
+is the reader's choice; the previous year uploaded as a half-year is never
+called missing and is one click away (focus lands on the picker); a company
+uploading monthly is offered at most three earlier months and no later one;
+an unreadable close still gets the notice, naming no month; with a prior
+nothing changed; the stored columns survive the state; THE LAW over eight
+company shapes × every period on screen × six stored choices (126 states:
+off / no-prior / on — the expected month and the expected offers computed
+from the fixture's rows, not read off the component); the app's own query
+defaults — stepping to a period with no prior, and changing the prior, leave
+no document of another pair; `ratioSurfacesOf` over the served pair fixture
+(another period, another prior, no request, a held-over refusal: nothing is
+painted); the page's one `<ComparativesControls>` and one
+`<ComparativesNoPriorNote>` are fed `priorId={cmpPriorId}` — the id
+`useComparatives` is called with — on the same five tabs, the notice outside
+the sticky bar; every upload link goes to a routed path; a finished upload
+refreshes the period lists; every sentence exists in both bundles with its
+placeholders.
+
+### compare-no-prior — PLANT / RED / REVERT (2026-10-04, branch `fix/compare-no-prior-state`)
+
+Runner: `specs-durable/compare_no_prior/plants.py` — one PLANT at a time, the
+file restored from memory after each; record `plants.json` beside it.
+
+**BASELINE** — exit `0`: `26 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE INCIDENT — the notice is not rendered | `10 failed, 14 passed` |
+| P2 the column boxes stay enabled with nothing compared | `6 failed, 18 passed` |
+| P3 the column boxes stay ticked with no column on screen | `6 failed, 18 passed` |
+| P4 AUTO's label does not name the balance it looked for | `4 failed, 20 passed` |
+| P5 the Romanian sentence is missing (a raw key on screen) | `3 failed, 21 passed` |
+| P6 the English upload action is missing | `3 failed, 21 passed` |
+| P7 the page hands the controls AUTO's pick instead of the prior it requests | `1 failed, 23 passed` |
+| P8 the page hands the notice no prior at all | `1 failed, 23 passed` |
+| P9 AUTO picks the later year in place of the missing one | `7 failed, 17 passed` |
+| P10 the notice stands over a comparison that exists | `7 failed, 17 passed` |
+| P11 the notice shows after the reader chose 'No comparison' | `4 failed, 20 passed` |
+| P12 the offered period does nothing when clicked | `1 failed, 23 passed` |
+| P13 the previous year of a leap February is read as 28 Feb | `1 failed, 23 passed` |
+| P14 priorId becomes optional on the controls | `1 failed, 23 passed` |
+| P15 'missing' is said about a balance that is there (another length) | `2 failed, 22 passed` |
+| P16 the comparison hook keeps the previous pair's document as a placeholder | `2 failed, 22 passed` |
+| P17 the page paints a document that names other periods | `1 failed, 23 passed` |
+| P18 a refusal held over is shown with no request | `1 failed, 23 passed` |
+| P19 a LATER period is offered in the notice | `5 failed, 19 passed` |
+| P20 the notice offers every earlier period (the cap is gone) | `2 failed, 22 passed` |
+| P21 English month names in the Romanian sentences | `2 failed, 22 passed` |
+| P22 the notice is not rendered on the cash-flow tab | `1 failed, 23 passed` |
+| P23 after a pick the focus is dropped (not handed to the picker) | `1 failed, 23 passed` |
+| P24 the switched-off boxes are not described by the notice | `2 failed, 22 passed` |
+| P25 the cash-flow card's upload link points at a path with no route again | `1 failed, 25 passed` |
+| P26 a finished upload does not refresh the period lists the comparison reads | `1 failed, 25 passed` |
+
+**RED** — every plant exits `1` (P1–P24 measured on the 24-test file, before
+the two "next step" laws were added; P25 and P26 on the 26-test file).
+**REVERT** — every file restored byte-exact; exit `0`: `26 passed`.
+Verdict: proven RED, twenty-six of twenty-six.
+
+**After the repair it reds on:** the comparison controls in a state that is
+ON with no prior and no notice; a column box enabled or ticked while nothing
+is compared; AUTO's option silent about the balance it looked for, or calling
+a balance in the list missing; AUTO resolving to a LATER period (the
+same-length rule itself is `frontend/lib/__tests__/comparatives.test.ts`'s);
+a notice over a comparison that exists or over the reader's "No comparison";
+a later period, or more than three, offered in the notice; a sentence missing
+from either language; a month label that does not follow the UI language
+(the Romanian strings carry `formatPeriodMonth`'s label for the active
+locale and move with it); the comparison hook or `ratioSurfacesOf` serving a
+document of another pair, or a refusal with no request; the dashboard handing
+the controls or the notice anything but the prior it requests, or dropping
+the notice from a tab that has the controls; the cash-flow card's link
+leaving the routed paths; a finished upload not refreshing the period lists.
+
+**CANNOT SEE:** a company with ONE period — the page renders no controls
+there at all, so nothing claims a comparison (the balance sheet's own "Sold
+inițial — nedepus" is `bsOpeningAbsence.test.tsx`'s); whether, once a prior
+exists, the engine's document fills the columns (`comparatives.test.ts`,
+`plCompareSubtotals.test.tsx`); the comparison REQUEST failing, pending or
+being refused — the refusal sentence is on the P&L and balance-sheet tabs
+only, and a failed request says nothing on the Overview, P&L, balance sheet
+or cash flow (ticketed: the same notice should carry the request's outcome
+on every tab); the page's render condition around the controls and the rest
+of the props it passes (the wiring law is a regex over the page's source: a
+guard that hides the controls would pass it, a harmless rename of
+`cmpPriorId` would red it); the rendered page at a phone's width (the picker
+is given `min-w-0 max-w-full` so its long option shrinks inside the row —
+measured by the review on a static replica, not by a gate); the command
+bar's "compare" action; a balance that was uploaded and failed, or is still
+being analysed (the notice says "no analysed balance", which is true, and
+still offers the upload); the two side fixes beyond their source (the
+cash-flow link and the upload host's invalidation are read from the files,
+not exercised); that "% of revenue" needs a comparison document at all (a
+single-period common-size column is an engine change — owner ruling
+2026-10-04, after this release). The rendered page is checked live after
+each deploy, not by this gate.

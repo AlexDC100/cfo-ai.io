@@ -9,12 +9,14 @@
 // with.
 import { createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { comparisonRefusalKey } from "@/lib/comparisonRefusal";
 
 import {
   detailLevelLabelKey,
   formatDeltaPct,
+  noPriorStateOf,
   type BridgeDto,
   type ComparativesResponse,
   type MoverDto,
@@ -22,6 +24,7 @@ import {
 import type { OrgPeriod } from "@/lib/orgPeriods";
 import type { RatioCompareView } from "@/lib/ratioCompareView";
 import { formatPeriodMonth } from "@/lib/orgPeriods";
+import { useActiveLocale } from "@/lib/locale";
 import { useComparativesView, type ComparativeColumns } from "@/stores/comparativesView";
 import { useAmountFormatter } from "@/stores/currency";
 import { MONEY_MISSING } from "@/lib/money";
@@ -43,24 +46,43 @@ export function useRatioCompareView(): RatioCompareView | null {
 
 // ── Controls ─────────────────────────────────────────────────────────
 
+/** The picker's DOM id: the notice hands focus back to it after a pick. */
+export const COMPARATIVES_PRIOR_SELECT_ID = "comparatives-prior-select";
+/** The notice's DOM id: the switched-off column boxes are described by it. */
+export const COMPARATIVES_NO_PRIOR_NOTE_ID = "comparatives-no-prior-note";
+
+/** How many of the company's earlier periods the notice offers by name; the
+ *  picker lists every period. */
+export const NO_PRIOR_ALTERNATIVES = 3;
+
 export function ComparativesControls({
   periods,
   currentId,
+  currentEnd,
   autoPick,
+  priorId,
   currency: _currency,
   columns = true,
 }: {
   /** Every analysed period of the company on screen, newest first. */
   periods: readonly OrgPeriod[];
   currentId: string | null;
+  /** The close of the period on screen: it names the year AUTO looked for
+   *  when it found none. Read off `periods` when not given. */
+  currentEnd?: string | null;
   /** What AUTO resolves to right now, for the option label. */
   autoPick: OrgPeriod | null;
+  /** The prior the page compares with (`comparisonChoiceOf`'s `priorId`) —
+   *  null when nothing resolves. Required: a caller that cannot say what is
+   *  being compared cannot render the column boxes. */
+  priorId: string | null;
   currency: string;
   /** The column toggles (Prior, Δ, Δ %, share) — statement tables only; the
    *  Overview has no columns to toggle. */
   columns?: boolean;
 }) {
   const { t } = useTranslation();
+  const locale = useActiveLocale();
   const { view, setPriorPeriodId, setColumn } = useComparativesView();
   const candidates = periods.filter((p) => p.period_id !== currentId);
   // A stored choice that is not one of THIS company's periods is ignored
@@ -74,7 +96,15 @@ export function ComparativesControls({
         : candidates.some((p) => p.period_id === view.priorPeriodId)
           ? view.priorPeriodId
           : "auto";
-  const label = (p: OrgPeriod) => formatPeriodMonth(p.period_end) ?? p.period_label;
+  const label = (p: OrgPeriod) => formatPeriodMonth(p.period_end, locale) ?? p.period_label;
+  // THE COMPARISON IS ON AND COMPARES NOTHING (2026-10-04, production: the
+  // company's earliest period on screen — "Previous year (auto)" selected,
+  // the four boxes ticked, one column in the table and no word why). The
+  // picker names the balance AUTO looked for, <ComparativesNoPriorNote> says
+  // so in a sentence and offers the next step, and the boxes are off until a
+  // comparison exists. AUTO never picks another period in its place.
+  const noPrior = noPriorStateOf({ periods, currentId, currentEnd, stored: view.priorPeriodId, priorId });
+  const missingLabel = noPrior ? formatPeriodMonth(noPrior.missingEnd, locale) : null;
   const toggles: { key: keyof ComparativeColumns; label: string }[] = [
     { key: "prior", label: t("statements.cmp.colPrior") },
     { key: "delta", label: t("statements.cmp.colDelta") },
@@ -85,14 +115,19 @@ export function ComparativesControls({
     <div
       className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2 text-[12px] text-ink-soft"
       data-testid="comparatives-controls"
+      data-comparison={view.priorPeriodId === "none" ? "off" : noPrior ? "no-prior" : "on"}
     >
-      <label className="inline-flex items-center gap-2">
-        <span className="font-mono uppercase tracking-[0.08em] text-[10.5px] text-ink-mute">
+      {/* min-w-0 / max-w-full: a select is as wide as its widest option, and
+          the option that names a missing month is long — on a phone it
+          shrinks inside the row instead of running off the screen. */}
+      <label className="inline-flex min-w-0 max-w-full items-center gap-2">
+        <span className="shrink-0 font-mono uppercase tracking-[0.08em] text-[10.5px] text-ink-mute">
           {t("statements.cmp.compareWith")}
         </span>
         <select
+          id={COMPARATIVES_PRIOR_SELECT_ID}
           data-testid="comparatives-prior-select"
-          className="h-8 rounded-sm border border-rule bg-surface px-2 text-[12.5px] text-ink"
+          className="h-8 min-w-0 max-w-full rounded-sm border border-rule bg-surface px-2 text-[12.5px] text-ink"
           value={value}
           onChange={(e) => {
             const v = e.target.value;
@@ -100,7 +135,12 @@ export function ComparativesControls({
           }}
         >
           <option value="auto">
-            {t("statements.cmp.auto")}{autoPick ? ` — ${label(autoPick)}` : ""}
+            {t("statements.cmp.auto")}
+            {autoPick
+              ? ` — ${label(autoPick)}`
+              : missingLabel
+                ? ` — ${t("statements.cmp.autoMissing", { label: missingLabel })}`
+                : ""}
           </option>
           <option value="none">{t("statements.cmp.none")}</option>
           {candidates.map((p) => (
@@ -109,16 +149,28 @@ export function ComparativesControls({
         </select>
       </label>
       {columns && view.priorPeriodId !== "none" && (
-        <div className="inline-flex items-center gap-3" data-testid="comparatives-columns">
+        <div
+          className={`inline-flex items-center gap-3 ${noPrior ? "opacity-50" : ""}`}
+          data-testid="comparatives-columns"
+          data-disabled={noPrior ? "true" : "false"}
+          title={noPrior ? t("statements.cmp.columnsDisabled") : undefined}
+        >
           <span className="font-mono uppercase tracking-[0.08em] text-[10.5px] text-ink-mute">
             {t("statements.cmp.columns")}
           </span>
           {toggles.map((c) => (
-            <label key={c.key} className="inline-flex items-center gap-1 cursor-pointer">
+            <label
+              key={c.key}
+              className={`inline-flex items-center gap-1 ${noPrior ? "cursor-not-allowed" : "cursor-pointer"}`}
+            >
               <input
                 type="checkbox"
                 data-testid={`comparatives-col-${c.key}`}
-                checked={view.columns[c.key]}
+                // No comparison on screen: no column is shown, so no box is
+                // ticked. The reader's stored columns come back with a prior.
+                checked={noPrior ? false : view.columns[c.key]}
+                disabled={!!noPrior}
+                aria-describedby={noPrior ? COMPARATIVES_NO_PRIOR_NOTE_ID : undefined}
                 onChange={(e) => setColumn(c.key, e.target.checked)}
               />
               <span>{c.label}</span>
@@ -126,6 +178,82 @@ export function ComparativesControls({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The sentence for a comparison that is ON and compares nothing: which
+ * balance is missing, which period is therefore shown alone, and the next
+ * step — where a balance is uploaded, and the company's EARLIER periods one
+ * click away. Rendered by the page BELOW the sticky tab bar (inside it, it
+ * made the pinned bar a third of a phone screen). Null in every other state.
+ */
+export function ComparativesNoPriorNote({
+  periods,
+  currentId,
+  currentEnd,
+  priorId,
+  uploadHref,
+}: {
+  periods: readonly OrgPeriod[];
+  currentId: string | null;
+  currentEnd?: string | null;
+  /** The prior the page compares with — null when nothing resolves. */
+  priorId: string | null;
+  /** Where a balance is uploaded (the workspace). */
+  uploadHref?: string | null;
+}) {
+  const { t } = useTranslation();
+  const locale = useActiveLocale();
+  const { view, setPriorPeriodId } = useComparativesView();
+  const state = noPriorStateOf({ periods, currentId, currentEnd, stored: view.priorPeriodId, priorId });
+  if (!state) return null;
+  const label = (p: OrgPeriod) => formatPeriodMonth(p.period_end, locale) ?? p.period_label;
+  const missingLabel = formatPeriodMonth(state.missingEnd, locale);
+  const currentLabel = formatPeriodMonth(state.currentEnd, locale);
+  const action =
+    "inline-flex items-center min-h-[44px] sm:min-h-0 font-medium text-brand-d hover:text-brand transition-colors duration-150";
+  return (
+    <div
+      id={COMPARATIVES_NO_PRIOR_NOTE_ID}
+      role="status"
+      data-testid="comparatives-no-prior"
+      data-missing={missingLabel ?? ""}
+      className="mt-3 rounded-sm border border-rule bg-surface px-3 py-2 text-[12.5px] leading-snug text-ink-soft"
+    >
+      <span className="font-medium text-ink">{t("statements.cmp.noPriorTitle")}</span>{" "}
+      <span data-testid="comparatives-no-prior-body">
+        {missingLabel && currentLabel
+          ? t("statements.cmp.noPriorBody", { prior: missingLabel, current: currentLabel })
+          : t("statements.cmp.noPriorBodyUnnamed")}
+      </span>
+      <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {uploadHref && (
+          <Link to={uploadHref} data-testid="comparatives-no-prior-upload" className={action}>
+            {missingLabel
+              ? t("statements.cmp.noPriorUpload", { prior: missingLabel })
+              : t("statements.cmp.noPriorUploadUnnamed")}
+          </Link>
+        )}
+        {state.earlier.slice(0, NO_PRIOR_ALTERNATIVES).map((p) => (
+          <button
+            key={p.period_id}
+            type="button"
+            data-testid="comparatives-no-prior-pick"
+            data-period={p.period_id}
+            onClick={() => {
+              setPriorPeriodId(p.period_id);
+              // The notice unmounts with the pick; the keyboard reader lands
+              // on the picker, which now names the period chosen.
+              document.getElementById(COMPARATIVES_PRIOR_SELECT_ID)?.focus();
+            }}
+            className={action}
+          >
+            {t("statements.cmp.noPriorCompareWith", { label: label(p) })}
+          </button>
+        ))}
+      </span>
     </div>
   );
 }
