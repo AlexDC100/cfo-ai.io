@@ -242,6 +242,7 @@ holes_psql "$HOLES_DB" --single-transaction -f - < "$ORIGINAL" >/dev/null 2>&1  
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — neither the function nor the table"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+check_has "E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)" "$(jget "$MIG_RESULT" '{skipped}')" "does not exist — nothing to close"
 
 # ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
 echo "── OBJECTS ANOTHER ROLE OWNS — the function and the table created by the dashboard's role, with its own grants"

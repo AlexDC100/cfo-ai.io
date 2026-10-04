@@ -242,6 +242,7 @@ check "A2b … and says the table does not exist here" "$(jget "$REPORT" '{liste
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — none of the objects"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+check_has "E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)" "$(jget "$MIG_RESULT" '{skipped}')" "public.calibration_rules does not exist in this database — nothing to do"
 
 # ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
 echo "── OBJECTS ANOTHER ROLE OWNS — the table created by the dashboard's role, with its own grants"

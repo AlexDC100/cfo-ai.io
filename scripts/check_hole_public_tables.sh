@@ -279,6 +279,7 @@ q "drop view public.handmade_company_view; delete from public.public_companies w
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — none of the listed tables"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+check_has "E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)" "$(jget "$MIG_RESULT" '{skipped}')" "none of the 12 listed tables exists in this database — nothing to do"
 
 # ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
 echo "── OBJECTS ANOTHER ROLE OWNS — a listed table created by the dashboard's role, with its own grants"

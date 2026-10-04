@@ -435,6 +435,7 @@ check "P11 the workspace functions are still byte-identical to the start" "$(fn_
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — none of the objects"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+check_has "E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)" "$(jget "$MIG_RESULT" '{skipped}')" "public.organizations does not exist — nothing to guard"
 
 # ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
 echo "── OBJECTS ANOTHER ROLE OWNS — the table created by the dashboard's role, with its own grants"

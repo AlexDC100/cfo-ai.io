@@ -218,6 +218,7 @@ report_says "U6 with the repository's function back, the migration closes it" "f
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — auth.users has no trigger and public.subscriptions does not exist"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+check_has "E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)" "$(jget "$MIG_RESULT" '{skipped}')" "public.subscriptions does not exist"
 
 # ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
 echo "── OBJECTS ANOTHER ROLE OWNS — the signup function created by the dashboard's role, with its own grants"
