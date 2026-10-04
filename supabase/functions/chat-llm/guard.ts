@@ -16,7 +16,9 @@
 //   2. the request is validated; the system prompt is built (pure). With
 //      no model key the call ends here: 503 ai_not_configured, nothing
 //      reserved.
-//   3. the plan row is read. Unreadable → 503 metering_unavailable.
+//   3. the plan row is read. Unreadable → 503 metering_unavailable. So is
+//      a plan whose cap is not a whole number: reserve_user_chat reads a
+//      NULL cap as "unlimited", so the meter is never asked with one.
 //   4. reserve_user_chat — THE cap decision, atomic in Postgres. This file
 //      never reads a counter and never pre-checks: two calls at cap − 1 are
 //      settled by the RPC's row lock, not here.
@@ -76,8 +78,10 @@ export interface ReserveArgs {
   month: string;
   /** "YYYY-MM-DD", UTC. */
   day: string;
-  dailyCap: number | null;
-  monthlyCap: number | null;
+  /** Always a whole number. reserve_user_chat reads NULL as "unlimited";
+   *  this function never sends one (handleChat, step 3). */
+  dailyCap: number;
+  monthlyCap: number;
 }
 
 export interface MeterArgs {
@@ -227,6 +231,13 @@ export function dayAndMonth(now: Date): { day: string; month: string } {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** A cap the meter can be asked with: a whole number. NULL is the SQL's
+ *  "unlimited"; NaN and ±Infinity are sent as null by JSON — none of them is
+ *  a cap. (Zero and a negative number ARE: the meter refuses every call.) */
+export function isCap(v: unknown): v is number {
+  return typeof v === "number" && Number.isSafeInteger(v);
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
@@ -477,6 +488,16 @@ export async function handleChat(deps: ChatDeps, call: ChatCall): Promise<ChatRe
     return refusal("metering_unavailable", lang);
   }
   const plan = planForRow(deps.plans, row);
+  // A plan with no number for a cap is NOT "unlimited" here. The SQL reads a
+  // NULL cap that way (no tier uses it), so a table that ever carried one —
+  // or a NaN, which JSON sends as null — would switch the cap off without a
+  // word. It is a meter this function cannot ask: refused.
+  const dailyCap = plan.chat.daily;
+  const monthlyCap = plan.chat.monthly;
+  if (!isCap(dailyCap) || !isCap(monthlyCap)) {
+    log("error", `[plan] the ${plan.key} plan carries no whole-number chat cap — refusing (reserve_user_chat reads NULL as unlimited)`);
+    return refusal("metering_unavailable", lang);
+  }
 
   // 4. THE cap decision: the RPC's, atomic. Nothing here reads a counter.
   const { day, month } = dayAndMonth(deps.now());
@@ -485,7 +506,7 @@ export async function handleChat(deps: ChatDeps, call: ChatCall): Promise<ChatRe
   try {
     decision = readReserve(
       await withTimeout(
-        deps.reserve({ ...meter, dailyCap: plan.chat.daily, monthlyCap: plan.chat.monthly }),
+        deps.reserve({ ...meter, dailyCap, monthlyCap }),
         ms,
         "reserve_user_chat",
       ),

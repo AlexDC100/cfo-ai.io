@@ -265,6 +265,22 @@ try {
     check("1.3 an origin that is not on the allowlist is never echoed — on the preflight or on a refusal it gets the default; a listed one is echoed; Vary: Origin",
       [p.headers.get("access-control-allow-origin"), refused.status, refused.cors, dev.cors, p.headers.get("vary")],
       ["https://cfo-ai.io", 401, "https://cfo-ai.io", "http://localhost:5173", "Origin"]);
+    // The one thing the DEPLOYED function carries beyond main's file (read
+    // off the downloaded source, 2026-10-04): the iOS shell's LAN dev server
+    // — a private-range host on the Vite port. The redeploy keeps it, and it
+    // admits nothing else: a public address on that port, another port and
+    // https are answered with the default.
+    const LAN = "http://192.168.1.20:5173";
+    const lanPreflight = await fetch(fn.url, { method: "OPTIONS", headers: { Origin: LAN, "Access-Control-Request-Method": "POST" } });
+    await lanPreflight.body?.cancel();
+    const lanRefused = await ask(fn, null, MESSAGE, "http://10.0.0.5:5173");
+    const notLan: (string | null)[] = [];
+    for (const o of ["http://8.8.8.8:5173", "http://192.168.1.20:5174", "https://192.168.1.20:5173", "http://172.32.0.1:5173", "http://192.168.1.20:5173.evil.example"]) {
+      notLan.push((await ask(fn, null, MESSAGE, o)).cors);
+    }
+    check("1.4 the LAN dev allowance the deployed function carries is kept: a private-range host on :5173 is echoed on the preflight and on a refusal (which stays a 401) — a public address on that port, another port, https and a suffixed host are not",
+      [lanPreflight.status, lanPreflight.headers.get("access-control-allow-origin"), lanRefused.status, lanRefused.cors, ...notLan],
+      [200, LAN, 401, "http://10.0.0.5:5173", "https://cfo-ai.io", "https://cfo-ai.io", "https://cfo-ai.io", "https://cfo-ai.io", "https://cfo-ai.io"]);
   }
 
   // ── 2. NO VERIFIED USER, NO MODEL CALL ─────────────────────────────────

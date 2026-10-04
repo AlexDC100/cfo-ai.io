@@ -20,7 +20,9 @@
 // user; a model request without a reservation; a reservation that is neither
 // committed nor released, or is settled twice; a refused reservation that
 // still reaches the model; a meter or plan failure answered by calling the
-// model; the function deciding a cap itself instead of asking the RPC.
+// model; the function deciding a cap itself instead of asking the RPC; the
+// meter asked with a cap that is not a whole number (the SQL reads NULL as
+// "unlimited").
 //
 // WHAT THEY CANNOT SEE: the Deno wiring (index.ts: the supabase-js calls, the
 // fetch) and the SQL functions — scripts/check_chat_cap_real.py runs the real
@@ -38,6 +40,7 @@ import {
   buildModelRequestBody,
   dayAndMonth,
   handleChat,
+  isCap,
   parseRequest,
   readModelResponse,
   readReserve,
@@ -50,7 +53,7 @@ import {
   type ReserveArgs,
   type VerifyResult,
 } from "../../../supabase/functions/chat-llm/guard";
-import { buildPlans, type SubscriptionRow } from "../../../supabase/functions/chat-llm/plans";
+import { buildPlans, type PlanTable, type SubscriptionRow } from "../../../supabase/functions/chat-llm/plans";
 import { classifyUpstreamAnswer } from "@/lib/aiDegraded";
 
 // ── The world a law runs in ────────────────────────────────────────────
@@ -450,6 +453,50 @@ describe("C3 — fail closed: 'could not meter' is never 'allowed'", () => {
     const w = world({ row: null });
     expect((await ask(w)).status).toBe(200);
     expect(w.reserves[0]).toMatchObject({ dailyCap: 3, monthlyCap: 5 });
+  });
+
+  // reserve_user_chat: `if p_daily_cap is not null and …` — a NULL cap is
+  // the SQL's "unlimited" (no tier uses it). JSON sends NaN and ±Infinity as
+  // null. So a plan table that ever carried one would switch the cap off
+  // with every other law green: the test meter below serves such a call
+  // without limit, exactly as the SQL would.
+  it.each([
+    ["a NULL daily cap", { daily: null, monthly: 5 }],
+    ["a NULL monthly cap", { daily: 3, monthly: null }],
+    ["both NULL", { daily: null, monthly: null }],
+    ["NaN (JSON sends null)", { daily: Number.NaN, monthly: 5 }],
+    ["Infinity (JSON sends null)", { daily: 3, monthly: Number.POSITIVE_INFINITY }],
+    ["a fraction", { daily: 2.5, monthly: 5 }],
+  ])("a plan with %s is not 'unlimited': 503 metering_unavailable — the meter is never asked, nothing upstream", async (_name, chat) => {
+    const plans = { ...PLANS, trial: { ...PLANS.trial, chat } } as PlanTable;
+    const w = world({ plans });
+    const r = await ask(w);
+    expect(r.status).toBe(503);
+    expect(bodyOf(r).error).toBe("metering_unavailable");
+    expect(w.calls).toEqual(["verify", "plan"]);
+    expect(w.reserves).toHaveLength(0);
+    expectNothingSpent(w);
+    expect(w.logs.some((l) => l.level === "error" && l.message.includes("no whole-number chat cap"))).toBe(true);
+  });
+
+  it("…CONTROL: the meter WOULD have served that call without limit — and a plan whose caps are whole numbers (zero included) is asked as before", async () => {
+    // What the refusal above stands in front of: the meter's own reading of NULL.
+    const meter = new Meter();
+    for (let i = 0; i < 9; i++) expect((meter.reserve({ userId: USER, month: "2026-10", day: "2026-10-03", dailyCap: null as unknown as number, monthlyCap: null as unknown as number }) as { kind: string }).kind).toBe("allowed");
+    // Zero is a cap: asked, and refused by the meter.
+    const zero = world({ plans: { ...PLANS, trial: { ...PLANS.trial, chat: { daily: 0, monthly: 5 } } } });
+    expect((await ask(zero)).status).toBe(429);
+    expect(zero.reserves).toEqual([{ userId: USER, month: "2026-10", day: "2026-10-03", dailyCap: 0, monthlyCap: 5 }]);
+    expect(zero.upstream).toHaveLength(0);
+    for (const cap of [0, 3, 200, -1]) expect(isCap(cap), String(cap)).toBe(true);
+    for (const notCap of [null, undefined, Number.NaN, Number.POSITIVE_INFINITY, 2.5, "3", true, {}]) expect(isCap(notCap), String(notCap)).toBe(false);
+    // Every plan the function builds — with or without overrides — carries two whole numbers.
+    for (const table of [PLANS, buildPlans((n) => (n.endsWith("_TRIAL") ? "30.5" : n.endsWith("_PRO") ? "" : "7"))]) {
+      for (const plan of Object.values(table)) {
+        expect(isCap(plan.chat.daily), plan.key).toBe(true);
+        expect(isCap(plan.chat.monthly), plan.key).toBe(true);
+      }
+    }
   });
 
   it.each([

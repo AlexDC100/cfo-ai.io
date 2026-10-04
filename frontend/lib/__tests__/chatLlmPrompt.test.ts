@@ -19,7 +19,10 @@
 //    And the redeploy changes the prompt by the rule ALONE: with its section
 //    taken out, every prompt hashes to what main's function sent (pins
 //    computed from main's own builders); the CORS allowlist is the same six
-//    origins and still decides the echoed origin.
+//    origins and still decides the echoed origin — together with the ONE
+//    thing the deployed function carries that main's file did not: the LAN
+//    dev allowance (a private-range host on the Vite port), kept byte for
+//    byte and executed here against origins it must and must not admit.
 //
 // WHAT IT REDS ON (TC-11): the rule dropped from either persona, reworded on
 // one side only, or moved after a per-request fragment (which would void the
@@ -27,7 +30,9 @@
 // outside the RPC), a fourth RPC, or a model call outside the guard coming
 // back into the function; a byte of a persona, of the currency rule or of the
 // public-company block changing without its pin; an origin added to, or the
-// caller's origin echoed past, the CORS allowlist.
+// caller's origin echoed past, the CORS allowlist; the LAN dev allowance
+// dropped by the redeploy, or widened to a public address, another port or
+// an unanchored match.
 //
 // 3. THE PREFLIGHT REPORT the coordinator runs on production BEFORE the
 //    deploy (supabase/preflight/chat_cap_always_preflight_report.sql). The
@@ -270,10 +275,53 @@ describe("no switch, no second door — the function's source", () => {
     expect([...listed.matchAll(/"([^"]+)"/g)].map((m) => m[1])).toEqual([
       "https://cfo-ai.io", "https://www.cfo-ai.io", "https://cfo-ai.finance", "https://www.cfo-ai.finance", "http://localhost:5173", "http://127.0.0.1:5173",
     ]);
-    expect(index).toContain('const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://cfo-ai.io";');
+    // The ONE line that decides: a listed origin, or the LAN dev pattern
+    // (next law) — the caller's own origin is never taken on its word.
+    expect(index).toContain('const allow = origin && (ALLOWED_ORIGINS.has(origin) || LAN_DEV_ORIGIN.test(origin)) ? origin : "https://cfo-ai.io";');
+    expect(count(index, /\ballow\s*=/g)).toBe(1);
     // ONE place writes the header, and it writes `allow`.
     expect(count(index, "Access-Control-Allow-Origin")).toBe(1);
     expect(index).toContain('"Access-Control-Allow-Origin": allow,');
+  });
+
+  // THE DEPLOYED FUNCTION CARRIES ONE THING MAIN'S FILE DID NOT (read off
+  // the downloaded source, 2026-10-04): a CORS allowance for the iOS shell's
+  // LAN dev server — a private-range host on the Vite port. The redeploy
+  // KEEPS it (dropping it breaks chat in the shell's LAN dev build) and
+  // widens it by nothing: the pattern is read off index.ts and EXECUTED.
+  it("the LAN dev allowance the deployed function carries is kept, byte for byte — a private-range host on :5173 and nothing else", () => {
+    const index = raw("index.ts");
+    const literal = /^const LAN_DEV_ORIGIN = \/(.+)\/;$/m.exec(index)?.[1] ?? "";
+    expect(literal).toBe(
+      String.raw`^http:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):5173$`,
+    );
+    expect(count(code("index.ts"), "LAN_DEV_ORIGIN")).toBe(2); // its definition, and the one line that decides
+    const lan = new RegExp(literal);
+    for (const yes of [
+      "http://10.0.0.5:5173", "http://10.255.255.255:5173", "http://192.168.1.20:5173", "http://192.168.0.1:5173",
+      "http://172.16.0.1:5173", "http://172.20.10.2:5173", "http://172.31.255.255:5173",
+    ]) expect(lan.test(yes), yes).toBe(true);
+    for (const no of [
+      "https://10.0.0.5:5173",             // not the dev server's scheme
+      "http://10.0.0.5:5174",              // another port
+      "http://10.0.0.5:51730",
+      "http://10.0.0.5",                   // no port
+      "http://10.0.0.5:5173/",             // an origin has no path
+      "http://10.0.0.5:5173.evil.example", // a suffix
+      "http://evil.example/http://10.0.0.5:5173",
+      "http://evil.example:5173",          // a name, not a private address
+      "http://10.0.0.5.evil.example:5173",
+      "http://11.0.0.5:5173",              // public ranges, on the Vite port
+      "http://8.8.8.8:5173",
+      "http://172.15.0.1:5173",
+      "http://172.32.0.1:5173",
+      "http://192.169.1.1:5173",
+      "http://169.254.1.1:5173",
+      "http://localhost:5174",
+      "http://[::1]:5173",
+      "null",
+      "",
+    ]) expect(lan.test(no), no).toBe(false);
   });
 });
 
