@@ -74,8 +74,17 @@
 --   supabase/schema_phase3.sql — both re-create their signup function without
 --   `tier` (and schema.sql re-attaches the LEGACY function to the trigger).
 --
--- ROLLBACK: re-run supabase/schema_phase3.sql (it re-creates
---   handle_new_user_v2 and the trigger as they were).
+-- ROLLBACK (re-opens the hole): run the ONE statement
+--     create or replace function handle_new_user_v2() … $$;
+--   of supabase/schema_phase3.sql (its lines 88–147) — the statement ALONE,
+--   never the whole file (which also re-creates policies and backfills
+--   memberships). Measured on a production-shaped database: the function
+--   reads md5 77d2a9f3… again, with its owner, SECURITY DEFINER, search_path
+--   and grants as they were. The legacy handle_new_user is attached to no
+--   trigger where schema_phase3.sql is applied; to put it back as well, run
+--   its statement from supabase/schema.sql and then
+--     alter function public.handle_new_user() set search_path = public;
+--   (that statement carries no search_path; the hardening file pinned it).
 --
 -- Gate: scripts/check_hole_signup_tier.sh (hole-signup-tier);
 -- static laws: tests/engine/test_entitlement_hole_laws.py.
