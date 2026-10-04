@@ -18,6 +18,8 @@ import { getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
 // the server was ready to run. The refusal path must never depend on a
 // network fetch of code. Gate: lib/__tests__/uploadRefusalsStatic.test.ts.
 import { friendlyDocumentError, parseUploadRefusal } from "@/lib/uploadRefusals";
+// STATIC for the same reason: the refusal of a re-run is an error path.
+import { rerunRefusalCode, type RerunRefusalCode } from "@/lib/rerunRefusals";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -565,14 +567,18 @@ export async function retryPipeline(documentId: string): Promise<boolean> {
 }
 
 /** `retryPipeline` that also says when the server archived the document as a
- *  duplicate of a live copy instead of re-running it. */
+ *  duplicate of a live copy instead of re-running it — and, when the server
+ *  REFUSED the re-run, the refusal's code (`refusal`; null when the answer
+ *  carries no code this client knows). The server's own words are never
+ *  returned: the caller prints the sentence written for the code
+ *  (lib/rerunRefusals). */
 export async function retryPipelineDetailed(
   documentId: string,
-): Promise<{ ok: boolean; duplicate: AlreadyUploaded | null }> {
-  if (!client) return { ok: false, duplicate: null };
+): Promise<{ ok: boolean; duplicate: AlreadyUploaded | null; refusal: RerunRefusalCode | null }> {
+  if (!client) return { ok: false, duplicate: null, refusal: null };
   const { data } = await client.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return { ok: false, duplicate: null };
+  if (!token) return { ok: false, duplicate: null, refusal: null };
   const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
   try {
     const res = await fetch(`${apiUrl}/api/pipeline/retry`, {
@@ -583,11 +589,11 @@ export async function retryPipelineDetailed(
       },
       body: JSON.stringify({ document_id: documentId }),
     });
-    if (!res.ok) return { ok: false, duplicate: null };
     const body = await res.json().catch(() => null);
-    return { ok: true, duplicate: parseDuplicateRunBody(body) };
+    if (!res.ok) return { ok: false, duplicate: null, refusal: rerunRefusalCode(body) };
+    return { ok: true, duplicate: parseDuplicateRunBody(body), refusal: null };
   } catch {
-    return { ok: false, duplicate: null };
+    return { ok: false, duplicate: null, refusal: null };
   }
 }
 

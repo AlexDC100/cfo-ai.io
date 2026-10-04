@@ -58,6 +58,7 @@ import {
   signedDocumentUrl,
 } from "@/lib/supabase";
 import { alreadyUploadedHref } from "@/lib/alreadyUploaded";
+import { rerunRefusalKey } from "@/lib/rerunRefusals";
 import { DocRefusalReason } from "@/components/cfo/DocRefusalReason";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
@@ -845,7 +846,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
       invalidate();
       return;
     }
-    const { ok, duplicate } = await retryPipelineDetailed(doc.id);
+    const { ok, duplicate, refusal } = await retryPipelineDetailed(doc.id);
     if (ok && duplicate) {
       // This copy duplicates a live analysis of the same file: the server
       // archived it instead of re-running it. Not a failure.
@@ -866,7 +867,15 @@ function DocRowItem({ doc }: { doc: DocRow }) {
       toast({ title: t("panels.rerunningAnalysis"), description: doc.display_name });
       invalidate();
     } else {
-      toast({ title: t("panels.cantStartRerun"), variant: "destructive" });
+      // A re-run the server REFUSED says why, from the refusal's code — the
+      // sentence written for it, in the reader's language (lib/rerunRefusals:
+      // the file was replaced for its month, or is linked to no analysis of
+      // its own). Anything else keeps the plain title.
+      toast({
+        title: t("panels.cantStartRerun"),
+        description: refusal ? t(rerunRefusalKey(refusal)) : undefined,
+        variant: "destructive",
+      });
     }
   }
 
