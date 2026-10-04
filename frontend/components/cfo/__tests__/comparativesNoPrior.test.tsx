@@ -10,29 +10,40 @@
 //
 // LAW. Whenever the comparison is ON (the reader did not choose "No
 // comparison") and no prior resolves:
-//   · the picker's AUTO option names the balance it looked for, as not
-//     uploaded;
-//   · a notice says, in the reader's language, which balance is missing and
-//     which period is therefore shown alone, and offers the next step — where
-//     to upload it, and each other period of the company one click away;
+//   · the picker's AUTO option names the balance it looked for, as missing —
+//     unless a balance closing that month IS in the list at another length;
+//   · a notice says, in the reader's language and month names, which balance
+//     is missing and which period is therefore shown alone, and offers the
+//     next step: where a balance is uploaded, and the company's EARLIER
+//     periods (nearest first, at most three) one click away — never a later
+//     one, which would read the change backwards;
 //   · every column box is OFF (disabled, unticked): no column is on screen;
 //   · AUTO never picks another period in its place, and the reader's stored
-//     columns are not overwritten by the state.
+//     columns are not overwritten by the state;
+//   · NO DOCUMENT OF ANOTHER PAIR IS ON SCREEN: stepping here from a period
+//     that was compared leaves no comparison behind (the app's query client
+//     keeps the previous result as a placeholder; the comparison does not).
 // And whenever a prior DOES resolve: no notice, no disabled box.
 //
 // Fails on: the notice not rendered (the incident), a box left enabled or
-// ticked with nothing compared, AUTO's label not naming the missing balance,
-// a missing Romanian or English sentence (a raw key on screen), the page not
-// handing the controls the prior it actually requests.
+// ticked with nothing compared, AUTO's label silent about the missing
+// balance or calling an uploaded one missing, a later period offered in the
+// notice, a missing Romanian or English sentence (a raw key on screen), an
+// English month name in a Romanian sentence, the previous comparison's
+// document served for a period it is not about, the page not handing the
+// controls and the notice the prior it actually requests.
 //
 // What it cannot see: whether the engine's document, once a prior exists,
-// fills the columns (comparatives.test.ts, plCompareSubtotals.test.tsx) —
-// and a company with ONE period, where the page renders no controls at all.
+// fills the columns (comparatives.test.ts, plCompareSubtotals.test.tsx); the
+// same-length rule itself (comparatives.test.ts owns it); a company with ONE
+// period, where the page renders no controls at all; the page's own render
+// condition around the controls (the wiring law below reads the source).
 // Plant log: docs/engine_book/gates.md, "compare-no-prior".
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -40,16 +51,7 @@ import i18n from "@/i18n";
 import en from "@/i18n/locales/en.json";
 import ro from "@/i18n/locales/ro.json";
 
-vi.mock("@/lib/supabase", () => ({
-  getSupabase: () => null,
-  currentOrgId: async () => null,
-}));
-
-const { ComparativesControls } = await import("@/components/cfo/ComparativesPanel");
-const { comparisonChoiceOf, comparisonHasNoPrior, previousYearEnd } = await import("@/lib/comparatives");
-const { ComparativesViewProvider, useComparativesView, readComparativesView } = await import(
-  "@/stores/comparativesView"
-);
+import pairJson from "@/lib/__tests__/fixtures/comparatives/pair_served.json";
 
 // ── A company, as the engine lists its periods (no real id, no real name) ──
 const ORG = "0c0a0000-0000-4000-8000-00000000c0a1";
@@ -57,12 +59,37 @@ const P25 = "9e2d0000-0000-4000-8000-000000002025";
 const P24 = "9e2d0000-0000-4000-8000-000000002024";
 const P23 = "9e2d0000-0000-4000-8000-000000002023";
 
+vi.mock("@/lib/supabase", () => ({
+  getSupabase: () => ({
+    auth: { getSession: async () => ({ data: { session: { access_token: "tok", user: { id: "u1" } } } }) },
+  }),
+  currentOrgId: async () => "0c0a0000-0000-4000-8000-00000000c0a1",
+}));
+
+const { ComparativesControls, ComparativesNoPriorNote, NO_PRIOR_ALTERNATIVES } = await import(
+  "@/components/cfo/ComparativesPanel"
+);
+const { comparisonChoiceOf, comparisonHasNoPrior, noPriorStateOf, previousYearEnd, useComparatives } = await import(
+  "@/lib/comparatives"
+);
+const { ComparativesViewProvider, useComparativesView, readComparativesView } = await import(
+  "@/stores/comparativesView"
+);
+const { ratioSurfacesOf } = await import("@/lib/useRatioSurfaces");
+const { queryClient: appQueryClient } = await import("@/lib/queryClient");
+
 interface Row {
   id: string;
   start: string | null;
   end: string;
 }
 const year = (id: string, y: number): Row => ({ id, start: `${y}-01-01`, end: `${y}-12-31` });
+/** A cumulative month of 2025, as a company uploading monthly holds them. */
+const month = (m: number): Row => {
+  const mm = String(m).padStart(2, "0");
+  const last = new Date(Date.UTC(2025, m, 0)).getUTCDate();
+  return { id: `9e2d0000-0000-4000-8000-0000002025${mm}`, start: "2025-01-01", end: `2025-${mm}-${last}` };
+};
 
 const companyOf = (rows: Row[]) => ({
   orgId: ORG,
@@ -78,11 +105,22 @@ const companyOf = (rows: Row[]) => ({
 /** The incident's company: the year on screen and the year AFTER it. */
 const TWO_YEARS = [year(P25, 2025), year(P24, 2024)];
 
+/** The month label a reader of `lang` is shown — the app's one locale rule
+ *  (lib/locale.ts), written out here so the expectation is not the
+ *  component's own output. */
+const monthLabel = (iso: string, lang: "en" | "ro"): string =>
+  new Date(iso).toLocaleDateString(lang === "ro" ? "ro-RO" : "en-GB", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
 let statesChecked = 0;
 let lastChoice: ReturnType<typeof comparisonChoiceOf> | null = null;
 
 /** What the dashboard composes: the reader's stored choice → the one rule
- *  (`comparisonChoiceOf`) → the controls, with the prior the page requests. */
+ *  (`comparisonChoiceOf`) → the controls and the notice, both handed the
+ *  prior the page requests. */
 function Page({
   rows,
   currentId,
@@ -101,16 +139,24 @@ function Page({
   );
   lastChoice = choice;
   return (
-    <ComparativesControls
-      periods={choice.periods}
-      currentId={currentId}
-      currentEnd={currentEnd}
-      autoPick={choice.autoPick}
-      priorId={choice.priorId}
-      currency="RON"
-      columns={columns}
-      uploadHref={`/workspace?period=${currentId}`}
-    />
+    <>
+      <ComparativesControls
+        periods={choice.periods}
+        currentId={currentId}
+        currentEnd={currentEnd}
+        autoPick={choice.autoPick}
+        priorId={choice.priorId}
+        currency="RON"
+        columns={columns}
+      />
+      <ComparativesNoPriorNote
+        periods={choice.periods}
+        currentId={currentId}
+        currentEnd={currentEnd}
+        priorId={choice.priorId}
+        uploadHref={`/workspace?period=${currentId}`}
+      />
+    </>
   );
 }
 
@@ -127,10 +173,12 @@ const notice = () => screen.queryByTestId("comparatives-no-prior");
 const boxes = () => screen.queryAllByTestId(/^comparatives-col-/) as HTMLInputElement[];
 const select = () => screen.getByTestId("comparatives-prior-select") as HTMLSelectElement;
 const autoOption = () => within(select()).getAllByRole("option")[0].textContent ?? "";
+const picks = () => screen.queryAllByTestId("comparatives-no-prior-pick");
 
 /** No sentence on screen is an untranslated key. */
 function noRawKeys(): void {
-  expect(controls().textContent ?? "").not.toMatch(/statements\.cmp\.|\{\{|\}\}/);
+  const text = (controls().textContent ?? "") + (notice()?.textContent ?? "");
+  expect(text).not.toMatch(/statements\.cmp\.|\{\{|\}\}/);
 }
 
 async function language(lang: "en" | "ro"): Promise<void> {
@@ -146,6 +194,7 @@ beforeEach(async () => {
 });
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 afterAll(async () => {
   await i18n.changeLanguage("en");
@@ -186,6 +235,24 @@ describe("previousYearEnd — the close a reader means by 'the previous year'", 
     expect(comparisonHasNoPrior("none", null)).toBe(false);
     statesChecked += 5;
   });
+
+  it("noPriorStateOf: the missing close, and the EARLIER periods nearest first — never a later one", () => {
+    const periods = companyOf([month(6), month(5), month(4), month(3), month(2), month(1)]).periods;
+    const on = (m: number) =>
+      noPriorStateOf({ periods, currentId: month(m).id, currentEnd: month(m).end, stored: null, priorId: null })!;
+    expect(on(6).missingEnd).toBe("2024-06-30");
+    expect(on(6).earlier.map((p) => p.period_end)).toEqual([
+      "2025-05-31", "2025-04-30", "2025-03-31", "2025-02-28", "2025-01-31",
+    ]);
+    expect(on(3).earlier.map((p) => p.period_end)).toEqual(["2025-02-28", "2025-01-31"]);
+    expect(on(1).earlier).toEqual([]);
+    // Not a state at all once a prior resolves, or with comparisons off.
+    expect(noPriorStateOf({ periods, currentId: month(6).id, stored: null, priorId: month(5).id })).toBeNull();
+    expect(noPriorStateOf({ periods, currentId: month(6).id, stored: "none", priorId: null })).toBeNull();
+    // The close is read off the list when the caller does not give it.
+    expect(noPriorStateOf({ periods, currentId: month(6).id, stored: null, priorId: null })!.currentEnd).toBe("2025-06-30");
+    statesChecked += 7;
+  });
 });
 
 // ── The incident ───────────────────────────────────────────────────────
@@ -204,19 +271,19 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
 
   const WORDS = {
     ro: {
-      auto: "Anul precedent (automat) — Dec 2023, neîncărcat",
-      title: "Încă nu ai cu ce compara.",
-      body: "Balanța la Dec 2023 nu este încărcată pentru această companie, așa că Dec 2024 apare fără comparație.",
-      upload: "Încarcă balanța la Dec 2023",
-      pick: "Compară cu Dec 2025",
+      auto: "Anul precedent (automat) — dec. 2023 lipsește",
+      title: "Fără comparație automată.",
+      body: "Compania nu are o balanță analizată la dec. 2023, așa că dec. 2024 apare fără comparație.",
+      upload: "Încarcă balanța la dec. 2023",
+      options: ["Anul precedent (automat) — dec. 2023 lipsește", "Fără comparație", "dec. 2025"],
       disabled: "Nicio perioadă de comparație — coloanele apar după ce alegi una.",
     },
     en: {
-      auto: "Previous year (auto) — Dec 2023, not uploaded",
-      title: "Nothing to compare with yet.",
-      body: "No Dec 2023 trial balance is uploaded for this company, so Dec 2024 is shown without a comparison.",
+      auto: "Previous year (auto) — Dec 2023 missing",
+      title: "No automatic comparison.",
+      body: "This company has no analysed Dec 2023 trial balance, so Dec 2024 is shown without a comparison.",
       upload: "Upload the Dec 2023 balance",
-      pick: "Compare with Dec 2025",
+      options: ["Previous year (auto) — Dec 2023 missing", "No comparison", "Dec 2025"],
       disabled: "No comparison period — the columns appear once one is chosen.",
     },
   } as const;
@@ -230,21 +297,24 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
       expect(controls().getAttribute("data-comparison")).toBe("no-prior");
       expect(select().value).toBe("auto");
       expect(autoOption()).toBe(w.auto);
+      // The later year stays in the list — one pick away, as before.
+      expect(within(select()).getAllByRole("option").map((o) => o.textContent)).toEqual(w.options);
 
       const n = notice();
       expect(n, "the comparison is on, compares nothing, and says nothing").not.toBeNull();
       expect(n!.getAttribute("role")).toBe("status");
-      expect(n!.getAttribute("data-missing")).toBe("Dec 2023");
+      expect(n!.getAttribute("data-missing")).toBe(monthLabel("2023-12-31", lang));
       expect(n!.textContent).toContain(w.title);
       expect(screen.getByTestId("comparatives-no-prior-body").textContent).toBe(w.body);
+      // The notice is not inside the controls row (the page pins that row).
+      expect(controls().contains(n)).toBe(false);
 
       const upload = screen.getByTestId("comparatives-no-prior-upload");
       expect(upload.textContent).toBe(w.upload);
       expect(upload.getAttribute("href")).toBe(`/workspace?period=${P24}`);
 
-      const picks = screen.getAllByTestId("comparatives-no-prior-pick");
-      expect(picks.map((b) => b.textContent)).toEqual([w.pick]);
-      expect(picks[0].getAttribute("data-period")).toBe(P25);
+      // The only other period is LATER: it is not offered as "compare with".
+      expect(picks(), "a later period offered as the comparison").toEqual([]);
 
       expect(boxes().map((b) => b.getAttribute("data-testid"))).toEqual([
         "comparatives-col-prior",
@@ -255,6 +325,7 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
       for (const b of boxes()) {
         expect(b.disabled, `${b.dataset.testid} is enabled with nothing compared`).toBe(true);
         expect(b.checked, `${b.dataset.testid} is ticked with no column on screen`).toBe(false);
+        expect(b.getAttribute("aria-describedby")).toBe(n!.id);
       }
       const cols = screen.getByTestId("comparatives-columns");
       expect(cols.getAttribute("data-disabled")).toBe("true");
@@ -264,18 +335,36 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
     });
   }
 
-  it("one click on the offered period compares with it; back on AUTO the notice returns", async () => {
+  it("ro: every month in the sentence is a Romanian month — never 'Jun 2024' in a Romanian sentence", async () => {
+    const rows: Row[] = [
+      { id: P25, start: "2025-01-01", end: "2026-06-30" },
+      { id: P24, start: "2025-01-01", end: "2025-06-30" },
+    ];
+    render(mount({ rows, currentId: P24, currentEnd: "2025-06-30" }));
+    await language("ro");
+    expect(autoOption()).toBe("Anul precedent (automat) — iun. 2024 lipsește");
+    expect(screen.getByTestId("comparatives-no-prior-body").textContent).toBe(
+      "Compania nu are o balanță analizată la iun. 2024, așa că iun. 2025 apare fără comparație.",
+    );
+    expect(screen.getByTestId("comparatives-no-prior-upload").textContent).toBe("Încarcă balanța la iun. 2024");
+    expect((controls().textContent ?? "") + notice()!.textContent).not.toMatch(
+      /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec) \d{4}/,
+    );
+    statesChecked += 1;
+  });
+
+  it("choosing the later year from the list compares with it; back on AUTO the notice returns", () => {
     render(mount({ rows: TWO_YEARS, currentId: P24, currentEnd: "2024-12-31" }));
-    fireEvent.click(screen.getByTestId("comparatives-no-prior-pick"));
+    fireEvent.change(select(), { target: { value: P25 } });
 
     expect(lastChoice!.priorId).toBe(P25);
     expect(readComparativesView(ORG).priorPeriodId).toBe(P25);
     expect(notice()).toBeNull();
     expect(controls().getAttribute("data-comparison")).toBe("on");
-    expect(select().value).toBe(P25);
     for (const b of boxes()) {
       expect(b.disabled).toBe(false);
       expect(b.checked).toBe(true);
+      expect(b.getAttribute("aria-describedby")).toBeNull();
     }
     expect(screen.getByTestId("comparatives-columns").getAttribute("title")).toBeNull();
 
@@ -303,6 +392,51 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
     statesChecked += 1;
   });
 
+  it("the previous year IS uploaded, as a half-year: never 'missing' — 'no period of the same length', and it is one click away", () => {
+    const rows: Row[] = [year(P24, 2024), { id: P23, start: "2023-07-01", end: "2023-12-31" }];
+    render(mount({ rows, currentId: P24, currentEnd: "2024-12-31" }));
+    expect(lastChoice!.priorId, "AUTO took a period of another length").toBeNull();
+    expect(notice()).not.toBeNull();
+    expect(notice()!.getAttribute("data-missing")).toBe("");
+    expect((controls().textContent ?? "") + notice()!.textContent).not.toMatch(/missing/);
+    expect(autoOption()).toBe("Previous year (auto)");
+    expect(screen.getByTestId("comparatives-no-prior-body").textContent).toBe(
+      "This company has no earlier analysed period of the same length, so this period is shown without a comparison.",
+    );
+    expect(screen.getByTestId("comparatives-no-prior-upload").textContent).toBe("Upload an earlier balance");
+    expect(picks().map((b) => b.textContent)).toEqual(["Compare with Dec 2023"]);
+    fireEvent.click(picks()[0]);
+    expect(lastChoice!.priorId).toBe(P23);
+    expect(readComparativesView(ORG).priorPeriodId).toBe(P23);
+    expect(notice()).toBeNull();
+    // The keyboard reader lands on the picker, which names the period chosen.
+    expect(document.activeElement).toBe(select());
+    expect(select().value).toBe(P23);
+    statesChecked += 1;
+  });
+
+  it(`a company uploading monthly: at most ${NO_PRIOR_ALTERNATIVES} earlier months, nearest first — no later month`, () => {
+    const rows = [month(6), month(5), month(4), month(3), month(2), month(1)];
+    const r = render(mount({ rows, currentId: month(6).id, currentEnd: month(6).end }));
+    expect(lastChoice!.priorId).toBeNull();
+    expect(NO_PRIOR_ALTERNATIVES).toBe(3);
+    expect(picks().map((b) => b.textContent)).toEqual([
+      "Compare with May 2025",
+      "Compare with Apr 2025",
+      "Compare with Mar 2025",
+    ]);
+    // …and the picker lists every other month.
+    expect(within(select()).getAllByRole("option").length).toBe(2 + 5);
+
+    r.rerender(mount({ rows, currentId: month(2).id, currentEnd: month(2).end }));
+    expect(picks().map((b) => b.getAttribute("data-period"))).toEqual([month(1).id]);
+
+    r.rerender(mount({ rows, currentId: month(1).id, currentEnd: month(1).end }));
+    expect(notice()).not.toBeNull();
+    expect(picks(), "a later month offered as the comparison").toEqual([]);
+    statesChecked += 3;
+  });
+
   it("a period whose close cannot be read: the notice still stands, naming no month", async () => {
     const rows: Row[] = [year(P25, 2025), { id: P24, start: null, end: "" }];
     render(mount({ rows, currentId: P24, currentEnd: null }));
@@ -311,9 +445,10 @@ describe("the incident — the company's earliest year on screen, AUTO selected"
     expect(notice()!.getAttribute("data-missing")).toBe("");
     expect(autoOption()).toBe("Anul precedent (automat)");
     expect(screen.getByTestId("comparatives-no-prior-body").textContent).toBe(
-      "Nicio perioadă anterioară de aceeași lungime nu este încărcată pentru această companie, așa că perioada apare fără comparație.",
+      "Compania nu are o perioadă anterioară analizată, de aceeași durată, așa că perioada apare fără comparație.",
     );
-    expect(screen.getByTestId("comparatives-no-prior-upload").textContent).toBe("Încarcă balanța anului precedent");
+    expect(screen.getByTestId("comparatives-no-prior-upload").textContent).toBe("Încarcă o balanță anterioară");
+    expect(picks()).toEqual([]);
     for (const b of boxes()) expect(b.disabled && !b.checked).toBe(true);
     noRawKeys();
     statesChecked += 1;
@@ -388,15 +523,22 @@ describe("the law — ON and nothing compared is always said; a comparison is ne
       ],
     },
     {
+      name: "a year-end and the year before as a half-year",
+      rows: [year(P24, 2024), { id: P23, start: "2023-07-01", end: "2023-12-31" }],
+    },
+    {
       name: "a year-end and a later half-year",
       rows: [{ id: P25, start: "2025-01-01", end: "2025-06-30" }, year(P24, 2024)],
     },
+    { name: "six cumulative months of one year", rows: [month(6), month(5), month(4), month(3), month(2), month(1)] },
   ];
   const STORED: (string | null | "none")[] = [null, "none", P25, P24, P23, "9e2d0000-0000-4000-8000-00000000dead"];
 
   it("every company shape × period on screen × stored choice", () => {
     let noPrior = 0;
     let withPrior = 0;
+    let named = 0;
+    let offered = 0;
     for (const shape of SHAPES) {
       for (const cur of shape.rows) {
         for (const stored of STORED) {
@@ -410,6 +552,7 @@ describe("the law — ON and nothing compared is always said; a comparison is ne
           const r = render(mount({ rows: shape.rows, currentId: cur.id, currentEnd: cur.end }));
           const where = `${shape.name} · ${cur.end} on screen · stored ${String(stored)}`;
           const state = controls().getAttribute("data-comparison");
+          const others = shape.rows.filter((x) => x.id !== cur.id);
           if (stored === "none") {
             expect(state, where).toBe("off");
             expect(notice(), where).toBeNull();
@@ -420,15 +563,30 @@ describe("the law — ON and nothing compared is always said; a comparison is ne
             expect(notice(), `${where}: nothing compared, nothing said`).not.toBeNull();
             expect(boxes().length, where).toBe(4);
             for (const b of boxes()) expect(b.disabled && !b.checked, `${where}: ${b.dataset.testid}`).toBe(true);
-            // AUTO names the balance it looked for — never another period.
-            const missing = notice()!.getAttribute("data-missing");
-            expect(missing, where).toMatch(/^[A-Z][a-z]{2} \d{4}$/);
-            expect(autoOption(), where).toBe(`Previous year (auto) — ${missing}, not uploaded`);
-            // Every other period of the company is one click away.
-            expect(
-              screen.getAllByTestId("comparatives-no-prior-pick").map((b) => b.getAttribute("data-period")),
-              where,
-            ).toEqual(shape.rows.filter((x) => x.id !== cur.id).map((x) => x.id));
+            // AUTO names the balance it looked for — from the FIXTURE's rows,
+            // not from what the component says about itself — and never one
+            // that is in the list at another length.
+            const wanted = previousYearEnd(cur.end)!;
+            const uploadedAtAnotherLength = others.some((x) => x.end.slice(0, 7) === wanted.slice(0, 7));
+            const missing = notice()!.getAttribute("data-missing") ?? "";
+            if (uploadedAtAnotherLength) {
+              expect(missing, where).toBe("");
+              expect((controls().textContent ?? "") + notice()!.textContent, where).not.toMatch(/missing/);
+              expect(autoOption(), where).toBe("Previous year (auto)");
+            } else {
+              named += 1;
+              expect(missing, where).toBe(monthLabel(wanted, "en"));
+              expect(autoOption(), where).toBe(`Previous year (auto) — ${monthLabel(wanted, "en")} missing`);
+            }
+            // One click away: the EARLIER periods, nearest first, at most
+            // three — and never a later one.
+            const earlier = others
+              .filter((x) => x.end < cur.end)
+              .sort((a, b) => b.end.localeCompare(a.end))
+              .slice(0, 3)
+              .map((x) => x.id);
+            expect(picks().map((b) => b.getAttribute("data-period")), where).toEqual(earlier);
+            offered += earlier.length;
           } else {
             withPrior += 1;
             expect(state, where).toBe("on");
@@ -446,36 +604,215 @@ describe("the law — ON and nothing compared is always said; a comparison is ne
         }
       }
     }
-    // Not vacuous: both branches were walked.
-    expect(noPrior).toBeGreaterThanOrEqual(10);
+    // Not vacuous: every branch was walked.
+    expect(noPrior).toBeGreaterThanOrEqual(30);
     expect(withPrior).toBeGreaterThanOrEqual(30);
+    expect(named).toBeGreaterThanOrEqual(25);
+    expect(offered).toBeGreaterThanOrEqual(15);
+  });
+});
+
+// ── No document of another pair ────────────────────────────────────────
+
+describe("no comparison is left behind — the document on screen is the one for the pair on screen", () => {
+  /** The APP's own query defaults (lib/queryClient.ts: keepPreviousData and
+   *  all) — the test client used elsewhere has none of them, which is why no
+   *  other gate could see this. Retries off so a refusal settles at once. */
+  const appLikeClient = () => {
+    const defaults = appQueryClient.getDefaultOptions();
+    return new QueryClient({ defaultOptions: { ...defaults, queries: { ...defaults.queries, retry: false } } });
+  };
+
+  let query: ReturnType<typeof useComparatives> | null = null;
+  function Fetcher({ periodId, priorId }: { periodId: string; priorId: string | null }) {
+    query = useComparatives(periodId, priorId, ORG);
+    return null;
+  }
+  const wrap = (qc: QueryClient, periodId: string, priorId: string | null) => (
+    <QueryClientProvider client={qc}>
+      <Fetcher periodId={periodId} priorId={priorId} />
+    </QueryClientProvider>
+  );
+
+  const held: { release: (() => void) | null } = { release: null };
+  function stubEngine(hold: (cur: string, prior: string) => boolean = () => false) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const m = /\/api\/period\/([^/?]+)\/comparatives\?prior=([^&]+)/.exec(String(input));
+        if (!m) return new Response("{}", { status: 404 });
+        const [cur, prior] = [decodeURIComponent(m[1]), decodeURIComponent(m[2])];
+        if (hold(cur, prior)) await new Promise<void>((res) => { held.release = res; });
+        return new Response(JSON.stringify({ current: { period_id: cur }, prior: { period_id: prior } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+  }
+
+  it("the app's client keeps previous results as placeholders — the premise", () => {
+    expect(
+      appQueryClient.getDefaultOptions().queries?.placeholderData,
+      "lib/queryClient.ts no longer keeps previous data",
+    ).toBeTypeOf("function");
+    statesChecked += 1;
+  });
+
+  it("stepping from a compared period to one with no prior: the previous document is gone", async () => {
+    stubEngine();
+    const qc = appLikeClient();
+    const r = render(wrap(qc, P25, P24));
+    await waitFor(() => expect(query!.data?.kind).toBe("ok"));
+    expect((query!.data as { data: { prior: { period_id: string } } }).data.prior.period_id).toBe(P24);
+
+    // The period stepper: Dec 2024 on screen, AUTO resolves to nothing.
+    r.rerender(wrap(qc, P24, null));
+    expect(query!.data, "the Dec 2025 comparison is still served under Dec 2024").toBeUndefined();
+    expect(query!.isPlaceholderData).toBe(false);
+    statesChecked += 1;
+  });
+
+  it("changing the prior: until the new pair's own answer arrives there is no document", async () => {
+    stubEngine((_cur, prior) => prior === P23);
+    const qc = appLikeClient();
+    const r = render(wrap(qc, P25, P24));
+    await waitFor(() => expect(query!.data?.kind).toBe("ok"));
+
+    r.rerender(wrap(qc, P25, P23));
+    expect(query!.data, "the previous prior's document stands in for the new one").toBeUndefined();
+    await waitFor(() => expect(held.release).not.toBeNull());
+    await act(async () => { held.release?.(); });
+    await waitFor(() => expect(query!.data?.kind).toBe("ok"));
+    expect((query!.data as { data: { prior: { period_id: string } } }).data.prior.period_id).toBe(P23);
+    statesChecked += 1;
+  });
+
+  it("where the answer becomes what the page paints: a document of another pair, or with no request, is no document", () => {
+    interface Pair {
+      current_body: {
+        assembled_metrics: Record<string, unknown>;
+        statements: { periodLabel: string } & Record<string, unknown>;
+        metrics: { name: string; value: number | null }[];
+      };
+      comparatives: { current: { period_id: string }; prior: { period_id: string } } & Record<string, unknown>;
+    }
+    const p = JSON.parse(JSON.stringify(pairJson)) as Pair;
+    const metricsByName: Record<string, number | null> = {};
+    for (const m of p.current_body.metrics) metricsByName[m.name] = typeof m.value === "number" ? m.value : null;
+    const surfaces = (periodId: string | null, priorId: string | null, data: unknown) =>
+      ratioSurfacesOf({
+        assembledMetrics: p.current_body.assembled_metrics,
+        statements: p.current_body.statements as never,
+        metricsByName,
+        currentLabel: p.current_body.statements.periodLabel,
+        periodId,
+        priorId,
+        comparatives: { data: data as never },
+      });
+    const ok = { kind: "ok", data: p.comparatives };
+    const cur = p.comparatives.current.period_id;
+    const pri = p.comparatives.prior.period_id;
+
+    // The pair on screen: served.
+    expect(surfaces(cur, pri, ok).cmpDoc).not.toBeNull();
+    // No request (AUTO found nothing / comparisons off): nothing is painted,
+    // whatever result is still in hand.
+    expect(surfaces(cur, null, ok).cmpDoc).toBeNull();
+    expect(surfaces(cur, null, ok).statementsForExport?.comparatives ?? null).toBeNull();
+    // Another period on screen, or another prior asked for: not this document.
+    expect(surfaces(P24, pri, ok).cmpDoc).toBeNull();
+    expect(surfaces(cur, P23, ok).cmpDoc).toBeNull();
+    // A refusal held over is not this pair's refusal either.
+    const refused = { kind: "refused", code: "period_not_servable", message: "x" };
+    expect(surfaces(cur, pri, refused).cmpRefused).toEqual({ code: "period_not_servable" });
+    expect(surfaces(cur, null, refused).cmpRefused).toBeNull();
+    statesChecked += 6;
   });
 });
 
 // ── The page hands the controls the prior it requests ──────────────────
 
-describe("the dashboard — the controls read the prior the page requests", () => {
+describe("the dashboard — the controls and the notice read the prior the page requests", () => {
   const page = readFileSync(resolve(process.cwd(), "frontend/pages/cfo/FinancialStatements.tsx"), "utf8");
+  const element = (name: string): string => {
+    const uses = page.match(new RegExp(`<${name}\\b[\\s\\S]*?/>`, "g")) ?? [];
+    expect(uses.length, `the page renders <${name}> once`).toBe(1);
+    return uses[0];
+  };
 
-  it("one <ComparativesControls>, fed by the same choice the comparison request is made with", () => {
-    const uses = page.match(/<ComparativesControls\b[\s\S]*?\/>/g) ?? [];
-    expect(uses.length, "the page renders the controls once").toBe(1);
-    const el = uses[0];
-    expect(el).toMatch(/\bpriorId=\{cmpPriorId\}/);
-    expect(el).toMatch(/\bautoPick=\{cmpAutoPick\}/);
-    expect(el).toMatch(/\bcurrentEnd=\{remotePeriod\.periodEnd\}/);
-    expect(el).toMatch(/\buploadHref=\{/);
+  it("one <ComparativesControls> and one <ComparativesNoPriorNote>, fed by the choice the request is made with", () => {
+    const ctl = element("ComparativesControls");
+    expect(ctl).toMatch(/\bpriorId=\{cmpPriorId\}/);
+    expect(ctl).toMatch(/\bautoPick=\{cmpAutoPick\}/);
+    expect(ctl).toMatch(/\bperiods=\{cmpPeriods\}/);
+    expect(ctl).toMatch(/\bcurrentEnd=\{remotePeriod\.periodEnd\}/);
+    const note = element("ComparativesNoPriorNote");
+    expect(note).toMatch(/\bpriorId=\{cmpPriorId\}/);
+    expect(note).toMatch(/\bperiods=\{cmpPeriods\}/);
+    expect(note).toMatch(/\bcurrentEnd=\{remotePeriod\.periodEnd\}/);
+    expect(note).toMatch(/\buploadHref=\{/);
     // …and `cmpPriorId` is the rule's answer, the one the request is made with.
-    expect(page).toMatch(/const cmpPriorId: string \| null = cmpChoice\.priorId;/);
-    expect(page).toMatch(/useComparatives\(remotePeriod\.id, cmpPriorId, cmpCompanyId\)/);
+    expect(page).toMatch(/\bcmpPriorId\b[^=\n]*=\s*cmpChoice\.priorId\b/);
+    expect(page).toMatch(/useComparatives\(\s*remotePeriod\.id,\s*cmpPriorId,\s*cmpCompanyId\s*\)/);
     statesChecked += 1;
   });
 
-  it("nothing else in the app renders the controls without the prior", () => {
+  it("the notice is rendered on every tab the controls are, outside the sticky tab bar", () => {
+    const ctlAt = page.indexOf("<ComparativesControls");
+    const noteAt = page.indexOf("<ComparativesNoPriorNote");
+    const guard = (at: number) => page.slice(Math.max(0, at - 420), at);
+    for (const tab of ["overview", "pl", "balance_sheet", "cash_flow", "ratios"]) {
+      expect(guard(ctlAt), `controls on ${tab}`).toContain(`activeTab === "${tab}"`);
+      expect(guard(noteAt), `notice on ${tab}`).toContain(`activeTab === "${tab}"`);
+    }
+    expect(guard(noteAt)).toContain("cmpPeriods.length > 1");
+    // After the controls, and after the sticky bar's closing tags.
+    expect(noteAt).toBeGreaterThan(ctlAt);
+    const between = page.slice(ctlAt, noteAt);
+    expect(between).toMatch(/<\/div>\s*\)\}/);
+    statesChecked += 1;
+  });
+
+  it("`priorId` is a required prop of both — a caller that omits it does not compile", () => {
     const panel = readFileSync(resolve(process.cwd(), "frontend/components/cfo/ComparativesPanel.tsx"), "utf8");
-    // `priorId` is a REQUIRED prop: a caller that does not pass it does not compile.
-    expect(panel).toMatch(/\n {2}priorId: string \| null;\n/);
+    expect(panel.match(/\n {2}priorId: string \| null;\n/g)?.length).toBe(2);
     expect(panel).not.toMatch(/priorId\?:/);
+    statesChecked += 1;
+  });
+});
+
+// ── The next step leads somewhere ──────────────────────────────────────
+
+describe("the next step leads somewhere — and what it uploads is then seen", () => {
+  const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
+  const app = read("frontend/App.tsx");
+  const routed = (path: string) => new RegExp(`<Route\\s+path="${path}"`).test(app);
+
+  it("every upload link of the comparison goes to a path the app routes", () => {
+    expect(routed("/workspace"), "the workspace has no route").toBe(true);
+    // The premise of the cash-flow card's old link: `/financials` is not routed.
+    expect(routed("/financials")).toBe(false);
+    const cf = read("frontend/components/cfo/CashFlowStatementView.tsx");
+    expect(cf, "the cash-flow card links to a path with no route").not.toMatch(/(?:href|to)="\/financials"/);
+    const cta = cf.match(/<(?:Link|a)\b[^>]*data-testid="cf-upload-prior-cta"[^>]*>/g) ?? [];
+    expect(cta.length).toBe(2); // in a router, and on its own
+    for (const el of cta) expect(el).toMatch(/(?:to|href)=\{uploadHref\}/);
+    expect(cf).toMatch(/uploadHref = "\/workspace"/);
+    const page = read("frontend/pages/cfo/FinancialStatements.tsx");
+    const use = page.match(/<CashFlowStatementView\b[\s\S]*?uploadHref=\{[^}]*\/workspace/);
+    expect(use, "the dashboard does not hand the cash-flow view the workspace link").not.toBeNull();
+    statesChecked += 1;
+  });
+
+  it("a balance uploaded from the workspace refreshes the period lists the comparison reads", () => {
+    const host = read("frontend/components/cfo/upload/UploadFlowHost.tsx");
+    const done = /if \(done\) \{([\s\S]*?)\n {6}\}/.exec(host)?.[1] ?? "";
+    expect(done).toContain('queryKey: ["periods-with-documents"]');
+    expect(done).toContain('queryKey: ["org-periods"]');
+    // …the family `useCompanyPeriods` — the comparison's list — is keyed under.
+    const periods = read("frontend/lib/orgPeriods.ts");
+    expect(periods).toMatch(/\["periods-with-documents", "company", orgId\]/);
     statesChecked += 1;
   });
 });

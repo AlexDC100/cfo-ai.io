@@ -138,6 +138,12 @@ export function UploadFlowHost() {
       if (done) {
         void queryClient.invalidateQueries({ queryKey: ["company-years", job.orgId] });
         void queryClient.invalidateQueries({ queryKey: ["company-directory"] });
+        // …and so do the period lists the dashboard reads (its stepper, and
+        // the comparison's "previous year": a balance uploaded from here used
+        // to stay "missing" there until a reload — the client never refetches
+        // on mount). Same two families the dashboard's own upload refreshes.
+        void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+        void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
       }
       pushUploadNotice({
         id: job.docId,

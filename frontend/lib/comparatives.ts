@@ -282,6 +282,14 @@ export function useComparatives(periodId: string | null, priorId: string | null,
     queryFn: () => fetchComparatives(periodId!, priorId!, orgId!),
     enabled: !!orgId && !!periodId && !!priorId && periodId !== priorId,
     staleTime: 5 * 60_000,
+    // NEVER ANOTHER PAIR'S DOCUMENT. The app's client keeps the previous
+    // result as a placeholder when a key changes (lib/queryClient.ts) — right
+    // for a page that must not blank, wrong here: stepping from a compared
+    // period to one with no prior left the PREVIOUS comparison on screen
+    // (its header, its summary) under a period it does not describe, and a
+    // disabled query (no prior) kept it for good. A comparison is of exactly
+    // (period, prior); until that pair's own answer arrives there is none.
+    placeholderData: undefined,
   });
 }
 
@@ -528,6 +536,46 @@ export function previousYearEnd(currentEnd: string | null | undefined): string |
  */
 export function comparisonHasNoPrior(stored: string | null | "none", priorId: string | null): boolean {
   return stored !== "none" && !priorId;
+}
+
+/** What the controls and the notice say about a comparison that is ON and
+ *  compares nothing. */
+export interface NoPriorState {
+  /** The close of the period on screen (null: it cannot be read). */
+  currentEnd: string | null;
+  /** The close AUTO looked for — the same month a year earlier — when the
+   *  company has NO period closing that month. Null when one exists at
+   *  another length (AUTO did not take it, but it is not "missing"), and
+   *  when the close on screen cannot be read. */
+  missingEnd: string | null;
+  /** The company's EARLIER periods, nearest first: what the notice offers
+   *  one click away. Never a later one — a later period under "Prior" reads
+   *  the change backwards (the Δ and the improved / deteriorated lists turn
+   *  round); it stays one pick away in the list, as before. */
+  earlier: OrgPeriod[];
+}
+
+/** `null` unless the comparison is on and no prior resolves. Pure. */
+export function noPriorStateOf(input: {
+  periods: readonly OrgPeriod[];
+  currentId: string | null;
+  currentEnd?: string | null;
+  stored: string | null | "none";
+  priorId: string | null;
+}): NoPriorState | null {
+  if (!comparisonHasNoPrior(input.stored, input.priorId)) return null;
+  const currentEnd =
+    input.currentEnd ?? input.periods.find((p) => p.period_id === input.currentId)?.period_end ?? null;
+  const others = input.periods.filter((p) => p.period_id !== input.currentId);
+  const wanted = previousYearEnd(currentEnd);
+  const closesThatMonth =
+    wanted !== null && others.some((p) => (p.period_end ?? "").slice(0, 7) === wanted.slice(0, 7));
+  const earlier = currentEnd
+    ? others
+        .filter((p) => !!p.period_end && p.period_end < currentEnd)
+        .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""))
+    : [];
+  return { currentEnd, missingEnd: wanted !== null && !closesThatMonth ? wanted : null, earlier };
 }
 
 // ── Cells the views may paint ────────────────────────────────────────

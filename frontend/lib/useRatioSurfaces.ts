@@ -76,11 +76,22 @@ function withSector(s: StatementsForExport | null, sector: unknown): StatementsF
 
 export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
   const data = input.comparatives.data;
-  const cmpDoc = data?.kind === "ok" ? data.data : null;
+  const requested = input.priorId !== null && input.periodId !== null && input.priorId !== input.periodId;
+  // THE DOCUMENT ON SCREEN IS THE ONE FOR THE PAIR ON SCREEN. A result held
+  // over from another request — the period before this one, or a prior the
+  // reader has since changed or switched off — is not this comparison: no
+  // request, or a document naming other periods, is no document (and no
+  // refusal). `useComparatives` hands no placeholder across keys; this is
+  // the same rule where the answer is turned into what the page paints.
+  const cmpDoc =
+    requested && data?.kind === "ok"
+      && data.data.current?.period_id === input.periodId
+      && data.data.prior?.period_id === input.priorId
+      ? data.data
+      : null;
   // The engine's message is its diagnostic line and can carry a raw period
   // id: it goes no further than this line. Only the code travels on.
-  const cmpRefused = data?.kind === "refused" ? { code: data.code } : null;
-  const requested = input.priorId !== null && input.periodId !== null && input.priorId !== input.periodId;
+  const cmpRefused = requested && data?.kind === "refused" ? { code: data.code } : null;
   const failure =
     !requested
       ? null
