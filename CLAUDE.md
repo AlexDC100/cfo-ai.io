@@ -4114,7 +4114,9 @@ NOT bounded by this function, each one the owner's to rule or set:
 
 **Gates** (`docs/engine_book/gates.md`; 152 plants, each alone, each
 RED on at least one of the two — 119 from the build, 33 from the review of
-2026-10-04, all replayed under the final code):
+2026-10-04, all replayed in one run at `8c91a093`; one line of the real
+gate's driver came after it, and the six plants that line touches were run
+again at `ad32d692` — no function, report or frontend file changed since):
 - `chat-cap-always` — vitest, 191 laws: `chatLlmGuard` (a recorder where the
   model would be; a plan with no whole-number cap never reaches the meter;
   the model request's deadline and the sum of the deadlines; the auth server
