@@ -89,6 +89,8 @@ const { startChatTurn } = await import("../chatTurns");
 const { chatAppendUserTurn, chatCompleteAssistantTurn, getChatConversation, resetChatLiveState, visibleConversations } = await import("../useChatStore");
 const { clearAiDegraded } = await import("@/lib/aiDegraded");
 const { CFOMessageList } = await import("../CFOMessageList");
+const { CFOHistorySidebar } = await import("../CFOHistorySidebar");
+const { searchFold } = await import("../useChatSearchHighlight");
 const { FALLBACK_PAYLOAD } = await import("@/lib/rates");
 const { anchorsOfSnapshot, displayModelText, normaliseFigures } = await import("@/lib/readerFigures");
 const { CURRENCY_BEFORE_FIGURE, foreignNumbersInProse, maskNotProse, plainSpaces } = await import("@/test/numberLanguage");
@@ -436,6 +438,43 @@ describe("11 a wrong-format reply ALREADY in the store is shown right — and on
       view.unmount();
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+// ══ the joiners and find-in-conversation ══════════════════════════════════
+
+describe("a figure the reader TYPES is found: the product's no-break joiners match plain spaces", () => {
+  const stored = displayModelText(CORPUS[0].input).text;
+
+  it("POSITIVE CONTROL: the shown reply holds U+00A0 joiners — a plain indexOf of what a reader types finds nothing", () => {
+    expect(stored).toContain(`12,3${NBSP}mil.${NBSP}EUR`);
+    expect(stored.includes("12,3 mil. EUR")).toBe(false);
+    expect(searchFold(stored)).toContain("12,3 mil. eur");
+    expect(searchFold(stored).length).toBe(stored.length); // one character for one: a match index is a text index
+  });
+
+  it("find-in-conversation counts the match, and the history filter keeps the conversation", async () => {
+    await i18n.changeLanguage("en");
+    // jsdom has no scrollIntoView; the hook brings the focused match into view with it.
+    const proto = Element.prototype as { scrollIntoView?: unknown };
+    const had = proto.scrollIntoView;
+    proto.scrollIntoView = () => {};
+    try {
+      for (const [query, want] of [["12,3 mil. EUR", "1 of 1"], ["64.567.890 RON", "1 of 1"], ["12.3M", "No matches"]] as const) {
+        const view = render(<CFOMessageList messages={[user(QUESTION.ro), assistant(CORPUS[0].input)]} searchQuery={query} onRetryFailed={() => {}} />);
+        await waitFor(() => expect(view.getByTestId("chat-search-pill").textContent).toContain(want));
+        view.unmount();
+      }
+    } finally {
+      proto.scrollIntoView = had;
+    }
+    const conversation = { id: "c1", title: "Cifra de afaceri", createdAt: 1, updatedAt: 1, messages: [user(QUESTION.ro), assistant(stored)] };
+    const store = { conversations: [conversation], currentId: null, select: () => {}, remove: () => {}, createNew: () => {}, rename: () => {} };
+    for (const [query, rows] of [["12,3 mil. EUR", 1], ["cifra de AFACERI", 1], ["12.3M EUR", 0]] as const) {
+      const view = render(<CFOHistorySidebar store={store as never} query={query} onQueryChange={() => {}} />);
+      expect(view.container.textContent?.includes("Cifra de afaceri"), query).toBe(rows === 1);
+      view.unmount();
     }
   });
 });
