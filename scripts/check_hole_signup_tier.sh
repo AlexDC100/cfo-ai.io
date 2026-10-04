@@ -18,7 +18,8 @@
 #          the owner membership are still created; the first-touch trigger
 #          still runs); the function keeps its owner, SECURITY DEFINER, its
 #          search_path and its grants; every row that EXISTED is byte-
-#          identical (no backfill);
+#          identical (no backfill); the report counts the existing rows by
+#          (tier, plan, status, has a Stripe subscription) and names no user;
 #   RUN 2  a second run changes nothing and says so;
 #   RE-OPENED  supabase/schema_phase3.sql re-run (it re-creates the function
 #          without tier) — shown OPEN again, then closed;
@@ -110,6 +111,15 @@ check "C7 the trigger on auth.users is the same one, enabled" "$(q "select tgena
 out="$(sql_as authenticated "$NEW1" "select create_workspace('a second one');")"
 check_has "C8 the new account's workspace cap is the trial's (create_workspace reads the same tier)" "$out" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
 check "C9 nothing else in the function changed: the patched body is the original with two words added" "$(q "select md5(replace(replace(prosrc, 'user_id, plan, tier, billing_cycle', 'user_id, plan, billing_cycle'), '''professional'', ''trial'', ''monthly''', '''professional'', ''monthly''')) from pg_proc where oid = 'public.handle_new_user_v2()'::regprocedure;")" "77d2a9f3edf4d14c61a831a5a9512921"
+# The report's ONE read of rows: counts by (tier, plan, status, has a Stripe
+# subscription) — what the owner needs to rule on the existing accounts — and
+# never a user.
+run_report "$REPORT_SQL"
+check "C10 the report counts EVERY existing row, grouped" "$(jsql "$REPORT" "select sum((x ->> 'n')::int) from jsonb_array_elements(:'j'::jsonb -> 'existing_rows') x;")" "$(q "select count(*) from subscriptions;")"
+check "C10b … the free accounts the old trigger made (tier NULL, plan professional, no Stripe subscription) are one group" "$(jsql "$REPORT" "select (x ->> 'n') from jsonb_array_elements(:'j'::jsonb -> 'existing_rows') x where (x ->> 'tier_is_null')::boolean and x ->> 'plan' = 'professional' and x ->> 'status' = 'trial' and not (x ->> 'has_stripe_subscription')::boolean;")" "$(q "select count(*) from subscriptions where tier is null and plan = 'professional' and status = 'trial' and stripe_subscription_id is null;")"
+check "C10c … and a paying row is another (tier pro, active, has a Stripe subscription)" "$(jsql "$REPORT" "select (x ->> 'n') from jsonb_array_elements(:'j'::jsonb -> 'existing_rows') x where x ->> 'tier' = 'pro' and (x ->> 'has_stripe_subscription')::boolean;")" "1"
+check_lacks "C10d the report names no user: no user id" "$REPORT" "0000000-0000-4000-8000-00000000"
+check_lacks "C10e … and no Stripe id" "$REPORT" "sub_gateFixtureOnly"
 
 # ── RUN 2 ────────────────────────────────────────────────────────────────
 echo "── RUN 2 — the same file again (statement by statement)"
