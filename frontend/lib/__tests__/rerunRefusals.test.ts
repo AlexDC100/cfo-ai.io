@@ -1,8 +1,8 @@
 // GATE rerun-refusal-surfaces (the module half): A REFUSED RE-RUN IS SAID IN
 // WORDS, FROM ITS CODE — never the bare code, never the server's words.
 //
-// `POST /api/pipeline/retry` refuses a re-run that would reset a period which
-// is not the document's own (engine gate rerun-data-loss). It answers a CODE
+// `POST /api/pipeline/retry` refuses a re-run that would replace the analysis
+// of a period which is not the document's own (engine gate rerun-data-loss). It answers a CODE
 // and nothing else; the reader's browser prints the sentence written for that
 // code in the reader's language. Before 2026-10-04 the Docs panel discarded
 // the body and said only "Couldn't start re-run".

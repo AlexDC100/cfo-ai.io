@@ -377,6 +377,10 @@ def test_a_rerun_killed_after_its_takeover_has_nothing_left_to_clean(app, gw, mo
 # T7 — the reservation of a metered re-run that died
 # ══════════════════════════════════════════════════════════════════════
 
+def _compute_fails(*a: Any, **kw: Any) -> Any:
+    raise RuntimeError("compute failed")
+
+
 #: where the metered re-run dies -> (how, what the sweep does with its
 #: orphaned reservation)
 _METERED_DEATHS = {
@@ -386,6 +390,14 @@ _METERED_DEATHS = {
         lambda gw, mp, store, month: R.kill_after(
             gw, mp, store, "delete", "briefings",
             when=lambda payload, filters: filters == {"period_id": "eq.%s" % month}), "released"),
+    # The run FAILED, its handler dropped the staged row and said so on the
+    # document's row — and the process died before the settlement.
+    "after_it_failed_and_said_so": (
+        lambda gw, mp, store, month: (
+            mp.setattr(P, "stage_compute", _compute_fails),
+            R.kill_after(gw, mp, store, "update", "documents",
+                         when=lambda payload, filters: str((payload or {}).get("error") or "").startswith(
+                             "rerun_failed: ")))[1], "released"),
     # CONTROL: the analysis finished; only the settlement was lost.
     "after_its_takeover_completed": (
         lambda gw, mp, store, month: R.kill_after(
@@ -402,9 +414,10 @@ def test_the_reservation_of_a_metered_rerun_that_died_is_settled_by_what_the_run
     is the book's first METERED analysis and reserves a slot. The process
     dies; the reservation is orphaned. The sweep must decide by what the RUN
     did, not by the document's status — which a staged re-run never changes:
-    a staged row still in the store means the run did not finish (released,
-    nothing counted, nothing billed); no staged row and no "did not finish"
-    on the row means its takeover completed (counted, once)."""
+    a staged row still in the store, or a row that says the re-run did not
+    finish, means exactly that (released, nothing counted, nothing billed);
+    no staged row and no such text means its takeover completed (counted,
+    once)."""
     arm, expected = _METERED_DEATHS[death]
     w = _world(app, gw, monkeypatch, WORKS)
     # The plan never counted this book: no record of it in the ledger.

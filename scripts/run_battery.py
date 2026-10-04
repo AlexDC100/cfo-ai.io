@@ -520,10 +520,30 @@ def _engine_gates() -> List[Gate]:
         # back; the three sibling fixes; an AST census of every delete of a
         # period. Measured 38. Plant log (15 plants, each alone, byte-exact
         # restore): docs/engine_book/gates.md "rerun-data-loss".
+        #
+        # STAGE 2 (the same day; hand-over item 2): THE RESET IS GONE. The
+        # reset deleted the period and what it cascaded away — the last good
+        # briefing, the worked recommendations — lived in process memory
+        # (_RERUN_CARRY) until the run had narrated: a restart or a deploy
+        # lost them. The re-run is now STAGED beside the document's own month
+        # (a period row that names no source and carries a marker) and takes
+        # it over on success, with a COMMIT POINT: a staged row whose
+        # takeover never began is dropped, one whose takeover began is
+        # RESUMED, never dropped. test_rerun_staged.py: the mechanism through
+        # the real route and run (twelve failure points, overtaken, re-filed,
+        # deleted mid-run), the readers that must never take a staged row for
+        # a month, and the takeover + resume at their own seam with the
+        # process killed after EVERY write in turn. test_rerun_restart.py: a
+        # REAL restart — the store pickled at the kill, a second python
+        # process (fresh imports of the tree under test, a second
+        # create_app(), empty registries) continuing through the real routes;
+        # and the reservation of a metered re-run that died. O5 / O6 / O7 of
+        # stage 1 restated ("nothing is deleted"). Measured 156 (38 + 96 +
+        # 22). Plant log (66 plants): gates.md "rerun-data-loss", stage 2.
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
               "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py", "-q"],
-             work_junit=True, floor=155, units="tests",
+             work_junit=True, floor=156, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_the_refusal_is_one_answer_whatever_the_pin_names",
                        "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
@@ -546,18 +566,32 @@ def _engine_gates() -> List[Gate]:
         # server `message` is never read or printed; the module is never
         # behind import(). Measured 35. Plant log: gates.md
         # "rerun-refusal-surfaces".
+        #
+        # STAGE 2: a staged re-run leaves its file `analyzed` over the
+        # analysis it had, so the ROW says when the last re-run did not
+        # finish (`documents.error = "rerun_failed: …"`): DocRerunNote prints
+        # one of three sentences by kind, EN and RO, never what the engine
+        # stored after the prefix; and the Workspace tab's own read of
+        # financial_periods drops a re-run's staged row (an empty container
+        # stays). Measured 84 (34 + 16 + 29 + 5). Plant log (14 plants):
+        # gates.md "rerun-refusal-surfaces", stage 2.
         Gate("rerun-refusal-surfaces",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/rerunRefusals.test.ts",
               "frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx",
+              "frontend/components/cfo/__tests__/docRerunNote.test.tsx",
+              "frontend/lib/__tests__/orgPeriodsStagedRow.test.ts",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=35,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=84,
              units="tests",
              canaries=("the codes are exactly the three the route answers with",
                        "ro: document_superseded prints the stated sentence",
                        "ro: the real route's answer for a superseded file",
                        "en: a failure with no known code shows the title alone",
-                       "a refusal that also carries a message prints the code's sentence only")),
+                       "a refusal that also carries a message prints the code's sentence only",
+                       "the prefix and the two codes are the engine's own literals",
+                       "ro: an analysed file whose last re-run was interrupted",
+                       "drops the staged row and keeps the month and the empty container")),
         # THE PUBLIC DEMO STORE (owner ticket 2026-10-02). engine.db — the
         # SQLite file create_app() opens through PostgresAdapter — has six
         # tables and no tenant column on any of them. Anonymous POST

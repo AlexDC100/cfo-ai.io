@@ -1,7 +1,7 @@
 // rerunRefusals.ts — why "Re-run analysis" was refused, in words.
 //
-// `POST /api/pipeline/retry` refuses a re-run that would reset a period which
-// is not the document's own (src/engine/api/pipeline.py
+// `POST /api/pipeline/retry` refuses a re-run that would replace the analysis
+// of a period which is not the document's own (src/engine/api/pipeline.py
 // `_own_periods_for_rerun`, gate rerun-data-loss). It answers with a CODE and
 // nothing else — no sentence, no period id, no document id:
 //

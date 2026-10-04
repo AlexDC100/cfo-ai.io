@@ -3,7 +3,8 @@ financial period the UI can render.
 
 Endpoints:
   POST /api/pipeline/run     { document_id }   → 202 (async kicked off)
-  POST /api/pipeline/retry   { document_id }   → 202 (resets + reruns)
+  POST /api/pipeline/retry   { document_id }   → 202 (re-runs; a document that owns its
+                                                  month is staged beside it — nothing is reset)
   GET  /api/period/:id                          → consolidated payload
 
 Pipeline stages (each updates documents.status as it starts):
@@ -2962,8 +2963,8 @@ _RERUN_OWNERSHIP_COLUMNS = "id,org_id,period_end,source_document_id"
 
 
 class RerunRefused(Exception):
-    """A re-run that must not start: the period it would reset is not this
-    document's. `code` is all the caller is ever told."""
+    """A re-run that must not start: the period whose analysis it would
+    replace is not this document's. `code` is all the caller is ever told."""
 
     def __init__(self, code: str) -> None:
         super(RerunRefused, self).__init__(code)
@@ -2971,7 +2972,8 @@ class RerunRefused(Exception):
 
 
 def _own_periods_for_rerun(admin_client: Any, document_id: Any, org_id: Any) -> List[Dict[str, Any]]:
-    """The period(s) a re-run of `document_id` may reset — newest first; []
+    """The period(s) whose analysis a re-run of `document_id` may replace —
+    its OWN, newest first; []
     when the document holds none (a failed first run, a sales document).
     Raises `RerunRefused` when the period it is pinned to is not its own.
 
@@ -2979,7 +2981,7 @@ def _own_periods_for_rerun(admin_client: Any, document_id: Any, org_id: Any) -> 
     access control) and every row's own `org_id` is re-checked. The pin is
     read FRESH from the store — never taken from the row the write wall
     returned, which was read before the claim. A read that raises
-    propagates: the caller answers 503 and resets nothing blind."""
+    propagates: the caller answers 503 and starts nothing blind."""
     document_id = str(document_id or "").strip()
     org_id = str(org_id or "").strip()
     if not document_id or not org_id:
@@ -11362,7 +11364,7 @@ def build_router() -> APIRouter:
         # failed, or its 402 was dismissed) is metered exactly like /run,
         # 402 / 429 included (`_start_rerun`).
         #
-        # FIRST: THE PERIOD THIS RE-RUN WOULD RESET IS THE DOCUMENT'S OWN, or
+        # FIRST: THE PERIOD THIS RE-RUN WOULD REPLACE IS THE DOCUMENT'S OWN, or
         # the re-run is refused here — before the claim, the meter and any
         # write (`_own_periods_for_rerun`; 409 with a code alone). A deleted
         # document keeps its own answers below (`document_deleted`, or the
