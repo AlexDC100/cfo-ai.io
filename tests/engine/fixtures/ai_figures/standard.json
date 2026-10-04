@@ -1,0 +1,61 @@
+{
+ "_about": "THE FIGURE STANDARD AS DATA \u2014 written from frontend/lib/money (formatMoneyFrom through moneyLocaleFor), the ratio table's printer and the packs' money_display by frontend/lib/__tests__/chatLlmFigureFormat.test.ts (AI_FIGURES_WRITE=1), which regenerates and compares it on every run. Never edit by hand. `hint` strings carry plain spaces (they are prompt text); the joiners are the bytes the product prints.",
+ "codes": [
+  "RON",
+  "EUR",
+  "USD"
+ ],
+ "symbols": {
+  "\u20ac": "EUR",
+  "$": "USD"
+ },
+ "languages": {
+  "ro": {
+   "locale": "ro-RO",
+   "group": ".",
+   "decimal": ",",
+   "magnitudes": {
+    "K": "mii",
+    "M": "mil.",
+    "B": "mld."
+   },
+   "magnitude_joiner": "\u00a0",
+   "code_joiner": "\u00a0"
+  },
+  "en": {
+   "locale": "en-US",
+   "group": ",",
+   "decimal": ".",
+   "magnitudes": {
+    "K": "K",
+    "M": "M",
+    "B": "B"
+   },
+   "magnitude_joiner": "",
+   "code_joiner": "\u00a0"
+  }
+ },
+ "hint": {
+  "values": {
+   "whole": 1234567,
+   "decimals": 1234567.89,
+   "compact": 12300000,
+   "percent": "11.25",
+   "multiple": "1.19"
+  },
+  "ro": {
+   "whole": "1.234.567",
+   "decimals": "1.234.567,89",
+   "compact": "12,3 mil.",
+   "percent": "11,25%",
+   "multiple": "1,19\u00d7"
+  },
+  "en": {
+   "whole": "1,234,567",
+   "decimals": "1,234,567.89",
+   "compact": "12.3M",
+   "percent": "11.25%",
+   "multiple": "1.19\u00d7"
+  }
+ }
+}

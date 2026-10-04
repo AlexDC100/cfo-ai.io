@@ -114,6 +114,70 @@ export const STOCK_CLAIM_SECTION =
   "say that calling stock slow or high needs the split by stock type and " +
   "an average balance.\n\n";
 
+// ── THE FIGURE FORMAT (owner order 2026-10-04) ───────────────────────────
+//
+// "Make chat … write numbers in Romanian format in Romanian text
+// (413.727.560 RON, ~77,4 mil. EUR), currency after the figure. Use the
+// product's own formatting standard."
+//
+// The example strings are the PRODUCT'S OWN PRINTS (frontend/lib/money
+// through moneyLocaleFor; the ratio table's printer for the percentage and
+// the multiple). The function cannot import the frontend, so the law
+// (frontend/lib/__tests__/chatLlmFigureFormat.test.ts) RUNS the product's
+// formatter over FIGURE_FORMAT_VALUES and holds every string equal — none is
+// typed on one side only.
+//
+// WHERE IT RIDES: inside the display-currency rule, which only Ask CFO AI
+// sends (chatTurns.ts always carries display_currency + fx_context). The
+// command bar and Explain send neither (capsuleAnswerClient.ts: "DELIBERATELY
+// not sent"), so their system prompt is byte for byte what it was — the
+// command bar's "write NO digits" contract is handed no digit example.
+//
+// STATIC TEXT: no figure of the request, no clock, no id.
+export const FIGURE_FORMAT_VALUES = {
+  whole: 64567890, decimals: 162365.46, compact: 12300000, percent: "11.25", multiple: "1.19", rate: "0.1905",
+} as const;
+export const FIGURE_FORMAT_EXAMPLES = {
+  ro: { whole: "64.567.890", decimals: "162.365,46", compact: "12,3 mil.", percent: "11,25%", multiple: "1,19×", rate: "0,1905" },
+  en: { whole: "64,567,890", decimals: "162,365.46", compact: "12.3M", percent: "11.25%", multiple: "1.19×", rate: "0.1905" },
+} as const;
+
+const RO = FIGURE_FORMAT_EXAMPLES.ro;
+const EN = FIGURE_FORMAT_EXAMPLES.en;
+// The one shape NOT to write — the same amount cited without its decimals:
+// a lone group of three digits, which reads as another value in English. It
+// is cut out of the example above, not typed beside it.
+const RO_LONE_GROUP = RO.decimals.slice(0, RO.decimals.indexOf(","));
+
+export const FIGURE_FORMAT_SECTION =
+  "Figure format (non-negotiable):\n" +
+  "  · Write every figure in the number format of the language you are " +
+  "answering in, whatever format the snapshot, the question or an earlier " +
+  "turn used. Only the way it is written changes — never the value.\n" +
+  "  · Romanian text — a dot groups thousands, a comma is the decimal " +
+  `mark: ${RO.whole} RON; ${RO.decimals} RON; ${RO.compact} RON; ${RO.percent}; ` +
+  `${RO.multiple}; a rate of ${RO.rate}. Magnitudes: mii, mil., mld.\n` +
+  "  · English text — a comma groups thousands, a dot is the decimal " +
+  `mark: ${EN.whole} RON; ${EN.decimals} RON; ${EN.compact} RON; ${EN.percent}; ` +
+  `${EN.multiple}; a rate of ${EN.rate}. Magnitudes: K, M, B.\n` +
+  "  · In both: the ISO currency code (RON, EUR, USD) comes AFTER the " +
+  "figure, after a space — never before it, never a currency symbol, never " +
+  "\"lei\".\n" +
+  "  · An amount below one million that you cite in full keeps its two decimals " +
+  `(${RO.decimals} RON, not ${RO_LONE_GROUP} RON): a lone group of three digits reads ` +
+  "differently in the two languages.\n" +
+  "  · \"Unchanged\" and \"as-is\" above mean not converted to another " +
+  "currency: a ratio, a multiple, a number of days or a percentage is still " +
+  "written in your answer's number format.\n";
+
+/** The conversion note, in both languages, built from the same strings. */
+export function conversionExample(display: string, source: string, provider: string): string {
+  return (
+    `Romanian text: "~${RO.compact} ${display} (convertit din ${RO.whole} ${source} la cursul ${provider})"; ` +
+    `English text: "~${EN.compact} ${display} (converted from ${EN.whole} ${source} at the ${provider} rate)"`
+  );
+}
+
 export function buildCurrencyDirective(
   displayCurrency: string | null | undefined,
   fx: LlmFxContext | null | undefined,
@@ -143,6 +207,7 @@ export function buildCurrencyDirective(
       `${display} directly — no conversion needed.\n` +
       "Ratios, multiples, days, counts, and percentages stay as-is " +
       "regardless of currency.\n" +
+      FIGURE_FORMAT_SECTION +
       "=== End rule ===\n"
     );
   }
@@ -155,19 +220,20 @@ export function buildCurrencyDirective(
     `(source: ${provider}, ${rateDate}).\n` +
     "When you cite money figures from the snapshot:\n" +
     `  · Show the value in ${display} as the primary unit.\n` +
-    "  · For non-trivial conversions, note the source briefly, e.g. " +
-    `"~${display} 918k (converted from ${source} 4.58M at ${provider} rate)".\n` +
+    "  · For non-trivial conversions, note the source briefly — " +
+    conversionExample(display, source, provider) + ".\n" +
     "  · For ratios, multiples, days, counts, percentages: present " +
     "unchanged regardless of currency.\n" +
     "  · Never invent or extrapolate a different FX rate. Use only " +
     "the rate provided above; if the user asks for a currency outside " +
     "RON/EUR/USD, say you don't have the rate.\n" +
+    FIGURE_FORMAT_SECTION +
     "=== End rule ===\n"
   );
 }
 
 function fmtMoney(v: number | null | undefined): string {
-  return v != null ? `USD ${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}` : "—";
+  return v != null ? `${v.toLocaleString("en-US", { maximumFractionDigits: 0 })} USD` : "—";
 }
 function fmtPct(v: number | null | undefined): string {
   return v != null ? `${v.toFixed(1)}%` : "—";

@@ -39,3 +39,63 @@ export function foreignNumber(text: string, lang: "en" | "ro"): string | null {
 export function plainSpaces(text: string | null | undefined): string {
   return (text ?? "").replace(/[\u00a0\u202f]/g, " ");
 }
+
+// ── PROSE A MODEL WROTE (owner order 2026-10-04) ────────────────────────
+//
+// The patterns above read a surface the PRODUCT printed. A sentence a model
+// wrote has shapes they cannot see (measured on the incident's own reply and
+// on a briefing):
+//
+//   · a short decimal that ENDS A SENTENCE ("… iar Z″ este 3.09."): the base
+//     pattern refuses a decimal followed by a dot, to spare "31.12.2025";
+//   · a decimal of three or more places ("la cursul BNR 0.1871"): the base
+//     pattern stops at two;
+//   · a lower-case or two-letter magnitude before a code ("918k EUR",
+//     "2.45bn USD");
+//   · the code, or a currency symbol, BEFORE the figure ("EUR 12.3M",
+//     "RON 64,567,890", "€12.3M") — the standard puts the ISO code after it,
+//     in both languages.
+//
+// A lone three-digit group ("1,234" / "1.234") is still matched by nothing:
+// it is the one shape both languages print with different values.
+//
+// The three literals below are read out of THIS FILE by the engine's gate
+// (tests/engine/test_ai_figure_format.py compiles them — there is no second
+// copy), so each stays a plain regex literal on one line.
+
+/** What is not prose: fenced and inline code, a URL, a markdown link target,
+ *  a placeholder, an e-mail address, a date, a clock time. A law masks these
+ *  before it looks for a figure. */
+export const NOT_PROSE =
+  /```[\s\S]*?```|`[^`\n]*`|https?:\/\/[^\s)]+|\]\([^)\n]*\)|\{\{[^{}\n]*\}\}|\{[A-Za-z_][A-Za-z0-9_.]*\}|[\w.+-]+@[\w-]+\.[\w.-]+|\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{2,4}|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{1,2}:\d{2}(?::\d{2})?/;
+
+const ROMANIAN_NUMBER_IN_PROSE =
+  /\d,\d{1,2}(?!\d|,\d)|(?<![\d.,])\d+,\d{4,}(?![\d,])|(?<![\d.,])0,\d{3}(?![\d,])/;
+
+const ENGLISH_NUMBER_IN_PROSE =
+  /\d\.\d{1,2}(?!\d|\.\d)|(?<![\d.,])\d+\.\d{4,}(?![\d.])|(?<![\d.,])0\.\d{3}(?![\d.])|\d(?:k|[Bb]n)[\s ]?(?:RON|EUR|USD)\b/;
+
+/** An ISO code of the product, or a currency symbol, standing BEFORE a
+ *  figure. Not a code inside a pair ("EUR/RON 4,97") or a longer word, and
+ *  not a symbol that follows a letter, a digit or another symbol ("US$ 5",
+ *  "$B$2"): those are not this standard's to name. */
+export const CURRENCY_BEFORE_FIGURE =
+  /(?:(?<![A-Za-z/])(?:RON|EUR|USD)|(?<![A-Za-z0-9$€])[$€])[  ]?[-−+~≈]?\d/;
+
+/** EVERY figure in a model's prose written in the OTHER language's format —
+ *  the two base patterns, made global, plus the prose shapes above. Code,
+ *  URLs, placeholders, dates and times are masked first (NOT_PROSE). An
+ *  empty list is the only pass. */
+export function foreignNumbersInProse(text: string, lang: "en" | "ro"): string[] {
+  const prose = maskNotProse(text);
+  const [base, extra] = lang === "en"
+    ? [ROMANIAN_NUMBER, ROMANIAN_NUMBER_IN_PROSE]
+    : [ENGLISH_NUMBER, ENGLISH_NUMBER_IN_PROSE];
+  return [...prose.matchAll(new RegExp(`${base.source}|${extra.source}`, "g"))].map((m) => m[0]);
+}
+
+/** `text` with every NOT_PROSE span blanked (same length, so an index into
+ *  the result is an index into the text). */
+export function maskNotProse(text: string | null | undefined): string {
+  return (text ?? "").replace(new RegExp(NOT_PROSE.source, "g"), (m) => " ".repeat(m.length));
+}
