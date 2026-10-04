@@ -198,7 +198,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe("POSITIVE CONTROL — the corpus, the detector and the independent reader", () => {
   it("the corpus is not empty, its first case is the incident's sentence in shape, every wrong input IS flagged and every expected string passes", () => {
-    expect(CORPUS.length).toBeGreaterThanOrEqual(150);
+    expect(CORPUS.length).toBeGreaterThanOrEqual(154);
     expect(new Set(CORPUS.map((c) => c.id)).size).toBe(CORPUS.length);
     const first = CORPUS[0];
     expect([first.id, first.lang, first.wrong]).toEqual(["incident-shape", "ro", true]);

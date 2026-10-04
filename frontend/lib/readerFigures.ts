@@ -496,15 +496,20 @@ function connective(gap: string, opener: boolean): "group" | "dash" | "list" | "
   return null;
 }
 
+/** Is the word at `k` a magnitude the standard does not print — also after
+ *  the "de" Romanian puts before one ("120 de mii", "55 de milioane")? */
+function magLikeAt(s: string, k: number): boolean {
+  if (s.startsWith("de", k) && isSpace(s[k + 2] ?? "")) k += 3;
+  let m = k;
+  while (isLetter(s[m] ?? "")) m += 1;
+  return MAG_LIKE.has(s.slice(k, m).toLowerCase());
+}
+
 /** Does this number carry a magnitude of any spelling — one the standard
  *  prints, a word, or a letter the standard does not read ("14.30m")? */
 function hasMagnitude(s: string, it: Item): boolean {
   if (!it.ok || it.tail.mag || (it.tail.unit && !it.tail.ratio)) return true;
-  const j = it.e;
-  if (!isSpace(s[j] ?? "")) return false;
-  let m = j + 1;
-  while (isLetter(s[m] ?? "")) m += 1;
-  return MAG_LIKE.has(s.slice(j + 1, m).toLowerCase());
+  return isSpace(s[it.e] ?? "") && magLikeAt(s, it.e + 1);
 }
 
 /** A figure that stands on its own: its own currency, or a ratio's unit. */
@@ -527,7 +532,11 @@ function amountEnds(s: string, items: Item[], i: number, joinedRight: boolean): 
     if (joinedRight) return false;
   } else if (APOSTROPHES.includes(c) && isDigit(s[j + 1] ?? "")) return false;
   else if (DASH_CHARS.includes(c)) {
-    if (isLetter(s[j + 1] ?? "")) return false; // "EUR 5-year", "RON 3-lunar"
+    // A hyphen against a word is a compound ("EUR 5-year", "RON 3-lunar"); an
+    // en / em dash there is a break in the sentence.
+    if (c === "-" && isLetter(s[j + 1] ?? "")) return false;
+  } else if (c === "/") {
+    if (!isLetter(s[j + 1] ?? "")) return false; // "RON 5.2M/an" is per year; "5/6" is not
   } else if (!isSpace(c) && !CLOSERS.includes(c) && !/\s/.test(c)) return false;
   if (isSpace(c)) {
     const d = s[j + 1] ?? "";
@@ -535,9 +544,7 @@ function amountEnds(s: string, items: Item[], i: number, joinedRight: boolean): 
     if (d === "(" && codeLike(s, j + 2) && s[j + 5] === ")") return false;
     if (isLetter(d)) {
       if (codeLike(s, j + 1)) return false;
-      let m = j + 1;
-      while (isLetter(s[m] ?? "")) m += 1;
-      if (MAG_LIKE.has(s.slice(j + 1, m).toLowerCase())) return false;
+      if (magLikeAt(s, j + 1)) return false;
     }
   }
   if (i + 1 < items.length) {
@@ -673,7 +680,8 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     const glued = isLetter(prev) || prev === "_" || prev === "#" || prev === "/" || prev === "\\" || prev === "^";
     let tail = readTail(s, en);
     const next = s[en] ?? "";
-    let ok = !glued && !(isLetter(next) && !tail.mag && !tail.gluedUnit && !(next === "x" && !isLetter(s[en + 1] ?? ""))) && (next !== "/" || tail.gluedUnit) && next !== "^";
+    // ("31/12" and "1/2" are not figures; "1,250.50/lună" is one, per month)
+    let ok = !glued && !(isLetter(next) && !tail.mag && !tail.gluedUnit && !(next === "x" && !isLetter(s[en + 1] ?? ""))) && (next !== "/" || tail.gluedUnit || isLetter(s[en + 1] ?? "")) && next !== "^";
     // A number that TOUCHES a span this pass never enters is a piece of it
     // ("1,234:99" holds the clock time "34:99"; "01.02.1.234" a date): not a
     // number of its own.

@@ -580,18 +580,24 @@ def _connective(gap: str, opener: bool) -> Optional[str]:
     return None
 
 
+def _mag_like_at(s: str, k: int) -> bool:
+    """Is the word at `k` a magnitude the standard does not print — also
+    after the "de" Romanian puts before one ("120 de mii", "55 de milioane")?"""
+    if s.startswith("de", k) and _is_space(_at(s, k + 2)):
+        k += 3
+    m = k
+    while _is_letter(_at(s, m)):
+        m += 1
+    return s[k:m].lower() in _MAG_LIKE
+
+
 def _has_magnitude(s: str, it: Dict[str, Any]) -> bool:
     """Does this number carry a magnitude of any spelling — one the standard
     prints, a word, or a letter the standard does not read ("14.30m")?"""
     if not it["ok"] or it["tail"]["mag"] or (it["tail"]["unit"] and not it["tail"]["ratio"]):
         return True
     j = it["e"]
-    if not _is_space(_at(s, j)):
-        return False
-    m = j + 1
-    while _is_letter(_at(s, m)):
-        m += 1
-    return s[j + 1:m].lower() in _MAG_LIKE
+    return _is_space(_at(s, j)) and _mag_like_at(s, j + 1)
 
 
 def _separate(it: Dict[str, Any]) -> bool:
@@ -620,7 +626,12 @@ def _amount_ends(s: str, items: List[Dict[str, Any]], i: int, joined_right: bool
     elif c in _APOSTROPHES and _is_digit(_at(s, j + 1)):
         return False
     elif c in _DASH_CHARS:
-        if _is_letter(_at(s, j + 1)):      # "EUR 5-year", "RON 3-lunar"
+        # A hyphen against a word is a compound ("EUR 5-year", "RON 3-lunar");
+        # an en / em dash there is a break in the sentence.
+        if c == "-" and _is_letter(_at(s, j + 1)):
+            return False
+    elif c == "/":
+        if not _is_letter(_at(s, j + 1)):  # "RON 5.2M/an" is per year; "5/6" is not
             return False
     elif not _is_space(c) and c not in _CLOSERS and c not in _JS_SPACE_SET:
         return False
@@ -633,10 +644,7 @@ def _amount_ends(s: str, items: List[Dict[str, Any]], i: int, joined_right: bool
         if _is_letter(d):
             if _code_like(s, j + 1):
                 return False
-            m = j + 1
-            while _is_letter(_at(s, m)):
-                m += 1
-            if s[j + 1:m].lower() in _MAG_LIKE:
+            if _mag_like_at(s, j + 1):
                 return False
     if i + 1 < len(items):
         nx = items[i + 1]
@@ -790,7 +798,8 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
         ok = (not glued
               and not (_is_letter(nxt) and not tail["mag"] and not tail["glued_unit"]
                        and not (nxt == "x" and not _is_letter(_at(s, en + 1))))
-              and (nxt != "/" or tail["glued_unit"]) and nxt != "^")
+              # ("31/12" and "1/2" are not figures; "1,250.50/lună" is one, per month)
+              and (nxt != "/" or tail["glued_unit"] or _is_letter(_at(s, en + 1))) and nxt != "^")
         # A number that TOUCHES a span this pass never enters is a piece of
         # it ("1,234:99" holds the clock time "34:99"; "01.02.1.234" a date):
         # not a number of its own.

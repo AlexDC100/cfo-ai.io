@@ -286,7 +286,7 @@ def test_the_corpus_is_what_it_says_it_is():
     """POSITIVE CONTROL of every law below: the corpus is not empty, its
     first case is the incident's sentence in shape, every wrong input IS
     flagged by the detector and every expected string passes it."""
-    assert len(CORPUS) >= 150
+    assert len(CORPUS) >= 154
     assert len(set(c["id"] for c in CORPUS)) == len(CORPUS)
     first = CORPUS[0]
     assert first["id"] == "incident-shape" and first["lang"] == "ro" and first["wrong"] is True
@@ -551,7 +551,7 @@ GRAMMAR_FOLLOWERS = [
     " and 55 million", ", 50 sau 55 milioane", " 300 000", NB + "300" + NB + "000", TH + "300", "'234", " mil", " mld",
     " M", " milion", " milioane", " trillion", " bn", " mio.", " CAD", " (AUD)", " EUR", "%", " %", "x", " zile",
     " la 31.12", " la 7 milioane", ", 12.5% peste", " și EUR 3.5M", "$3", " €3", "\n2. Altceva", " to 9M", " sau 7",
-    "-year", " (2025)", "/an", "**", " | 5",
+    "-year", " (2025)", "/an", "**", " | 5", " de mii", " de milioane", "\u2014adică", "/6",
 ]
 #: What stands before the code — a number that could own it, a rate word, a
 #: range opener, another currency's code (with the three plain magnitudes).

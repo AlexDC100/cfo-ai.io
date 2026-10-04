@@ -2162,6 +2162,53 @@
    "anchors": [
     64567890.12
    ]
+  },
+  {
+   "id": "code-first-per-unit",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Costul este de RON 5.2M/an, adică EUR 1,250.50/lună — o creștere față de anul trecut.",
+   "expected": "Costul este de 5,2 mil. RON/an, adică 1.250,50 EUR/lună — o creștere față de anul trecut.",
+   "kept": []
+  },
+  {
+   "id": "open-magnitude-after-de",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Plafonul este de RON 120 de mii, iar fondul de EUR 55 de milioane.",
+   "expected": "Plafonul este de RON 120 de mii, iar fondul de EUR 55 de milioane.",
+   "kept": [
+    {
+     "token": "RON 120",
+     "reason": "open_amount"
+    },
+    {
+     "token": "EUR 55",
+     "reason": "code_before"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "EUR 55",
+     "rule": "a code before a number that a magnitude in words follows is not moved"
+    }
+   ]
+  },
+  {
+   "id": "dash-then-a-word",
+   "lang": "en",
+   "surface": "both",
+   "wrong": true,
+   "input": "The facility is EUR 5-year money at RON 4,58 mil.—a record for the company.",
+   "expected": "The facility is EUR 5-year money at 4.58M RON—a record for the company.",
+   "kept": [
+    {
+     "token": "EUR 5",
+     "reason": "open_amount"
+    }
+   ]
   }
  ]
 }
