@@ -734,6 +734,11 @@ def test_a_later_prior_serves_every_figure_and_no_verdict(world):
         # columns' own, as before (the depth-parity gate's ranking).
         want, below = DP._ranking_from_columns(back, mv["materiality_floor"], A.TOP_MOVERS_DEFAULT)
         assert [(m["key"], m["materiality"]) for m in mv["top"]] == want and mv["below_floor"] == below
+        bcols = dict((c["key"], c) for c in back["columns"])
+        for m in mv["top"]:
+            col = bcols[m["key"]]
+            assert (m["current"], m["prior"], m["delta"], m["delta_pct"]) == (
+                col["current"], col["prior"], col["delta"], col["delta_pct"]), m["key"]
         # every column's delta is the exact negative
         fcols = dict((c["key"], c) for c in fwd["columns"])
         moved = 0
@@ -800,6 +805,35 @@ def test_an_unreadable_close_serves_no_verdict(world):
     doc = C.compare_payloads(world.bodies[cur], world.bodies[pri],
                              current_row={"id": _pid(cur)}, prior_row={"id": _pid(pri)})
     assert doc["direction"]["order"] == "prior_is_earlier"
+
+
+def test_no_block_is_attached_to_a_payload_whose_assembly_did_not_run(world, monkeypatch):
+    """ABSENT != ZERO on the wire. A payload with no assembled P&L or
+    balance sheet (the re-assembly failed, non-fatally) gets NO block —
+    not a block that calls every line "not reported" — and a stale one is
+    removed. A failure inside the builder costs the reader nothing else."""
+    from engine.api import pipeline as P
+
+    body = copy.deepcopy(world.bodies[world.present[0]])
+    statements, items = body["statements"], body["line_items"]
+    served = statements.pop("common_size")
+    P._attach_common_size_block(statements, items)
+    assert statements["common_size"] == served  # the same helper the route ran
+    for missing in ("assembled_pl", "assembled_bs"):
+        st = copy.deepcopy(statements)
+        st[missing] = None
+        P._attach_common_size_block(st, items)
+        assert "common_size" not in st, missing
+    P._attach_common_size_block(None, items)  # a body with no statements: nothing to do
+
+    def explode(payload):
+        raise RuntimeError("planted: the builder failed")
+
+    monkeypatch.setattr(C, "common_size_block", explode)
+    st = copy.deepcopy(statements)
+    st["common_size"] = {"schema": "common_size/1", "stale": True}
+    P._attach_common_size_block(st, items)  # must not raise
+    assert "common_size" not in st  # and never a half-written or stale block
 
 
 # ── the deploy pre-flight ─────────────────────────────────────────────
