@@ -20219,3 +20219,641 @@ FastAPI route table (a script, a cron, `docker exec`); the other files on
 the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
 the journal) — each has its own gates; whether the operator bearer is held
 only by the operator.
+
+## chat-cap-always
+
+The Ask CFO AI Edge Function (`supabase/functions/chat-llm`) enforces its cap
+on EVERY call. Owner, 2026-10-03: *"Fix the chat function so it enforces its
+cap on every call, signed in or not, and deploy it. Only after that will I add
+the Anthropic key."*
+
+READ on the function as it stood on main (`4a7b82bc`):
+
+- no `Authorization` header, or a bearer `auth.getUser` rejected → `userId`
+  stayed `null`, the `if (userId)` block was skipped, and the request went on
+  to `fetch("https://api.anthropic.com/v1/messages")`. Anyone with the
+  function URL got unmetered model calls on the owner's key;
+- for a signed-in user the reservation ran only when
+  `enforcementEnabled()` — `USAGE_LIMITS_ENABLED`, unset in production. So
+  signed-in users were uncapped too, and the cap-reject branch had never
+  run (CLAUDE.md, Milestone D: "only been read-reviewed");
+- `callRpc` returned `null` on any error and the caller read
+  `body.kind ?? "monthly_cap_reached"`: a dead meter told a paying user they
+  had hit a monthly limit;
+- the plan read ignored `error` and fell to the trial caps;
+- `data?.tier ?? data?.plan`: an EMPTY `tier` kept the empty string (trial
+  caps) where the engine's `row.get("tier") or row.get("plan")` reads `plan`;
+- the clock was read at reserve and again at commit / release: a call across
+  midnight UTC settled rows it had not reserved;
+- with no model key the function answered HTTP 200 with a sentence naming
+  the secret and the model as the ANSWER (stored by the chat, cached by
+  Explain);
+- `messages` was forwarded as sent: a direct caller could put image or
+  document blocks, a `system` turn or `cache_control` on the owner's key;
+- the cap card's `[See plans →](/pricing)` printed as raw brackets (the
+  bubble linkified bare URLs only), in the SERVER's English.
+
+The repair: the decision is `guard.ts` (pure, dependencies injected),
+`index.ts` is thin wiring, `plans.ts` is the engine's table and resolution,
+`prompt.ts` the personas with the stock-claim rule. The order — verify →
+validate → plan → reserve → ONE model request → commit | release — is in
+CLAUDE.md, "Ask CFO AI — the cap is always enforced". The app renders the
+three refusals from their CODES (`frontend/lib/chatRefusal.ts`). And because
+the function now FAILS CLOSED, a database without the three metering
+functions turns the chat off: the coordinator's read-only preflight report
+(`supabase/preflight/chat_cap_always_preflight_report.sql`) says whether they
+are there, and is itself held by laws in both gates.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/chatLlmGuard.test.ts frontend/lib/__tests__/chatLlmPlans.test.ts frontend/lib/__tests__/chatLlmPrompt.test.ts frontend/lib/__tests__/chatLlmSignInRetry.test.ts frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx --reporter=verbose` |
+| work count | `Tests N passed`, floor **150** (measured 152: guard 59, plans 37, prompt 21, sign-in retry 13, refusal 22) |
+| canaries | `GATE-WORK chat-cap-always engine-plans=` (the Python table was read: 6 plans, 5 legacy keys), `GATE-WORK chat-cap-always function-files=` (the four files, 869 code lines), and fourteen law names — the no-bearer 401, the unverified 401, reserve → call → commit, the two caps, the race at cap − 1, a rejecting reserve, a rejecting plan read, the tier parity, the missing switch, the rule's two sentences, the preflight report's md5 literals, the one refresh + one retry, the Romanian sign-in sentence |
+
+**SCOPE.**
+- `chatLlmGuard` — `guard.handleChat` with a RECORDER where the model call
+  would be and an in-memory meter with the RPC's semantics. "Refused" is
+  asserted as "the recorder saw nothing AND the meter did not move". And
+  what the auth server's answer MEANS (`verdictOfAuthAnswer`): its own 4xx
+  is nobody (401); a rate limit, a 5xx, a network failure is "could not
+  ask" (503) — never a yes, and never "your session ended".
+- `chatLlmPlans` — READS `src/engine/api/_pricing_config.py` and
+  `_plan_state.py`: every plan's two caps and the environment names that
+  override them, the legacy map, 27 subscription rows resolved both ways, and
+  the text of `plan_for`, `_env_int` and the `tier or plan` line.
+- `chatLlmPrompt` — the function's four files with comments stripped: no
+  `USAGE_LIMITS_ENABLED`, exactly five named environment reads plus the plan
+  overrides, ONE `fetch`, three RPCs, one table read (`subscriptions`), no
+  counter name anywhere, errors thrown and not nulled, the preflight as it
+  was; the stock-claim rule in both personas, in the static head; and the
+  PREFLIGHT REPORT — one statement that only reads, its three md5 literals
+  and signatures the SQL file's, its argument names the ones `index.ts`
+  sends, its tables and columns the ones the three bodies use.
+- `chatRefusal` — the function's REAL refusal bodies (produced by
+  `handleChat` inside the test) through the real `startChatTurn`, in EN and
+  RO; the cap lock; what is and is not written to history; the bubble's link.
+- `chatLlmSignInRetry` — `cfoApi.chatLlm` over a stubbed `fetch` and session.
+
+**PLANT.** 103 defects, each planted ALONE, both gates run, the files
+restored byte-for-byte (`git diff --quiet`), in ONE run under the final code
+(2026-10-03, 748 s). `where` is the file planted. A gate that stays
+green on a plant says so — that is what it cannot see, and the other gate's
+reason to exist.
+
+| plant (alone) | where | `chat-cap-always` | `chat-cap-real` |
+|---|---|---|---|
+| **P1** THE ORIGINAL DEFECT: a caller with no bearer is answered by the model, unmetered | `guard.ts` | **RED** 14 failed, 138 passed (152) — *chatRefusal: POSITIVE CONTROL — the function's own refusal bodies carry a code AND a server sentence > sign_in* | **RED** 6 FAIL — *2.1 no Authorization header: 401 sign_in_required*; *2.10 the refusal's sentence follows the request's language field* |
+| **P2** a bearer the auth server rejects is answered by the model, unmetered | `guard.ts` | **RED** 3 failed, 149 passed (152) — *chatLlmGuard: C1 — no verified user, no model call > a bearer the auth server does not vouch for: 401 sign_in_required, nothing upstream, nothing metered, the plan row…* | **RED** 8 FAIL — *2.3 the public anon key as the bearer: 401*; *2.4 a service-role key as the bearer is not a USER: 401* |
+| **P3** THE SWITCH IS BACK: the reservation runs only when USAGE_LIMITS_ENABLED is set (index.ts) | `index.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > nothing reads USAGE_LIMITS_ENABLED: the cap has no off switch* | **RED** 20 FAIL — *3.4 …and counted: daily 3, monthly 3, nothing left reserved*; *3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers* |
+| **P4** an answered call is never committed | `guard.ts` | **RED** 8 failed, 144 passed (152) — *chatLlmGuard: C2 — a verified user is metered on every call: reserve → ONE model request → commit > a trial user's calls up to the cap are served and counted; the next…* | **RED** 6 FAIL — *3.4 …and counted: daily 3, monthly 3, nothing left reserved*; *3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers* |
+| **P5** the monthly cap is not a refusal: the call goes on to the model | `guard.ts` | **RED** 5 failed, 147 passed (152) — *chatRefusal: POSITIVE CONTROL — the function's own refusal bodies carry a code AND a server sentence > monthly* | **RED** 2 FAIL — *5.1 at the MONTHLY cap: 429 chat_cap_reached / monthly_cap_reached*; *5.2 …no upstream request, no counter moved* |
+| **P6** FAIL OPEN: a reserve that errors or times out is treated as allowed | `guard.ts` | **RED** 5 failed, 147 passed (152) — *chatRefusal: POSITIVE CONTROL — the function's own refusal bodies carry a code AND a server sentence > metering* | **RED** 2 FAIL — *10.1 the function cannot call reserve_user_chat: 503 metering_unavailable — not an answer, not a cap — and it is the …*; *10.2 …no upstream request, nothing metered* |
+| **P7** an unreadable plan row is read as 'trial' (the old degrade) | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C3 — fail closed: 'could not meter' is never 'allowed' > a plan row that never answers: 503 metering_unavailable — not the trial caps — and nothing reser…* | **RED** 1 FAIL — *10.3 the plan row cannot be read: 503 metering_unavailable — and it is the PLAN READ that refused: the meter was neve…* |
+| **P8** a reserve answer the function does not understand is treated as allowed | `guard.ts` | **RED** 6 failed, 146 passed (152) — *chatLlmGuard: C3 — fail closed: 'could not meter' is never 'allowed' > a reserve that returns a bare string: 503 metering_unavailable, no model call, no commit, no rel…* | green — cannot see it |
+| **P9** …or as the monthly cap (the old default: a false sentence to a paying user) | `guard.ts` | **RED** 7 failed, 145 passed (152) — *chatLlmGuard: C3 — fail closed: 'could not meter' is never 'allowed' > a dead meter is not 'monthly cap reached' any more: the user is not told a limit they did not hit* | green — cannot see it |
+| **P10** content blocks are forwarded: images / documents on the owner's key | `guard.ts` | **RED** 3 failed, 149 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > a document block is refused 400 for a verified user — before the plan is read or anything is reserved* | **RED** 2 FAIL — *9.1 a verified user's image block / system turn / unreadable body / empty list: 400 each*; *9.3 …no upstream request, nothing metered* |
+| **P11** a failed model call is retried: two upstream requests for one reservation | `guard.ts` | **RED** 4 failed, 148 passed (152) — *chatLlmGuard: the reservation is settled exactly once > a model call that answers non-2xx: released once, never committed; the answer is the sentinel the app intercepts* | **RED** 1 FAIL — *6.2 …ONE upstream request — no retry* |
+| **P12** the release after a failed model call is skipped | `guard.ts` | **RED** 3 failed, 149 passed (152) — *chatLlmGuard: the reservation is settled exactly once > a model call that answers non-2xx: released once, never committed; the answer is the sentinel the app intercepts* | **RED** 3 FAIL — *6.3 …and the reservation RELEASED: nothing counted, nothing left reserved*; *6.4 the user's next call is served and is their FIRST counted one* |
+| **P13** the clock is read again at commit (a call across midnight UTC settles the wrong rows) | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C2 — a verified user is metered on every call: reserve → ONE model request → commit > the clock is read ONCE: a call that straddles midnight UTC commits …* | green — cannot see it |
+| **P14** any upstream override is honoured: the API key can be sent to another host | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > the upstream can only be the real one or a loopback recorder: no other value of the override is honoured* | **RED** 1 FAIL — *10.9 a non-loopback upstream override is ignored (the key is never sent to it): the recorder sees nothing, the reserv…* |
+| **P15** the caps never reach the meter: index.ts sends null for both (WIRING) | `index.ts` | green — cannot see it | **RED** 14 FAIL — *3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers*; *3.6 call 5: refused again (the sentence in the request's language)* |
+| **P16** index.ts trusts the token's own claims when the auth server says no (WIRING) | `index.ts` | green — cannot see it | **RED** 10 FAIL — *2.6 a token naming a real user, signed with another secret: 401 (the auth server is asked — the claims are never trus…*; *2.7 an unsigned token naming a real user: 401* |
+| **P17** index.ts swallows a plan-read error (null → trial) (WIRING) | `index.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > a read or an RPC that errors THROWS — it is never turned into null and carried on* | **RED** 1 FAIL — *10.3 the plan row cannot be read: 503 metering_unavailable — and it is the PLAN READ that refused: the meter was neve…* |
+| **P18** a cap number changed on the function's side only (trial: 3 → 30 a day) | `plans.ts` | **RED** 20 failed, 132 passed (152) — *chatLlmGuard: C2 — a verified user is metered on every call: reserve → ONE model request → commit > a trial user's calls up to the cap are served and counted; the next…* | **RED** 11 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps*; *3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers* |
+| **P19** `tier ?? plan` is back: an EMPTY tier no longer falls through to plan | `plans.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPlans: a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"","plan":"professional"}* | **RED** 1 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps* |
+| **P20** a cap number changed on the ENGINE's side only (pro: 25 → 30 a day) | `_pricing_config.py` | **RED** 6 failed, 146 passed (152) — *chatLlmPlans: a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":" PRO ","plan":"trial"}* | **RED** 1 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps* |
+| **P21** the ENGINE's resolution changed (reads `tier` only) and the function did not follow | `_plan_state.py` | **RED** 1 failed, 151 passed (152) — *chatLlmPlans: the engine code this resolution mirrors has not moved (edit plans.ts in the same commit, then this pin) > _plan_state.get_plan_state reads the row's plan…* | **RED** 1 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps* |
+| **P22** the stock-claim rule dropped from the workspace persona | `prompt.ts` | **RED** 6 failed, 146 passed (152) — *chatLlmPrompt: the stock-claim rule is in the function's system prompt > both personas carry it — the chooser cannot route around it* | **RED** 1 FAIL — *4.5 …and carrying the stock-claim rule* |
+| **P23** the repository's SQL is not what the stack runs (reserve: `>=` → `>`) | `schema_phase_pricing_v3_atomic.sql` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and …* | **RED** 2 FAIL — *A. the stack's reserve_user_chat is this repository's, body for body*; *P. the report's three md5 literals are the function bodies in schema_phase_pricing_v3_atomic.sql* |
+| **P24** the chat prints the SERVER's sentence for a refusal | `chatTurns.ts` | **RED** 10 failed, 142 passed (152) — *chatRefusal: a refused turn reads as the app's own sentence, from the code — en > daily* | green — cannot see it |
+| **P25** 'sign in again' is not recognised: a 401 falls into the generic unavailable panel | `chatRefusal.ts` | **RED** 5 failed, 147 passed (152) — *chatRefusal: a refused turn reads as the app's own sentence, from the code — en > sign_in* | green — cannot see it |
+| **P26** 'See plans' follows whatever upgrade_url the server sent | `chatRefusal.ts` | **RED** 1 failed, 151 passed (152) — *chatRefusal: chatRefusalOf — which errors are refusals > 'See plans' never leaves the site, whatever the server put in upgrade_url* | green — cannot see it |
+| **P27** a 401 is retried in a LOOP (a second refresh and a third request) | `cfoApi.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > 401 again after the refresh: it stops — two requests, one refresh, and the 401 with its code is…* | green — cannot see it |
+| **P28** a 401 is never retried | `cfoApi.ts` | **RED** 3 failed, 149 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > 401 again after the refresh: it stops — two requests, one refresh, and the 401 with its code is…* | green — cannot see it |
+| **P29** a 429 / 503 is retried too (the cap and the meter are asked twice) | `cfoApi.ts` | **RED** 5 failed, 147 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > a 400 is never retried and never refreshes: the cap and the meter are asked once* | green — cannot see it |
+| **P30** the bubble renders a labelled link to ANOTHER host (its URL hidden behind the label) | `CFOMessageBubble.tsx` | **RED** 1 failed, 151 passed (152) — *chatRefusal: the bubble's labelled link is for pages of THIS app only > a labelled link to another host keeps its URL in view — a model's answer cannot hide where a li…* | green — cannot see it |
+| **P31** an auth server that cannot be asked is treated as 'no user' and the call is answered unmetered | `guard.ts` | **RED** 4 failed, 148 passed (152) — *chatLlmGuard: C1 — no verified user, no model call > an auth server that answers 'unavailable' is not a yes: 503 auth_unavailable, nothing upstream, nothing metered* | **RED** 2 FAIL — *10.5 the auth server cannot be asked: 503 auth_unavailable — a real user's token is not taken on trust*; *10.6 …no upstream request* |
+| **P32** the refusal's sentence ignores the request's language | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C1 — no verified user, no model call > the sentence follows the request's own language field; the code never changes* | **RED** 2 FAIL — *2.10 the refusal's sentence follows the request's language field*; *3.6 call 5: refused again (the sentence in the request's language)* |
+| **P33** with no model key the call is still reserved (and never settled) | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C3 — fail closed: 'could not meter' is never 'allowed' > no model key, verified user: 503 ai_not_configured — not an 'answer' — nothing reserved, the int…* | **RED** 2 FAIL — *10.8 …no upstream request, nothing reserved*; *10.9 a non-loopback upstream override is ignored (the key is never sent to it): the recorder sees nothing, the reserv…* |
+| **P34** the request is validated BEFORE the caller is verified (an anonymous caller learns what was wrong with it) | `guard.ts` | **RED** 6 failed, 146 passed (152) — *chatLlmGuard: C1 — no verified user, no model call > the refusal comes BEFORE the request is looked at: an unverified caller with an unreadable body is told to sign in…* | **RED** 1 FAIL — *2.11 unauthenticated with an unreadable body: still 401, not 400* |
+| **P35** whatever the caller put on a message is forwarded (cache_control, extra fields) | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > what the caller sends cannot widen the call: its own max_tokens / model / tools / system are not forwarded* | **RED** 1 FAIL — *4.3 …the messages as {role, content} only — a caller's cache_control / name on a message is not forwarded* |
+| **P36** a context field of the wrong type reaches the prompt builder | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > context fields of the wrong type read as absent — never a throw after the reservation, never a refusal of a r…* | green — cannot see it |
+| **P37** the output ceiling is raised (max_tokens 2000 → 8000) | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > the upstream body: the model and the output ceiling the engine's call had — and only role + string content ar…* | **RED** 1 FAIL — *4.2 …model, output ceiling and effort as the engine's call had them* |
+| **P38** a SECOND fetch in the function (the model request is sent again when it fails) | `index.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > ONE fetch in the whole function — the model request — and it is reachable only through the guard* | **RED** 1 FAIL — *6.2 …ONE upstream request — no retry* |
+| **P39** the function pre-checks the counter ITSELF and asks the meter with no caps (a check outside the RPC) | `index.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > the function never reads a usage counter: it calls three RPCs and reads one table — the plan row* | **RED** 6 FAIL — *5.1 at the MONTHLY cap: 429 chat_cap_reached / monthly_cap_reached*; *5.2 …no upstream request, no counter moved* |
+| **P40** the refusals lose their CORS headers (the browser cannot read the 401) | `index.ts` | green — cannot see it | **RED** 1 FAIL — *2.2 …with the CORS header the browser needs to read it* |
+| **P41** the CORS preflight is answered 401 (the browser never sends the POST) | `index.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > the CORS preflight is answered as it always was, and only POST goes further* | **RED** 1 FAIL — *1.1 OPTIONS preflight: 200, the origin echoed, POST + the app's headers allowed* |
+| **P42** a cap is read from a different environment variable than the engine's | `plans.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmPlans: the function's tier → chat caps table is the engine's (_pricing_config.py, read from source) > an override moves both: each cap is read from the environm…* | green — cannot see it |
+| **P43** an override is parsed with parseInt ('30.5' → 30, where the engine keeps its default) | `plans.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPlans: the function's tier → chat caps table is the engine's (_pricing_config.py, read from source) > an override is parsed as the engine's _env_int parses it —…* | green — cannot see it |
+| **P44** a legacy key mapped differently (starter → solo) | `plans.ts` | **RED** 4 failed, 148 passed (152) — *chatLlmPlans: a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"starter","plan":"professional"}* | **RED** 1 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps* |
+| **P45** a timestamp in the system prompt (the cached prefix changes on every call) | `prompt.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the stock-claim rule is in the function's system prompt > no clock and no random in the prompt builders* | green — cannot see it |
+| **P46** the pure decision reads the environment itself (a switch could come back unseen) | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > the pure modules touch no Deno global, import no package and make no request* | green — cannot see it |
+| **P47** the cap sentence drops the plan's number (the general sentence, always) | `chatRefusal.ts` | **RED** 7 failed, 145 passed (152) — *chatRefusal: a refused turn reads as the app's own sentence, from the code — en > daily* | green — cannot see it |
+| **P48** the cap no longer locks the composer | `chatTurns.ts` | **RED** 1 failed, 151 passed (152) — *chatRefusal: what each refusal does besides its sentence > the cap locks the composer with the same headline and body, in the reader's language; the others do not* | green — cannot see it |
+| **P49** 'sign in again' / 'could not check your plan' are written to chat history | `chatTurns.ts` | **RED** 1 failed, 151 passed (152) — *chatRefusal: what each refusal does besides its sentence > 'sign in' and 'could not check your plan' are shown but never written to chat history; the cap message is, a…* | green — cannot see it |
+| **P50** the app's refusal sentences are English whatever the reader's language | `chatRefusal.ts` | **RED** 7 failed, 145 passed (152) — *chatRefusal: a refused turn reads as the app's own sentence, from the code — ro > daily* | green — cannot see it |
+| **P51** the request no longer names the reader's language | `cfoApi.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > the request names the reader's language (for the function's own sentence) and changes nothing else* | green — cannot see it |
+| **P52** the gate leaves its users on the stack | `check_chat_cap_real.py` | green — cannot see it | **RED** 1 FAIL — *Z. the gate left none of its users behind, and no workspace without a member that was not there before* |
+| **P53** the cap is answered with another status (402) — the app's cap handling keys on 429 | `guard.ts` | **RED** 16 failed, 136 passed (152) — *chatRefusal: POSITIVE CONTROL — the function's own refusal bodies carry a code AND a server sentence > daily* | **RED** 9 FAIL — *3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers*; *3.6 call 5: refused again (the sentence in the request's language)* |
+| **P54** the app reads a cap that is not a number as a number | `chatRefusal.ts` | **RED** 1 failed, 151 passed (152) — *chatRefusal: chatRefusalOf — which errors are refusals > a cap with no readable number falls back to the general sentence — never 'undefined', never the server's* | green — cannot see it |
+| **P55** the bubble no longer renders a labelled same-site link (raw brackets again) | `CFOMessageBubble.tsx` | **RED** 3 failed, 149 passed (152) — *chatRefusal: a refused turn reads as the app's own sentence, from the code — en > the rendered conversation shows the sentence, with a link that stays on the site* | green — cannot see it |
+| **P56** any Authorization scheme is read as a bearer | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C1 — no verified user, no model call > a scheme that is not Bearer: 401 sign_in_required, the auth server is not even asked, nothing upstream, nothing me…* | green — cannot see it |
+| **P57** the function keeps a count of its own and refuses on it (a pre-check outside the RPC) | `guard.ts` | **RED** 24 failed, 128 passed (152) — *chatLlmGuard: C2 — a verified user is metered on every call: reserve → ONE model request → commit > a trial user's calls up to the cap are served and counted; the next…* | **RED** 3 FAIL — *3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers*; *3.6 call 5: refused again (the sentence in the request's language)* |
+| **P58** a reserve `kind` is read loosely (any casing counts) | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C3 — fail closed: 'could not meter' is never 'allowed' > readReserve understands exactly the three kinds the SQL returns (an array-wrapped row included)* | green — cannot see it |
+| **P59** the metering timeout is ten minutes | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C3 — fail closed: 'could not meter' is never 'allowed' > the metering timeout is a number of seconds, not minutes* | green — cannot see it |
+| **P60** the 400 for a missing `messages` changes its words (old bundles and callers match on them) | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > a verified user's request that is an empty messages list: 400 with the words it always had, nothing reserved* | **RED** 1 FAIL — *9.2 …with the words the function always used for the last two* |
+| **P61** a body that is not JSON is read as an empty request | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > a verified user's request that is not JSON: 400 with the words it always had, nothing reserved* | **RED** 1 FAIL — *9.2 …with the words the function always used for the last two* |
+| **P62** only the first text block of the model's answer is returned | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > readModelResponse joins the text blocks and reads the four usage counters; a body it cannot read is an empty …* | green — cannot see it |
+| **P63** the workspace snapshot is dropped (the model answers ungrounded) | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > what the app sends is forwarded as it always was: the snapshot, the page, the company, the FX rule, the ticker* | green — cannot see it |
+| **P64** the multi cap changed on the function's side only (40 → 41 a day) | `plans.ts` | **RED** 11 failed, 141 passed (152) — *chatLlmPlans: a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > what that means, stated: the signup trigger's default row (tier NUL…* | **RED** 2 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps*; *8.2 …is metered on the MULTI caps (40 a day), as the engine resolves that row: the 40th call is served, the 41st refused* |
+| **P65** the intro cap changed on the function's side only (10 → 11 a month) | `plans.ts` | **RED** 3 failed, 149 passed (152) — *chatLlmPlans: a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"intro","plan":"professional"}* | **RED** 1 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps* |
+| **P66** the solo cap changed on the function's side only (10 → 11 a day) | `plans.ts` | **RED** 4 failed, 148 passed (152) — *chatLlmPlans: a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"solo","plan":"professional"}* | **RED** 1 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps* |
+| **P67** the ENGINE's plan_for changed (no longer lower-cases the key) | `_pricing_config.py` | **RED** 1 failed, 151 passed (152) — *chatLlmPlans: the engine code this resolution mirrors has not moved (edit plans.ts in the same commit, then this pin) > _pricing_config.plan_for* | **RED** 1 FAIL — *0.1 the engine (executed) and the function resolve 115 subscription rows to the same plan and caps* |
+| **P68** the ENGINE's _env_int changed (accepts '30.5') | `_pricing_config.py` | **RED** 1 failed, 151 passed (152) — *chatLlmPlans: the engine code this resolution mirrors has not moved (edit plans.ts in the same commit, then this pin) > _pricing_config._env_int* | green — cannot see it |
+| **P69** the ENGINE's plan table is written in a shape the law's reader cannot read | `_pricing_config.py` | **RED** 115 passed (115) | green — cannot see it |
+| **P70** a FIFTH file in the function (code the laws have not read) | `extra.ts` (new) | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > POSITIVE CONTROL: the function is these four files, and the comment stripper keeps code and URLs* | green — cannot see it |
+| **P71** the stock-claim rule dropped from the inventory persona | `prompt.ts` | **RED** 4 failed, 148 passed (152) — *chatLlmPrompt: the stock-claim rule is in the function's system prompt > both personas carry it — the chooser cannot route around it* | green — cannot see it |
+| **P72** the rule reworded in the FUNCTION only | `prompt.ts` | **RED** 7 failed, 145 passed (152) — *chatLlmPrompt: the stock-claim rule is in the function's system prompt > inventory persona (no mode): the prompt carries the rule once, Romanian and English, as a non-…* | **RED** 1 FAIL — *4.5 …and carrying the stock-claim rule* |
+| **P73** the rule reworded in the FRONTEND only | `inventoryDays.ts` | **RED** 7 failed, 145 passed (152) — *chatLlmPrompt: the stock-claim rule is in the function's system prompt > inventory persona (no mode): the prompt carries the rule once, Romanian and English, as a non-…* | green — cannot see it |
+| **P74** the app stops sending its bearer to the function (every call would be a 401) | `cfoApi.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > 401, then a fresh session: ONE refresh, ONE retry with the NEW token — and the answer* | green — cannot see it |
+| **P75** a network failure is retried as if it were a 401 | `cfoApi.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > a network failure is not a 401: thrown as it is, once* | green — cannot see it |
+| **P76** an aborted request is retried | `cfoApi.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > an aborted request is not retried* | green — cannot see it |
+| **P77** a signed-out caller's 401 triggers a session refresh | `cfoApi.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmSignInRetry: chatLlm — a 401 from the function while signed in > signed out: nothing to refresh — one request, no refresh, the 401 is thrown* | green — cannot see it |
+| **P78** any method goes on to the handler (no 405) | `index.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: no switch, no second door — the function's source > the CORS preflight is answered as it always was, and only POST goes further* | **RED** 1 FAIL — *1.2 GET: 405* |
+| **P79** the upstream request carries another API version | `index.ts` | green — cannot see it | **RED** 1 FAIL — *4.1 the upstream request: POST /v1/messages, the function's key, the API version* |
+| **P80** an extra parameter rides on every upstream request | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > the upstream body: the model and the output ceiling the engine's call had — and only role + string content ar…* | **RED** 1 FAIL — *4.6 nothing else is sent upstream — not the caller's tools, thinking or system* |
+| **P81** the system prompt is no longer cached | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > the upstream body: the model and the output ceiling the engine's call had — and only role + string content ar…* | **RED** 1 FAIL — *4.4 …the system prompt cached, naming the page and the company* |
+| **P82** the upstream-failure sentinel changes its words (the app's interceptor stops matching) | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: the reservation is settled exactly once > a model call that answers non-2xx: released once, never committed; the answer is the sentinel the app intercepts* | **RED** 2 FAIL — *6.1 the model answers 529: HTTP 200 with the sentinel answer the app intercepts*; *10.9 a non-loopback upstream override is ignored (the key is never sent to it): the recorder sees nothing, the reserv…* |
+| **P83** (harness) the driver forgets to put its trial user on tier 'trial' | `driver.ts` | green — cannot see it | **RED** 5 FAIL — *3.0 the trial user's row is tier 'trial'*; *3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers* |
+| **P84** (harness) the driver forgets to delete the plan row of its 'no row' user | `driver.ts` | green — cannot see it | **RED** 2 FAIL — *8.3 a user with NO subscriptions row*; *8.4 …is on the TRIAL caps: the 3rd call is served, the 4th refused* |
+| **P85** the repository's commit_user_chat is not what the stack runs | `schema_phase_pricing_v3_atomic.sql` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and …* | **RED** 2 FAIL — *A. the stack's commit_user_chat is this repository's, body for body*; *P. the report's three md5 literals are the function bodies in schema_phase_pricing_v3_atomic.sql* |
+| **P86** the repository's release_user_chat is not what the stack runs | `schema_phase_pricing_v3_atomic.sql` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and …* | **RED** 2 FAIL — *A. the stack's release_user_chat is this repository's, body for body*; *P. the report's three md5 literals are the function bodies in schema_phase_pricing_v3_atomic.sql* |
+| **P87** the repository's migration grants reserve_user_chat to signed-in users | `schema_phase_pricing_v3_atomic.sql` | green — cannot see it | **RED** 1 FAIL — *A. schema_phase_pricing_v3_atomic.sql revokes the three functions from public, anon and authenticated and grants them…* |
+| **P88** the ENGINE's plan read fails and silently degrades every row to trial | `_plan_state.py` | green — cannot see it | **RED** 1 FAIL — *B. the engine's get_plan_state, executed over the row matrix* |
+| **P89** a context field (company_name) of the wrong type reaches the prompt | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C4 — one reservation, one bounded request > context fields of the wrong type read as absent — never a throw after the reservation, never a refusal of a r…* | green — cannot see it |
+| **P90** a refusal sets the 'CFO AI is unavailable' lock (the reader is told the assistant is down) | `chatTurns.ts` | **RED** 8 failed, 144 passed (152) — *chatRefusal: a refused turn reads as the app's own sentence, from the code — en > daily* | green — cannot see it |
+| **P91** with no model key the function answers 200 with a sentence naming the secret (the old arm) | `guard.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmGuard: C3 — fail closed: 'could not meter' is never 'allowed' > no model key, verified user: 503 ai_not_configured — not an 'answer' — nothing reserved, the int…* | **RED** 1 FAIL — *10.7 no ANTHROPIC_API_KEY: a verified user gets 503 ai_not_configured — no 'answer', the secret's name in the log and…* |
+| **P92** the ENGINE drops a plan from CONFIG.plans while its definition stays (the reader's control) | `_pricing_config.py` | **RED** 1 failed, 151 passed (152) — *chatLlmPlans: the function's tier → chat caps table is the engine's (_pricing_config.py, read from source) > POSITIVE CONTROL: the reader found the engine's plans, the…* | **RED** 1 FAIL — *B. the engine's get_plan_state, executed over the row matrix* |
+| **P93** the preflight report carries another md5 for reserve_user_chat than the repository's body | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and …* | **RED** 2 FAIL — *P. the report's three md5 literals are the function bodies in schema_phase_pricing_v3_atomic.sql*; *P. on the stack the report answers ready: true — nothing blocking, the bodies this repository's, the meter closed to …* |
+| **P94** the preflight report no longer names a function that is missing | `chat_cap_always_preflight_report.sql` | green — cannot see it | **RED** 1 FAIL — *P. on a database with NONE of it (template1 — read, never written) the report answers ready: false and names the thre…* |
+| **P95** the preflight report WRITES: it notifies PostgREST while it reports | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it is ONE statement and it only reads: nothing in it writes, locks, sets or notifies* | **RED** 1 FAIL — *P. chat_cap_always_preflight_report.sql is ONE statement and reads only: nothing in it writes, locks, sets or notifies* |
+| **P96** a second statement follows the report (the Management API returns the LAST statement's result) | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it is ONE statement and it only reads: nothing in it writes, locks, sets or notifies* | **RED** 3 FAIL — *P. chat_cap_always_preflight_report.sql is ONE statement and reads only: nothing in it writes, locks, sets or notifies*; *P. on the stack the report answers ready: true — nothing blocking, the bodies this repository's, the meter closed to …* |
+| **P97** (harness) the 'user' who tries to move the meter holds the service key — the control can fail | `driver.ts` | green — cannot see it | **RED** 3 FAIL — *11.1 CONTROL (the stack's row security): a user at the cap can READ their own counter and cannot update, delete or up…*; *11.2 CONTROL (the stack's grants): …and cannot call reserve / commit / release with their session — refused, the mete…* |
+| **P98** index.ts sends the day under an argument name the SQL function does not have | `index.ts` | **RED** 1 failed, 151 passed (152) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > the argument names it requires are the ones index.ts calls the functions with — and the ta…* | **RED** 7 FAIL — *3.1 calls 1–3 of a trial user (3 a day): served*; *3.2 …each answered by ONE upstream request* |
+| **P99** the gate no longer removes the workspace of the user it deleted (a row left on the shared stack) | `check_chat_cap_real.py` | green — cannot see it | **RED** 1 FAIL — *Z. the gate left none of its users behind, and no workspace without a member that was not there before* |
+| **P100** an auth server that rate-limits the check (429) is read as 'nobody': a signed-in reader is told their session ended | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C1 — no verified user, no model call > what the auth server's answer MEANS: a user id is a user; its own 4xx is nobody; a rate limit, a 5xx, a network fa…* | green — cannot see it |
+| **P101** an auth-server error with no status (a network failure) is read as 'nobody' instead of 'could not ask' | `guard.ts` | **RED** 2 failed, 150 passed (152) — *chatLlmGuard: C1 — no verified user, no model call > what the auth server's answer MEANS: a user id is a user; its own 4xx is nobody; a rate limit, a 5xx, a network fa…* | **RED** 1 FAIL — *10.5 the auth server cannot be asked: 503 auth_unavailable — a real user's token is not taken on trust* |
+| **P102** the gate no longer refuses an API that is not a loopback address | `check_chat_cap_real.py` | green — cannot see it | **RED** 1 FAIL — *W. this gate REFUSES an API that is not a loopback address (exit 2, before anything is opened)* |
+| **P103** the gate no longer refuses an API that is not this stack's gateway (users made on one stack, 'removed' on another) | `check_chat_cap_real.py` | green — cannot see it | **RED** 1 FAIL — *W. this gate REFUSES a loopback API that is not this stack's gateway (exit 2, before a user is created)* |
+
+**RED** — verbatim from the run:
+
+```
+P1 — THE ORIGINAL DEFECT: a caller with no bearer is answered by the model, unmetered
+  files: supabase/functions/chat-llm/guard.ts
+  chat-cap-always: exit 1 — 14 failed | 138 passed (152)
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > POSITIVE CONTROL — the function's own refusal bodies carry a code AND a server sentence > sign_in
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refused turn reads as the app's own sentence, from the code — en > sign_in
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refused turn reads as the app's own sentence, from the code — en > the rendered conversation shows the sentence, with a link that stays on the site
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refused turn reads as the app's own sentence, from the code — ro > sign_in
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refused turn reads as the app's own sentence, from the code — ro > the rendered conversation shows the sentence, with a link that stays on the site
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > what each refusal does besides its sentence > 'sign in' and 'could not check your plan' are shown but never written to chat history; the cap message is, as it always was
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > what each refusal does besides its sentence > the cap locks the composer with the same headline and body, in the reader's language; the others do not
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > Bearer with no token: 401 sign_in_required, the auth server is not even asked, nothing upstream, nothing metered
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > a scheme that is not Bearer: 401 sign_in_required, the auth server is not even asked, nothing upstream, nothing metered
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > an empty header: 401 sign_in_required, the auth server is not even asked, nothing upstream, nothing metered
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > no Authorization header: 401 sign_in_required, the auth server is not even asked, nothing upstream, nothing metered
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > the refusal comes BEFORE the key is looked at: with no ANTHROPIC_API_KEY an unverified caller still gets 401, never the configuration notice
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > the refusal comes BEFORE the request is looked at: an unverified caller with an unreadable body is told to sign in, not what was wrong with it
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > the sentence follows the request's own language field; the code never changes
+
+P3 — THE SWITCH IS BACK: the reservation runs only when USAGE_LIMITS_ENABLED is set (index.ts)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-always: exit 1 — 2 failed | 150 passed (152)
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > no switch, no second door — the function's source > nothing reads USAGE_LIMITS_ENABLED: the cap has no off switch
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > no switch, no second door — the function's source > the environment the function reads is exactly: three Supabase values, the model key, the loopback upstream override, and the plan overrides
+
+P6 — FAIL OPEN: a reserve that errors or times out is treated as allowed
+  files: supabase/functions/chat-llm/guard.ts
+  chat-cap-always: exit 1 — 5 failed | 147 passed (152)
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > POSITIVE CONTROL — the function's own refusal bodies carry a code AND a server sentence > metering
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refused turn reads as the app's own sentence, from the code — en > metering
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refused turn reads as the app's own sentence, from the code — ro > metering
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C3 — fail closed: 'could not meter' is never 'allowed' > a reserve that never answers: 503 metering_unavailable, no model call, no commit, no release
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C3 — fail closed: 'could not meter' is never 'allowed' > a reserve that rejects: 503 metering_unavailable, no model call, no commit, no release
+
+P18 — a cap number changed on the function's side only (trial: 3 → 30 a day)
+  files: supabase/functions/chat-llm/plans.ts
+  chat-cap-always: exit 1 — 20 failed | 132 passed (152)
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C2 — a verified user is metered on every call: reserve → ONE model request → commit > a trial user's calls up to the cap are served and counted; the next is refused; none after it reaches the model
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C2 — a verified user is metered on every call: reserve → ONE model request → commit > at the DAILY cap: 429 chat_cap_reached / daily_cap_reached with the plan's numbers — and no upstream request
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C2 — a verified user is metered on every call: reserve → ONE model request → commit > two concurrent calls at cap − 1: exactly ONE is served — the RPC settles it, the function never pre-checks
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C3 — fail closed: 'could not meter' is never 'allowed' > NO ROW is not 'unreadable': a user with no subscriptions row is on the trial caps
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > the reservation is settled exactly once > …so a failed commit never buys an extra call: the stuck reservation still fills its slot
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > null
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > what that means, stated: the signup trigger's default row (tier NULL, plan 'professional') is on the MULTI caps in both runtimes — and only a row with no plan named at all, or tier 'trial', is on the trial caps
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"   ","plan":"professional"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"__proto__","plan":null}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"constructor","plan":null}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"enterprise","plan":"professional"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"hasOwnProperty","plan":"pro"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"owner","plan":"professional"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"toString","plan":null}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"trial","plan":"professional"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":null,"plan":"nonsense"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":null,"plan":null}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > the function's tier → chat caps table is the engine's (_pricing_config.py, read from source) > every tier string the engine knows resolves to the SAME daily and monthly cap here
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > the function's tier → chat caps table is the engine's (_pricing_config.py, read from source) > the function knows no plan the engine does not: each of its plans is an engine plan with the engine's numbers
+
+P20 — a cap number changed on the ENGINE's side only (pro: 25 → 30 a day)
+  files: src/engine/api/_pricing_config.py
+  chat-cap-always: exit 1 — 6 failed | 146 passed (152)
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":" PRO ","plan":"trial"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"pro","plan":"professional"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":"starter","plan":"professional"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > a subscriptions row resolves here exactly as _plan_state.get_plan_state resolves it > {"tier":null,"plan":"starter"}
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > the function's tier → chat caps table is the engine's (_pricing_config.py, read from source) > every tier string the engine knows resolves to the SAME daily and monthly cap here
+      × frontend/lib/__tests__/chatLlmPlans.test.ts > the function's tier → chat caps table is the engine's (_pricing_config.py, read from source) > the function knows no plan the engine does not: each of its plans is an engine plan with the engine's numbers
+
+P93 — the preflight report carries another md5 for reserve_user_chat than the repository's body
+  files: supabase/preflight/chat_cap_always_preflight_report.sql
+  chat-cap-always: exit 1 — 1 failed | 151 passed (152)
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > the preflight report the coordinator runs before the deploy > its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's
+
+P100 — an auth server that rate-limits the check (429) is read as 'nobody': a signed-in reader is told their session ended
+  files: supabase/functions/chat-llm/guard.ts
+  chat-cap-always: exit 1 — 2 failed | 150 passed (152)
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > what the auth server's answer MEANS: a user id is a user; its own 4xx is nobody; a rate limit, a 5xx, a network failure or an error with no status is 'could not ask' — never a yes, and never 'your session ended'
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > C1 — no verified user, no model call > …and each verdict's refusal: nobody → 401 sign_in_required; could not ask → 503 auth_unavailable; neither reaches the plan row, the meter or the model
+```
+
+**REVERT** — every planted file byte-identical to HEAD:
+
+```
+REVERTED — every planted file byte-identical to HEAD (git status, tracked files: M CLAUDE.md
+ M scripts/run_battery.py)
+  chat-cap-always: exit 0 — 152 passed (152)
+  chat-cap-real:   exit 0 — units=73, 0 FAIL
+STACK AFTER:  0 gate users, 0 workspaces without a member, 2 workspaces, 1 users
+103 plants in 748 s
+```
+
+(`CLAUDE.md` and `scripts/run_battery.py` in the first line are this lane's
+own documentation and gate registration, uncommitted while the run was made
+— neither is planted. "STACK AFTER" is the shared local stack as the run
+left it: the two workspaces and the one user are not this gate's.)
+
+Verdict: proven RED, 89 of 103 on this gate; the other
+14 are wiring, SQL or harness plants it cannot see and
+`chat-cap-real` reds on (P15, P16, P40, P52, P79, P83, P84, P87, P88, P94, P97, P99, P102, P103). No plant left both green.
+
+**After the repair it reds on:** a model request for a caller with no
+verified user (no bearer, a rejected bearer, an auth server that cannot be
+asked); a rate-limited or failed auth check read as "nobody" (a signed-in
+reader told to sign in again); a model request without a reservation, or after a refused one; a
+reservation that is neither committed nor released, settled twice, or settled
+on another day's rows; a meter, plan-row or key failure answered by calling
+the model, by a cap sentence, or by an "answer"; the function deciding a cap
+itself; a second upstream request for one reservation; anything a caller sends
+beyond `{role, content: string}` reaching the model; a cap, a legacy key, an
+override name or the row resolution differing from the engine's Python — on
+EITHER side; a switch, a second fetch, a counter read, a fourth RPC, a fifth
+file or a model call outside the guard appearing in the function; the
+stock-claim rule missing, reworded on one side, or behind a per-request
+fragment; the preflight report writing, carrying a second statement, an md5
+that is not the repository's body, or argument names `index.ts` does not
+send; a refusal rendered from the server's sentence, in the wrong language,
+as the generic "unavailable" panel, without the cap's number, or with a link
+that leaves the site; the cap not locking the composer; a 401 retried more
+than once, without a refresh, or anything else retried.
+
+**CANNOT SEE:** the Deno wiring — what `index.ts` actually sends to the RPCs
+and the auth server — and the SQL functions: `chat-cap-real`. The engine
+EXECUTING: this gate reads its source (the executed cross-check is
+`chat-cap-real` B / 0.1). What the preflight report ANSWERS on a database
+(`chat-cap-real` P). The environment of either deployed runtime: a
+`PRICING_CHAT_*` override set on one and not the other makes them disagree
+with every law green. The deployed function's source. supabase-js's real
+session refresh (stubbed). A browser: nothing here renders in one — the e2e
+specs intercept `functions/v1/chat-llm`.
+
+## chat-cap-real
+
+The same function — `supabase/functions/chat-llm/index.ts`, the file that is
+deployed, unmodified — run under Deno on a loopback port against the LOCAL
+Supabase stack's real auth server, real `subscriptions` row and real
+`reserve_user_chat` / `commit_user_chat` / `release_user_chat`, with a
+recorder where the model would be. CLAUDE.md, Milestone D, had said since
+July that the cap-reject path "has only been read-reviewed against the SQL
+signatures, not exercised against a real capped user". This is that exercise.
+
+| | |
+|---|---|
+| command | `python scripts/check_chat_cap_real.py` (the battery's interpreter: the engine must be importable) → `deno run --no-prompt --no-config --allow-net=127.0.0.1 --allow-env --allow-read=<repo> scripts/chat_cap_real/driver.ts` |
+| work count | `GATE-WORK chat-cap-real units=N`, floor **70** (measured 73: 2 refusals of the gate itself + 5 catalog + 4 preflight report + 1 engine + 60 driver + 1 cleanup) |
+| canary | `CHAT-CAP-REAL GATE` |
+| vacuous | `units=0`, exit 0, when Deno, docker, the stack's API or its database container is absent — `PASS(VACUOUS)` in the battery, never green |
+| refuses | exit 2 (a FAIL in the battery) when `CHAT_CAP_API_URL` is not `http://` on 127.0.0.1 / localhost / ::1, when its port is not the one the stack's gateway container (`supabase_kong_<project>`) publishes, or when the database container publishes on a non-local address |
+
+**SCOPE.**
+- **W** — the gate's own refusals, run as a child of itself: a non-loopback
+  API name and a loopback port that is not this stack's gateway each exit 2
+  before anything is opened or created. (Users are created through the API
+  and removed through the database container: two stacks would leave them
+  on one while the other reported none left.)
+- **A** — the stack's three chat functions are THIS repository's, md5 of the
+  body against `supabase/schema_phase_pricing_v3_atomic.sql`. Nothing is
+  applied to the stack (it is shared): a stack whose functions differ FAILS.
+  The file's own grant lines (service_role only) are read; the stack's
+  catalog is read as a CONTROL.
+- **P** — the coordinator's PREFLIGHT REPORT
+  (`supabase/preflight/chat_cap_always_preflight_report.sql`), handed to
+  psql as one batch, the way `supabase db query -f` hands it to production:
+  it is one statement that only reads; its md5 literals are the SQL file's;
+  on the stack it answers `ready: true`, nothing blocking, the bodies the
+  repository's, the meter closed to the browser's roles; on a database with
+  none of the objects (the cluster's `template1` — read, never written) it
+  answers `ready: false` and names the three functions and the three tables
+  instead of erroring.
+- **B** — the engine's real `_plan_state.get_plan_state` (this checkout's
+  `src/`, a stub only where its HTTP read is) executed over 115 subscription
+  rows; it fails if the engine did not read every row or degraded the matrix
+  to fewer than five plans.
+- **0.1** — the function's `plans.ts` resolves the same 115 rows to the same
+  plan and caps.
+- **1–11** — `index.ts` itself: the preflight and 405; ten calls that are
+  not a verified user's (no header, the anon key, a service-role key,
+  garbage, a token naming a real user signed with another secret, an
+  unsigned one, the REAL token of a user since deleted, a correctly signed
+  EXPIRED one …) → 401 and the recorder saw nothing; a trial user's three
+  calls served and counted, the fourth and fifth refused with the typed body
+  and no upstream request; what the ONE upstream request carried (model,
+  `max_tokens`, the cached system prompt with the rule, a direct caller's
+  extra fields absent); the monthly cap; a 529 released; two concurrent
+  calls with one slot left, and six concurrent FIRST calls of a user with no
+  counter rows yet (exactly three served); the caps of the signup trigger's
+  row (multi 40 / 200 — as the engine resolves it), of no row (trial) and of
+  `pro`; four unsendable requests unmetered; FAIL CLOSED — the function with
+  a key the RPCs refuse, with a key the gateway rejects, with an auth server
+  on a closed port, with no model key, and with a non-loopback upstream
+  override (ignored: Deno refuses `api.anthropic.com`, the reservation is
+  released); and a user at the cap, with their own session, trying to
+  update, delete or upsert their counter rows and to call the three
+  functions through PostgREST — nothing written, the next call still
+  refused.
+- **Z** — none of the gate's users (`…@chat-gate.invalid`) is left, and no
+  workspace without a member that was not there before (the deleted user's
+  workspace is removed by its id).
+
+It cannot spend: the upstream is a recorder inside the driver's process and
+the process may open 127.0.0.1 only; the keys are minted from the local
+stack's own JWT secret and never printed; no production value is read.
+
+**PLANT.** The same 103 (table under `chat-cap-always`). This gate is RED
+on 64 of them; these it alone sees:
+
+- **P15** the caps never reach the meter: index.ts sends null for both (WIRING) — 3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers; 3.6 call 5: refused again (the sentence in the request's language)
+- **P16** index.ts trusts the token's own claims when the auth server says no (WIRING) — 2.6 a token naming a real user, signed with another secret: 401 (the auth server is asked — the claims are never trus…; 2.7 an unsigned token naming a real user: 401
+- **P40** the refusals lose their CORS headers (the browser cannot read the 401) — 2.2 …with the CORS header the browser needs to read it
+- **P52** the gate leaves its users on the stack — Z. the gate left none of its users behind, and no workspace without a member that was not there before
+- **P79** the upstream request carries another API version — 4.1 the upstream request: POST /v1/messages, the function's key, the API version
+- **P83** (harness) the driver forgets to put its trial user on tier 'trial' — 3.0 the trial user's row is tier 'trial'; 3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers
+- **P84** (harness) the driver forgets to delete the plan row of its 'no row' user — 8.3 a user with NO subscriptions row; 8.4 …is on the TRIAL caps: the 3rd call is served, the 4th refused
+- **P87** the repository's migration grants reserve_user_chat to signed-in users — A. schema_phase_pricing_v3_atomic.sql revokes the three functions from public, anon and authenticated and grants them…
+- **P88** the ENGINE's plan read fails and silently degrades every row to trial — B. the engine's get_plan_state, executed over the row matrix
+- **P94** the preflight report no longer names a function that is missing — P. on a database with NONE of it (template1 — read, never written) the report answers ready: false and names the thre…
+- **P97** (harness) the 'user' who tries to move the meter holds the service key — the control can fail — 11.1 CONTROL (the stack's row security): a user at the cap can READ their own counter and cannot update, delete or up…; 11.2 CONTROL (the stack's grants): …and cannot call reserve / commit / release with their session — refused, the mete…
+- **P99** the gate no longer removes the workspace of the user it deleted (a row left on the shared stack) — Z. the gate left none of its users behind, and no workspace without a member that was not there before
+- **P102** the gate no longer refuses an API that is not a loopback address — W. this gate REFUSES an API that is not a loopback address (exit 2, before anything is opened)
+- **P103** the gate no longer refuses an API that is not this stack's gateway (users made on one stack, 'removed' on another) — W. this gate REFUSES a loopback API that is not this stack's gateway (exit 2, before a user is created)
+
+**RED** — verbatim:
+
+```
+P1 — THE ORIGINAL DEFECT: a caller with no bearer is answered by the model, unmetered
+  files: supabase/functions/chat-llm/guard.ts
+  chat-cap-real:   exit 1 — units=73, 6 FAIL
+      FAIL 2.1 no Authorization header: 401 sign_in_required
+      FAIL 2.10 the refusal's sentence follows the request's language field
+      FAIL 2.11 unauthenticated with an unreadable body: still 401, not 400
+      FAIL 2.12 across those ten calls the recorder saw NO upstream request
+      FAIL 10.7 no ANTHROPIC_API_KEY: a verified user gets 503 ai_not_configured — no 'answer', the secret's name in the log and not in the reply; an unverified caller still 401
+      FAIL 10.8 …no upstream request, nothing reserved
+
+P15 — the caps never reach the meter: index.ts sends null for both (WIRING)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-real:   exit 1 — units=73, 14 FAIL
+      FAIL 3.5 call 4: 429 chat_cap_reached / daily_cap_reached with the plan's numbers
+      FAIL 3.6 call 5: refused again (the sentence in the request's language)
+      FAIL 3.7 the refused calls made NO upstream request
+      FAIL 3.8 …and moved no counter
+      FAIL 5.1 at the MONTHLY cap: 429 chat_cap_reached / monthly_cap_reached
+      FAIL 5.2 …no upstream request, no counter moved
+      FAIL 7.1 two concurrent calls with one slot left: exactly one served, one refused
+      FAIL 7.2 …ONE upstream request
+      FAIL 7.3 …the counter at the cap exactly, nothing left reserved
+      FAIL 7.4 six concurrent FIRST calls of a trial user (3 a day, no counter rows yet): exactly three served, three refused — three upstream requests, the counter at the cap, nothing left reserved
+      FAIL 8.2 …is metered on the MULTI caps (40 a day), as the engine resolves that row: the 40th call is served, the 41st refused
+      FAIL 8.4 …is on the TRIAL caps: the 3rd call is served, the 4th refused
+      FAIL 8.5 tier 'pro': 25 a day
+      FAIL 11.3 …so their next call is still refused, with no upstream request
+
+P16 — index.ts trusts the token's own claims when the auth server says no (WIRING)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-real:   exit 1 — units=73, 10 FAIL
+      FAIL 2.6 a token naming a real user, signed with another secret: 401 (the auth server is asked — the claims are never trusted)
+      FAIL 2.7 an unsigned token naming a real user: 401
+      FAIL 2.8 a real, unexpired token whose user has since been DELETED: 401
+      FAIL 2.9 an EXPIRED token for a real user, correctly signed: 401
+      FAIL 2.12 across those ten calls the recorder saw NO upstream request
+      FAIL 2.13 …and nothing was metered for the user the forged and expired tokens named
+      FAIL 3.1 calls 1–3 of a trial user (3 a day): served
+      FAIL 3.2 …each answered by ONE upstream request
+      FAIL 3.3 …with the recorder's answers
+      FAIL 10.5 the auth server cannot be asked: 503 auth_unavailable — a real user's token is not taken on trust
+
+P23 — the repository's SQL is not what the stack runs (reserve: `>=` → `>`)
+  files: supabase/schema_phase_pricing_v3_atomic.sql
+  chat-cap-real:   exit 1 — units=73, 2 FAIL
+      FAIL A. the stack's reserve_user_chat is this repository's, body for body
+      FAIL P. the report's three md5 literals are the function bodies in schema_phase_pricing_v3_atomic.sql
+
+P97 — (harness) the 'user' who tries to move the meter holds the service key — the control can fail
+  files: scripts/chat_cap_real/driver.ts
+  chat-cap-real:   exit 1 — units=73, 3 FAIL
+      FAIL 11.1 CONTROL (the stack's row security): a user at the cap can READ their own counter and cannot update, delete or upsert it — six writes, no row written, the meter where it was
+      FAIL 11.2 CONTROL (the stack's grants): …and cannot call reserve / commit / release with their session — refused, the meter where it was
+      FAIL 11.3 …so their next call is still refused, with no upstream request
+
+P99 — the gate no longer removes the workspace of the user it deleted (a row left on the shared stack)
+  files: scripts/check_chat_cap_real.py
+  chat-cap-real:   exit 1 — units=73, 1 FAIL
+      FAIL Z. the gate left none of its users behind, and no workspace without a member that was not there before
+  (aftermath of the plant: 1 workspace(s) of the deleted gate user removed by hand)
+
+P102 — the gate no longer refuses an API that is not a loopback address
+  files: scripts/check_chat_cap_real.py
+  chat-cap-real:   exit 1 — units=73, 1 FAIL
+      FAIL W. this gate REFUSES an API that is not a loopback address (exit 2, before anything is opened)
+
+P103 — the gate no longer refuses an API that is not this stack's gateway (users made on one stack, 'removed' on another)
+  files: scripts/check_chat_cap_real.py
+  chat-cap-real:   exit 1 — units=73, 1 FAIL
+      FAIL W. this gate REFUSES a loopback API that is not this stack's gateway (exit 2, before a user is created)
+```
+
+**REVERT** — the final lines of the same run:
+
+```
+REVERTED — every planted file byte-identical to HEAD (git status, tracked files: M CLAUDE.md
+ M scripts/run_battery.py)
+  chat-cap-always: exit 0 — 152 passed (152)
+  chat-cap-real:   exit 0 — units=73, 0 FAIL
+STACK AFTER:  0 gate users, 0 workspaces without a member, 2 workspaces, 1 users
+103 plants in 748 s
+```
+
+Verdict: proven RED, 64 of 103 on this gate.
+
+**NOT PLANTED ON THE STACK — three controls on the stack itself.** `A.
+CONTROL (the stack's catalog)` (the three functions executable by
+service_role only), `8.1 CONTROL (the stack's signup trigger)` (a new
+signup's row is tier NULL, plan `professional`) and `11.1 / 11.2 CONTROL (the
+stack's row security and grants)` read the SHARED stack. Turning one red on
+the stack's side means granting an API role EXECUTE, replacing
+`handle_new_user`, or adding a write policy, on a stack other lanes' gates
+read — this gate creates and removes its own users and nothing else. Each
+fails by construction on a stack shaped differently. The repository's side
+of the first IS planted (P87); the third is shown able to fail from the
+harness's side (P97: the same writes with the service key move the meter).
+
+**After the repair it reds on:** the deployed file answering a caller it
+cannot verify with a model request; trusting a token's own claims; a
+reservation not made, made with caps the plan does not have, not committed
+or not released; a refused reservation reaching the recorder; more served
+calls than remaining slots; a row resolved to other caps than the engine
+resolves it to — or the engine degrading to trial; a meter, plan or auth
+failure answered with anything but its typed 503; a second upstream request;
+a request body that is not the five fields; a caller's extra fields reaching
+the recorder; an upstream override that is not loopback being honoured; the
+repository's SQL for the three functions differing from what the stack runs;
+an RPC called under an argument name the SQL does not have; the preflight
+report erroring, writing, or not naming what is missing; a refusal without
+its CORS header, or a preflight that is not answered; a gate user or a
+memberless workspace left on the stack; the gate itself running against a
+non-loopback API, or against an API that is not its database's stack.
+
+**MEASURED BY HAND, NOT BY THIS GATE (2026-10-04).** Two things the gate
+does not do on every run, done once, on the same local stack, with the
+branch's files unchanged.
+
+*1. The Supabase edge runtime.* The gate runs `index.ts` under plain Deno.
+The same four files (byte-identical copies) were served by `supabase
+functions serve --no-verify-jwt` (CLI 2.95.4, `edge-runtime` v1.73.13,
+"compatible with Deno v2.1.4") from a scratch project directory attached to
+the stack, and called through the stack's own gateway
+(`/functions/v1/chat-llm`). The model was a scratch function in the same
+container: the function's loopback-only override pointed at the runtime's
+own port (`http://127.0.0.1:8081`), whose router sends `/v1/messages` to it —
+no request left the machine. The users were `…@chat-gate.invalid`, removed
+afterwards; the runtime's container was removed.
+
+```
+PASS S1 OPTIONS: 200
+PASS S2 no Authorization header: 401 sign_in_required, the function's own CORS headers on the refusal
+PASS S3 the anon key as the bearer: 401
+PASS S4 a bearer that is not a token: 401
+PASS S5 the sentence follows the request's language
+PASS S6 the recorder saw nothing across the refusals
+PASS S7 calls 1-3 of a trial user: served with the recorder's answer
+PASS S8 three upstream requests, counted 3 / 3, nothing left reserved
+PASS S9 call 4: 429 chat_cap_reached / daily_cap_reached, the plan's numbers
+PASS S10 no upstream request, no counter moved
+PASS S11 the model answers 529: the sentinel, ONE upstream request, the reservation released
+PASS S12 six concurrent first calls (3 a day): three served, three refused, three upstream, the counter at the cap
+PASS S13 the signup trigger's row at 40 today: refused on the MULTI caps
+PASS S14 at the monthly cap: 429 monthly_cap_reached
+PASS S15 a system turn: 400, nothing metered
+CLEANUP: 0 probe users left; users 1 -> 1; workspaces 2 -> 2
+15/15 passed
+PASS T1 twenty concurrent calls with ONE slot left: exactly one served, one upstream request, the counter at the cap
+PASS T2 lower-case scheme and header, a body claiming a user id / model / max_tokens / tools / system: served for the BEARER's user, the upstream body unchanged
+PASS T3 nothing was metered for the user id the body claimed
+PASS T4 an 8 MB body with no bearer: 401, nothing upstream
+PASS T5 GET: 405
+MEASURED on this stack: a trial user's own PATCH of subscriptions.tier -> HTTP 200, rows returned 1, tier now 'multi'
+CLEANUP: 0 probe users left; users 1 -> 1
+5/5 passed
+```
+
+Every upstream request the scratch recorder logged read `model=claude-opus-4-7
+max_tokens=2000 keys=max_tokens,messages,model,output_config,system`. The
+"MEASURED" line is not this gate's law: it is the subscriptions write
+lockdown's hole, open on this stack, which is why the cap of any account is
+at most multi's until that lockdown is live. Why this is not in the gate:
+it needs a project directory the Docker VM can bind (here Colima shares the
+home directory only — the first attempt, from a scratch directory under
+`/private/tmp`, mounted an empty directory and every call answered `503
+BOOT_ERROR`, "failed to determine entrypoint"), it pulls an image, it
+starts a container on the shared stack and reloads its gateway. And the
+LOCAL gateway answers the CORS preflight itself and rewrites
+`access-control-allow-origin` to `*`, so the function's own preflight is
+seen only under plain Deno (1.1) — and on the platform.
+
+*2. The preflight report on schemas that are NOT the repository's.* A
+scratch database in the stack's cluster (created for this, dropped after),
+the meter's tables and `schema_phase_pricing_v3_atomic.sql` applied, then
+each deviation alone inside a transaction that was rolled back:
+
+```
+D0 control: nothing changed                    ready=True repo=True closed=True blocking=[]
+D1 reserve overloaded                          ready=False repo=True closed=True blocking=["reserve_user_chat is overloaded (2 functions): a request by argument names may be ambiguous"]
+D2 commit under other argument names           ready=False repo=False closed=False blocking=["commit_user_chat has other argument names than the function calls it with"]
+D3 plan_chat_daily_usage.reserved missing      ready=False repo=True closed=True blocking=["public.plan_chat_daily_usage has no column reserved"]
+D4 user_usage has no unique (user_id, month)   ready=False repo=True closed=True blocking=["public.user_usage has no unique key on (month, user_id) — the meter's ON CONFLICT needs it"]
+D5 service_role may not execute release        ready=False repo=True closed=True blocking=["service_role may not execute release_user_chat"]
+D6 authenticated may execute reserve           ready=True repo=True closed=False blocking=[]
+D7 reserve's body is not the repository's      ready=True repo=False closed=True blocking=[]
+D8 subscriptions has no tier column            ready=False repo=True closed=True blocking=["public.subscriptions has no column tier"]
+   subscriptions: {"rows_by_stored_key": null, "users_without_a_row": null}
+D9 only a PARTIAL unique index on user_usage   ready=False repo=True closed=True blocking=["public.user_usage has no unique key on (month, user_id) — the meter's ON CONFLICT needs it"]
+D10 reserve exists with p_day text             ready=False repo=False closed=True blocking=["reserve_user_chat exists, but not with the signature public.reserve_user_chat(uuid,text,date,integer,integer)"]
+D11 the three tables dropped, functions kept   ready=False repo=True closed=True blocking=["public.plan_chat_daily_usage does not exist", "public.subscriptions does not exist", "public.user_usage does not exist"]
+D12 release dropped                            ready=False repo=False closed=True blocking=["public.release_user_chat(uuid,text,date) does not exist"]
+D13 PUBLIC may execute commit                  ready=True repo=True closed=False blocking=[]
+D14 unique index with an extra column          ready=False repo=True closed=True blocking=["public.user_usage has no unique key on (month, user_id) — the meter's ON CONFLICT needs it"]
+```
+
+(`repo` is `functions_are_this_repository`, `closed` is
+`meter_closed_to_browser_roles`; in D2 the re-created function carries
+PostgreSQL's default PUBLIC execute, which the report says.) The report
+answered every shape and errored on none. On the base shape its
+`rows_by_stored_key` read a NULL tier and an EMPTY tier as `plan` (key
+`professional`, 2 rows) and ` PRO ` as `tier` / `pro` — the function's own
+reading.
+
+**CANNOT SEE:** production — the deployed function, its secrets, its
+`subscriptions` rows and whether its three SQL functions are this
+repository's (only the local stack's are compared; the preflight report is
+what reads production, and it is run by the coordinator, not by this gate).
+The HOSTED platform: its server-side bundler (`deploy --use-api`), its
+request-size and wall-clock limits, and its gateway (the local edge runtime
+was run once by hand, above; the gate itself runs the file under plain Deno
+2.7.14) — after a deploy, `supabase functions download chat-llm` must show
+four files and the unauthenticated POST must answer 401.
+The real model: no request leaves the machine, so the answer path is the
+recorder's shape. A plan row that cannot be read while the meter CAN (10.3
+uses a key the gateway rejects; it tells the two apart by the function's
+log, not by a reservation). A metering RPC that answers an unknown shape, a
+commit that fails after an answer, a call across midnight UTC
+(`chat-cap-always`). An OVERLOAD of one of the three functions, a missing
+column or unique key: the preflight report names them (by hand, above), but
+this gate creates no database, so no run of it sees one. What the report
+does not read at all: a counter column of another TYPE, a NOT NULL column
+the meter's insert does not supply, a trigger that raises, row security
+that binds the functions' owner — each passes the report and fails the
+first reservation (closed: `503 metering_unavailable`). Whether a user can
+write their own `subscriptions` row (on a repository-built database they
+can — the subscriptions write lockdown's gate, not this one). The browser,
+and every refusal's rendering.

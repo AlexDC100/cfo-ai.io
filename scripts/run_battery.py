@@ -2134,6 +2134,73 @@ def _engine_gates() -> List[Gate]:
                        "5.2489 in English, 5,2489 in Romanian — the same digits",
                        "compact and full money are lib/money's, in the page's language, cents under one unit",
                        "every bilingual string the engine serves the cockpit and the margin note")),
+        # ── ASK CFO AI — THE CAP IS ALWAYS ENFORCED (owner, 2026-10-03: "Fix
+        # the chat function so it enforces its cap on every call, signed in
+        # or not … Only after that will I add the Anthropic key.") The Edge
+        # Function (supabase/functions/chat-llm) answered a caller with no
+        # verified bearer with a model call and no reservation, and put the
+        # reservation for everyone else behind USAGE_LIMITS_ENABLED — unset
+        # in production.
+        #   chat-cap-always  the DECISION (guard.ts, pure, injected) with a
+        #                    recorder where the model would be: no bearer / a
+        #                    bearer that does not verify / an auth server that
+        #                    cannot be asked → no upstream request; reserve →
+        #                    ONE model request → commit, or release on
+        #                    failure, exactly once; the two caps; a dead meter
+        #                    or an unreadable plan row → 503, never "allowed";
+        #                    two concurrent calls at cap − 1; the tier → caps
+        #                    table and the row resolution READ from the
+        #                    engine's Python; the function's source (no
+        #                    switch, one fetch, three RPCs, no counter read,
+        #                    the stock-claim rule in the prompt); the
+        #                    coordinator's preflight report held to the SQL
+        #                    and to the names index.ts calls; the app's
+        #                    sentences from the refusal CODES in EN and RO;
+        #                    one refresh + one retry on a 401. Measured 152.
+        #   chat-cap-real    the DEPLOYED FILE (index.ts) under Deno on a
+        #                    loopback port against the local stack's real
+        #                    auth server, plan row and reserve / commit /
+        #                    release functions (checked body for body against
+        #                    this repository's SQL), the engine's real
+        #                    get_plan_state executed beside it, a recorder for
+        #                    the model, the process confined to 127.0.0.1; the
+        #                    preflight report run on the stack and on an empty
+        #                    database. VACUOUS — never green — without the
+        #                    stack or Deno; refuses (exit 2, a FAIL here) a
+        #                    non-loopback API and an API that is not that
+        #                    stack's gateway. Measured 73.
+        # Plant log: docs/engine_book/gates.md "chat-cap-always",
+        # "chat-cap-real".
+        Gate("chat-cap-always",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/chatLlmGuard.test.ts",
+              "frontend/lib/__tests__/chatLlmPlans.test.ts",
+              "frontend/lib/__tests__/chatLlmPrompt.test.ts",
+              "frontend/lib/__tests__/chatLlmSignInRetry.test.ts",
+              "frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=150,
+             units="chat-cap laws",
+             canaries=("GATE-WORK chat-cap-always engine-plans=",
+                       "GATE-WORK chat-cap-always function-files=",
+                       "no Authorization header: 401 sign_in_required, the auth server is not even asked, nothing upstream, nothing metered",
+                       "a bearer the auth server does not vouch for: 401 sign_in_required, nothing upstream, nothing metered, the plan row not read",
+                       "under the cap: reserve, call, commit — once each, in that order; never a release",
+                       "at the DAILY cap: 429 chat_cap_reached / daily_cap_reached with the plan's numbers — and no upstream request",
+                       "at the MONTHLY cap: 429 chat_cap_reached / monthly_cap_reached — and no upstream request",
+                       "two concurrent calls at cap − 1: exactly ONE is served — the RPC settles it, the function never pre-checks",
+                       "a reserve that rejects: 503 metering_unavailable, no model call, no commit, no release",
+                       "a plan row that rejects: 503 metering_unavailable — not the trial caps — and nothing reserved, nothing upstream",
+                       "every tier string the engine knows resolves to the SAME daily and monthly cap here",
+                       "nothing reads USAGE_LIMITS_ENABLED: the cap has no off switch",
+                       "the function's two sentences ARE the frontend's (the snapshot law's words), byte for byte",
+                       "its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's",
+                       "401, then a fresh session: ONE refresh, ONE retry with the NEW token — and the answer",
+                       "a refused turn reads as the app's own sentence, from the code — ro > sign_in")),
+        Gate("chat-cap-real", [PY, "scripts/check_chat_cap_real.py"],
+             work_rx=r"GATE-WORK chat-cap-real units=(\d+)", floor=70,
+             units="cases on the local stack", vacuous_ok=True,
+             canaries=("CHAT-CAP-REAL GATE",)),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
