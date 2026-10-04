@@ -21445,8 +21445,10 @@ reproduce); what changed, and the law that now holds it:
   with `SHARE_PATH_PIN=write`); a scanned or trusted module re-exports no
   value from a module nobody scans; a share-path file and a trusted module
   load nothing without an import declaration (`import()`, `require`,
-  `import.meta` beyond `.env`); and every use of `Math` beyond `abs`, `max`,
-  `min`, `sign` — and `toExponential` — is an arithmetic site.
+  `import.meta` beyond `.env`) and imports a value from no PACKAGE but the
+  four it imported before (`import divide from "lodash/divide"` needs no
+  local helper); and every use of `Math` beyond `abs`, `max`, `min`, `sign`
+  — and `toExponential` — is an arithmetic site.
 - *The Ratios tab believed a document's band lists whatever its direction*
   (medium): `printBandMovements` read `band_movements.verdicts_withheld`
   alone. The view carries the DOCUMENT's direction (`directionWithheld`,
@@ -21555,6 +21557,12 @@ the repair. A page law that fails waits out its `waitFor` (120 s a test), so a r
 file takes minutes; a green one seconds. (The runner was stopped by the harness's time limit after
 the last plant was restored; the REVERT run was made alone, on the same scratch copy.)
 
+One more evasion of the import law, found while closing the four above and planted after them (the
+gate's first file had gained its law — `112` tests; record `plants_round2_frontend_i6.json`, same
+runner): **I6** the division imported from a PACKAGE (lodash/divide) into the scanned file — no local module, no operator — baseline `112 passed (112)` and `8 passed (8)`, PLANT `1 failed, 111 passed (112)` · `8 passed (8)` (**RED**), REVERT `112 passed (112)` and `8 passed (8)`. A
+share-path file may import a value from four packages (React, the router, i18n, the icons); the
+second file stays green on I6 — the page prints the same strings — which is the limit stated below.
+
 
 **After the repair it reds on** (beyond the lists of the first fix round,
 which stand): the pre-flight green with a period served without the block
@@ -21572,7 +21580,8 @@ or giving no reason. On the page — THE REAL ONE: the notes or the controls
 under any condition or wrapper of the page's own, a statement tab not
 rendered without a document, the share block withheld from the composition,
 the controls hidden by a style; a use of `Math` beyond abs / max / min /
-sign, a dynamic import or an unscanned re-export on the share path; any
+sign, a dynamic import, an unscanned re-export or a new package on the
+share path; any
 arithmetic added to, changed in or removed from a trusted module without
 its pin; the Ratios tab reading the ratio block's flag without the
 document's direction (lists, counts, a crossing or an adjective's colour

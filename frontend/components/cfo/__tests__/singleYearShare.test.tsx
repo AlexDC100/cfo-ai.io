@@ -67,8 +67,9 @@
 // classifier over the row's own two figures (the engine serves no percentage
 // for a canonical row); the exported report / workbook / PDF's own share
 // column and band lists, and the command bar (out of scope, S8). THE SOURCE
-// LAWS' LIMIT: a share-path file holds no arithmetic and loads no module the
-// law cannot read; a module it imports holds the arithmetic it held when it
+// LAWS' LIMIT: a share-path file holds no arithmetic, loads no module the
+// law cannot read and imports no package but the four it imported before;
+// a module it imports holds the arithmetic it held when it
 // was trusted (pinned by text) and re-exports nothing unscanned — but what a
 // TRUSTED module itself imports is not followed (a division two modules
 // away, reached through a new function with no arithmetic of its own), and
@@ -2653,6 +2654,37 @@ function valueImportsOf(rel: string, source = read(rel)): string[] {
   return out;
 }
 
+/**
+ * THE PACKAGES A SHARE-PATH FILE MAY IMPORT A VALUE FROM: the four it
+ * imported when the law was written — React, the router, i18n and the
+ * icons (the query client is imported for its types only). A division
+ * needs no local helper either
+ * (`import divide from "lodash/divide"`): a package is code nobody here
+ * scans, so a NEW one on the share path is a thing to look at.
+ */
+const TRUSTED_PACKAGES = ["lucide-react", "react", "react-i18next", "react-router-dom"];
+
+/** Every PACKAGE a source imports or re-exports a value from (the specifier
+ *  as written; type-only imports and stylesheets left out). */
+function packageImportsOf(rel: string, source = read(rel)): string[] {
+  const sf = ts.createSourceFile(rel, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const out: string[] = [];
+  sf.forEachChild((n) => {
+    if (ts.isImportDeclaration(n) && ts.isStringLiteral(n.moduleSpecifier)) {
+      const spec = n.moduleSpecifier.text;
+      if (spec.endsWith(".css") || spec.startsWith("@/") || spec.startsWith(".")) return;
+      const clause = n.importClause;
+      const named = clause?.namedBindings && ts.isNamedImports(clause.namedBindings) ? clause.namedBindings.elements : null;
+      const typeOnly = !!clause && (clause.isTypeOnly || (!clause.name && !!named && named.every((e) => e.isTypeOnly)));
+      if (!typeOnly) out.push(spec);
+    } else if (ts.isExportDeclaration(n) && n.moduleSpecifier && ts.isStringLiteral(n.moduleSpecifier)) {
+      const spec = n.moduleSpecifier.text;
+      if (!spec.startsWith("@/") && !spec.startsWith(".") && !n.isTypeOnly) out.push(spec);
+    }
+  });
+  return out;
+}
+
 /** Every local module a source RE-EXPORTS a value from (`export { x } from`,
  *  `export * from`): a module reached through another one's name. A
  *  type-only re-export carries no code. */
@@ -2771,6 +2803,30 @@ describe("the source — no share is divided, multiplied or rounded in the brows
       "frontend/lib/shareHelper", "frontend/components/cfo/sibling",
     ]);
     statesChecked += 3;
+  });
+
+  it("a share-path file imports values only from the packages it imported before — no arithmetic library", () => {
+    const used = new Set<string>();
+    for (const rel of NO_ARITHMETIC) {
+      const packages = packageImportsOf(rel);
+      for (const pkg of packages) used.add(pkg);
+      expect(packages.filter((pkg) => !TRUSTED_PACKAGES.includes(pkg)), `${rel} imports a package nobody scans`).toEqual([]);
+      statesChecked += 1;
+    }
+    // The list only shrinks.
+    expect(TRUSTED_PACKAGES.filter((pkg) => !used.has(pkg))).toEqual([]);
+    // The reader sees what it must.
+    const src = [
+      'import divide from "lodash/divide";',
+      'import { create, all } from "mathjs";',
+      'import type { Big } from "big.js";',
+      'import { useMemo, type ReactNode } from "react";',
+      'import { local } from "@/lib/local";',
+      'import "./sheet.css";',
+      'export { round } from "lodash";',
+    ].join("\n");
+    expect(packageImportsOf("frontend/components/cfo/X.tsx", src)).toEqual(["lodash/divide", "mathjs", "react", "lodash"]);
+    statesChecked += 2;
   });
 
   it("no module is reached without an import declaration: no re-export to an unscanned module, no dynamic import, on the share path or in a trusted module", () => {

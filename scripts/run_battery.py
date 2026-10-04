@@ -2289,8 +2289,9 @@ def _engine_gates() -> List[Gate]:
         #                    wrapper element away left the text laws green.
         #                    The source laws: every use of Math beyond abs /
         #                    max / min / sign is arithmetic (a division needs
-        #                    no "/"); no dynamic import and no re-export to an
-        #                    unscanned module; every TRUSTED module holds the
+        #                    no "/"); no dynamic import, no re-export to an
+        #                    unscanned module and no new package on the share
+        #                    path; every TRUSTED module holds the
         #                    arithmetic it held when trusted (pinned by text,
         #                    fixtures/sharePathTrustedArithmetic.json). The
         #                    Ratios tab reads the DOCUMENT's direction, not
@@ -2334,7 +2335,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/pages/cfo/__tests__/singleYearSharePage.test.tsx",
               "--reporter=verbose"],
              # measured 2026-10-04 (second review round): 1,476 share cells
-             # and movers held to the served documents (113 tests, 528
+             # and movers held to the served documents (112 tests, 545
              # states), and 121 share cells on the REAL page (8 tests).
              work_rx=r"GATE-WORK single-year-share cells=(\d+)", floor=1300,
              units="share cells held to the served block and document",
@@ -2349,6 +2350,7 @@ def _engine_gates() -> List[Gate]:
                        "a document that LISTS band verdicts under a later comparison period is not believed",
                        # the source laws of the second review round
                        "no module is reached without an import declaration",
+                       "a share-path file imports values only from the packages it imported before",
                        "a trusted module holds the arithmetic it held when it was trusted, and no other",
                        "the Ratios tab does not believe one either (prior_is_later)",
                        "the share cell is the on-screen book's own",
