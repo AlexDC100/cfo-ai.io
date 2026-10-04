@@ -20767,3 +20767,212 @@ not exercised); that "% of revenue" needs a comparison document at all (a
 single-period common-size column is an engine change — owner ruling
 2026-10-04, after this release). The rendered page is checked live after
 each deploy, not by this gate.
+
+
+## no-anonymous-model-call
+
+**The incident (measured 2026-10-04, by a read-only audit and then on
+production).** `POST /api/financial-statements/parse` was mounted
+unconditionally on the real app and took no Authorization header, no
+dependency, no meter and no rate limiter. It sent the caller's PDF
+(`pdf_b64`) — or fetched a URL the caller NAMED (`pdf_url`: any host,
+addresses inside the Docker network included, the whole body read into memory
+before the 25 MB check) — to the model on the backend's key
+(`claude-opus-4-7`, 8,000 output tokens, five SDK retries) and returned the
+model's text. An anonymous POST with a 20-byte body answered 502 with the
+model API's 401 inside on both production hosts: the route reached the model
+client, and only the backend's key being invalid stopped the spend. No screen
+ever called the route. The upload pipeline does not go through HTTP: it builds
+the router object and calls the handler in-process.
+
+**The repair** (branch `fix/anonymous-model-routes`).
+`server.create_app()` no longer mounts `financial_statements.build_router()`.
+Nothing but tests and the corpus replay reached the route, all of them
+in-process, so it is unmounted rather than walled behind the operator bearer —
+an operator tool that needed it would have to be written first.
+`build_router()` stays because `pipeline.stage_extract` finds the route named
+`parse_document` on it; the handler is now the module-level `parse_document`,
+and `pipeline.py` is untouched. The handler itself fetches only the project's
+own document storage — https, the host and port of `VITE_SUPABASE_URL` (the
+setting `_supabase.load_config` reads; unset, unreadable or not https means
+nothing is fetched), the path prefix of the `documents` bucket's signed URLs,
+no credentials, no dot segments — refused before any request. No redirect is
+followed, the cap is enforced while the body is streamed, each phase has a
+30 s timeout and the whole download a 120 s deadline, an encoded body is
+refused, and a failure's text no longer quotes the signed URL. Bytes the .pdf
+branch does not read as a PDF (`_upload_type.reads_as_pdf`, the pipeline
+guard's own rule) are refused 415 before the SDK is imported.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_no_anonymous_model_call.py -q` |
+| work count | junit tests, floor **50** (measured 56). The sweep prints `GATE-WORK no-anonymous-model-call routes=388 requests=4619` (closed: 159 routes, 1,915 requests, 155 handlers entered, 2 walled, 2 refused by an auth dependency; open: 229 routes, 2,704 requests, 225 entered, 2 walled, 2 auth-refused) and floors them itself: 150 routes, 1,800 / 2,500 requests, 145 / 210 handlers entered |
+| canary | the twelve test names in `scripts/run_battery.py` |
+
+**The law.** Over EVERY route of the real `create_app()` — every method the
+route lists, path parameters filled, for a body-carrying method a JSON `{}`,
+the bodies that matter (`pdf_b64`, `pdf_url`, `messages`, `document_id`,
+`run`), every body the route's own schema accepts (all properties; the
+required ones alone; all properties with every free string a caller-named
+URL; each URL / inline-document / message property alone; a URL property
+pointing at the project's OWN storage) and a multipart file — sent with (a)
+no Authorization header, (b) a forged bearer (signed by a key the JWKS does
+not hold), (c) the project's public anon key as the bearer; a planted
+non-empty model key in the environment; the `anthropic` and `openai` modules
+replaced by recorders (every client class records its construction, every
+method on it records the call and raises, so nothing consumes a made-up
+answer); `httpx` replaced at the transport, `urllib` at `OpenerDirector.open`,
+`requests` at the adapter, each ANSWERING (the shared wire harness's provider
+bodies; PostgREST-shaped empties, a signing storage and a PDF for the
+project's own Supabase host; a PDF for a caller-named host) over a socket
+tripwire; in two flag states — `closed` (no surface flag) and `open`
+(`PUBLIC_MARKETS_ENABLED` and `SEC_EDGAR_ENABLED` set, with the cockpit, the
+radar, the AI lanes and the meter on):
+
+* ZERO model clients constructed and ZERO model calls, except on the routes
+  in `DECLARED`, which must each still be seen reaching a model;
+* ZERO outbound requests to a host — or a URL — the caller supplied, on any
+  route, with no census;
+* every route's endpoint ENTERED by at least one request (`Dependant.call` is
+  wrapped), or every answer the surface wall's own 404 body or an auth
+  dependency's 401 / 403 / 503. A route only ever answered 422 / 405 / a
+  router 404 is UNPROVEN and reds by name.
+
+**The census** (`DECLARED`, exact in the open state; the closed state declares
+nothing):
+
+| route | bound |
+|---|---|
+| `GET /api/public/intelligence/companies/{ticker}/ai-market-read` | the narrative (one completion) over the filings-derived profile (one more with `SEC_EDGAR_ENABLED`) |
+| `GET /api/public/intelligence/companies/{ticker}/exposure` | the filings-derived profile: one extraction per ticker and accession per process |
+| `GET /api/public/intelligence/companies/{ticker}/risk-score` | the same profile |
+| `GET /api/public/intelligence/supply-chain` | the same profile, for `?ticker=` |
+
+All four are mounted only with `PUBLIC_MARKETS_ENABLED`, and every completion
+is reserved in `engine.public.egress_ledger` before it is sent:
+`PUBLIC_LLM_COMPLETIONS_PER_DAY`, default 300 per UTC day per container. The
+bound is measured here — with the ceiling at 3, twenty cold anonymous reads
+over five tickers and the four routes (caches and the per-client limiter reset
+before each, the day's ledger kept) send exactly 3 completions and the last
+eight send none — and one request costs at most 2. Their behaviour is
+unchanged; the guard and cache laws are `tests/engine/test_public_egress.py`'s.
+
+The legacy SKU AI routes (`POST /api/analyze`, `POST /api/upload-excel`) are
+mounted and WALLED in both states. With `LEGACY_SKU_AI_ENABLED` set, the
+sweep's own rich body reaches `/api/analyze`'s model call — so the zero the
+sweep reports there is the wall, not a body that never got to the handler.
+
+The handler's own laws (43 of the 56 tests): twenty-four URLs that are not
+this project's storage (another host; a name inside the Docker network; an
+address literal; the metadata address; http; the project's host as a
+subdomain or as the userinfo of another; a backslash before the real host;
+credentials; another port; a trailing dot; the REST and auth APIs of the
+project; another bucket; an unsigned object path; a literal and an encoded
+climb out of the bucket; an empty segment; `file:`; scheme-relative; a
+newline; a non-ASCII host; not a URL; 5,000 characters) refused 400 with no
+request made and the URL not quoted; six unconfigured shapes of the project
+setting refuse the project's own signed URL 503; no redirect is followed
+(three targets); the cap while reading (a 60 MB body with no declared length:
+at most 27 MB pulled, the stream closed; a declared length over the cap: no
+byte pulled; an encoded body refused; inline base64 over the cap); the
+deadline under a driven clock; a failure's text without the signed URL; six
+kinds of non-PDF bytes, inline and downloaded, never reaching the model; what
+the .pdf branch reads as a PDF still sent; the pipeline's in-process contract
+(the router's `parse_document` route is the module's handler; one GET with
+30 s per phase, identity encoding; one client, one call, `claude-opus-4-7`,
+8,000 tokens). And the recorders are not blind: each transport and both SDKs
+are driven once and must be in the ledger, a raw request to the model API
+counting as a model call.
+
+### no-anonymous-model-call — PLANT / RED / REVERT (2026-10-04, branch `fix/anonymous-model-routes`)
+
+Runner: `specs-durable/spend_audit/parse_wall/plants.py` (and `plant_main.py`
+for the first row) — one PLANT at a time, ALONE, the file rewritten from the
+text held in memory and restored byte-exact (sha256 compared) after each;
+record `plants.json` beside it.
+
+**BASELINE** — exit `0`: `56 passed`.
+
+| PLANT | result |
+|---|---|
+| main 7ca386ec's own `server.py` and `financial_statements.py` (what production runs) | `48 failed, 8 passed` |
+| THE INCIDENT — the PDF model lane mounted on the app again (`include_router`, the repaired handler) | `6 failed, 50 passed` |
+| the handler fetches whatever URL it is handed (no allowlist) | `30 failed, 3 passed` † |
+| a public route fetches a URL its caller named (`/api/sessions/track` GETs its body's `name`) | `2 failed, 54 passed` |
+| the non-PDF refusal is gone | `6 failed, 2 passed` † |
+| the cap is checked after the whole body is read | `1 failed, 1 passed` † |
+| redirects are followed | `1 failed, 1 passed` † |
+| the whole-download deadline is gone | `1 failed, 1 passed` † |
+| the storage download has no timeout | `1 failed, 1 passed` † |
+| with no project configured the fetch goes ahead (fails open) | `6 failed, 25 passed` † |
+| the host is not compared with the project's | `3 failed, 22 passed` † |
+| any path on the project's host is fetched (no bucket prefix) | `2 failed, 23 passed` † |
+| http is fetched | `1 failed, 24 passed` † |
+| a URL carrying credentials is fetched | `1 failed, 24 passed` † |
+| a path that climbs out of the bucket is fetched | `2 failed, 23 passed` † |
+| the market read's completion is not reserved against the daily ceiling | `1 failed, 1 passed` † (8 completions sent against a ceiling of 3) |
+| the legacy SKU AI wall is removed | `3 failed, 53 passed` |
+| a declared public read stops reaching the model (the filings extraction returns before the wire) | `1 failed, 55 passed` (CENSUS STALE, three routes named) |
+| a new route the sweep cannot enter (a required header nobody sends) | `2 failed, 54 passed` (UNPROVEN, the route named) |
+| the pipeline can no longer find the handler by its route name | `1 failed` † |
+| a new anonymous route constructs a model client and never calls it | `2 failed, 54 passed` |
+| an encoded storage body is read | `1 failed` † |
+| a storage failure's text carries the signed URL | `1 failed, 1 passed` † |
+
+† run on the tests that name the law (`-k`); the others on the whole file.
+
+**RED** — every plant exits `1`. The incident's own red, with the mount
+planted back: `NO-ANONYMOUS-MODEL-CALL VIOLATED [closed] — 1 route(s)
+construct or call a model client for a caller with NO verified identity`,
+naming `POST /api/financial-statements/parse [anonymous, json-rich] —
+anthropic construct Anthropic(max_retries, timeout)` and `anthropic call
+messages.create model=claude-opus-4-7 max_tokens=8000`, in both states; the
+caller-supplied storage URL fetched (`the backend made 6 outbound request(s)
+to a host or URL the CALLER supplied`); `the PDF model lane is a route
+again`; and the unrouted path answering 415 instead of 404. On main's own two
+files the same route also GETs `http://caller-named-body.invalid/…` (12
+caller-named requests per state). That is the proof the sweep REACHES
+handlers: the law is red on the code production runs.
+**REVERT** — every file restored byte-exact; exit `0`: `56 passed`.
+Verdict: proven RED, twenty-three of twenty-three.
+
+**After the repair it reds on:** the PDF lane mounted on any app again (the
+route table and an AST census of `include_router`); any new route that
+constructs or calls a model client for a caller with no verified identity,
+in either flag state; a declared public read that no longer reaches a model
+(the census is stale) or whose completions are not reserved against the daily
+ceiling, or that costs more than two completions a request; the legacy SKU
+wall removed; any route that makes the backend request a host or URL its
+caller supplied; a route the sweep can no longer enter and that neither a
+wall nor an auth dependency refuses; the open state mounting no more than the
+closed one; the handler fetching outside the project's storage, with no
+project configured, over http, with credentials, off the bucket's prefix or
+through dot segments; a redirect followed; the cap checked after the read; no
+timeout or no deadline; an encoded body read; non-PDF bytes sent to the
+model; a failure text quoting the signed URL; `build_router()` no longer
+carrying a route named `parse_document`; a recorder that stopped recording.
+
+**CANNOT SEE:** signed-in spend — a member's re-runs, failed runs,
+`/reconcile`, `/briefing/regenerate` — the plan a free account resolves to,
+and the breaker's counting (other lanes); a handler that reads a REAL row
+through the service role with no bearer check and goes on to a model — the
+project's Supabase host answers PostgREST-shaped EMPTIES here, which is what
+a stranger naming a made-up id gets (measured in the sweep: outside the
+public surface, the only requests the project's Supabase host receives for a
+caller with NO header are from `/api/health`, the newsletter routes and
+`/api/contact-sales`; the member wall on every mutating route is
+`test_identity_wall.py`'s census); the
+public reads' ceiling across containers or restarts (the counter is in
+memory, per process); a model call made by a thread still running five
+seconds after the sweep's last request, or from an executor worker; a
+provider reached through a transport none of the recorders replace and with
+no socket; a handler that fetches from a request field the sweep does not
+fill with a URL (a non-string, a pattern-constrained or enum field, a string
+shorter than 21 characters, a header other than Referer / Origin /
+X-Forwarded-Host); the Edge Function `supabase/functions/chat-llm` (not this
+app); what the front proxy routes; whether production's `VITE_SUPABASE_URL`
+is the https host the pipeline's signed URLs carry (the deploy pre-flight
+prints `_configured_storage_origin()`); a local Supabase stack on http, where
+the PDF model lane now refuses to fetch (https is the rule; the owner rules
+whether a loopback origin is allowed). The route is checked live after each
+deploy: an anonymous POST must answer 404 on both hosts.

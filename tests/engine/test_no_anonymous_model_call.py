@@ -59,7 +59,7 @@ storage download), a PDF for a caller-named host. A socket tripwire under all
 of them records and refuses. The MODEL recorder raises after recording, so no
 handler consumes or caches a made-up answer.
 
-THE PDF LANE'S OWN LAWS (P2) are here too, on the handler itself: a URL that
+THE PDF LANE'S OWN LAWS are here too, on the handler itself: a URL that
 is not this project's document storage is refused before any request; with no
 project configured nothing is fetched; no redirect is followed; the 25 MB cap
 is enforced while reading; the download has a timeout and a deadline; bytes
@@ -93,6 +93,10 @@ ceiling; the legacy SKU wall removed; a route that fetches a URL its caller
 named; a route the sweep can no longer enter; the handler fetching outside
 the project's storage, following a redirect, reading past the cap, losing its
 timeout, or sending non-PDF bytes to the model.
+
+NOTE ON INVARIANT IDS. This file claims NO bare invariant marker (a capital
+letter and digits): scripts/generate_engine_book.py would credit it with
+someone else's invariant. The register is docs/engine_book/gates.md.
 
 Hermetic: nothing leaves the machine (every transport is replaced, the
 socket tripwire refuses the rest); the app is built against the test-manifest
@@ -1129,9 +1133,9 @@ def test_the_sweep_covered_the_whole_route_table_in_both_states(sweeps):
     assert len(opened.routes) > len(closed.routes), (
         "the open state mounts no more routes than the closed one (%d vs %d): the flags did "
         "not take" % (len(opened.routes), len(closed.routes)))
-    # Measured 2026-10-04: closed 159 routes / 1,816 requests / 155 entered;
-    # open 229 routes / 2,563 requests / 225 entered. Collapse detectors.
-    assert closed.requests >= 1700 and opened.requests >= 2400, (closed.requests, opened.requests)
+    # Measured 2026-10-04: closed 159 routes / 1,915 requests / 155 entered;
+    # open 229 routes / 2,704 requests / 225 entered. Collapse detectors.
+    assert closed.requests >= 1800 and opened.requests >= 2500, (closed.requests, opened.requests)
     for sweep, floor in ((closed, 145), (opened, 210)):
         entered = len(sweep.ledger.reached & set(sweep.routes))
         assert entered >= floor, "VACUOUS — the sweep entered only %d handlers (%s)" % (entered, sweep.state)
@@ -1239,7 +1243,7 @@ def test_the_legacy_sku_routes_reach_a_model_the_moment_their_wall_is_lifted(tmp
 
 
 # ══════════════════════════════════════════════════════════════════════
-# P1 — the PDF model lane is mounted on no app
+# The PDF model lane is mounted on no app
 # ══════════════════════════════════════════════════════════════════════
 
 
@@ -1297,7 +1301,7 @@ def test_the_unrouted_path_answers_404_and_reaches_nothing(tmp_path):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# P2 — what the handler itself will fetch, and what it sends
+# What the handler itself will fetch, and what it sends
 # ══════════════════════════════════════════════════════════════════════
 
 _OWN = "https://%s/storage/v1/object/sign/documents/%s/uploads/%s.pdf?token=t" % (SUPABASE_HOST, UUID, UUID)

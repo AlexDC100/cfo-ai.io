@@ -305,6 +305,50 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
                        "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
                        "test_the_full_openapi_schema_generates")),
+        # NO-ANONYMOUS-MODEL-CALL (2026-10-04, branch fix/anonymous-model-routes).
+        # THE INCIDENT: `POST /api/financial-statements/parse` was mounted
+        # unconditionally and took no bearer, no dependency, no meter and no
+        # limiter. It sent the caller's PDF (`pdf_b64`) — or fetched a URL the
+        # CALLER named (`pdf_url`, addresses inside the Docker network
+        # included) — to the model on the backend's key. Measured on
+        # production: an anonymous 20-byte POST answered 502 with the model
+        # API's 401 inside; only the key being invalid stopped the spend. The
+        # route is no longer mounted (the pipeline calls the handler
+        # in-process) and the handler fetches only the project's own document
+        # storage, bounded. THE LAW, over EVERY route of the real
+        # create_app() in two flag states (the public markets surface closed,
+        # and open with the filings layer, the cockpit and the AI lanes on):
+        # every method, path parameters filled, a JSON {}, the bodies that
+        # matter (pdf_b64 / pdf_url / messages / document_id / run), every
+        # body the route's own schema accepts (incl. one where every free
+        # string is a caller-named URL) and a multipart file — sent with no
+        # Authorization header, with a forged bearer, and with the project's
+        # public anon key as the bearer; a planted model key in the
+        # environment, the anthropic and openai SDKs replaced by recorders,
+        # httpx / urllib / requests replaced by answering recorders over a
+        # socket tripwire. ZERO model clients constructed or called except on
+        # the four DECLARED public market reads (each bounded by the daily
+        # completion ceiling, measured: 3 a day -> exactly 3 sent over 20
+        # cold reads), ZERO outbound requests to a host or URL the caller
+        # supplied, and every handler ENTERED or refused by a wall / an auth
+        # dependency (a 404 or 422 before the handler is not evidence).
+        # Measured: 388 routes, 4,619 requests, 56 tests. Plants and what it
+        # cannot see: docs/engine_book/gates.md § no-anonymous-model-call.
+        Gate("no-anonymous-model-call",
+             [PY, "-m", "pytest", "tests/engine/test_no_anonymous_model_call.py", "-q"],
+             work_junit=True, floor=50, units="tests",
+             canaries=("test_no_anonymous_request_constructs_or_calls_a_model_client",
+                       "test_no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named",
+                       "test_the_sweep_enters_every_handler_or_meets_a_wall",
+                       "test_the_sweep_covered_the_whole_route_table_in_both_states",
+                       "test_the_declared_public_reads_stop_at_their_daily_ceiling",
+                       "test_the_legacy_sku_routes_reach_a_model_the_moment_their_wall_is_lifted",
+                       "test_the_pdf_model_lane_is_mounted_on_no_app",
+                       "test_a_url_that_is_not_this_projects_storage_is_refused_before_any_request",
+                       "test_the_size_cap_is_enforced_while_reading",
+                       "test_bytes_that_are_not_a_pdf_never_reach_the_model",
+                       "test_the_pipelines_in_process_contract_holds",
+                       "test_the_recorders_see_every_transport_and_both_sdks")),
         # UPLOAD-REAL-TYPE (hotfix/upload-real-type 31dfce26 + b58bdff8,
         # landed in release r-rulings2, 2026-10-01): the 2026-09-23 incident —
         # a Word document named balanta_de_verificare_07.2025.pdf travelled
