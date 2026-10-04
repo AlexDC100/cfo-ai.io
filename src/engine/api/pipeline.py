@@ -2537,10 +2537,14 @@ def superseded_marker(replacing_document_id: str) -> str:
 
 
 def _record_takeover(document_id: Any, *, staged: str, served: str,
-                     superseded_document: Optional[str]) -> None:
+                     superseded_document: Optional[str], rerun: bool = False) -> None:
+    """`rerun`: the staged row is a Docs-panel re-run's, beside the
+    document's OWN month (`stage_persist`, staged mode) — the takeover then
+    replaces that row's analysis in place and archives nobody."""
     with _TAKEOVERS_LOCK:
         _TAKEOVERS_BY_RUN[str(document_id)] = {"staged": str(staged), "served": str(served),
-                                               "superseded_document": superseded_document}
+                                               "superseded_document": superseded_document,
+                                               "rerun": bool(rerun)}
 
 
 def _pop_takeover(document_id: Any) -> Optional[Dict[str, Any]]:
@@ -2686,13 +2690,36 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
          served row takes it, the staged row goes;
       4. the document is pinned to the served row; the superseded document
          is archived with a marker naming its replacement — bytes and row
-         kept, restorable."""
+         kept, restorable.
+
+    A DOCS-PANEL RE-RUN (the record says `rerun`) is staged beside the
+    document's OWN month. The same keep decisions and the same staged-only
+    deletes come first; then:
+      T0  the month must still be this document's own (`RerunOvertaken`
+          otherwise — never "the staged row stands": a staged row names no
+          source and is nobody's month), and a re-run that filed the document
+          under another month must find that month free (`RerunMonthTaken`);
+      T2  THE COMMIT POINT: the staged row's marker gets `takeover_began_at`
+          (with the reason the kept briefing is stale and the tables the run
+          stored nothing in), then the document's row says the replacement
+          was interrupted. From here a dead process is RESUMED, never
+          dropped (`_resume_staged_rerun`); before it, nothing of the month
+          has been touched;
+      T3  the table loop, as for a re-upload;
+      T5  the month's row takes the staged row's columns WITHOUT the marker
+          (and the month itself, when the re-run re-filed the document);
+      T6  the document: pinned to its month, analysed, the interrupted
+          marker cleared — and the staged row LAST, so a death before it is
+          resumed and a death after it leaves nothing false."""
     record = _pop_takeover(doc.get("id"))
     if not record or record.get("staged") != str(period_id):
         return period_id
     staged, served = record["staged"], record["served"]
     org_id = doc.get("org_id")
     superseded = record.get("superseded_document")
+    rerun = bool(record.get("rerun"))
+    staged_row: Dict[str, Any] = {}
+    served_row: Dict[str, Any] = {}
     with _supabase.admin() as admin_client:
         # THE STAGED ROW MUST STILL BE THERE. A delete of it during the run
         # (DELETE /api/period, a purge) left nothing to move — and the steps
@@ -2702,20 +2729,50 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
         # BEFORE "the month's row is gone": with both rows gone the run
         # would otherwise be reported analysed, pinned to a period that
         # does not exist.
-        staged_present = admin_client.select(
-            "financial_periods",
-            filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"},
-            columns="id", limit=1,
-        ) or []
+        # (A re-run's staged row is read WHOLE, once: its columns are what
+        # the commit point re-writes and what the month's row takes.)
+        if rerun:
+            staged_present = admin_client.select(
+                "financial_periods",
+                filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"},
+                limit=1,
+            ) or []
+        else:
+            staged_present = admin_client.select(
+                "financial_periods",
+                filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"},
+                columns="id", limit=1,
+            ) or []
         if not staged_present:
             raise StagedPeriodGone(
                 "The period this run was staged under no longer exists — the month "
                 "was not replaced; the analysis already there is unchanged.")
-        served_rows = admin_client.select(
-            "financial_periods",
-            filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
-            columns="id,source_document_id", limit=1,
-        ) or []
+        if rerun:
+            # T0. THE MONTH IS STILL THIS DOCUMENT'S OWN — the ownership look
+            # of the route and of the mint, made a last time before anything
+            # of the month is written. A newer upload that took the month
+            # over, a period its user cleared, a document deleted for good:
+            # the re-run is overtaken and the month is not touched.
+            staged_row = staged_present[0]
+            try:
+                own = _own_periods_for_rerun(admin_client, doc.get("id"), org_id)
+            except RerunRefused:
+                raise RerunOvertaken()
+            own = [o for o in own if str(o.get("id")) == str(served)]
+            if not own:
+                raise RerunOvertaken()
+            served_row = own[0]
+            if (str(staged_row.get("period_end") or "")[:10] != str(served_row.get("period_end") or "")[:10]
+                    and _month_is_another_rows(admin_client, str(org_id), staged_row.get("period_end"), served)):
+                raise RerunMonthTaken()
+        if rerun:
+            served_rows = [served_row]
+        else:
+            served_rows = admin_client.select(
+                "financial_periods",
+                filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+                columns="id,source_document_id", limit=1,
+            ) or []
         if not served_rows:
             # The month's row went away during the run (a delete, a move):
             # the staged row is simply the month's row now.
@@ -2774,6 +2831,34 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
             admin_client.delete(
                 "alerts",
                 filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+        #: Why the month's kept briefing is stale — the run's own code, when
+        #: the caller has it.
+        _reason = ((narration_unavailable
+                    or stored_briefing_failure_code((staged_briefing or {}).get("body"))
+                    or "provider_error") if keep_served_briefing else None)
+        if rerun:
+            # T2. THE COMMIT POINT — after every staged-only delete, before
+            # the first statement that touches the month. Both writes raise
+            # on failure: the month is then untouched and the staged row
+            # (uncommitted, or committed with nothing applied) is cleaned up
+            # by the failure handler.
+            emptied = [t for t in TAKEOVER_TABLES if t not in stays and not admin_client.select(
+                t, filters={"period_id": f"eq.{staged}"}, columns="period_id", limit=1)]
+            envelope = staged_row.get("assembled_canonical_v1")
+            envelope = dict(envelope) if isinstance(envelope, dict) else {}
+            marker = dict(envelope.get(_staged_rerun.MARKER_KEY) or {
+                "document_id": str(doc.get("id")), "served_period_id": str(served),
+                "staged_at": _now_iso()})
+            marker.update({"takeover_began_at": _now_iso(),
+                           "keep_briefing_reason": str(_reason) if _reason else None,
+                           "emptied": emptied})
+            envelope[_staged_rerun.MARKER_KEY] = marker
+            admin_client.update(
+                "financial_periods", {"assembled_canonical_v1": envelope},
+                filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+            admin_client.update(
+                "documents", {"error": RERUN_FAILED_PREFIX + RERUN_INTERRUPTED},
+                filters={"id": f"eq.{doc.get('id')}", "org_id": f"eq.{org_id}"})
         for table in TAKEOVER_TABLES:
             if table in stays:
                 continue
@@ -2787,14 +2872,35 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
                 filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}",
                          "target_id": f"eq.{staged}"})
         if keep_served_briefing:
-            _reason = (narration_unavailable
-                       or stored_briefing_failure_code((staged_briefing or {}).get("body"))
-                       or "provider_error")
             logger.warning("[stage_persist] %s: the staged run's narration is unavailable (%s) — "
                            "the month's briefing and recommendations on period %s are kept; "
                            "briefing marked stale",
                            doc.get("id"), _reason, served)
             _mark_briefing_stale(admin_client, served_briefing_row, served, org_id, str(_reason))
+        # The period keeps its id and its statements have just been replaced:
+        # the benchmark report cached for it compares the previous file's.
+        _bust_benchmark_cache_of(admin_client, served, org_id)
+        if rerun:
+            # T5. the month's row takes the run's columns, the marker gone.
+            admin_client.update(
+                "financial_periods", _month_columns_from_staged_row(staged_row, served_row),
+                filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"})
+            # T6. the document, then the staged row — LAST. The document is
+            # what a completed takeover leaves it whatever it was before:
+            # pinned to its month and analysed (a document that was `failed`
+            # over its period would otherwise stay failed over the new
+            # analysis with its error cleared, should the orchestrator's own
+            # last status write be lost).
+            admin_client.update(
+                "documents", {"period_id": served, "status": "analyzed", "error": None},
+                filters={"id": f"eq.{doc.get('id')}", "org_id": f"eq.{org_id}"})
+            admin_client.delete(
+                "financial_periods",
+                filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}",
+                         "source_document_id": "is.null"})
+            logger.info("[stage_persist] %s: the re-run replaced the analysis of its own period %s "
+                        "(staged %s)", doc.get("id"), served, staged)
+            return served
         # 2. the row's own columns
         staged_rows = admin_client.select("financial_periods", filters={"id": f"eq.{staged}"}, limit=1) or []
         patch = dict((k, v) for k, v in (staged_rows[0] if staged_rows else {}).items()
@@ -2966,6 +3072,469 @@ def _own_periods_or_refuse_rerun(document_id: Any, org_id: Any) -> List[Dict[str
         logger.exception("[pipeline] retry of %s: the document's period could not be read — "
                          "the re-run is not started", document_id)
         raise HTTPException(503, {"code": "rerun_unavailable"}) from exc
+
+
+# ── The Docs panel's "Re-run analysis" is STAGED beside the document's own month ──
+#
+# THE DEFECT THIS ENDS (hand-over 2026-10-04, item 2). POST /api/pipeline/retry
+# RESET before it re-ran: it deleted the document's period — production's
+# foreign keys cascade the line items, the metrics, the briefing and the
+# recommendations away — and what a reader would lose was held in PROCESS
+# MEMORY until the run had narrated. A restart or a deploy between the reset
+# and the run's narrative stage, or between a failed run and the document's
+# next one, lost the last good briefing and the worked recommendations
+# (statuses, owners, due dates) for good; and from the click until a run
+# succeeded the month was not served at all.
+#
+# THE ORDER NOW — the same-month re-upload's own (G4), applied to a document's
+# own row:
+#   1. The route deletes nothing, unpins nothing, re-statuses nothing. It
+#      records that the run about to start is a re-run of a document that
+#      owns its month (`_STAGED_RERUNS`) and hands it off.
+#   2. The run persists everything under a STAGED row: a period row that
+#      names NO source document and carries the marker (`_staged_rerun`).
+#      The month's row and everything under it are not touched; the document
+#      stays pinned to its month and keeps its status.
+#   3. Only the run's terminal success replaces the month
+#      (`_finalize_same_month_takeover`, rerun mode): the run's rows move
+#      onto the month's row, the row takes the staged row's columns WITHOUT
+#      the marker, the staged row goes. What a failed narration would cost is
+#      KEPT where it is — never moved, never re-inserted — and marked stale.
+#   4. A run that fails leaves the month serving exactly what it served; the
+#      staged row is dropped, the document stays `analyzed`, and its row
+#      says the last re-run did not finish (`documents.error`,
+#      `RERUN_FAILED_PREFIX`).
+#
+# THE TAKEOVER IS A SEQUENCE, NOT A TRANSACTION, so it has a COMMIT POINT.
+# Before the first statement that touches the month — and after every delete
+# that touches only the staged id — the staged row's marker gets
+# `takeover_began_at` (durable). A staged row found WITHOUT it never touched
+# the month and is dropped. A staged row found WITH it is RESUMED
+# (`_resume_staged_rerun`): for every takeover table that still has rows
+# under the staged id the month's rows go and the staged ones move, then the
+# row's columns, then the staged row. Dropping such a row instead loses the
+# briefing or the recommendations in the window between a table's delete and
+# its move (measured in the design review, 2026-10-04: the month's briefing
+# deleted, the run's own left under the staged id, the cleanup dropping it).
+#
+# WHO CLEANS UP. A process that died leaves a staged row behind. It is
+# cleaned by the document's next re-run (at the route, under the claim), by
+# this run's own failure handler, by a hard delete of the document, and — for
+# a document that is never re-run — by the company's next analysis of
+# anything, once the row is `STAGED_RERUN_TTL_S` old or its document is gone
+# (`stage_persist`'s company pass).
+#
+# WHAT THIS CANNOT DO (stated, not hidden). Between the commit point and the
+# end of the apply (or of its resume) a reader can be served the statements
+# of one run beside the metrics of another, or a table with no rows: only a
+# database function — one transaction — removes that window, and it needs a
+# migration. Until then the row says so at once (`RERUN_INTERRUPTED`) and the
+# resume completes the run's analysis. Two backend processes are not
+# serialised: in-flight is per process.
+
+#: A staged row whose run is not in flight in THIS process is a dead run's
+#: once it is this old (seconds). A real run takes about a minute; fifteen
+#: leave room for a slow provider and for a second worker's run.
+STAGED_RERUN_TTL_S = 900
+
+#: `documents.error` of a document whose last staged re-run did not finish —
+#: the row keeps its status (`analyzed`) and its month; this says so. The
+#: remainder is the run's own message, or one of the two codes below. The
+#: Docs panel prints a sentence for it and never the remainder itself
+#: (frontend/lib/rerunRefusals.ts holds the same prefix and codes).
+RERUN_FAILED_PREFIX = "rerun_failed: "
+#: … the takeover was interrupted after its commit point: the month may be
+#: mid-replacement until the staged row is resumed.
+RERUN_INTERRUPTED = "interrupted_replacing"
+#: … the file now reads as a month that already has another analysis.
+RERUN_MONTH_TAKEN = "rerun_month_taken"
+
+#: document id -> the id of its OWN period, for a claimed Docs-panel re-run
+#: the route handed off as staged. In process memory on purpose: it only
+#: tells the run which entry started it; everything a restart must find is on
+#: the staged row. Popped when the run ends (`_run_pipeline_sync`).
+_STAGED_RERUNS: Dict[str, str] = {}
+_STAGED_RERUNS_LOCK = threading.Lock()
+
+
+class RerunOvertaken(PlainRefusal):
+    """The month a staged re-run would take over is no longer this
+    document's (a newer upload replaced it, the period was cleared, the
+    document is gone). The month is not touched."""
+
+    def __init__(self) -> None:
+        super(RerunOvertaken, self).__init__(RERUN_REFUSED_SUPERSEDED)
+
+
+class RerunMonthTaken(PlainRefusal):
+    """The re-run reads the file as ANOTHER month than its period's, and that
+    month already has an analysis of its own. Nothing is changed (before
+    2026-10-04 such a re-run replaced that other month)."""
+
+    def __init__(self) -> None:
+        super(RerunMonthTaken, self).__init__(RERUN_MONTH_TAKEN)
+
+
+def _set_staged_rerun(document_id: Any, served_period_id: Any) -> None:
+    with _STAGED_RERUNS_LOCK:
+        _STAGED_RERUNS[str(document_id)] = str(served_period_id)
+
+
+def _staged_rerun_of(document_id: Any) -> Optional[str]:
+    """The period a claimed re-run of `document_id` is staged beside — None
+    for every other run (a first analysis, a same-month re-upload, a
+    correction re-run, a recovery)."""
+    with _STAGED_RERUNS_LOCK:
+        return _STAGED_RERUNS.get(str(document_id or ""))
+
+
+def _pop_staged_rerun(document_id: Any) -> Optional[str]:
+    with _STAGED_RERUNS_LOCK:
+        return _STAGED_RERUNS.pop(str(document_id or ""), None)
+
+
+def _staged_rerun_rows(admin_client: Any, org_id: str) -> List[Dict[str, Any]]:
+    """Every STAGED row of the company — light: the id and the marker, never
+    the envelope. Raises when the store cannot be read."""
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"org_id": f"eq.{org_id}", "source_document_id": "is.null"},
+        columns="id,org_id,source_document_id," + _staged_rerun.MARKER_SELECT,
+    ) or []
+    return [r for r in rows
+            if str(r.get("org_id") or "") == str(org_id) and _staged_rerun.marker_of(r) is not None]
+
+
+def _month_is_another_rows(admin_client: Any, org_id: str, period_end: Any, own_period_id: Any) -> bool:
+    """Does the company hold a period for `period_end` other than
+    `own_period_id`? A staged row is never one (it is nobody's month)."""
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"org_id": f"eq.{org_id}", "period_end": f"eq.{str(period_end)[:10]}"},
+        columns="id,org_id,source_document_id," + _staged_rerun.MARKER_SELECT,
+    ) or []
+    return any(str(r.get("id")) != str(own_period_id)
+               and str(r.get("org_id") or "") == str(org_id)
+               and _staged_rerun.marker_of(r) is None
+               for r in rows)
+
+
+def _staged_rerun_mint_checks(admin_client: Any, doc: Dict[str, Any], period_end: str,
+                               served_period_id: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """`stage_persist`, staged mode — what is looked at before the staged
+    row of a Docs-panel re-run is inserted. Returns (the document's own row
+    in full, the marker the staged row carries).
+
+    OWNERSHIP IS LOOKED AT AGAIN, at the write (the route looked before and
+    under the claim; the run started later): the month must still be this
+    document's own — `_own_periods_for_rerun`, read fresh. A re-run that
+    reads the file as ANOTHER month is refused when that month is another
+    row's. Both refusals come before anything is written."""
+    document_id, org_id = str(doc["id"]), str(doc["org_id"])
+    try:
+        own = _own_periods_for_rerun(admin_client, document_id, org_id)
+    except RerunRefused:
+        raise RerunOvertaken()
+    if not own or str(own[0]["id"]) != str(served_period_id):
+        raise RerunOvertaken()
+    if (str(own[0].get("period_end") or "")[:10] != str(period_end)[:10]
+            and _month_is_another_rows(admin_client, org_id, period_end, served_period_id)):
+        raise RerunMonthTaken()
+    served_rows = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{served_period_id}", "org_id": f"eq.{org_id}"},
+        limit=1,
+    ) or []
+    if not served_rows:
+        raise RerunOvertaken()
+    marker = {"document_id": document_id, "served_period_id": str(served_period_id),
+              "staged_at": _now_iso()}
+    return served_rows[0], marker
+
+
+def _envelope_without_marker(envelope: Any) -> Optional[Dict[str, Any]]:
+    """A staged row's envelope as the month takes it: the marker gone. None
+    when nothing else is there (the run stored no envelope) — the month's
+    column is then NULL, as after any run whose envelope write failed, and
+    the read path recomputes."""
+    if not isinstance(envelope, dict):
+        return None
+    stripped = dict((k, v) for k, v in envelope.items() if k != _staged_rerun.MARKER_KEY)
+    return stripped or None
+
+
+def _month_columns_from_staged_row(staged_row: Dict[str, Any], served_row: Dict[str, Any]) -> Dict[str, Any]:
+    """What the month's row takes from a staged re-run's row: every column
+    that is not its identity, the envelope WITHOUT the marker — and the month
+    itself when the re-run filed the document under another one (the row is
+    re-dated; a document never has two periods)."""
+    patch = dict((k, v) for k, v in staged_row.items()
+                 if k not in _PERIOD_IDENTITY_COLUMNS and k != _staged_rerun.MARKER_KEY)
+    patch["assembled_canonical_v1"] = _envelope_without_marker(staged_row.get("assembled_canonical_v1"))
+    patch["updated_at"] = _now_iso()
+    if str(staged_row.get("period_end") or "")[:10] != str(served_row.get("period_end") or "")[:10]:
+        patch["period_start"] = staged_row.get("period_start")
+        patch["period_end"] = staged_row.get("period_end")
+    return patch
+
+
+def _bust_benchmark_cache_of(admin_client: Any, period_id: str, org_id: Any) -> None:
+    """Best effort: the Section-9 benchmark report cached for `period_id`.
+    The cache is keyed on the period id and re-used while the CAEN and the
+    revision match (`_benchmarks`) — and a takeover replaces a period's
+    statements WITHOUT changing its id, so a cached report would go on
+    comparing the previous file's ratios."""
+    try:
+        admin_client.delete(
+            "benchmark_reports",
+            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"})
+    except Exception as exc:  # noqa: BLE001 — a stale cache is recomputed on a CAEN change
+        logger.warning("[stage_persist] benchmark cache not cleared for period %s (%s)",
+                       period_id, type(exc).__name__)
+
+
+def _drop_staged_rerun_row(admin_client: Any, org_id: str, staged_id: str) -> None:
+    """Remove a staged row that never touched its month, and everything its
+    run stored under it. The children go explicitly (production's foreign
+    keys would cascade them; nothing here relies on that), by the staged id —
+    which was read under the company's filter — and the row itself only
+    while it still names no source."""
+    for table in TAKEOVER_TABLES:
+        admin_client.delete(table, filters={"period_id": f"eq.{staged_id}"})
+    admin_client.delete(
+        "financial_periods",
+        filters={"id": f"eq.{staged_id}", "org_id": f"eq.{org_id}",
+                 "source_document_id": "is.null"})
+
+
+def _resume_staged_rerun(admin_client: Any, org_id: str, staged_id: str) -> str:
+    """Finish a takeover that was interrupted AFTER its commit point — by
+    what the store holds, not by what a dead process remembered. Returns
+    "resumed", "dropped" (nothing to resume ONTO) or "gone".
+
+    For every takeover table that still has rows under the staged id, the
+    month's rows of that table go and the staged ones move: a table whose
+    move had completed has none left and is skipped, a table whose delete had
+    run and whose move had not is completed. A table the run stored nothing
+    in (`emptied`, recorded at the commit point) is emptied on the month too.
+    What the takeover KEPT (the month's briefing, recommendations, alerts)
+    has nothing under the staged id — it was deleted there before the commit
+    point — and is never touched. Then the row's columns, the document, and
+    the staged row LAST: every statement is safe to repeat, so a resume that
+    is itself interrupted is resumed again."""
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{staged_id}", "org_id": f"eq.{org_id}",
+                 "source_document_id": "is.null"},
+        limit=1,
+    ) or []
+    marker = _staged_rerun.marker_of(rows[0]) if rows else None
+    if marker is None:
+        return "gone"
+    staged_row = rows[0]
+    served = str(marker.get("served_period_id") or "")
+    document_id = str(marker.get("document_id") or "")
+    served_rows: List[Dict[str, Any]] = []
+    documents: List[Dict[str, Any]] = []
+    if served and document_id:
+        served_rows = admin_client.select(
+            "financial_periods",
+            filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+            columns=_RERUN_OWNERSHIP_COLUMNS, limit=1,
+        ) or []
+        documents = admin_client.select(
+            "documents",
+            filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"},
+            columns="id,org_id,error", limit=1,
+        ) or []
+    source = str((served_rows[0] if served_rows else {}).get("source_document_id") or "")
+    if not served_rows or not documents or (source and source != document_id):
+        # The month is gone (cleared by its user), is another document's now,
+        # or the document itself was deleted for good: there is nothing to
+        # resume ONTO, and a month the user removed is never brought back.
+        _drop_staged_rerun_row(admin_client, org_id, staged_id)
+        logger.warning("[staged rerun] %s: the month of the interrupted takeover (staged %s) is "
+                       "gone or no longer the document's — the staged row is dropped",
+                       document_id, staged_id)
+        return "dropped"
+    emptied = set(str(t) for t in (marker.get("emptied") or []))
+    for table in TAKEOVER_TABLES:
+        still_staged = admin_client.select(
+            table, filters={"period_id": f"eq.{staged_id}"}, columns="period_id", limit=1)
+        if still_staged:
+            admin_client.delete(table, filters={"period_id": f"eq.{served}"})
+            admin_client.update(table, {"period_id": served}, filters={"period_id": f"eq.{staged_id}"})
+        elif table in emptied:
+            admin_client.delete(table, filters={"period_id": f"eq.{served}"})
+    admin_client.update(
+        "recommendations", {"target_id": served},
+        filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}",
+                 "target_id": f"eq.{staged_id}"})
+    reason = marker.get("keep_briefing_reason")
+    if reason:
+        kept = _stored_briefing_row(admin_client, served, org_id)
+        if _is_usable_stored_briefing(kept):
+            _mark_briefing_stale(admin_client, kept, served, org_id, str(reason))
+    _bust_benchmark_cache_of(admin_client, served, org_id)
+    admin_client.update(
+        "financial_periods", _month_columns_from_staged_row(staged_row, served_rows[0]),
+        filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"})
+    patch: Dict[str, Any] = {"period_id": served}
+    if str(documents[0].get("error") or "").startswith(RERUN_FAILED_PREFIX):
+        # Only a marker a staged re-run wrote is cleared (and with it the
+        # document is what a completed takeover leaves it: analysed). Any
+        # other text on the row — a superseded or duplicate marker, a
+        # sentence another entry stored — is not this resume's to erase.
+        patch.update({"status": "analyzed", "error": None})
+    admin_client.update(
+        "documents", patch,
+        filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"})
+    admin_client.delete(
+        "financial_periods",
+        filters={"id": f"eq.{staged_id}", "org_id": f"eq.{org_id}",
+                 "source_document_id": "is.null"})
+    logger.warning("[staged rerun] %s: the interrupted takeover of period %s was resumed "
+                   "(staged %s)", document_id, served, staged_id)
+    return "resumed"
+
+
+def _staged_row_is_dead(admin_client: Any, org_id: str, marker: Dict[str, Any]) -> bool:
+    """For the company pass: is this staged row a DEAD run's? Older than
+    `STAGED_RERUN_TTL_S` (or carrying no readable time), or its document no
+    longer exists."""
+    try:
+        staged_at = datetime.fromisoformat(str(marker.get("staged_at") or "").replace("Z", "+00:00"))
+        if staged_at.tzinfo is None:
+            staged_at = staged_at.replace(tzinfo=timezone.utc)
+        if (datetime.now(timezone.utc) - staged_at).total_seconds() > STAGED_RERUN_TTL_S:
+            return True
+    except ValueError:
+        return True
+    owner = str(marker.get("document_id") or "")
+    if not owner:
+        return True
+    present = admin_client.select(
+        "documents", filters={"id": f"eq.{owner}", "org_id": f"eq.{org_id}"},
+        columns="id", limit=1)
+    return not present
+
+
+def _clear_staged_rerun_rows(admin_client: Any, org_id: Any, *, document_id: Optional[str] = None,
+                             ttl: bool = False, resume: bool = True) -> Dict[str, Any]:
+    """Clean up the staged rows dead re-runs left in a company. NEVER raises.
+
+      * `document_id`: only that document's rows — its next re-run (at the
+        route, under the claim), its own run's failure handler, its hard
+        delete;
+      * `ttl`: the company pass — only rows whose document is NOT in flight
+        in this process AND that are dead (`_staged_row_is_dead`);
+      * a row whose takeover reached its COMMIT POINT is RESUMED — never
+        dropped — unless `resume` is False (the document is being deleted for
+        good: its month goes with it);
+      * any other row never touched its month and is dropped.
+
+    Returns `{"resumed", "dropped", "left", "unreadable"}`: `left` counts the
+    COMMITTED rows that could not be resumed (the month may be mid-
+    replacement: the caller must not start another re-run over it, nor say
+    the previous analysis is still served); `unreadable` — the staged rows
+    could not even be listed."""
+    out: Dict[str, Any] = {"resumed": 0, "dropped": 0, "left": 0, "unreadable": False}
+    org_id = str(org_id or "").strip()
+    if not org_id:
+        return out
+    try:
+        rows = _staged_rerun_rows(admin_client, org_id)
+    except Exception:  # noqa: BLE001 — cleanup never fails the run it rides on
+        logger.exception("[staged rerun] the staged rows of %s could not be listed", org_id)
+        out["unreadable"] = True
+        return out
+    for row in rows:
+        marker = _staged_rerun.marker_of(row) or {}
+        staged_id = str(row.get("id") or "")
+        owner = str(marker.get("document_id") or "")
+        if document_id is not None and owner != str(document_id):
+            continue
+        committed = bool(marker.get("takeover_began_at"))
+        try:
+            if ttl:
+                if owner and _doc_dedupe.in_flight(owner):
+                    continue
+                if not _staged_row_is_dead(admin_client, org_id, marker):
+                    continue
+            if committed and resume:
+                outcome = _resume_staged_rerun(admin_client, org_id, staged_id)
+                out["resumed" if outcome == "resumed" else "dropped"] += 1
+            else:
+                _drop_staged_rerun_row(admin_client, org_id, staged_id)
+                out["dropped"] += 1
+                logger.info("[staged rerun] %s: the staged row %s of a re-run that did not "
+                            "finish was removed", owner, staged_id)
+        except Exception:  # noqa: BLE001 — the next pass tries again
+            logger.exception("[staged rerun] the staged row %s of %s could not be cleaned up",
+                             staged_id, owner)
+            if committed:
+                out["left"] += 1
+    return out
+
+
+def _staged_rerun_failed(document_id: str, doc: Optional[Dict[str, Any]], msg: str,
+                         duration_ms: int) -> str:
+    """The failure handler of a STAGED re-run. Returns the run's outcome.
+
+    THE STATUS IS NEVER WRITTEN: the document was not re-statused when the
+    re-run started, its month was not touched (or is being replaced by this
+    very run), and `failed` over a served period is the state G4 forbids —
+    the year tile vanishes. What happened is said on the row instead.
+
+      * the takeover had passed its commit point and the resume below
+        completed it → the run's analysis IS the month: `analyzed`;
+      * a committed row could not be resumed → the row says the replacement
+        was interrupted (never that the previous analysis is still served);
+      * otherwise the month is what it was → `rerun_failed: <message>`,
+        never over the marker of a superseded or duplicate copy."""
+    _pop_takeover(document_id)
+    _pop_period_minted(document_id)
+    org_id = str((doc or {}).get("org_id") or "").strip()
+    out: Dict[str, Any] = {"resumed": 0, "dropped": 0, "left": 0, "unreadable": True}
+    if org_id:
+        try:
+            with _supabase.admin() as admin_client:
+                out = _clear_staged_rerun_rows(admin_client, org_id, document_id=document_id)
+        except Exception:  # noqa: BLE001 — never mask the failure being handled
+            logger.exception("[pipeline] %s: the staged re-run's cleanup failed", document_id)
+    if out["resumed"] and not out["left"] and not out["unreadable"]:
+        logger.warning("[pipeline] %s: the staged re-run failed after its takeover had begun; "
+                       "the takeover was completed — the run's analysis is the month", document_id)
+        try:
+            _admin_set_status(document_id, "analyzed", duration_ms=duration_ms)
+        except Exception:  # noqa: BLE001 — the resume already left the row analysed
+            logger.exception("[pipeline] %s: the last status write failed (non-fatal)", document_id)
+        return "analyzed"
+    filters = {"id": f"eq.{document_id}"}
+    if org_id:
+        filters["org_id"] = f"eq.{org_id}"
+    interrupted = RERUN_FAILED_PREFIX + RERUN_INTERRUPTED
+    try:
+        with _supabase.admin() as admin_client:
+            if out["left"]:
+                admin_client.update("documents", {"error": interrupted}, filters=filters)
+                return "failed"
+            rows = admin_client.select("documents", filters=filters, columns="id,error", limit=1) or []
+            current = str((rows[0] if rows else {}).get("error") or "")
+            if not rows or current.startswith((SUPERSEDED_MARKER_PREFIX,
+                                               _doc_dedupe.DUPLICATE_MARKER_PREFIX)):
+                # An archived copy says what it is; that is not overwritten.
+                return "failed"
+            if out["unreadable"] and current == interrupted:
+                # The staged rows could not be read and the row says the
+                # takeover had begun: that stays until a resume clears it.
+                return "failed"
+            admin_client.update(
+                "documents", {"error": RERUN_FAILED_PREFIX + msg, "duration_ms": duration_ms},
+                filters=filters)
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] %s: could not record that the re-run did not finish", document_id)
+    return "failed"
 
 
 # ── The Docs panel's "Re-run analysis" carries the last good briefing across its reset ──
@@ -3164,11 +3733,19 @@ def _restore_rerun_carry(admin_client: Any, carry: Optional[Dict[str, Any]], org
     return whole
 
 
-def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
+def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any], *,
+                  staged_rerun_of: Optional[str] = None) -> str:
     """Lookup-or-create the financial_period for this document's
     (org, period_end, source_document_id) tuple, then refresh its
     statement_line_items from the extracted statements. Returns the
     resolved period_id.
+
+    `staged_rerun_of` (keyword-only; every other caller's run is unchanged):
+    the id of the document's OWN period, for a Docs-panel re-run. The run
+    then persists under a STAGED row beside that period (no source, the
+    marker in its envelope; `_staged_rerun_mint_checks` first) — the month's row, its line
+    items and the document's pin are not touched; `_finalize_same_month_
+    takeover` replaces the month once the run has succeeded.
 
     Period-container discipline (post Bug-A fix — May 2026):
       · ONE period per (org_id, period_end, source_document_id) — enforced
@@ -3196,13 +3773,28 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
     # carried forward on a same-file re-scan (see step 5 below).
     prior_period_row: Optional[Dict[str, Any]] = None
 
+    #: The marker of this run's staged row (a Docs-panel re-run) — it rides
+    #: in every envelope write below, so the row stays recognisable.
+    staged_marker: Optional[Dict[str, Any]] = None
+
     with _supabase.admin() as admin_client:
+        # 0. THE COMPANY PASS. A re-run that died (a restart, a deploy) left
+        #    a staged row behind; a document that is never re-run again would
+        #    keep it for ever. Every analysis of the company clears the dead
+        #    ones first — one light read when there are none. Wrapped as well
+        #    as never-raising: a store double that cannot answer it must not
+        #    fail a persist.
+        try:
+            _clear_staged_rerun_rows(admin_client, doc.get("org_id"), ttl=True)
+        except Exception:  # noqa: BLE001
+            logger.exception("[stage_persist] the staged-row pass failed (non-fatal)")
+
         # 1. Lookup existing period for this (org, period_end, source_document_id).
         # Post-Bug-A: the DB enforces UNIQUE (org_id, period_end, source_document_id);
         # the 3-col SELECT here finds same-document re-runs (so we UPDATE
         # the same period row) but NOT different-document uploads sharing
         # the same date (each gets its own period row via the INSERT branch).
-        existing = admin_client.select(
+        existing = None if staged_rerun_of else admin_client.select(
             "financial_periods",
             filters={
                 "org_id": f"eq.{doc['org_id']}",
@@ -3211,7 +3803,41 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             },
             single=True,
         )
-        if existing:
+        if staged_rerun_of:
+            # 1'. A DOCS-PANEL RE-RUN of a document that owns its month: the
+            #     run persists under a staged row of its own and the month is
+            #     replaced only once it has succeeded. The month's row is the
+            #     prior envelope a same-file re-scan carries its
+            #     reconciliation forward from (step 5), as on every other
+            #     re-run of a document on its period.
+            prior_period_row, staged_marker = _staged_rerun_mint_checks(
+                admin_client, doc, period_end, str(staged_rerun_of))
+            # NO SOURCE on the staged row: the month's own row keeps the
+            # (org, month, document) tuple, and no reader that looks a period
+            # up by its document finds this one. The marker rides in the
+            # envelope column from the first statement on — a staged row is
+            # recognisable before any envelope is written.
+            staged = admin_client.insert(
+                "financial_periods",
+                {
+                    "org_id": doc["org_id"],
+                    "source_document_id": None,
+                    "period_start": period_start,
+                    "period_end": period_end,
+                    "currency": parsed.get("currency") or prior_period_row.get("currency") or "RON",
+                    "extraction_confidence": parsed.get("confidence", 0.5),
+                    "assembled_canonical_v1": {_staged_rerun.MARKER_KEY: staged_marker},
+                },
+                returning=True,
+            )
+            period_id = staged[0]["id"]
+            # NOT recorded as minted by the run (`_PERIODS_MINTED_BY_RUN`):
+            # that rollback looks the row up by its source document and would
+            # find nothing. A staged row is cleaned by
+            # `_clear_staged_rerun_rows`.
+            _record_takeover(doc.get("id"), staged=period_id, served=str(staged_rerun_of),
+                             superseded_document=None, rerun=True)
+        elif existing:
             period_id = existing[0]["id"]
             prior_period_row = existing[0]
             # Keep source_document_id pointing at the original. Update mutable
@@ -3354,12 +3980,17 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                     _record_period_minted(doc.get("id"), period_id)
 
         # 3. Pin the document to the resolved period. Documents drive period
-        #    ownership now — multiple docs per period.
-        admin_client.update(
-            "documents",
-            {"period_id": period_id},
-            filters={"id": f"eq.{doc['id']}"},
-        )
+        #    ownership now — multiple docs per period. NOT for a staged
+        #    re-run: its document stays pinned to the month it is the source
+        #    of — the staged row is nobody's period until the takeover, and a
+        #    document pinned to it would vanish from the Docs panel (and be
+        #    left pinned to nothing when the row is dropped).
+        if staged_marker is None:
+            admin_client.update(
+                "documents",
+                {"period_id": period_id},
+                filters={"id": f"eq.{doc['id']}"},
+            )
 
         # 4. Wipe + re-insert statement line items for this period. The new
         #    document's extraction becomes the canonical analysis until
@@ -3528,7 +4159,13 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             try:
                 admin_client.update(
                     "financial_periods",
-                    {"assembled_canonical_v1": canonical},
+                    # A staged re-run's row keeps its marker beside the
+                    # envelope (a copy: `canonical` itself is what the rest
+                    # of the run reads, and what the month takes — without
+                    # the marker — at the takeover).
+                    {"assembled_canonical_v1": (
+                        canonical if staged_marker is None
+                        else dict(canonical, **{_staged_rerun.MARKER_KEY: staged_marker}))},
                     filters={"id": f"eq.{period_id}"},
                 )
             except Exception:  # noqa: BLE001
@@ -5558,6 +6195,7 @@ def stage_persist_narrative(
                 on_conflict="period_id",
                 returning=False,
             )
+            stored["briefing"] = True
             if unavailable is not None:
                 # The narration failed and there was no usable briefing to
                 # keep: the sentinel is stored — and that is ALL a failed
@@ -6871,6 +7509,9 @@ def _run_pipeline_sync(document_id: str) -> None:
     try:
         outcome = _run_pipeline_stages(document_id)
     finally:
+        # The run is over: the note that it was started as a STAGED re-run
+        # goes with it (the next entry for this document decides afresh).
+        _pop_staged_rerun(document_id)
         try:
             _commit_pipeline_quota(document_id, success=(outcome == "analyzed"))
         except Exception:  # noqa: BLE001
@@ -6980,6 +7621,30 @@ def _run_pipeline_stages(document_id: str) -> str:
     # Bound before the try so the failure handler can name the tenant of the
     # period this run may have to roll back (G4).
     doc: Optional[Dict[str, Any]] = None
+    # A DOCS-PANEL RE-RUN of a document that owns its month runs STAGED: this
+    # is the id of that month's row (None for every other run). The document
+    # is then not re-statused while it runs — it stays `analyzed`, pinned to
+    # the month that keeps being served — and a failure is said on the row,
+    # never by `failed` over a served period (`_staged_rerun_failed`).
+    staged_of = _staged_rerun_of(document_id)
+
+    def _progress(status: str, **kwargs: Any) -> None:
+        if staged_of is None:
+            _admin_set_status(document_id, status, **kwargs)
+
+    def _analysed(**kwargs: Any) -> None:
+        """The run's last write. For a staged re-run the takeover has already
+        left the document analysed on its month — this adds the duration, and
+        a timeout here must not turn a finished analysis into a failure."""
+        if staged_of is None:
+            _admin_set_status(document_id, "analyzed", **kwargs)
+            return
+        try:
+            _admin_set_status(document_id, "analyzed", **kwargs)
+        except Exception:  # noqa: BLE001
+            logger.exception("[pipeline] %s: the staged re-run's last status write failed "
+                             "(non-fatal — the takeover is complete)", document_id)
+
     try:
         with _supabase.admin() as admin_client:
             doc_rows = admin_client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
@@ -6996,7 +7661,7 @@ def _run_pipeline_stages(document_id: str) -> str:
         # RUN JOURNAL — RUN_STARTED (no-op unless ENGINE_JOURNAL_DIR set).
         _journal_hooks.on_run_started(doc, industry=org.get("industry_display_name") or org.get("industry_key"))
 
-        _admin_set_status(document_id, "extracting", pipeline_started_at=_now_iso())
+        _progress("extracting", pipeline_started_at=_now_iso())
         parsed = stage_extract(doc)
         # RUN JOURNAL — FRONTEND_DONE (deterministic parse / ai-lane /
         # llm-fallback all complete here, whatever lane ran).
@@ -7100,15 +7765,15 @@ def _run_pipeline_stages(document_id: str) -> str:
                     document_id, _ai_info.get("period_id"),
                 )
                 return "analyzed"
-            _admin_set_status(document_id, "mapping")
+            _progress("mapping")
             assembled = _ai_info.get("assembled") or {}
             # RUN JOURNAL — PASS_DONE (ai-lane assembled envelope).
             _journal_hooks.on_pass_done(doc, assembled)
-            period_id = stage_persist(doc, parsed, assembled)
-            # G4 — a same-month re-upload becomes the month only now.
+            period_id = stage_persist(doc, parsed, assembled, staged_rerun_of=staged_of)
+            # G4 — a same-month re-upload (or a staged re-run) becomes the
+            # month only now.
             period_id = _finalize_same_month_takeover(doc, period_id)
-            _admin_set_status(
-                document_id, "analyzed",
+            _analysed(
                 duration_ms=int((time.time() - t0) * 1000),
                 period_id=period_id,
             )
@@ -7189,7 +7854,7 @@ def _run_pipeline_stages(document_id: str) -> str:
         #   2. Anything else (PDF, CSV without recognizable sales shape) →
         #      the LLM-summary briefing path (sku_analyses).
         if scope == "sku":
-            _admin_set_status(document_id, "mapping")
+            _progress("mapping")
             dataset_id: Optional[str] = None
             try:
                 dataset_id = _run_sales_dataset_pipeline(doc)
@@ -7199,7 +7864,7 @@ def _run_pipeline_stages(document_id: str) -> str:
             # Always also produce a briefing — useful even with sku_lines,
             # gives the user a 3-sentence executive summary alongside the
             # raw portfolio. Skips if extraction returned nothing.
-            _admin_set_status(document_id, "narrating")
+            _progress("narrating")
             assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
             narrative = stage_narrate(doc, assembled, [], org, period_id="-", parsed=parsed)
             _persist_sku_analysis(doc, parsed, narrative)
@@ -7237,13 +7902,13 @@ def _run_pipeline_stages(document_id: str) -> str:
                 "and try again."
             )
 
-        _admin_set_status(document_id, "mapping")
+        _progress("mapping")
         assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
         # RUN JOURNAL — PASS_DONE (assemble stage boundary).
         _journal_hooks.on_pass_done(doc, assembled)
-        period_id = stage_persist(doc, parsed, assembled)
+        period_id = stage_persist(doc, parsed, assembled, staged_rerun_of=staged_of)
 
-        _admin_set_status(document_id, "computing")
+        _progress("computing")
         valuation_payload: Optional[Dict[str, Any]] = None
         # The effective industry key pins the detection envelope persisted
         # below. It used to be a local of the valuation block; when that block
@@ -7266,7 +7931,9 @@ def _run_pipeline_stages(document_id: str) -> str:
             # `net_income_statutory` to that when available so the FE +
             # briefing cite the same figure the user sees on their filings.
             _override_statutory_net_income_metric(doc, period_id, parsed)
-            validation_alerts = stage_validate(doc, assembled, period_id)
+            # (A staged re-run's alerts are keyed to the MONTH they will sit
+            # on — an alert key names its period — not to the staged row.)
+            validation_alerts = stage_validate(doc, assembled, staged_of or period_id)
             # AI Council — advisory extraction-integrity review (2026-07-20).
             # A panel of independent Claude personas scans the extraction and a
             # deterministic chair returns a consensus verdict. Non-blocking:
@@ -7317,7 +7984,7 @@ def _run_pipeline_stages(document_id: str) -> str:
             metrics = []
             validation_alerts = []
 
-        _admin_set_status(document_id, "narrating")
+        _progress("narrating")
         narrative = stage_narrate(
             doc, assembled, metrics, org, period_id,
             parsed=parsed, valuation=valuation_payload,
@@ -7401,13 +8068,19 @@ def _run_pipeline_stages(document_id: str) -> str:
         # from what `stage_persist_narrative` reports it stored, not from
         # whether it raised (a raise in the alerts write comes AFTER the
         # run's good recommendations were stored).
+        _narration_unavailable = narration_unavailable_code(narrative)
+        if staged_of is not None and _narration_unavailable is None \
+                and not narrative_stored.get("briefing"):
+            # A staged re-run whose narration WORKED and whose briefing was
+            # not stored (the database refused the write): no narration
+            # failed, and the run still brought no briefing — the month's
+            # is kept, and marked with a reason that is not a narration code.
+            _narration_unavailable = BRIEFING_STALE_WRITE_REFUSED
         period_id = _finalize_same_month_takeover(
-            doc, period_id, narration_unavailable=narration_unavailable_code(narrative),
+            doc, period_id, narration_unavailable=_narration_unavailable,
             keep_recommendations=not narrative_stored.get("recommendations"),
             keep_alerts=not narrative_stored.get("alerts"))
-        _admin_set_status(
-            document_id,
-            "analyzed",
+        _analysed(
             duration_ms=int((time.time() - t0) * 1000),
             period_id=period_id,
         )
@@ -7434,6 +8107,10 @@ def _run_pipeline_stages(document_id: str) -> str:
         # line and the card agree.
         msg = (str(exc) if isinstance(exc, (PlainRefusal, UserFacingUploadError))
                else f"{type(exc).__name__}: {exc}")
+        if staged_of is not None:
+            # A STAGED re-run: the month is what it was (or is this run's,
+            # completed by the resume) — the document is never marked failed.
+            return _staged_rerun_failed(document_id, doc, msg, int((time.time() - t0) * 1000))
         try:
             _admin_set_status(document_id, "failed", error=msg, duration_ms=int((time.time() - t0) * 1000))
         except Exception:

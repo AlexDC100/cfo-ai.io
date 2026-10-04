@@ -1021,6 +1021,13 @@ PERIOD_DELETE_SITES = {
         ("id", "org_id", "source_document_id")),
     ("api/pipeline.py", "_finalize_same_month_takeover"): (
         "the STAGED row of this run, after its rows moved onto the month", ("id", "org_id")),
+    ("api/pipeline.py", "_drop_staged_rerun_row"): (
+        "a re-run's STAGED row whose takeover never began (or whose document is being deleted "
+        "for good): the row its own marker names, only while it still names NO source",
+        ("id", "org_id", "source_document_id")),
+    ("api/pipeline.py", "_resume_staged_rerun"): (
+        "a re-run's STAGED row, LAST, once its interrupted takeover has been completed; only "
+        "while it still names NO source", ("id", "org_id", "source_document_id")),
     ("api/pipeline.py", "_maybe_drop_empty_period"): (
         "a period NO document, live or deleted, is pinned to; never in an archived workspace",
         ("id", "org_id")),
@@ -1058,10 +1065,11 @@ def _period_delete_sites() -> Dict[Tuple[str, str], List[ast.Call]]:
 
 
 def test_census_every_delete_of_a_period_is_a_stated_site_with_its_ownership_rule():
-    """A period is deleted in six places and nowhere else; a seventh is red
-    until somebody states whose period it may delete. Each site's DELETE
-    names the company, and the two that act for ONE document name the
-    document the period must still be the analysis of."""
+    """A period is deleted in the places stated above and nowhere else; a new
+    one is red until somebody states whose period it may delete. Each site's
+    DELETE names the company; the ones that act for ONE document name the
+    document the period must still be the analysis of — or, for a re-run's
+    staged row, that it names NO source."""
     found = _period_delete_sites()
     assert len(found) >= 6, "the census finds %d site(s): the walk is broken" % len(found)
     assert set(found) == set(PERIOD_DELETE_SITES), (
