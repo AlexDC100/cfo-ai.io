@@ -142,8 +142,19 @@ def world(monkeypatch):
 
     def finish(doc_id: str, outcome: str) -> None:
         """The daemon thread's terminal, for real: `_run_pipeline_sync` with
-        the stages replaced by their persisted outcome."""
+        the stages replaced by their persisted outcome.
+
+        An ANALYSED outcome leaves what `stage_persist` leaves: the document
+        pinned to a period that EXISTS — when a /retry's reset deleted the
+        world's period row, the run files the document under a row of its
+        own, naming it as its source (stated 2026-10-04, gate
+        rerun-data-loss: the stub used to pin an analysed document to an id
+        that named nothing, and a re-run of such a document is refused)."""
         def stages(document_id):
+            if outcome == "analyzed" and not db.select("financial_periods", filters={"id": "eq.%s" % PERIOD}):
+                (row,) = db.select("documents", filters={"id": "eq.%s" % document_id})
+                db.insert("financial_periods", {"id": PERIOD, "org_id": row["org_id"], "period_end": "2025-12-31",
+                                                "source_document_id": document_id})
             db.update("documents", {"status": outcome, **({"period_id": PERIOD} if outcome == "analyzed" else {}),
                                     **({"error": "HTTPException: 502: Claude extraction failed"} if outcome == "failed" else {})},
                       filters={"id": "eq.%s" % document_id})

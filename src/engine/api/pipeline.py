@@ -26,6 +26,7 @@ re-running so the user can re-attempt without ghost data.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
@@ -2817,6 +2818,145 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
     logger.info("[stage_persist] %s replaced the month's period %s (staged %s; superseded document %s)",
                 doc.get("id"), served, staged, superseded)
     return served
+
+
+# ── A re-run acts only on a period that is THIS document's ──────────────
+#
+# THE DEFECT THIS ENDS (hand-over 2026-10-04, measured on the real routes):
+# POST /api/pipeline/retry reset "the period the document is pinned to" —
+# `documents.period_id`, a column the BROWSER writes and that nothing keeps
+# in step with `financial_periods.source_document_id`, the pointer the engine
+# writes. A document superseded for its month by a newer upload stays pinned
+# to that month's row (archived); restored from the shelf and re-run, its
+# reset deleted the NEWER document's period, the carry took the newer
+# document's briefing and recommendations, and the month came back as the
+# OLDER file's statements under them. A pin the company filter rejected (or
+# no pin at all) matched nothing, and the run then found the document's real
+# period by its own tuple and ran IN PLACE — the withdrawn design's path.
+#
+# THE RULE. Before anything is carried, deleted or written, the period is
+# read by id AND company AND source: it is the document's own, or the re-run
+# is refused with a neutral code — never a period id, never a sign of
+# whether another company's row exists. The engine-written pointer is the
+# truth; the pin only says where to look.
+
+#: The pinned period is another document's of the SAME company: a newer
+#: upload (or a Workspace merge) made this file an attachment of its month.
+RERUN_REFUSED_SUPERSEDED = "document_superseded"
+#: ONE answer on purpose for "that period is not your company's", "that
+#: period does not exist" and "that period is not provably this file's" —
+#: the refusal must not tell them apart.
+RERUN_REFUSED_NOT_OWN = "rerun_period_not_own"
+
+#: What the ownership look reads of a period before it decides — the full
+#: row (its envelope) is fetched only for a period that names no source.
+_RERUN_OWNERSHIP_COLUMNS = "id,org_id,period_end,source_document_id"
+
+
+class RerunRefused(Exception):
+    """A re-run that must not start: the period it would reset is not this
+    document's. `code` is all the caller is ever told."""
+
+    def __init__(self, code: str) -> None:
+        super(RerunRefused, self).__init__(code)
+        self.code = code
+
+
+def _own_periods_for_rerun(admin_client: Any, document_id: Any, org_id: Any) -> List[Dict[str, Any]]:
+    """The period(s) a re-run of `document_id` may reset — newest first; []
+    when the document holds none (a failed first run, a sales document).
+    Raises `RerunRefused` when the period it is pinned to is not its own.
+
+    Every read names the company (under the service role the filter IS the
+    access control) and every row's own `org_id` is re-checked. The pin is
+    read FRESH from the store — never taken from the row the write wall
+    returned, which was read before the claim. A read that raises
+    propagates: the caller answers 503 and resets nothing blind."""
+    document_id = str(document_id or "").strip()
+    org_id = str(org_id or "").strip()
+    if not document_id or not org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    documents = admin_client.select(
+        "documents",
+        filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"},
+        columns="id,org_id,period_id", limit=1,
+    ) or []
+    if not documents or str(documents[0].get("org_id") or "") != org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    pin = documents[0].get("period_id")
+    if not pin:
+        # NOT PINNED. The pointer the engine wrote is the truth: every period
+        # that names this document as its source is its own. (A document
+        # whose pin was lost used to re-run IN PLACE on such a period.)
+        rows = admin_client.select(
+            "financial_periods",
+            filters={"org_id": f"eq.{org_id}", "source_document_id": f"eq.{document_id}"},
+            columns=_RERUN_OWNERSHIP_COLUMNS, order="updated_at.desc",
+        ) or []
+        return [dict(r) for r in rows
+                if str(r.get("org_id") or "") == org_id
+                and str(r.get("source_document_id") or "") == document_id]
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{pin}", "org_id": f"eq.{org_id}"},
+        columns=_RERUN_OWNERSHIP_COLUMNS, limit=1,
+    ) or []
+    if not rows or str(rows[0].get("org_id") or "") != org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    period = dict(rows[0])
+    source = str(period.get("source_document_id") or "")
+    if source == document_id:
+        return [period]
+    if source:
+        raise RerunRefused(RERUN_REFUSED_SUPERSEDED)
+    # THE PERIOD NAMES NO SOURCE (a row from before the pointer was written,
+    # or one a correction left without it). It is this document's only when
+    # its analysis says so — the provenance stamp `stage_persist` writes —
+    # or, when it carries no stamp, when no OTHER document of the company,
+    # live or deleted, is pinned to it (the dedupe's own definition of a copy
+    # that "holds": `_doc_dedupe._analysis_state`). NULL is never "anyone's".
+    full = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{pin}", "org_id": f"eq.{org_id}"},
+        limit=1,
+    ) or []
+    if not full or str(full[0].get("org_id") or "") != org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    named_since = str(full[0].get("source_document_id") or "")
+    if named_since:
+        # It was given a source between the two reads: that pointer decides.
+        if named_since != document_id:
+            raise RerunRefused(RERUN_REFUSED_SUPERSEDED)
+        return [dict(period, source_document_id=named_since)]
+    built_from = _period_move.envelope_source_document_id(full[0])
+    if built_from:
+        if built_from != document_id:
+            raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+        return [period]
+    others = admin_client.select(
+        "documents",
+        filters={"period_id": f"eq.{pin}", "org_id": f"eq.{org_id}", "id": f"neq.{document_id}"},
+        columns="id", limit=1,
+    ) or []
+    if others:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    return [period]
+
+
+def _own_periods_or_refuse_rerun(document_id: Any, org_id: Any) -> List[Dict[str, Any]]:
+    """`_own_periods_for_rerun` in the shapes the retry route answers with:
+    409 with the refusal's CODE alone (no message, no period id, no document
+    id), 503 `rerun_unavailable` when ownership cannot be read."""
+    try:
+        with _supabase.admin() as admin_client:
+            return _own_periods_for_rerun(admin_client, document_id, org_id)
+    except RerunRefused as refused:
+        logger.info("[pipeline] retry of %s refused: %s", document_id, refused.code)
+        raise HTTPException(409, {"code": refused.code})
+    except Exception as exc:  # noqa: BLE001 — unreadable is never "own"
+        logger.exception("[pipeline] retry of %s: the document's period could not be read — "
+                         "the re-run is not started", document_id)
+        raise HTTPException(503, {"code": "rerun_unavailable"}) from exc
 
 
 # ── The Docs panel's "Re-run analysis" carries the last good briefing across its reset ──
@@ -10747,6 +10887,14 @@ def build_router() -> APIRouter:
         # nothing; a document that holds no analysis yet (its first run
         # failed, or its 402 was dismissed) is metered exactly like /run,
         # 402 / 429 included (`_start_rerun`).
+        #
+        # FIRST: THE PERIOD THIS RE-RUN WOULD RESET IS THE DOCUMENT'S OWN, or
+        # the re-run is refused here — before the claim, the meter and any
+        # write (`_own_periods_for_rerun`; 409 with a code alone). A deleted
+        # document keeps its own answers below (`document_deleted`, or the
+        # original its duplicate marker names).
+        if not doc.get("deleted_at"):
+            _own_periods_or_refuse_rerun(req.document_id, doc.get("org_id"))
         entry = _start_rerun(doc, _user_id_from_jwt(jwt),
                              lambda: _retry_rerun(req.document_id, doc))
         if entry.kind == _doc_dedupe.DELETED:
@@ -10764,17 +10912,32 @@ def build_router() -> APIRouter:
         return RunResponse(document_id=req.document_id, status="queued")
 
     def _retry_rerun(document_id: str, doc: Dict[str, Any]) -> None:
-        """The body of a claimed retry: carry what the reset would cost the
-        reader, wipe the prior derivatives, queue, hand the run to its
+        """The body of a claimed retry: the ownership look again (under the
+        claim), carry what the reset would cost the reader, wipe the prior
+        derivatives of the document's OWN period, queue, hand the run to its
         thread."""
+        doc_org = str(doc.get("org_id") or "").strip()
+        # THE PERIOD IS THE DOCUMENT'S OWN — looked at again here, under the
+        # claim: the route's look came before it, and a newer upload's
+        # takeover can land in between. A refusal leaves through
+        # `_start_rerun`'s `finally`, which gives the claim (and any
+        # reservation) back; nothing has been written. `own` is what the
+        # STORE says now — never `doc`, the row the wall read.
+        own = _own_periods_or_refuse_rerun(document_id, doc_org)
         # THE LAST GOOD BRIEFING AND THE RECOMMENDATIONS ARE CARRIED across
         # the reset below (owner rulings 2026-10-03): `briefings` keeps no
         # history, and a re-run whose narration fails used to leave the
         # reader "unavailable" where they stood. `stage_persist_narrative`
         # puts them back when the run's narration brings nothing. An
         # unreadable period refuses the re-run — nothing is reset blind.
+        # The carry reads the document's OWN period (`own`), never the pin:
+        # read through the pin, it held a NEWER document's briefing and
+        # recommendations for the older file (measured, 2026-10-04).
+        with _RERUN_CARRY_LOCK:
+            _held = _RERUN_CARRY.get(document_id)
+            carry_before = copy.deepcopy(_held) if _held is not None else None
         try:
-            _carry_before_rerun_reset(doc)
+            _carry_before_rerun_reset(dict(doc, period_id=own[0]["id"] if own else None))
         except Exception as exc:  # noqa: BLE001
             logger.exception("[pipeline] retry of %s: the period's briefing and recommendations "
                              "could not be read — the re-run is not started", document_id)
@@ -10795,13 +10958,37 @@ def build_router() -> APIRouter:
         # Same defect as the storage-path bypass and the make-active twin
         # fixed the same day. With org_id in the filter a cross-tenant id
         # simply matches nothing.
-        doc_org = str(doc.get("org_id") or "").strip()
-        if doc.get("period_id") and doc_org:
+        # AND THE SOURCE IS PART OF THE FILTER (2026-10-04): the delete names
+        # the document the period must still be the analysis of (`is.null`
+        # for a period that names none and was read as the document's own),
+        # so a period that changed hands since the look above matches
+        # nothing. The re-read after it is how that is NOTICED: a row still
+        # there was not this document's to reset — what the carry held
+        # before is put back and the re-run is refused, nothing else touched.
+        # The carried period (`own[0]`) goes LAST, so a refusal part-way
+        # never leaves its briefing neither stored nor carried.
+        for period in reversed(own):
             with _supabase.admin() as admin_client:
                 admin_client.delete("financial_periods", filters={
-                    "id": f"eq.{doc['period_id']}",
+                    "id": f"eq.{period['id']}",
                     "org_id": f"eq.{doc_org}",
+                    "source_document_id": (f"eq.{document_id}" if period.get("source_document_id")
+                                           else "is.null"),
                 })
+                still_there = admin_client.select(
+                    "financial_periods",
+                    filters={"id": f"eq.{period['id']}", "org_id": f"eq.{doc_org}"},
+                    columns="id", limit=1,
+                )
+            if still_there:
+                with _RERUN_CARRY_LOCK:
+                    if carry_before is None:
+                        _RERUN_CARRY.pop(document_id, None)
+                    else:
+                        _RERUN_CARRY[document_id] = carry_before
+                logger.warning("[pipeline] retry of %s: its period changed hands before the reset — "
+                               "nothing was reset; the re-run is not started", document_id)
+                raise HTTPException(409, {"code": RERUN_REFUSED_SUPERSEDED})
         with _supabase.admin() as admin_client:
             admin_client.delete("alerts", filters={"document_id": f"eq.{document_id}"})
             admin_client.update(

@@ -2593,9 +2593,12 @@ def test_a_docs_panel_rerun_whose_narration_works_serves_the_new_briefing(app, g
 
 def test_the_reset_is_what_it_always_was_and_the_carry_is_taken_before_it(app, gw, monkeypatch):
     """Between POST /api/pipeline/retry and the run: the period IS reset —
-    one delete of `financial_periods`, the document and its tenant in the
-    filter, the document unpinned and queued — exactly what production
-    ran before; and what the reset took is held for the document, read
+    one delete of `financial_periods`, the period, its tenant AND the
+    document it must still be the analysis of in the filter (restated
+    2026-10-04, gate rerun-data-loss: by id and tenant alone the reset
+    deleted a NEWER document's month — the filter is stronger, the reset is
+    the same), the document unpinned and queued — what production ran
+    before; and what the reset took is held for the document, read
     BEFORE the delete with the tenant in every filter. (An in-place re-run
     — no delete here — is the withdrawn design.)"""
     first = _rerun_world(app, gw, monkeypatch, [])
@@ -2614,8 +2617,9 @@ def test_the_reset_is_what_it_always_was_and_the_carry_is_taken_before_it(app, g
 
     assert r.status_code == 202, r.text[:300]
     deletes = [(w["table"], w["filters"]) for w in spy.writes if w["op"] == "delete"]
-    assert ("financial_periods", {"id": "eq.%s" % first["period_id"],
-                                  "org_id": "eq.%s" % first["org_id"]}) in deletes, deletes
+    assert [f for t, f in deletes if t == "financial_periods"] == [
+        {"id": "eq.%s" % first["period_id"], "org_id": "eq.%s" % first["org_id"],
+         "source_document_id": "eq.%s" % first["doc"]["id"]}], deletes
     assert gw.db.rows("financial_periods") == []
     (doc,) = gw.docs(id=first["doc"]["id"])
     assert doc["status"] == "queued" and doc["period_id"] is None and doc["error"] is None, doc
