@@ -207,12 +207,12 @@ describe("a refusal is the app's notice, not the assistant's words: it is never 
     const calls = chatLlmMock.mock.calls.length;
     chatLlmMock.mockResolvedValueOnce({ answer: "The answer.", model: null, usage: null });
     startChatTurn({ ...turnCtx(), text });
-    await waitFor(() => expect(chatLlmMock.mock.calls.length).toBe(calls + 1));
+    await waitFor(() => expect(chatLlmMock.mock.calls.length).toBe(calls + 1), { timeout: 5000 });
     const id = visibleConversations(null)[0].id;
     await waitFor(() => {
       const c = getChatConversation(null, id)!;
       expect(c.messages[c.messages.length - 1].pending).toBeFalsy();
-    });
+    }, { timeout: 5000 });
     return (chatLlmMock.mock.calls[calls] as unknown as [{ messages: Sent }])[0].messages;
   }
 

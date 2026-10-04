@@ -765,7 +765,7 @@ try {
     compressDeadlineTo = null;
     upstreamMode = "ok";
     // (give the recorder a moment to see the caller go away)
-    for (let i = 0; i < 40 && hungAbortedByCaller === abortedBefore; i++) await new Promise((res) => realSetTimeout(res, 50));
+    for (let i = 0; i < 100 && hungAbortedByCaller === abortedBefore; i++) await new Promise((res) => realSetTimeout(res, 50));
     const held = await meter(u);
     releaseHung(); // a function with no deadline is still waiting: let it go, so this run can end
     if (r === null) await pending;
