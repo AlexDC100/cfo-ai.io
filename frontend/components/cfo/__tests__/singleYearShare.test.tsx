@@ -1852,10 +1852,49 @@ describe("S5 a comparison period that closes LATER reads backwards — and is sa
         }
       }
       expect(said).toBe(crossed.length);
+      // The ratio CARDS: the figure beside each ratio is the comparison
+      // period's, and a period that closes later is not a "prior" one
+      // (owner, 2026-10-04: the cards said "ANTERIOR, 2025-12-31" over a
+      // 2024 period). Every card that prints the side names it "Comparison".
+      const labels = [...document.querySelectorAll<HTMLElement>('[data-testid="ratio-prior"] [data-col="prior-label"]')];
+      expect(labels.length).toBeGreaterThanOrEqual(15);
+      const priorWord = text(lang, "statements.ratioCmp.ui.priorEyebrow").split(",")[0];
+      const wantWord = text(lang, "statements.ratioCmp.ui.comparisonEyebrow").split(",")[0];
+      expect(wantWord).not.toBe(priorWord);
+      for (const el of labels) {
+        expect(el.textContent, "a later period called prior on a ratio card").toBe(`${wantWord}, ${p.comparatives.prior!.label}`);
+        expect(el.textContent).not.toContain(priorWord);
+      }
       noRawKeys();
       statesChecked += 1;
     });
   }
+
+  it("forwards the ratio cards say Prior — the comparison word is not the default", async () => {
+    const p = forward();
+    renderRatiosTab(p, true);
+    for (const lang of ["ro", "en"] as const) {
+      await language(lang);
+      const labels = [...document.querySelectorAll<HTMLElement>('[data-testid="ratio-prior"] [data-col="prior-label"]')];
+      expect(labels.length).toBeGreaterThanOrEqual(15);
+      const priorWord = text(lang, "statements.ratioCmp.ui.priorEyebrow").split(",")[0];
+      for (const el of labels) expect(el.textContent).toBe(`${priorWord}, ${p.comparatives.prior!.label}`);
+    }
+    statesChecked += 1;
+  });
+
+  it("an unreadable order is not a prior either: the cards say Comparison", async () => {
+    const p = later();
+    (p.comparatives as unknown as { direction: { order: string; reason: string } }).direction.order = "unknown";
+    (p.comparatives as unknown as { direction: { order: string; reason: string } }).direction.reason = "period_order_unknown";
+    p.comparatives.ratios!.band_movements.verdicts_withheld = "period_order_unknown";
+    renderRatiosTab(p, true);
+    await language("ro");
+    const labels = [...document.querySelectorAll<HTMLElement>('[data-testid="ratio-prior"] [data-col="prior-label"]')];
+    expect(labels.length).toBeGreaterThanOrEqual(15);
+    for (const el of labels) expect(el.textContent!.startsWith("Comparație, ")).toBe(true);
+    statesChecked += 1;
+  });
 
   it("forwards the Ratios tab lists them, as served — the withheld state is not the default", () => {
     const p = forward();

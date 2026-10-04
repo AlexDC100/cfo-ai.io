@@ -5147,9 +5147,14 @@ its PDF did not change). The block's per-line notes are on the sample's
 label EXCLUSIONS with their reason — how a line states its share, like the
 comparison's own notes — not on the uncertainty-label list.
 
+**"Prior" is a word about time** (owner, after the live check): under a
+later or unreadable comparison period the ratio cards label the comparison's
+figure "Comparison, <period>" / "Comparație, <period>" — as the column box
+does — never "Prior" / "Anterior" (branch `fix/later-comparison-label`).
+
 **Not done (S8, and the reviewers' residue):** the exported report /
-workbook / PDF's own share column; the command bar still labels a later
-comparison "vs prior"; printer conventions on shares (ungrouped
+workbook / PDF's own share column; the command bar's own "vs prior" wording (it asks for
+the engine's earlier period and offers no later one); printer conventions on shares (ungrouped
 "17995,1%", an ASCII hyphen on negatives, "+0.0 pp"); `same_close` pairs
 serve verdicts; `statements.subAggregates` is built in hash order (on main
 too).

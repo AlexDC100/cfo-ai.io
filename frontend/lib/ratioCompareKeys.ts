@@ -106,6 +106,7 @@ export const RATIO_CMP_UI_KEYS = [
   "comparisonFailedNoResponse",
   "currentDiffers",
   "priorEyebrow",
+  "comparisonEyebrow",
   "ladderRungHigher",
   "ladderRungLower",
   "ladderFloorHigher",
