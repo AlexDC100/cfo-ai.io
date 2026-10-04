@@ -2178,6 +2178,45 @@ def _engine_gates() -> List[Gate]:
                        "fed by the choice the request is made with",
                        "every upload link of the comparison goes to a path the app routes",
                        "each key, with its placeholders, in both bundles \u2014 and the two differ")),
+        # "% DIN VENITURI" ON ONE YEAR, AND WHICH WAY TIME RUNS (owner ruling
+        # 2026-10-04: "'% din venituri' must work for a single year without a
+        # comparison. Engine change, with a gate." The share column was
+        # painted from the two-period comparatives document, so a company
+        # with one year on file \u2014 or its earliest year on screen \u2014 had none;
+        # and the balance-sheet tab's share was divided in the browser):
+        #   common-size-single  the engine serves ONE period's shares on the
+        #                    period payload (statements.common_size, schema
+        #                    common_size/1: every registry line of net
+        #                    turnover / total assets, and every canonical
+        #                    balance-sheet row, subtotal and total), computed
+        #                    by the function the comparison's two sides run:
+        #                    on every corpus pair, offline and through
+        #                    create_app(), single(current).share ==
+        #                    current_share and single(prior).share ==
+        #                    prior_share for every key, statuses included; one
+        #                    division site; a refused or absent line and a
+        #                    base below the zero floor carry no share (never
+        #                    0 %); the same request twice gives the same
+        #                    bytes and nothing is persisted. And the
+        #                    comparatives document says which way time runs
+        #                    (`direction`): a prior that closes LATER, or an
+        #                    order that cannot be read, serves every figure,
+        #                    delta, bridge and share and NO improved /
+        #                    deteriorated verdict (swap law). The committed
+        #                    frontend fixtures are the engine's bytes; the
+        #                    deploy pre-flight (check_served_periods.py
+        #                    --require-common-size) reads the block.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("common-size-single",
+             [PY, "-m", "pytest", "tests/engine/test_common_size_single.py",
+              "tests/engine/test_common_size_fe_fixture.py", "-q", "-s"],
+             # measured 2026-10-04: 14,548 share cells over 68 offline pairs
+             # (plus 6,804 through the real routes over 11 periods, 32 pairs).
+             work_rx=r"GATE-WORK common-size-single rows=(\d+)", floor=12000,
+             units="share cells held equal between the two documents",
+             canaries=("GATE-WORK common-size-single rows=",
+                       "GATE-WORK common-size-single served_periods=",
+                       "GATE-WORK common-size-single swaps=")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
