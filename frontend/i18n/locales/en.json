@@ -621,6 +621,8 @@
       "baseRevenue": "revenue",
       "baseAssets": "total assets",
       "bridgePeriod": "{{label}} — {{period}}",
+      "onlyCurrent": "only in this period",
+      "onlyComparison": "only in the comparison",
       "failedTitle": "The comparison could not be loaded.",
       "failedBody": "The request failed (HTTP {{status}}), so this period is shown on its own.",
       "failedBodyNoResponse": "No response arrived, so this period is shown on its own.",

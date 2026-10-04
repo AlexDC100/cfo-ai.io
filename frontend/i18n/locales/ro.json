@@ -621,6 +621,8 @@
       "baseRevenue": "venituri",
       "baseAssets": "total active",
       "bridgePeriod": "{{label}} — {{period}}",
+      "onlyCurrent": "doar în perioada afișată",
+      "onlyComparison": "doar în comparație",
       "failedTitle": "Comparația nu a putut fi încărcată.",
       "failedBody": "Cererea a eșuat (HTTP {{status}}), așa că perioada apare fără comparație.",
       "failedBodyNoResponse": "Nu a sosit niciun răspuns, așa că perioada apare fără comparație.",

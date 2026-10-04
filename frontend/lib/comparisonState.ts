@@ -139,6 +139,17 @@ export function priorIsEarlier(doc: ComparativesResponse | null | undefined): bo
   return order === null || order === "prior_is_earlier";
 }
 
+/**
+ * THE WORD FOR A LINE ONE PERIOD LACKS. "New" and "no longer present" say
+ * which way time ran: under a comparison period that is NOT the earlier one
+ * a line the later period lacks would read "new". There the word only says
+ * WHERE the line is — in the period on screen, or in the comparison.
+ */
+export function absentLineWordKey(side: "absent_prior" | "absent_current", ordered: boolean): string {
+  if (side === "absent_prior") return ordered ? "statements.cmp.new" : "statements.cmp.onlyCurrent";
+  return ordered ? "statements.cmp.gone" : "statements.cmp.onlyComparison";
+}
+
 // ── The one note under the tab bar ────────────────────────────────────
 
 export type ComparisonNote =

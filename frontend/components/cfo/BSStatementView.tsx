@@ -23,20 +23,28 @@ import {
   useShareOnlyContext,
 } from "./ComparativeCells";
 import { sourceDocumentLine } from "@/lib/comparatives";
+import { absentLineWordKey } from "@/lib/comparisonState";
 
 /** Which extra columns the statement carries: the comparison's Δ % and
  *  share (a document is on screen), the period's own share alone (no
  *  document — `statements.common_size`), or none. One reading, used by the
  *  header and every row, so they cannot disagree about the grid. */
-function useBsExtraColumns(): { on: boolean; compared: boolean; deltaPct: boolean; share: boolean } {
+function useBsExtraColumns(): {
+  on: boolean;
+  compared: boolean;
+  /** The comparison period is the earlier one (the engine's reading). */
+  ordered: boolean;
+  deltaPct: boolean;
+  share: boolean;
+} {
   const cmp = useComparativeContext();
   const single = useShareOnlyContext();
   if (cmp) {
     // The reader's two column choices (not served figures).
     const { deltaPct, share } = cmp.columns;
-    return { on: deltaPct || share, compared: true, deltaPct, share };
+    return { on: deltaPct || share, compared: true, ordered: cmp.ordered, deltaPct, share };
   }
-  return { on: !!single, compared: false, deltaPct: false, share: !!single };
+  return { on: !!single, compared: false, ordered: true, deltaPct: false, share: !!single };
 }
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
 import { MONEY_MISSING } from "@/lib/money";
@@ -473,13 +481,15 @@ function BSLineView({
   // a prior opening on a row that does not close (the builder appends the
   // prior period's rows the current period no longer carries) — is "no
   // longer present", never a 0 closing and never a −100%. Only with a
-  // document: a single-period share column compares nothing.
+  // document: a single-period share column compares nothing. And only when
+  // the comparison period is the EARLIER one: otherwise the word says where
+  // the line is, not that it appeared or went away.
   const absentWord = !(cmpOn && extra.compared)
     ? undefined
     : typeof line.opening !== "number" && typeof line.closing === "number"
-      ? t("statements.cmp.new")
+      ? t(absentLineWordKey("absent_prior", extra.ordered))
       : typeof line.opening === "number" && typeof line.closing !== "number"
-        ? t("statements.cmp.gone")
+        ? t(absentLineWordKey("absent_current", extra.ordered))
         : undefined;
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
   const conceptKey = bucketToConcept(line.bucket);

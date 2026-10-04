@@ -121,6 +121,7 @@ const {
 } = await import("@/lib/comparatives");
 const { readCommonSize, shareForRow, shareOfferOf } = await import("@/lib/commonSize");
 const {
+  absentLineWordKey,
   columnBoxesOf,
   comparisonBackwardsOf,
   comparisonBlockOf,
@@ -1149,6 +1150,50 @@ describe("S5 a comparison period that closes LATER reads backwards — and is sa
     });
   }
 
+  it('a line one period lacks is not called "new" or "no longer present" when the comparison period is the later one', async () => {
+    const WORDS: Record<Lang, Record<"new" | "gone" | "here" | "there", string>> = {
+      en: { new: "new", gone: "no longer present", here: "only in this period", there: "only in the comparison" },
+      ro: { new: "nou", gone: "nu mai apare", here: "doar în perioada afișată", there: "doar în comparație" },
+    };
+    const words = () =>
+      [...screen.getByTestId("bs-statement").querySelectorAll<HTMLElement>(".cmp-cell--word")].map((e) => e.textContent ?? "");
+    const count = (all: string[], w: string) => all.filter((x) => x === w).length;
+    for (const lang of ["en", "ro"] as const) {
+      const w = WORDS[lang];
+      // The later period as the comparison: the words say WHERE the line is.
+      storeView({ priorPeriodId: P25 });
+      const back = renderWithProviders(mount({ tab: "balance_sheet", body: body24(), rows: TWO_YEARS, currentId: P24 }));
+      await language(lang);
+      let seen = words();
+      expect(count(seen, w.new), `${lang}: a line the LATER period lacks is called "${w.new}"`).toBe(0);
+      expect(count(seen, w.gone)).toBe(0);
+      expect(count(seen, w.here)).toBeGreaterThanOrEqual(4);
+      expect(count(seen, w.there)).toBeGreaterThanOrEqual(1);
+      const [here, there] = [count(seen, w.here), count(seen, w.there)];
+      // The bridge's steps carry the same words on a line one period lacks.
+      const step = (status: string) =>
+        [...document.querySelectorAll<HTMLElement>(`[data-step-status="${status}"] > span:first-child`)].map((e) => e.textContent ?? "");
+      expect(step("new").length + step("gone").length).toBeGreaterThanOrEqual(2);
+      for (const t of step("new")) expect(t.endsWith(w.here), t).toBe(true);
+      for (const t of step("gone")) expect(t.endsWith(w.there), t).toBe(true);
+      back.unmount();
+      resetStorage();
+      // Forward, the same lines read the other way round — and say so.
+      const fwd = renderWithProviders(mount({ tab: "balance_sheet", body: body25(), rows: TWO_YEARS, currentId: P25 }));
+      await language(lang);
+      seen = words();
+      expect(count(seen, w.here) + count(seen, w.there)).toBe(0);
+      expect(count(seen, w.gone)).toBe(here);
+      expect(count(seen, w.new)).toBe(there);
+      fwd.unmount();
+      statesChecked += 2;
+    }
+    expect(absentLineWordKey("absent_prior", true)).toBe("statements.cmp.new");
+    expect(absentLineWordKey("absent_current", true)).toBe("statements.cmp.gone");
+    expect(absentLineWordKey("absent_prior", false)).toBe("statements.cmp.onlyCurrent");
+    expect(absentLineWordKey("absent_current", false)).toBe("statements.cmp.onlyComparison");
+  });
+
   it("forward: no sentence, the lists as served, the bridge says prior / current", async () => {
     const p = forward();
     for (const lang of ["en", "ro"] as const) {
@@ -1860,6 +1905,8 @@ describe("every new sentence exists in English and in Romanian", () => {
     backwardsLaterPlain: ["prior", "current"],
     backwardsUnknown: [],
     backwardsUnknownPlain: [],
+    onlyCurrent: [],
+    onlyComparison: [],
     "share.notServed": [],
     "share.noBasePl": [],
     "share.noBaseBs": [],

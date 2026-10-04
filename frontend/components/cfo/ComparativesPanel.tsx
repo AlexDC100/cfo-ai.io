@@ -24,6 +24,7 @@ import {
 } from "@/lib/comparatives";
 import type { ShareOffer } from "@/lib/commonSize";
 import {
+  absentLineWordKey,
   columnBoxesOf,
   comparisonBackwardsOf,
   comparisonBlockOf,
@@ -511,8 +512,8 @@ function Bridge({ bridge, title, currency, ordered, fromPeriod, toPeriod }: {
           <div key={s.key} className="flex justify-between gap-3 py-1" data-step={s.key} data-step-status={s.status}>
             <span className="text-ink-soft truncate">
               {s.label}
-              {s.status === "new" && <span className="ml-1 text-ink-mute uppercase text-[10px]">{t("statements.cmp.new")}</span>}
-              {s.status === "gone" && <span className="ml-1 text-ink-mute uppercase text-[10px]">{t("statements.cmp.gone")}</span>}
+              {s.status === "new" && <span className="ml-1 text-ink-mute uppercase text-[10px]">{t(absentLineWordKey("absent_prior", ordered))}</span>}
+              {s.status === "gone" && <span className="ml-1 text-ink-mute uppercase text-[10px]">{t(absentLineWordKey("absent_current", ordered))}</span>}
             </span>
             <span className={s.amount > 0.005 ? "text-success" : s.amount < -0.005 ? "text-alert" : "text-ink-mute"}>
               {signed(s.amount)}

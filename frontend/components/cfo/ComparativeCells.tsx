@@ -48,6 +48,7 @@ import {
   type CommonSizeBlock,
   type ShareOutcome,
 } from "@/lib/commonSize";
+import { absentLineWordKey, priorIsEarlier } from "@/lib/comparisonState";
 import type { ComparativeColumns } from "@/stores/comparativesView";
 import { useAmountFormatter } from "@/stores/currency";
 import { MONEY_MISSING } from "@/lib/money";
@@ -68,6 +69,10 @@ export interface ComparativeContextValue {
   /** The period's own share block, when served: what a balance-sheet row's
    *  amount is held against before the document's share is printed. */
   block: CommonSizeBlock | null;
+  /** The engine says the comparison period is the EARLIER one. When it is
+   *  not, a line one period lacks is not called "new" / "no longer present"
+   *  (lib/comparisonState.ts `absentLineWordKey`). */
+  ordered: boolean;
   columns: ComparativeColumns;
   /** "PL" | "BS" — which statement base the share column is against. */
   statement: "PL" | "BS";
@@ -120,6 +125,7 @@ export function ComparativeProvider({
     cells: indexCells(doc),
     shareRows: new Map(doc.common_size.map((r) => [r.key, r])),
     block: commonSize,
+    ordered: priorIsEarlier(doc),
     columns,
     statement,
     currency,
@@ -310,8 +316,8 @@ export function CmpCells({
   const c = outcome.cell;
   const refusalWord = (): string | null => {
     switch (c.status) {
-      case "absent_prior": return t("statements.cmp.new");
-      case "absent_current": return t("statements.cmp.gone");
+      case "absent_prior": return t(absentLineWordKey("absent_prior", ctx.ordered));
+      case "absent_current": return t(absentLineWordKey("absent_current", ctx.ordered));
       case "not_disclosed_at_this_detail_level": return t("statements.cmp.notAtLevel");
       case "incomparable": return t("statements.cmp.notAtLevel");
       // The engine refused the figure in one period: no movement exists.
