@@ -282,6 +282,14 @@ export function useComparatives(periodId: string | null, priorId: string | null,
     queryFn: () => fetchComparatives(periodId!, priorId!, orgId!),
     enabled: !!orgId && !!periodId && !!priorId && periodId !== priorId,
     staleTime: 5 * 60_000,
+    // NEVER ANOTHER PAIR'S DOCUMENT. The app's client keeps the previous
+    // result as a placeholder when a key changes (lib/queryClient.ts) — right
+    // for a page that must not blank, wrong here: stepping from a compared
+    // period to one with no prior left the PREVIOUS comparison on screen
+    // (its header, its summary) under a period it does not describe, and a
+    // disabled query (no prior) kept it for good. A comparison is of exactly
+    // (period, prior); until that pair's own answer arrives there is none.
+    placeholderData: undefined,
   });
 }
 
@@ -492,6 +500,82 @@ export function pickDefaultPrior(
     .filter((p) => p.period_id !== currentId && !!p.period_end && p.period_end < currentEnd && sameLength(p))
     .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
   return earlier[0] ?? null;
+}
+
+/**
+ * The close a reader means by "the previous year" for a period closing on
+ * `currentEnd`: the same month, one year earlier — a month's last day stays
+ * the month's last day (28 Feb 2025 → 29 Feb 2024). Null for a date that
+ * cannot be read.
+ *
+ * It names the period AUTO looked for when `pickDefaultPrior` found none
+ * (2026-10-04, production: a company whose earliest period was on screen —
+ * the picker said "Previous year (auto)", the four column boxes were ticked,
+ * and the statements showed one column with no word about why). The picker
+ * and its notice say which balance is missing; they never pick another
+ * period in its place.
+ */
+export function previousYearEnd(currentEnd: string | null | undefined): string | null {
+  if (!currentEnd || !/^\d{4}-\d{2}-\d{2}/.test(currentEnd)) return null;
+  const y = Number(currentEnd.slice(0, 4));
+  const m = Number(currentEnd.slice(5, 7));
+  const d = Number(currentEnd.slice(8, 10));
+  if (y < 1 || m < 1 || m > 12 || d < 1) return null;
+  const lastOf = (year: number) => new Date(Date.UTC(year, m, 0)).getUTCDate();
+  if (d > lastOf(y)) return null;
+  const day = d === lastOf(y) ? lastOf(y - 1) : Math.min(d, lastOf(y - 1));
+  const pad = (n: number, w: number) => String(n).padStart(w, "0");
+  return `${pad(y - 1, 4)}-${pad(m, 2)}-${pad(day, 2)}`;
+}
+
+/**
+ * A comparison that is ON and compares nothing: the reader did not turn
+ * comparisons off, and no prior resolves (AUTO found no earlier period
+ * of the same length, and no usable stored choice stands in). The page says so in words and offers the next step — it never leaves
+ * the picker and the column boxes implying a comparison that is not there.
+ */
+export function comparisonHasNoPrior(stored: string | null | "none", priorId: string | null): boolean {
+  return stored !== "none" && !priorId;
+}
+
+/** What the controls and the notice say about a comparison that is ON and
+ *  compares nothing. */
+export interface NoPriorState {
+  /** The close of the period on screen (null: it cannot be read). */
+  currentEnd: string | null;
+  /** The close AUTO looked for — the same month a year earlier — when the
+   *  company has NO period closing that month. Null when one exists at
+   *  another length (AUTO did not take it, but it is not "missing"), and
+   *  when the close on screen cannot be read. */
+  missingEnd: string | null;
+  /** The company's EARLIER periods, nearest first: what the notice offers
+   *  one click away. Never a later one — a later period under "Prior" reads
+   *  the change backwards (the Δ and the improved / deteriorated lists turn
+   *  round); it stays one pick away in the list, as before. */
+  earlier: OrgPeriod[];
+}
+
+/** `null` unless the comparison is on and no prior resolves. Pure. */
+export function noPriorStateOf(input: {
+  periods: readonly OrgPeriod[];
+  currentId: string | null;
+  currentEnd?: string | null;
+  stored: string | null | "none";
+  priorId: string | null;
+}): NoPriorState | null {
+  if (!comparisonHasNoPrior(input.stored, input.priorId)) return null;
+  const currentEnd =
+    input.currentEnd ?? input.periods.find((p) => p.period_id === input.currentId)?.period_end ?? null;
+  const others = input.periods.filter((p) => p.period_id !== input.currentId);
+  const wanted = previousYearEnd(currentEnd);
+  const closesThatMonth =
+    wanted !== null && others.some((p) => (p.period_end ?? "").slice(0, 7) === wanted.slice(0, 7));
+  const earlier = currentEnd
+    ? others
+        .filter((p) => !!p.period_end && p.period_end < currentEnd)
+        .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""))
+    : [];
+  return { currentEnd, missingEnd: wanted !== null && !closesThatMonth ? wanted : null, earlier };
 }
 
 // ── Cells the views may paint ────────────────────────────────────────

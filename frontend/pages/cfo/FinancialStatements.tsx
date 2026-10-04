@@ -58,6 +58,7 @@ import { bsOpeningFill, useComparatives, useComparisonChoice } from "@/lib/compa
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import {
   ComparativesControls,
+  ComparativesNoPriorNote,
   ComparativesRefusedNote,
   ComparativesSummary,
   RatioCompareCtx,
@@ -2070,18 +2071,36 @@ function FinancialStatementsInner() {
             {/* COMPARATIVES — which prior, which columns. On the Overview
                 and the statement tabs (every view that compares); the
                 picker lists every other period of THIS company and AUTO
-                names the period it resolves to — the default. */}
+                names the period it resolves to — the default. When AUTO
+                resolves to none (the company's earliest year on screen) the
+                picker names the balance that is missing and the column boxes
+                are off: `priorId` is what the page actually compares with. */}
             {(activeTab === "overview" || activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
               && cmpPeriods.length > 1 && statements && (
               <ComparativesControls
                 periods={cmpPeriods}
                 currentId={remotePeriod.id}
+                currentEnd={remotePeriod.periodEnd}
                 autoPick={cmpAutoPick}
+                priorId={cmpPriorId}
                 currency={statements.currency}
                 columns={activeTab !== "overview"}
               />
             )}
           </div>
+          )}
+          {/* …and the sentence for a comparison that is on and compares
+              nothing, BELOW the sticky bar (it scrolls away with the page). */}
+          {hasPeriodLoaded
+            && (activeTab === "overview" || activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
+            && cmpPeriods.length > 1 && statements && (
+            <ComparativesNoPriorNote
+              periods={cmpPeriods}
+              currentId={remotePeriod.id}
+              currentEnd={remotePeriod.periodEnd}
+              priorId={cmpPriorId}
+              uploadHref={remotePeriod.id ? `/workspace?period=${encodeURIComponent(remotePeriod.id)}` : "/workspace"}
+            />
           )}
 
         {/* OVERVIEW ─────────────────────────────────────────────────────── */}
@@ -2464,6 +2483,7 @@ function FinancialStatementsInner() {
             <CashFlowStatementView
               hideGuide
               prior={priorCf}
+              uploadHref={remotePeriod.id ? `/workspace?period=${encodeURIComponent(remotePeriod.id)}` : "/workspace"}
               statement={buildCashFlowStatement({
                 pl: (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl,
                 bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,

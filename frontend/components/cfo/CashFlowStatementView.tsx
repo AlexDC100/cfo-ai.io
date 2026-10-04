@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useInRouterContext } from "react-router-dom";
 import { Cloud, ArrowUp } from "lucide-react";
 import { cashFlowFigures, type CashFlowStatement, type CashFlowStatementFigures } from "@/lib/cfStructure";
 import { sourceDocumentLine } from "@/lib/comparatives";
@@ -45,9 +46,14 @@ interface Props {
    *  cells when the dashboard also wrapped this view in a
    *  <ComparativeProvider>; otherwise ignored. */
   prior?: CashFlowStatement | null;
+  /** Where the previous year's balance is uploaded — the "upload the prior
+   *  period" link on the approximated-cash-flow card. The workspace by
+   *  default. (It pointed at `/financials`, a path with no route: the link
+   *  opened the not-found page.) */
+  uploadHref?: string;
 }
 
-export function CashFlowStatementView({ statement, hideGuide = false, prior = null }: Props) {
+export function CashFlowStatementView({ statement, hideGuide = false, prior = null, uploadHref = "/workspace" }: Props) {
   const { t, i18n } = useTranslation();
   // The engine REFUSED the net result the indirect method starts from: its
   // reason, never a statement built on a net profit of 0.
@@ -65,13 +71,16 @@ export function CashFlowStatementView({ statement, hideGuide = false, prior = nu
       </div>
     );
   }
-  return <CashFlowStatementBody statement={figures} hideGuide={hideGuide} prior={prior} />;
+  return <CashFlowStatementBody statement={figures} hideGuide={hideGuide} prior={prior} uploadHref={uploadHref} />;
 }
 
-function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: Omit<Props, "statement"> & {
+function CashFlowStatementBody({ statement, hideGuide = false, prior = null, uploadHref = "/workspace" }: Omit<Props, "statement"> & {
   statement: CashFlowStatementFigures;
 }) {
   const { t, i18n } = useTranslation();
+  // In-app navigation where there is a router (the dashboard); a plain link
+  // where the view is rendered on its own.
+  const inRouter = useInRouterContext();
   const { operating, investing, financing, reconciliation, notes } = statement;
   const cmp = useComparativeContext();
   const cmpOn = !!cmp && !!prior && (cmp.columns.prior || cmp.columns.delta);
@@ -403,13 +412,23 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
                     </ul>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <a
-                      href="/financials"
-                      data-testid="cf-upload-prior-cta"
-                      className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
-                    >
-                      {t("statements.cf.approximated.cta")}
-                    </a>
+                    {inRouter ? (
+                      <Link
+                        to={uploadHref}
+                        data-testid="cf-upload-prior-cta"
+                        className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
+                      >
+                        {t("statements.cf.approximated.cta")}
+                      </Link>
+                    ) : (
+                      <a
+                        href={uploadHref}
+                        data-testid="cf-upload-prior-cta"
+                        className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
+                      >
+                        {t("statements.cf.approximated.cta")}
+                      </a>
+                    )}
                     <span className="text-[11.5px] text-brand-d/70 dark:text-ink/70">
                       {t("statements.cf.approximated.hint")}
                     </span>
