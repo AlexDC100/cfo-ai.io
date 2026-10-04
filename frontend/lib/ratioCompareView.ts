@@ -507,6 +507,11 @@ export interface PrintedBandMovements {
     bothSides: number;
   };
   rankBasis: string;
+  /** The engine serves NO improved / deteriorated verdict for this pair: the
+   *  comparison period closes later, or the order of the two cannot be read.
+   *  The lists above are empty by the engine's hand, and "nothing crossed a
+   *  band" would be a false sentence — the tab says THIS instead. */
+  verdictsWithheld: "prior_is_later" | "period_order_unknown" | null;
 }
 
 function listedRow(view: RatioCompareView, key: string, loc: string): PrintedRatioRow {
@@ -540,7 +545,9 @@ export function printBandMovements(
           field: "rank_basis.sentence_key",
           value: JSON.stringify(sentenceKey) ?? "undefined",
         });
+  const withheld: unknown = bm.verdicts_withheld;
   return {
+    verdictsWithheld: withheld === "prior_is_later" || withheld === "period_order_unknown" ? withheld : null,
     improved: (bm.improved ?? []).map((k) => listedRow(view, k, loc)),
     deteriorated: (bm.deteriorated ?? []).map((k) => listedRow(view, k, loc)),
     counts: {

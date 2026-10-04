@@ -295,10 +295,14 @@ export async function fetchComparatives(periodId: string, priorId: string, orgId
   }
 }
 
+/** The first element of every comparison's query key. */
+export const COMPARATIVES_QUERY_ROOT = "comparatives";
+
 /** The company is in the key: one company's comparison is never served
- *  from another company's cache entry. */
+ *  from another company's cache entry. The two periods are at positions 2
+ *  and 3 — `comparisonNamesPeriod` (lib/periodReset.ts) reads them there. */
 export const comparativesQueryKey = (orgId: string, periodId: string, priorId: string) =>
-  ["comparatives", orgId, periodId, priorId] as const;
+  [COMPARATIVES_QUERY_ROOT, orgId, periodId, priorId] as const;
 
 /** The comparison of `periodId` with `priorId`, both of company `orgId` —
  *  requested only when all three are known and the two periods differ. */

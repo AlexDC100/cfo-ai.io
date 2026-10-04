@@ -17,6 +17,17 @@
 // keeps meaning "a document is on screen" (its `doc` is never null), and a
 // view asks `useShareOnlyContext` for the single-period column.
 //
+// ONE SHARE PER ROW, IN EVERY STATE: THE PERIOD'S OWN. With a document on
+// screen the cell still prints the period's own block share, held to the
+// row's amount; the DOCUMENT ADDS ONLY THE CHANGE IN POINTS, and only when
+// its `current_share` IS that share (a served equality — nothing is
+// computed). So a document that describes another book — the month was
+// replaced under the same period id and the comparison not yet asked again
+// (measured 2026-10-04: 47 of 51 balance-sheet cells printed the previous
+// book's shares beside the new amounts) — cannot paint a share, and a pair
+// the engine will not compare, or a line the OTHER period refused, does not
+// blank a share the period on screen has.
+//
 // WHAT A CELL MAY SAY. A number the engine served; the engine's own Δ %;
 // a share and its change in POINTS; or a word — "new", "no longer
 // present", "not disclosed at this detail level", "no base" — for the
@@ -35,7 +46,6 @@ import {
   formatDeltaPct,
   formatPts,
   formatShare,
-  rowIsEngineFigure,
   type CommonSizeRowDto,
   type ComparativeCell,
   type ComparativesResponse,
@@ -202,48 +212,82 @@ function signClass(v: number | null): string {
   return v > 0 ? "cmp-cell--pos" : "cmp-cell--neg";
 }
 
+/** The status a share cell carries for the gates (`data-share-status`). */
+function ownShareStatus(outcome: ShareOutcome): string {
+  if (outcome.kind === "share") return "share";
+  if (outcome.kind === "none") return outcome.status;
+  return outcome.kind === "definition_differs" ? "definition-differs" : "unmapped";
+}
+
 /**
- * ONE SHARE CELL of a single-period render: the served fraction through the
- * one printer, or — for a line with no share — a word ("no base", "refused",
- * "not disclosed at this detail level") or the gap glyph, each with the
- * reason in the reader's language as its title. Never 0 % for an absence.
+ * THE PERIOD'S OWN SHARE FOR ONE ROW, as a cell: the served fraction through
+ * the one printer, or — for a line with no share — a word ("no base",
+ * "refused", "not meaningful", "not disclosed at this detail level") or the
+ * gap glyph, each with the reason in the reader's language as its title.
+ * Never 0 % for an absence. `pts` is the comparison document's change in
+ * points for the same share, when a document on screen describes it.
  */
-function ShareOnlyCell({ outcome, statement }: { outcome: ShareOutcome; statement: "PL" | "BS" }) {
+function OwnShare({
+  outcome,
+  statement,
+  pts = null,
+  titled = false,
+  unmappedTitle,
+}: {
+  outcome: ShareOutcome;
+  statement: "PL" | "BS";
+  /** The document's `delta_pts`, served — printed beside the share. */
+  pts?: number | null;
+  /** With a document on screen the cell carries its text as a title. */
+  titled?: boolean;
+  /** The reason on a row the block has no line for. */
+  unmappedTitle?: string;
+}) {
   const { t, i18n } = useTranslation();
   const gap = (title?: string) => (
     <span className="cmp-cell cmp-cell--gap" title={title} aria-label={title}>
       {MONEY_MISSING}
     </span>
   );
-  let cell: ReactNode;
-  let status = "unmapped";
   if (outcome.kind === "share") {
-    status = "share";
-    cell = <span className="cmp-cell">{formatShare(outcome.share, i18n.language)}</span>;
-  } else if (outcome.kind === "none") {
-    status = outcome.status;
+    const shareText = formatShare(outcome.share, i18n.language);
+    const ptsText = formatPts(pts, i18n.language);
+    return (
+      <span className="cmp-cell" title={titled ? (ptsText ? `${shareText} (${ptsText})` : shareText ?? undefined) : undefined}>
+        {shareText}
+        {ptsText && <span className={`cmp-cell--pts ${signClass(pts)}`}> {ptsText}</span>}
+      </span>
+    );
+  }
+  if (outcome.kind === "none") {
     const reason = t(shareReasonKey(outcome.status, statement));
     const wordKey = shareWordKey(outcome.status);
-    cell = wordKey
-      ? <span className="cmp-cell cmp-cell--word" title={reason}>{t(wordKey)}</span>
-      : gap(reason);
-  } else if (outcome.kind === "definition_differs") {
-    status = "definition-differs";
-    cell = gap(t("statements.cmp.share.definitionDiffers"));
-  } else {
-    // No engine line for this row: a blank cell, no claim.
-    cell = gap();
+    return wordKey ? <span className="cmp-cell cmp-cell--word" title={reason}>{t(wordKey)}</span> : gap(reason);
   }
+  if (outcome.kind === "definition_differs") return gap(t("statements.cmp.share.definitionDiffers"));
+  // No engine line for this row: a blank cell, no claim.
+  return gap(unmappedTitle);
+}
+
+/** ONE SHARE CELL of a single-period render. */
+function ShareOnlyCell({ outcome, statement }: { outcome: ShareOutcome; statement: "PL" | "BS" }) {
   return (
     <span
       className="cmp-cells"
       data-cmp="share-only"
-      data-share-status={status}
+      data-share-status={ownShareStatus(outcome)}
       data-cmp-key={outcome.kind === "unmapped" ? undefined : outcome.key}
     >
-      {cell}
+      <OwnShare outcome={outcome} statement={statement} />
     </span>
   );
+}
+
+/** The document's change in points for a share the period's own block
+ *  printed — served only when the document's current share IS that share. */
+function ptsFor(own: ShareOutcome, documentShare: number | null | undefined, documentPts: number | null | undefined): number | null {
+  if (own.kind !== "share" || documentShare !== own.share) return null;
+  return documentPts ?? null;
 }
 
 /**
@@ -336,9 +380,19 @@ export function CmpCells({
   const deltaPctText = formatDeltaPct(c.deltaPct, i18n.language);
   const shareText = formatShare(c.currentShare, i18n.language);
   const ptsText = formatPts(c.deltaPts, i18n.language);
+  // The period's own share for this row, when the payload carries the block
+  // (always, on the dashboard: `statementComparisonOf` hands a share column
+  // only with it). A provider handed no block prints the document's share,
+  // which the parity guard above already held to the row's amount.
+  const own = ctx.block ? shareForRow(ctx.block, rowKey, amount) : null;
 
   return (
-    <span className="cmp-cells" data-cmp={c.status} data-cmp-key={c.key}>
+    <span
+      className="cmp-cells"
+      data-cmp={c.status}
+      data-cmp-key={c.key}
+      data-share-status={own ? ownShareStatus(own) : undefined}
+    >
       {!bs && cols.prior && (
         c.prior === null
           ? (refused ? word(refused, priorReason ?? c.note) : gap(c.note))
@@ -363,12 +417,14 @@ export function CmpCells({
           : <span className={`cmp-cell ${signClass(c.deltaPct)}`} title={c.note}>{deltaPctText}</span>
       )}
       {cols.share && (
-        shareText === null
-          ? gap(c.note)
-          : <span className="cmp-cell" title={ptsText ? `${shareText} (${ptsText})` : shareText}>
-              {shareText}
-              {ptsText && <span className={`cmp-cell--pts ${signClass(c.deltaPts)}`}> {ptsText}</span>}
-            </span>
+        own
+          ? <OwnShare outcome={own} statement={ctx.statement} pts={ptsFor(own, c.currentShare, c.deltaPts)} titled />
+          : shareText === null
+            ? gap(c.note)
+            : <span className="cmp-cell" title={ptsText ? `${shareText} (${ptsText})` : shareText}>
+                {shareText}
+                {ptsText && <span className={`cmp-cell--pts ${signClass(c.deltaPts)}`}> {ptsText}</span>}
+              </span>
       )}
     </span>
   );
@@ -381,10 +437,13 @@ export function CmpCells({
  * closing over total assets, a second division for the prior, a subtraction
  * for the points — the one share on the page the engine never computed. The
  * engine now serves it per canonical row: `shareKey` is the row's engine key
- * (`bs.row.<id>`, `bs.section.<id>`, `bs.total.assets`, …), the cell prints
- * the comparatives document's `current_share` and its change in points, and
- * — with no document — the period's own block. A row with no engine key (the
- * legacy, non-canonical build) carries no share: blank, never computed.
+ * (`bs.row.<id>`, `bs.section.<id>`, `bs.total.assets`, …) and the cell
+ * prints the PERIOD'S OWN block share for it, held to the row's closing
+ * amount, with a document on screen or without. The document adds the change
+ * in points — only when its `current_share` IS that share, so a document
+ * that describes another book prints nothing of its own. A row with no
+ * engine key (the legacy, non-canonical build), or a payload with no block,
+ * carries no share: blank, never computed.
  *
  * The Δ % stays the one classifier's over the row's own opening and closing
  * (lib/changeKind.ts): the engine serves no percentage for a canonical row.
@@ -440,40 +499,38 @@ export function BsCmpCells({
     pctNode = word(absentWord);
   }
 
+  // THE SHARE IS THE PERIOD'S OWN (the block's), held to the row's closing;
+  // the document's row adds the points when it describes the same share.
   const row = shareKey ? ctx.shareRows.get(shareKey) : undefined;
-  let shareNode: ReactNode;
-  let shareStatus = "unmapped";
-  if (!row) {
-    // The document carries no share for this row (a row with no engine key,
-    // or an engine that predates the canonical shares): blank, not computed.
-    shareNode = gap(t("statements.cmp.share.unavailable"));
-  } else if (ctx.block && !rowIsEngineFigure(closing, ctx.block.rows.get(row.key)?.current ?? null)) {
-    // The row guard: the amount on the row is not the engine's for this key.
-    shareStatus = "definition-differs";
-    shareNode = gap(t("statements.cmp.share.definitionDiffers"));
-  } else {
-    shareStatus = row.status;
-    const shareText = formatShare(row.current_share, i18n.language);
-    const ptsText = formatPts(row.delta_pts, i18n.language);
-    const noShare =
-      row.status === "no_base"
-        ? "statements.cmp.share.noBaseBs"
-        : row.status === "absent_current" || row.status === "absent_both"
-          ? "statements.cmp.share.absent"
-          : "statements.cmp.share.unavailable";
-    shareNode = shareText === null
-      ? gap(t(noShare))
-      : (
-        <span className="cmp-cell" title={ptsText ? `${shareText} (${ptsText})` : shareText}>
-          {shareText}
-          {ptsText && <span className={`cmp-cell--pts ${signClass(row.delta_pts)}`}> {ptsText}</span>}
-        </span>
-      );
-  }
+  const own = shareForRow(ctx.block, shareKey, closing);
+  // A line only the comparison period carries has no row in the period's own
+  // block: absent here, which is not zero — said as that, not as "no share
+  // is served".
+  const onlyInComparison =
+    own.kind === "unmapped" && (row?.status === "absent_current" || row?.status === "absent_both");
+  const shareStatus =
+    own.kind === "unmapped"
+      ? onlyInComparison
+        ? (row?.status ?? "unmapped")
+        : "unmapped"
+      : own.kind === "share" && row && row.current_share !== null && row.current_share !== own.share
+        // The document's share for this row is another figure: another book
+        // under the same period id, not asked again yet. Its points are not
+        // printed; the share on screen is the period's own.
+        ? "document-differs"
+        : ownShareStatus(own);
   return (
-    <span className="cmp-cells" data-cmp="bs" data-share-status={shareStatus} data-cmp-key={row?.key}>
+    <span className="cmp-cells" data-cmp="bs" data-share-status={shareStatus} data-cmp-key={row?.key ?? shareKey}>
       {cols.deltaPct && pctNode}
-      {cols.share && shareNode}
+      {cols.share && (
+        <OwnShare
+          outcome={own}
+          statement="BS"
+          pts={ptsFor(own, row?.current_share, row?.delta_pts)}
+          titled
+          unmappedTitle={t(onlyInComparison ? "statements.cmp.share.absent" : "statements.cmp.share.unavailable")}
+        />
+      )}
     </span>
   );
 }

@@ -578,6 +578,7 @@
       "noPriorCompareWith": "Compară cu {{label}}",
       "columns": "Coloane",
       "colPrior": "Anterior",
+      "colComparison": "Comparație",
       "colDelta": "Δ",
       "colDeltaPct": "Δ %",
       "colShare": "% din venituri",
@@ -587,6 +588,7 @@
       "gone": "nu mai apare",
       "notAtLevel": "nedezvăluit la acest nivel de detaliu",
       "noBase": "fără bază",
+      "notMeaningful": "nesemnificativ",
       "definitionDiffers": "Rândul este construit din conturile balanței; linia comparativă a motorului pentru el e definită altfel, așa că nu afișăm o valoare anterioară lângă el.",
       "levelSynthetic": "condensată (conturi sintetice)",
       "levelAnalytic": "detaliată (conturi analitice)",
@@ -617,7 +619,8 @@
       "refusedNotServable": "Perioada de comparație nu are cifre analizate de comparat.",
       "refusedGeneric": "Aceste două perioade nu pot fi comparate.",
       "refused": "refuzat",
-      "columnsNoDocument": "Nicio comparație pe ecran — coloanele apar după ce se încarcă comparația.",
+      "columnsRefused": "Comparația nu este disponibilă, deci aceste coloane nu au ce afișa.",
+      "columnsFailed": "Comparația nu a putut fi încărcată — coloanele apar după ce se încarcă.",
       "baseRevenue": "venituri",
       "baseAssets": "total active",
       "bridgePeriod": "{{label}} — {{period}}",
@@ -638,6 +641,7 @@
         "absent": "Linia nu este raportată în această perioadă — lipsește, ceea ce nu înseamnă zero.",
         "refused": "Motorul a refuzat această cifră, deci nu are pondere.",
         "notAtLevel": "Nedezvăluit la acest nivel de detaliu, deci nu are pondere.",
+        "marginNotMeaningful": "Cifra de afaceri este o parte prea mică din activitatea companiei pentru ca o marjă pe ea să spună ceva, deci linia nu are pondere.",
         "unavailable": "Pentru această linie nu este servită nicio pondere.",
         "definitionDiffers": "Rândul este construit din conturile balanței; linia motorului pentru el e definită altfel, așa că nu afișăm o pondere lângă el."
       }
@@ -753,7 +757,9 @@
         "cash_from_operations_approximated": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este aproximat pentru această perioadă (fără balanța anului anterior); nu există scor compozit și nici rating.",
         "cash_from_operations_refused": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este refuzat pentru această perioadă; nu există scor compozit și nici rating.",
         "inventory_days_refused": "Necalculat: zilele de stoc pe tipuri de stoc sunt refuzate pentru această perioadă — motivul este afișat lângă cifră.",
-        "basis_differs": "Necomparat: zilele de stoc ale celor două perioade sunt măsurate pe baze de stoc diferite, deci nu se afișează nici o variație, nici o mișcare de bandă — ar fi schimbarea bazei, nu a stocului."
+        "basis_differs": "Necomparat: zilele de stoc ale celor două perioade sunt măsurate pe baze de stoc diferite, deci nu se afișează nici o variație, nici o mișcare de bandă — ar fi schimbarea bazei, nu a stocului.",
+        "prior_is_later": "Fără direcție: perioada de comparație se încheie după perioada afișată, deci diferența se citește înapoi în timp.",
+        "period_order_unknown": "Fără direcție: ordinea celor două perioade nu a putut fi citită."
       },
       "label": {
         "current_ratio": "Lichiditate curentă",
@@ -821,6 +827,9 @@
         "movementsTitle": "Mișcări de bandă, {{prior}} către {{current}}",
         "movementsCounts": "{{improved}} s-au îmbunătățit și {{deteriorated}} s-au deteriorat; {{unchanged}} și-au păstrat banda și {{notComparable}} nu au putut fi comparați, din {{bothSides}} cu valoare în ambele perioade. Fără valoare în cel puțin una dintre perioade: {{refused}}.",
         "nothingCrossed": "Niciun indicator nu a trecut într-o altă bandă între {{prior}} și {{current}}.",
+        "movementsTitlePlain": "Mișcări de bandă",
+        "verdictsWithheldLater": "Niciun indicator nu este listat ca îmbunătățit sau deteriorat: perioada de comparație se încheie după perioada afișată. Benzile ambelor perioade sunt în tabelul de mai jos.",
+        "verdictsWithheldUnknown": "Niciun indicator nu este listat ca îmbunătățit sau deteriorat: ordinea celor două perioade nu a putut fi citită. Benzile ambelor perioade sunt în tabelul de mai jos.",
         "rankBasisLead": "Ordine: {{sentence}}",
         "noComparison": "Nu este încărcată o perioadă de comparație, deci tabelul arată doar {{current}} și nu afișează perioadă anterioară, variație sau mișcare de bandă.",
         "comparisonRefused": "Fără comparație: {{message}}",

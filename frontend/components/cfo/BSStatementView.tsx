@@ -63,7 +63,7 @@ import { JurisdictionSelect, jurisdictionLabel } from "./JurisdictionSelect";
 import { presentStatus } from "@/lib/servedFacts";
 import { cfoApi, extractCanonicalBsFromReconcile } from "@/lib/cfoApi";
 import { queryClient } from "@/lib/queryClient";
-import { periodQueryKey } from "@/lib/activePeriod";
+import { resetPeriodAnswers } from "@/lib/periodReset";
 import "./bsCanonicalStatusI18n";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
@@ -838,7 +838,7 @@ export function BsCanonicalStatusStrip({
       // explicit undo). Without a parsable body, fall back to the
       // server meta + refetch.
       setLive(next ? canonicalMetaFromBs(next) : null);
-      void queryClient.resetQueries({ queryKey: periodQueryKey(pid) });
+      resetPeriodAnswers(queryClient, pid);
     } catch (err) {
       const msg = err instanceof Error ? err.message : null;
       setErrorNote(
@@ -1193,7 +1193,7 @@ function BsJurisdictionBadge({
       await cfoApi.reextractPeriod(pid, pending);
       // The re-extraction replaces the period's canonical result — reset
       // so every consumer refetches the fresh envelope.
-      void queryClient.resetQueries({ queryKey: periodQueryKey(pid) });
+      resetPeriodAnswers(queryClient, pid);
       setPending(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : null;

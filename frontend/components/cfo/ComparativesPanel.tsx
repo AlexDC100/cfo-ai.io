@@ -82,6 +82,7 @@ export function ComparativesControls({
   columns = true,
   share = null,
   outcome = null,
+  priorIsEarlier = true,
 }: {
   /** Every analysed period of the company on screen, newest first. */
   periods: readonly OrgPeriod[];
@@ -106,6 +107,10 @@ export function ComparativesControls({
   /** The comparison request's outcome (lib/useRatioSurfaces.ts): a refused
    *  or failed request switches the comparison boxes off, with the reason. */
   outcome?: ExportComparisonState | null;
+  /** The engine says the comparison period is the EARLIER one (or says
+   *  nothing about the order). When it is not, the first box is not labelled
+   *  "Prior": a period that closes later is not a prior one. */
+  priorIsEarlier?: boolean;
 }) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -144,7 +149,7 @@ export function ComparativesControls({
   if (!hasPicker && boxes.length === 0) return null;
   const allOff = boxes.length > 0 && boxes.every((b) => !b.enabled);
   const boxLabel: Record<keyof ComparativeColumns, string> = {
-    prior: t("statements.cmp.colPrior"),
+    prior: t(priorIsEarlier ? "statements.cmp.colPrior" : "statements.cmp.colComparison"),
     delta: t("statements.cmp.colDelta"),
     deltaPct: t("statements.cmp.colDeltaPct"),
     // The share box names the base of the column on THIS tab.
@@ -153,15 +158,17 @@ export function ComparativesControls({
   const reasonText = (reason: ColumnBoxReason | null): string | undefined =>
     reason === "no_prior"
       ? t("statements.cmp.columnsDisabled")
-      : reason === "no_document"
-        ? t("statements.cmp.columnsNoDocument")
-        : reason === "share_not_served"
-          ? t("statements.cmp.share.notServed")
-          : undefined;
+      : reason === "refused"
+        ? t("statements.cmp.columnsRefused")
+        : reason === "failed"
+          ? t("statements.cmp.columnsFailed")
+          : reason === "share_not_served"
+            ? t("statements.cmp.share.notServed")
+            : undefined;
   const describedBy = (reason: ColumnBoxReason | null): string | undefined =>
     reason === "no_prior"
       ? COMPARATIVES_NO_PRIOR_NOTE_ID
-      : reason === "no_document"
+      : reason === "refused" || reason === "failed"
         ? COMPARATIVES_OUTCOME_NOTE_ID
         : reason === "share_not_served"
           ? COMPARATIVES_SHARE_NOTE_ID
@@ -246,10 +253,12 @@ export function ComparativesControls({
               <span>{boxLabel[b.key]}</span>
             </label>
           ))}
-          {/* The share box stands alone and is off: the payload carries no
-              share block (an engine that predates it, a period the engine
-              could not re-assemble). Said beside the box; nothing is computed
-              in its place. */}
+          {/* The share box is off because the tab has nothing to paint its
+              share column from: the payload carries no share block (an
+              engine that predates it, a period the engine could not
+              re-assemble), or the balance sheet is a legacy one with no
+              canonical rows. Said beside the box, in every comparison state;
+              nothing is computed in its place. */}
           {shareAloneOff && (
             <span
               id={COMPARATIVES_SHARE_NOTE_ID}

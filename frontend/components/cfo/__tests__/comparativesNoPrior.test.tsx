@@ -49,7 +49,11 @@
 // no controls at all); a comparison that WAS requested and was refused or
 // failed, whose sentence is the outcome note's (single-year-share — the two
 // per-tab copies of the refusal are gone); the page's own render condition
-// around the controls (the wiring law below reads the source).
+// around the controls — since the fix round of 2026-10-04 the controls and
+// the notice are rendered by components/cfo/ComparisonSurface.tsx over the
+// one composition (lib/comparisonSurface.ts), which gate single-year-share
+// renders and holds; the wiring law below reads that the prior, the periods
+// and the close reach both through it.
 // Plant log: docs/engine_book/gates.md, "compare-no-prior" and "compare-no-prior
 // — amended by single-year-share".
 import { readFileSync } from "node:fs";
@@ -657,7 +661,9 @@ describe("the law — ON and nothing compared is always said; a comparison is ne
     expect(withPrior).toBeGreaterThanOrEqual(30);
     expect(named).toBeGreaterThanOrEqual(25);
     expect(offered).toBeGreaterThanOrEqual(15);
-  });
+    // 126 renders in one test: on a machine busy with other suites it must
+    // not go red on the clock (it has, at the default five seconds).
+  }, 60_000);
 });
 
 // ── No document of another pair ────────────────────────────────────────
@@ -782,24 +788,44 @@ describe("no comparison is left behind — the document on screen is the one for
 // ── The page hands the controls the prior it requests ──────────────────
 
 describe("the dashboard — the controls and the notice read the prior the page requests", () => {
-  const page = readFileSync(resolve(process.cwd(), "frontend/pages/cfo/FinancialStatements.tsx"), "utf8");
-  const element = (name: string): string => {
-    const uses = page.match(new RegExp(`<${name}\\b[\\s\\S]*?/>`, "g")) ?? [];
-    expect(uses.length, `the page renders <${name}> once`).toBe(1);
+  // AMENDED 2026-10-04 (single-year-share, fix round). The page no longer
+  // renders <ComparativesControls> and <ComparativesNoPriorNote> itself: it
+  // composes the comparison once (`comparisonSurfaceOf`) and renders
+  // <ComparisonControlsBar> and <ComparisonNotes>, which hand the two
+  // components their props. The law is the same — both read the prior the
+  // request is made with — held along that one path.
+  const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8").replace(/\s+/g, " ");
+  const page = read("frontend/pages/cfo/FinancialStatements.tsx");
+  const shared = read("frontend/components/cfo/ComparisonSurface.tsx");
+  const surface = read("frontend/lib/comparisonSurface.ts");
+  const element = (source: string, name: string): string => {
+    const uses = source.match(new RegExp(`<${name}\\b[\\s\\S]*?/>`, "g")) ?? [];
+    expect(uses.length, `<${name}> is rendered once`).toBe(1);
     return uses[0];
   };
 
   it("one <ComparativesControls> and one <ComparativesNoPriorNote>, fed by the choice the request is made with", () => {
-    const ctl = element("ComparativesControls");
-    expect(ctl).toMatch(/\bpriorId=\{cmpPriorId\}/);
-    expect(ctl).toMatch(/\bautoPick=\{cmpAutoPick\}/);
-    expect(ctl).toMatch(/\bperiods=\{cmpPeriods\}/);
-    expect(ctl).toMatch(/\bcurrentEnd=\{remotePeriod\.periodEnd\}/);
-    const note = element("ComparativesNoPriorNote");
-    expect(note).toMatch(/\bpriorId=\{cmpPriorId\}/);
-    expect(note).toMatch(/\bperiods=\{cmpPeriods\}/);
-    expect(note).toMatch(/\bcurrentEnd=\{remotePeriod\.periodEnd\}/);
-    expect(note).toMatch(/\buploadHref=\{/);
+    // The page hands the composition the rule's own answers…
+    const call = /comparisonSurfaceOf\(\{([\s\S]*?)\}\)/.exec(page)?.[1] ?? "";
+    expect(call).toContain("priorId: cmpPriorId,");
+    expect(call).toContain("autoPick: cmpAutoPick,");
+    expect(call).toContain("periods: cmpPeriods,");
+    expect(call).toContain("currentEnd: remotePeriod.periodEnd,");
+    expect(element(page, "ComparisonControlsBar")).toBe("<ComparisonControlsBar surface={cmpSurface} />");
+    expect(element(page, "ComparisonNotes")).toMatch(/^<ComparisonNotes surface=\{cmpSurface\} uploadHref=\{/);
+    // …and the shared components hand them on, untouched.
+    const ctl = element(shared, "ComparativesControls");
+    expect(ctl).toMatch(/\bpriorId=\{surface\.priorId\}/);
+    expect(ctl).toMatch(/\bautoPick=\{surface\.autoPick\}/);
+    expect(ctl).toMatch(/\bperiods=\{surface\.periods\}/);
+    expect(ctl).toMatch(/\bcurrentEnd=\{surface\.currentEnd\}/);
+    const note = element(shared, "ComparativesNoPriorNote");
+    expect(note).toMatch(/\bpriorId=\{surface\.priorId\}/);
+    expect(note).toMatch(/\bperiods=\{surface\.periods\}/);
+    expect(note).toMatch(/\bcurrentEnd=\{surface\.currentEnd\}/);
+    expect(note).toMatch(/\buploadHref=\{uploadHref\}/);
+    // The page itself renders neither: one path, not two.
+    expect(page).not.toMatch(/<ComparativesControls\b|<ComparativesNoPriorNote\b/);
     // …and `cmpPriorId` is the rule's answer, the one the request is made with.
     expect(page).toMatch(/\bcmpPriorId\b[^=\n]*=\s*cmpChoice\.priorId\b/);
     expect(page).toMatch(/useComparatives\(\s*remotePeriod\.id,\s*cmpPriorId,\s*cmpCompanyId\s*\)/);
@@ -807,18 +833,22 @@ describe("the dashboard — the controls and the notice read the prior the page 
   });
 
   it("the notice is rendered on every tab the controls are, outside the sticky tab bar", () => {
-    const ctlAt = page.indexOf("<ComparativesControls");
-    const noteAt = page.indexOf("<ComparativesNoPriorNote");
-    const guard = (at: number) => page.slice(Math.max(0, at - 420), at);
-    for (const tab of ["overview", "pl", "balance_sheet", "cash_flow", "ratios"]) {
-      expect(guard(ctlAt), `controls on ${tab}`).toContain(`activeTab === "${tab}"`);
-      expect(guard(noteAt), `notice on ${tab}`).toContain(`activeTab === "${tab}"`);
-    }
-    expect(guard(noteAt)).toContain("cmpPeriods.length > 1");
+    // ONE list of tabs decides both.
+    expect(surface).toContain(
+      'export const COMPARISON_TABS: readonly string[] = ["overview", "pl", "balance_sheet", "cash_flow", "ratios"];',
+    );
+    expect(surface).toContain("const onComparisonTab = COMPARISON_TABS.includes(input.tab);");
+    expect(surface).toContain("controlsShown: loaded && onComparisonTab,");
+    // The notice needs another period to speak of.
+    expect(surface).toContain("const hasOtherPeriods = input.periods.length > 1;");
+    expect(surface).toContain("notesShown: loaded && onComparisonTab && hasOtherPeriods,");
+    expect(shared).toContain("if (!surface.notesShown) return null;");
     // After the controls, and after the sticky bar's closing tags.
+    const ctlAt = page.indexOf("<ComparisonControlsBar");
+    const noteAt = page.indexOf("<ComparisonNotes");
+    expect(ctlAt).toBeGreaterThan(0);
     expect(noteAt).toBeGreaterThan(ctlAt);
-    const between = page.slice(ctlAt, noteAt);
-    expect(between).toMatch(/<\/div>\s*\)\}/);
+    expect(page.slice(ctlAt, noteAt)).toMatch(/<\/div>\s*\)\}/);
     statesChecked += 1;
   });
 

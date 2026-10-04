@@ -23,10 +23,13 @@
 // THREE RULES THE VIEWS INHERIT FROM HERE.
 //
 // 1. A SHARE IS PRINTED ONLY UNDER THE SHARE STATUS. A row the engine
-//    refused, did not disclose, reported absent, or struck against a base
-//    below the zero floor has NO share and says why — never 0 %. The rule is
-//    applied where the block is read: whatever number such a row carries in
-//    its `share` field is dropped.
+//    refused, did not disclose, reported absent, struck against a base
+//    below the zero floor, or withheld because its share of turnover is a
+//    margin the engine's margin rule refuses (`margin_not_meaningful`: a
+//    result over a turnover that is an incidental line of the book) has NO
+//    share and says why — never 0 %. The rule is applied where the block is
+//    read: whatever number such a row carries in its `share` field is
+//    dropped.
 //
 // 2. THE ROW GUARD STAYS. A statement row carries the engine's share only if
 //    the amount the row shows IS the block's `current` for that key, to the
@@ -44,10 +47,12 @@ import { engineKeyForRow, rowIsEngineFigure } from "@/lib/comparatives";
 /** The schema family this reader understands. */
 export const COMMON_SIZE_SCHEMA_PREFIX = "common_size/";
 
-/** The statuses the engine serves (engine.comparatives.analysis). */
+/** The statuses the engine serves (engine.comparatives.shares
+ *  `SIDE_STATUSES`). */
 export const COMMON_SIZE_STATUSES = [
   "share",
   "no_base",
+  "margin_not_meaningful",
   "absent",
   "refused",
   "not_disclosed_at_this_detail_level",
@@ -169,6 +174,12 @@ export function shareForRow(
   if (!key) return { kind: "unmapped" };
   const row = block.rows.get(key);
   if (!row) return { kind: "unmapped" };
+  // A REFUSED line is refused whatever the row shows. The engine serves no
+  // `current` for it, and the statement may still print the figure the
+  // refusal stands beside (total equity short by a refused year's result is
+  // what the equity rows sum to): that row is not "built another way" — the
+  // engine refused to call the figure by this line's name.
+  if (row.status === "refused") return { kind: "none", key, status: "refused" };
   // RULE 2: the row's own amount must be the engine's, to the cent.
   if (!rowIsEngineFigure(rowAmount, row.current)) return { kind: "definition_differs", key };
   if (row.status === "share" && row.share !== null) return { kind: "share", key, share: row.share };
@@ -185,6 +196,8 @@ export function shareReasonKey(
   switch (status) {
     case "no_base":
       return statement === "PL" ? "statements.cmp.share.noBasePl" : "statements.cmp.share.noBaseBs";
+    case "margin_not_meaningful":
+      return "statements.cmp.share.marginNotMeaningful";
     case "absent":
       return "statements.cmp.share.absent";
     case "refused":
@@ -203,6 +216,8 @@ export function shareWordKey(status: Exclude<CommonSizeStatus, "share">): string
   switch (status) {
     case "no_base":
       return "statements.cmp.noBase";
+    case "margin_not_meaningful":
+      return "statements.cmp.notMeaningful";
     case "refused":
       return "statements.cmp.refused";
     case "not_disclosed_at_this_detail_level":

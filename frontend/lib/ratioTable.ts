@@ -384,6 +384,11 @@ export interface RatioBandMovements {
    *  Finding.to_payload() when surfaced, the check row it demotes to
    *  otherwise. Typed loosely here: the findings contract owns that shape. */
   findings: Record<string, unknown>[];
+  /** Why NO ratio is listed improved or deteriorated ("prior_is_later",
+   *  "period_order_unknown"): `improved`, `deteriorated` and `findings` are
+   *  empty and every crossing sits under `not_comparable` with this code.
+   *  Null when verdicts are served; absent on an engine that predates it. */
+  verdicts_withheld?: string | null;
 }
 
 export interface RatioComparisonStamps {
@@ -475,6 +480,10 @@ export const RATIO_COMPARE_REASON_CODES = [
   "both_refused",
   "direction_withheld",
   "basis_differs",
+  // time does not run forward from the comparison period to the one on
+  // screen: the change is served, its direction is not
+  "prior_is_later",
+  "period_order_unknown",
   "ladder_differs",
   "graded_by_letter",
   "credit_inputs_absent",

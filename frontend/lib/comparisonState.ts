@@ -50,9 +50,10 @@ export function comparisonBlockOf(input: {
   return null;
 }
 
-/** Why a box is off. `no_prior` is said by the no-prior notice, `no_document`
- *  by the outcome note; `share_not_served` is said beside the box itself. */
-export type ColumnBoxReason = "no_prior" | "no_document" | "share_not_served";
+/** Why a box is off. `no_prior` is said by the no-prior notice, `refused` and
+ *  `failed` by the outcome note; `share_not_served` is said beside the box
+ *  itself. */
+export type ColumnBoxReason = "no_prior" | "refused" | "failed" | "share_not_served";
 
 export interface ColumnBox {
   key: keyof ComparativeColumns;
@@ -76,8 +77,12 @@ const COMPARISON_COLUMNS: readonly (keyof ComparativeColumns)[] = ["prior", "del
  *     that can paint the period's own shares (P&L, balance sheet), off with
  *     the others elsewhere (cash flow, ratios — no share column there);
  *   · "No comparison", or a company with one period: the share box alone, on
- *     a tab that offers it — off, with the reason, when the payload carries
- *     no share block; no box at all elsewhere.
+ *     a tab that offers it; no box at all elsewhere;
+ *   · IN EVERY STATE, a tab that has a share column of its own and cannot
+ *     paint it (the payload carries no share block; a legacy balance sheet
+ *     with no canonical rows) shows the share box off, with THAT reason —
+ *     never ticked over a column of blank cells, and never blamed on a
+ *     missing prior that is not why.
  * Pure. The reader's stored columns are read, never written.
  */
 export function columnBoxesOf(input: {
@@ -90,19 +95,20 @@ export function columnBoxesOf(input: {
   const { block, share, columns } = input;
   const boxes: ColumnBox[] = [];
   const comparisonShown = block !== "off";
-  const blockedBy: ColumnBoxReason | null =
-    block === "no_prior" ? "no_prior" : block === "refused" || block === "failed" ? "no_document" : null;
+  // `block` is null, "off" or one of the three reasons a box can carry.
+  const blockedBy: ColumnBoxReason | null = block === null || block === "off" ? null : block;
   if (comparisonShown) {
     for (const key of COMPARISON_COLUMNS) {
       boxes.push({ key, enabled: block === null, checked: block === null && columns[key], reason: blockedBy });
     }
   }
-  if (block === null || share?.served) {
+  if (share && !share.served) {
+    // The tab's own share column has nothing to paint it from.
+    boxes.push({ key: "share", enabled: false, checked: false, reason: "share_not_served" });
+  } else if (block === null || share?.served) {
     boxes.push({ key: "share", enabled: true, checked: columns.share, reason: null });
   } else if (comparisonShown) {
     boxes.push({ key: "share", enabled: false, checked: false, reason: blockedBy });
-  } else if (share) {
-    boxes.push({ key: "share", enabled: false, checked: false, reason: "share_not_served" });
   }
   return boxes;
 }

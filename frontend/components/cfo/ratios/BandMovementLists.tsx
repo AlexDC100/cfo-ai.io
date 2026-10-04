@@ -7,6 +7,15 @@
 // lengths of the served lists beside the served `coverage.both_sides`.
 // Nothing crossed prints the served counts rather than an empty box, so
 // an empty list can never read as "nothing was checked".
+//
+// A COMPARISON THAT READS BACKWARDS HAS NO LISTS. When the comparison period
+// closes after the one on screen (or the order cannot be read) the engine
+// serves no improved / deteriorated verdict (`band_movements.
+// verdicts_withheld`): the two lists are empty by its hand, and the tab says
+// why in one sentence — never "no ratio crossed a band", which would be
+// false, and never a count of improved and deteriorated. (Until 2026-10-04
+// the engine listed them anyway and this tab printed "12 deteriorated" under
+// the page's own "reads backwards" sentence.)
 
 import { useTranslation } from "react-i18next";
 
@@ -71,6 +80,28 @@ export function BandMovementLists({ view, stateNote = true }: {
     return (
       <section data-testid="band-movements" data-prior-state={view.prior.kind}>
         {stateNote ? <PriorStateNote view={view} /> : null}
+      </section>
+    );
+  }
+  if (printed.verdictsWithheld) {
+    return (
+      <section
+        className="rounded-md border border-rule bg-surface p-4 space-y-3"
+        data-testid="band-movements"
+        data-prior-state={view.prior.kind}
+        data-verdicts="withheld"
+        data-withheld={printed.verdictsWithheld}
+      >
+        <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold">
+          {t("statements.ratioCmp.ui.movementsTitlePlain")}
+        </h2>
+        <p className="text-[12.5px] text-ink" data-testid="band-movements-withheld">
+          {t(
+            printed.verdictsWithheld === "prior_is_later"
+              ? "statements.ratioCmp.ui.verdictsWithheldLater"
+              : "statements.ratioCmp.ui.verdictsWithheldUnknown",
+          )}
+        </p>
       </section>
     );
   }
