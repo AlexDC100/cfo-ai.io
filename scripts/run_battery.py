@@ -2682,6 +2682,85 @@ def _engine_gates() -> List[Gate]:
                        "every write to profiles in the frontend's source is an update",
                        "the scan itself: an upsert, an insert and a multi-line chain are seen",
                        "the repository's schema gives profiles a select and an update policy, and no insert policy")),
+        # ── lane ai-figures (owner order 2026-10-04) ─────────────────────
+        # "Make chat and briefings write numbers in Romanian format in
+        # Romanian text (413.727.560 RON, ~77,4 mil. EUR), currency after
+        # the figure. Use the product's own formatting standard, with a
+        # gate." On screen that day the chat answered, in a Romanian
+        # sentence, in the shape "~EUR 12.3M (convertit din RON 64,567,890
+        # la cursul BNR 0.1905)" — and the function's own prompt taught
+        # that shape; the briefing was right, held by one prompt hint.
+        #
+        # ai-figures-engine — THE BRIEFING'S OUTPUT IS HELD. The engine's
+        # normaliser (engine.ai.figure_format, the Python twin of the
+        # browser's rule set) over the shared reply corpus (expected typed
+        # by hand) and the shared grid of lib/money's prints; its marks
+        # and hint examples held to standard.json; the REAL stage_narrate,
+        # regenerate route, stage_persist_narrative and GET /api/period
+        # with a scripted provider that writes wrong-format replies — what
+        # is returned, stored, answered and served read by the FRONTEND's
+        # detector (compiled from frontend/test/numberLanguage.ts, never
+        # the normaliser itself). No value may change: a lone three-digit
+        # group is never guessed, the digit sequence is proven on every
+        # call. The seven other narration languages byte for byte. Runs
+        # under `-p netblock`; its last law SKIPS without the plugin, and
+        # a junit gate counts tests minus skips — so the floor is the
+        # number of laws (measured 261). Blind to: what a model writes;
+        # rows stored before the release; a lone group left by design.
+        Gate("ai-figures-engine",
+             [PY, "-m", "pytest", "-p", "netblock",
+              "tests/engine/test_ai_figure_format.py", "-q"],
+             work_junit=True, floor=261, units="tests",
+             canaries=("test_e3_the_detector_is_the_frontends_every_pattern_is_read_out_of_its_file_and_compiles",
+                       "test_e2_the_standard_and_the_hint_examples_are_what_lib_money_prints",
+                       "test_the_corpus_is_what_it_says_it_is",
+                       "test_e1_the_corpus_the_output_is_the_expected_string_and_every_token_left_is_named",
+                       "test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print_or_untouched",
+                       "test_e1_a_lone_three_digit_group_is_never_guessed_with_or_without_handed_figures",
+                       "test_e1_handed_figures_change_nothing_but_bare_decimals_and_bare_groups",
+                       "test_e1_the_run_time_proof_refuses_a_result_whose_digits_differ",
+                       "test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_format",
+                       "test_e4_a_ratio_the_model_was_handed_is_proved_a_figure_one_it_was_not_handed_is_left",
+                       "test_e5_the_regenerate_route_stores_answers_and_serves_what_the_narrator_returned",
+                       "test_e5_a_converted_regenerate_is_answered_normalised_and_never_stored",
+                       "test_e6_a_narration_in_another_language_and_its_hint_are_byte_for_byte_what_they_were",
+                       "test_e7_a_pass_that_raises_leaves_the_models_text_usable_and_stored",
+                       "test_e8_the_hint_carries_the_products_own_example_strings_with_the_code_after_the_figure",
+                       "test_e9_a_failed_narration_is_returned_as_it_was_and_the_pass_is_never_run_on_it",
+                       "test_e10_no_socket_was_attempted_and_the_model_was_only_ever_the_stand_in")),
+        # ai-figures — ONE STANDARD, THREE RUNTIMES. frontend/lib/money
+        # (and the ratio printer) is the authority; this gate RUNS it and
+        # holds the copies: every example string of the chat function's
+        # figure-format rule and conversion note; standard.json and
+        # grid.json (regenerated on every run, compared with the committed
+        # bytes — the engine's gate reads the same files); the magnitude
+        # words against both packs' money_display. And the prompt the chat
+        # really receives: the rule once, inside the display-currency rule
+        # — never in the command bar's or Explain's prompt ("write NO
+        # digits") — and no currency before a digit in any built prompt,
+        # read by the independent detector. The prompt pins themselves are
+        # chat-cap-always's (moved on purpose, no pin value changed).
+        # Blind to: what the model writes under the prompt; the deployed
+        # function's source. Plant log: docs/engine_book/gates.md.
+        Gate("ai-figures",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/chatLlmFigureFormat.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=15,
+             units="figure-standard tests", no_skips=True,
+             canaries=("GATE-WORK ai-figures-standard grid=984 lone=120 examples=12",
+                       "POSITIVE CONTROL: it sees the shapes the base patterns cannot",
+                       "a lone three-digit group is matched by nothing",
+                       "ro: every example string, from lib/money and the ratio printer",
+                       "en: every example string, from lib/money and the ratio printer",
+                       "each language's line holds no figure of the other language, and the code is after the figure",
+                       "the command bar's and Explain's real requests carry no display currency",
+                       "no built prompt holds a currency before a digit",
+                       "the rule is static text: the same bytes for every request",
+                       "the magnitude words are the packs' money_display",
+                       "the lone groups are exactly the whole amounts of four to six digits",
+                       "standard.json and grid.json are what the product prints now")),
+        # ── end of lane ai-figures ───────────────────────────────────────
         # ── period-verdict-served (production, 2026-10-04) ───────────────
         # A signed-in reader's dashboard said "nothing analysed here yet"
         # over a company with two analysed years, and the chat, grounded

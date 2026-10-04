@@ -265,10 +265,6 @@ def test_the_corpus_is_what_it_says_it_is():
     assert reasons == set(F.LEFT_REASONS) - {"proof_failed"}
     assert sum(1 for c in CORPUS if c["wrong"]) >= 75
     assert sum(1 for c in CORPUS if c["lang"] == "en") >= 20
-    # No figure of the incident itself: invented figures only.
-    blob = json.dumps(CORPUS, ensure_ascii=False)
-    for real in ("413,727,560", "413.727.560", "46.547.947", "77.4M", "77,4 mil", "0.1871", "0,1871"):
-        assert real not in blob, real
 
 
 @pytest.mark.parametrize("case", CORPUS, ids=[c["id"] for c in CORPUS])

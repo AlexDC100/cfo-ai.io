@@ -34,7 +34,7 @@ import the target package.
 ```mermaid
 graph LR
     pkg__root_["(root) (16 modules)"]
-    pkg_ai["ai (9 modules)"]
+    pkg_ai["ai (10 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
     pkg_api["api (113 modules)"]
     pkg_attention["attention (4 modules)"]
@@ -210,6 +210,7 @@ graph LR
         engine_ai_breaker["breaker"]
         engine_ai_evals["evals"]
         engine_ai_evals_run_baseline["run_baseline"]
+        engine_ai_figure_format["figure_format"]
         engine_ai_finding_sharpen["finding_sharpen"]
         engine_ai_numerals["numerals"]
         engine_ai_registry["registry"]
@@ -286,6 +287,7 @@ graph LR
     engine_api__reconcile --> engine_serving
     engine_api_pipeline --> engine_ai
     engine_api_pipeline --> engine_ai_advisory
+    engine_api_pipeline --> engine_ai_figure_format
     engine_api_pipeline --> engine_ai_numerals
     engine_api_pipeline --> engine_ai_registry
     engine_api_pipeline --> engine_ai_unit_sanity

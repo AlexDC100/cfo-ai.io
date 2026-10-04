@@ -30066,3 +30066,245 @@ upload card resetting no period.
   hash order (two processes with different seeds serve the same JSON in a
   different key order — on main too). Not this lane's block; every block of
   the lane is byte-stable.
+
+
+---
+
+# Lane ai-figures — a model's figures in the reader's format (owner order 2026-10-04)
+
+Owner, verbatim: *"Add to the next release: make chat and briefings write numbers in Romanian format
+in Romanian text (413.727.560 RON, ~77,4 mil. EUR), currency after the figure. Use the product's own
+formatting standard, with a gate."*
+
+On screen that day (production, Romanian interface): Ask CFO AI answered, in a Romanian sentence,
+in the shape *"… cu o cifră de afaceri netă de ~EUR 12.3M (convertit din RON 64,567,890 la cursul
+BNR 0.1905)"* (figures invented here) — the code before the figure, English separators and an
+English magnitude. The chat function's own prompt TAUGHT that shape
+(`e.g. "~EUR 918k (converted from RON 4.58M at BNR rate)"`). The briefing, regenerated the same
+hour, was already in the Romanian format — and nothing held it there but one prompt hint.
+
+THIS IS STAGE 1 OF 2: the engine (briefings) and the chat Edge Function. Stage 2 — the browser's
+normaliser (`frontend/lib/readerFigures.ts`: the chat's replies, Explain, the briefing card) — is
+held to the SAME three fixture files and extends the gate `ai-figures` below with its own record.
+
+**"With a gate" means the OUTPUT is held, not only the prompt.** A law that asserts "the prompt asks
+for it" is not the gate: what `stage_narrate` returns, what the writers store, what the route answers
+and what GET /api/period serves are read here, with a scripted provider that writes the wrong-format
+replies a model really writes — and read by a detector that is not the code under test.
+
+**No value may change.** A token is rewritten only when its numeric reading is unique AND something
+positive says it is a figure (a currency, a unit, a magnitude, a range partner, a leading "0.", a
+figure the model was handed). Separators are swapped character by character — digits never pass
+through a number type — and every call ends with a proof (the output's digit sequence equals the
+input's, or the text is returned as it came). A lone three-digit group ("1,234" / "1.234") has two
+readings: it is left ENTIRELY as written, currency position included, and counted.
+
+**One standard, three runtimes** (`tests/engine/fixtures/ai_figures/`):
+
+| file | what it is | written by | held by |
+|---|---|---|---|
+| `standard.json` | the marks, magnitude words, joiners (U+00A0), codes, symbols and the engine's hint examples | vitest, from `frontend/lib/money` + the ratio printer + the packs' `money_display` (`AI_FIGURES_WRITE=1`) | `ai-figures` regenerates and compares it on every run; `ai-figures-engine` holds `figure_format.STANDARD` / `HINT_EXAMPLES` to it |
+| `grid.json` | 984 figures as lib/money prints them in one language (code after, and the same figure with the code before) set in a sentence of the other → lib/money's print there; 120 rows are a lone three-digit group, named from the VALUE (a whole amount of four to six digits), never by a normaliser | same | both runtimes: the print byte for byte (joiners included), or — a lone group — the sentence byte-identical |
+| `reply_corpus.json` | 115 replies a model really writes (80 in the wrong format); `expected` TYPED BY HAND, invented figures; `kept` = every token left on purpose, with its reason (101 tokens, every reason but `proof_failed`); first case: the incident's sentence in shape | by hand | both runtimes produce `expected` and report exactly `kept` |
+
+The detector is `frontend/test/numberLanguage.ts` — the repository's independent number-shape reader
+(CLAUDE.md §26: "never compare a printed figure only against the same printer"). It gained
+`foreignNumbersInProse` (the two base patterns made global + the shapes a model's sentence has that
+a product surface does not: a short decimal that ENDS a sentence, a decimal of three or more places,
+a lower-case magnitude before a code), `CURRENCY_BEFORE_FIGURE`, `NOT_PROSE` and `maskNotProse`; the
+existing exports are untouched. The engine's gate COMPILES those patterns out of that file — there is
+no second copy.
+
+## ai-figures-engine
+
+`tests/engine/test_ai_figure_format.py` — `python -m pytest -p netblock tests/engine/test_ai_figure_format.py -q`
+→ `261 passed`, `netblock: 0 outbound socket attempts`; with `-s` the last law prints
+`GATE-WORK ai-figures-engine corpus=115 grid=984 narrations=115 languages=9`.
+
+What runs for real: `engine.ai.figure_format` (the Python twin of the judged rule set), the real
+`stage_narrate`, the real regenerate route on the real `create_app()` with real ES256 bearers and the
+usage meter recorded, the real `stage_persist_narrative`, the real GET /api/period — over the agras
+corpus book. Two things are doubled and nothing else: PostgREST (the tenancy double) and the provider
+(a stand-in `anthropic` module that answers a scripted reply). No model, no socket.
+
+| law | reds on |
+|---|---|
+| E1 the twin | the output is not `expected` (corpus) / not lib/money's print (grid); a token left that the corpus does not name, or with another reason; a digit added, dropped or moved; a second pass changing the text; a lone group not byte-identical — alone, with a code before or after, a magnitude, a unit, in both languages, with handed figures equal to either reading; a handed figure changing anything but a `bare_decimal` / `bare_groups` token; the run-time proof not refusing a swap that drops a digit |
+| E2 the standard | `STANDARD` / `HINT_EXAMPLES` differ from `standard.json`; a magnitude word differs from `margin_meaning_pack().money_display` |
+| E3 the detector | one of its six patterns cannot be read out of `frontend/test/numberLanguage.ts`; it no longer flags the incident's sentence, or flags what the reader must see instead |
+| E4 the seam | the REAL `stage_narrate` (ro / en, RON / EUR, "RO", "ro-RO", no language at all) returns a `briefing` or a recommendation `title` / `rationale` / `actions[]` that is not `expected` or fails the detector; `narration_unavailable_code` is not None; a field that is not prose moved (`estimated_ron_impact`, `metric_referenced`, a non-string action, a non-object recommendation); a ratio the model was handed is not proved a figure, or one it was NOT handed is rewritten |
+| E5 stored = answered = served | the regenerate route or `stage_persist_narrative` stores, answers or serves anything but the bytes `stage_narrate` returned; more than one provider call; the unit not `reserve` → `commit` once; a converted (EUR) narration stored, or answered un-normalised |
+| E6 other languages | a de / fr / es / it / pt / nl / pl narration (briefing AND recommendations), or one in a code the narrator has no instruction for, differs by a byte from the model's text; its `LANGUAGE:` line differs from the one main sent (written out in the test) |
+| E7 never breaks | with the pass made to raise, or `engine.ai.figure_format` unimportable: the narration is not the model's text, usable and stored; the old hint is not the one sent; a token of the text in the log |
+| E8 the hint | for ro / en × RON / EUR the system prompt the provider received does not carry `HINT_EXAMPLES` with the code AFTER the figure; "cite currency as '<CODE>'" / "pre-converted to <CODE>" gone; the hint line itself holds a figure of the other language |
+| E9 failures and the guard | the pass run on any of the six failure branches, or on a reply fragment; `AI_NUMERAL_GUARD` off / observe changing the result; enforce no longer withholding; the pass not after the guard, not the last thing before the return, or more than one call of it in the pipeline; the module importing anything but the standard library, or holding a `\d` / `\w` |
+| E10 no spend | a socket attempt; the real `anthropic` module imported. SKIPS without `-p netblock` — and a junit gate counts tests minus skips, so the battery's floor (the number of laws) reds a run made without the plugin |
+
+**PLANT** — the normaliser (`src/engine/ai/figure_format.py`):
+
+| plant (each ALONE) | `ai-figures-engine` |
+|---|---|
+| **N1** a lone three-digit group is guessed (read as thousands and rewritten) | `25 failed, 236 passed` (exit 1) |
+| **N2** a lone group is rewritten when a handed figure equals one of its readings (design instruct's fact tier) | `16 failed, 245 passed` (exit 1) |
+| **N3** the swap drops a digit (a value changes) | `142 failed, 119 passed` (exit 1) |
+| **N4** the run-time proof is removed (segment and whole text) | `1 failed, 260 passed` (exit 1) |
+| **N5** a bare decimal is rewritten with nothing beside it (every unit-less dotted number re-printed) | `25 failed, 236 passed` (exit 1) |
+| **N6** a handed figure proves a two-digit DD.MM / HH.MM too | `1 failed, 260 passed` (exit 1) |
+| **N7** the code is no longer moved after the figure | `70 failed, 191 passed` (exit 1) |
+| **N8** a code before a percentage is moved ("EUR 30%" -> "30 EUR%") | `2 failed, 259 passed` (exit 1) |
+| **N9** a year after a code is treated as an amount ("EUR 2025" -> "2025 EUR") | `2 failed, 259 passed` (exit 1) |
+| **N10** a tenor is read as a magnitude ("EURIBOR 3M EUR" -> "3 mil. EUR") | `2 failed, 259 passed` (exit 1) |
+| **N11** the reference guard is dropped for bare groups (a handed figure rewrites an account list after "conturile") | `8 failed, 253 passed` (exit 1) |
+| **N12** a symbol after a letter is named ("US$ 5M" -> "5 mil. USD") | `4 failed, 257 passed` (exit 1) |
+| **N13** the joiner before a moved code is a plain space, not lib/money's U+00A0 | `4 failed, 257 passed` (exit 1) |
+| **N14** the Romanian million word loses its stop ("mil") | `54 failed, 207 passed` (exit 1) |
+| **N15** the hint's Romanian example is retyped in English notation | `4 failed, 257 passed` (exit 1) |
+| **N16** the hint puts the code BEFORE the example figures again | `5 failed, 256 passed` (exit 1) |
+| **N17** the walker rewrites a field that is not prose (metric_referenced) | `74 failed, 187 passed` (exit 1) |
+| **N18** the pass reads every other language as English | `19 failed, 242 passed` (exit 1) |
+
+**PLANT** — the seam (`src/engine/api/pipeline.py`, `stage_narrate` and the regenerate route):
+
+| plant (each ALONE) | `ai-figures-engine` |
+|---|---|
+| **S1** the pass is taken out of stage_narrate (the hint alone holds the format) | `69 failed, 192 passed` (exit 1) |
+| **S2** the pass runs on a failed narration too | `4 failed, 257 passed` (exit 1) |
+| **S3** the handed figures are no longer passed (anchors dropped) | `1 failed, 260 passed` (exit 1) |
+| **S4** an exception of the pass leaves stage_narrate (the route answers 500, nothing stored) | `2 failed, 259 passed` (exit 1) |
+| **S5** the new hint is given to every narration language | `19 failed, 242 passed` (exit 1) |
+| **S6** the hint for ro / en is not taken from figure_format (the one-example hint stays) | `4 failed, 257 passed` (exit 1) |
+| **S7** the regenerate route's writer strips the joiners before storing (stored != answered) | `1 failed, 260 passed` (exit 1) |
+| **S8** the pass is moved before the numeral guard's verdict | `6 failed, 255 passed` (exit 1) |
+
+**PLANT** — the detector and the fixtures (run against all three gates):
+
+| plant (each ALONE) | `ai-figures` | `chat-cap-always` (chatLlmPrompt + chatLlmGuard) | `ai-figures-engine` |
+|---|---|---|---|
+| **F1** one expected string of the corpus is changed on disk (the two runtimes would disagree) | not run | not run | `2 failed, 259 passed` (exit 1) |
+| **D1** a detector pattern can no longer be read out of the frontend's file (renamed) | `15 passed (15)` | `114 passed (114)` | `1 error` (exit 2) |
+| **D2** the detector no longer sees a code before a figure | `2 failed, 13 passed (15)` (exit 1) | `114 passed (114)` | `2 failed, 259 passed` (exit 1) |
+| **D3** the detector's prose patterns are emptied (a short decimal ending a sentence, a long decimal) | `1 failed, 14 passed (15)` (exit 1) | `114 passed (114)` | `2 failed, 259 passed` (exit 1) |
+| **F2** standard.json is edited by hand (the Romanian decimal mark) | `1 failed, 14 passed (15)` (exit 1) | `114 passed (114)` | `1 failed, 260 passed` (exit 1) |
+
+**RED** — every plant above exits non-zero on this gate (D1 is a collection error: the pattern can
+no longer be read out, exit 2), each planted ALONE in the worktree by a runner that restores the
+planted files from the bytes read before the plant and compares their sha256 after each.
+Baseline before the first plant: `261 passed`. **REVERT** — exit `0`: `261 passed`
+(and `15 passed (15)`, `114 passed (114)` on the two vitest runs). Verdict: proven RED, 31 of 31.
+
+D2, D3 and F2 are seen by `ai-figures` too (its positive controls / its regenerate-and-compare law);
+D1 — a pattern RENAMED — is seen by this gate alone, which is the one that reads the pattern by name.
+
+**After the repair it reds on** (TC-11): a rule of the normaliser changed on one runtime only; a
+value guessed (a lone group rewritten, with or without a handed figure); a digit dropped, or the
+proof removed; a unit-less number re-printed without evidence; a date, a reference, a year after a
+code, a tenor, a foreign dollar touched; the joiner or a magnitude word drifting from lib/money's
+bytes; the hint's examples retyped, or the code put before them; the pass removed from
+`stage_narrate`, run on a failure, run before the guard, extended to a field that is not prose, read
+in English for every other language; the handed figures no longer passed; an exception of the pass
+reaching a caller; a writer storing something other than what the narrator returned; another
+language's hint changed.
+
+**CANNOT SEE:**
+
+- **what a model WRITES** — the provider is a script. Whether the model now writes the format itself
+  under the new hint needs one billed "Regenerează", the owner's to send;
+- **a token left by design**: a lone three-digit group ("162,365 RON" in Romanian text) passes every
+  law and the detector — 43 of the 115 expected strings still carry at least one
+  foreign-shaped token left on purpose (a lone group, a bare ratio with no handed figure, a date, a
+  reference). That is constraint 1 ("an ambiguous token is NEVER guessed"), not a gap of the gate;
+- **rows stored before the release**: no stored row is rewritten (the browser's card repairs what it
+  shows — stage 2);
+- **a narration the model wrote in ANOTHER language than it was asked for**: it is normalised in the
+  asked language — notation only, never a value;
+- **a recommendation whose `actions` is ONE STRING**, not a list: `_recommendation_rows` coerces it
+  to a list when storing, the numeral guard does not walk it, and neither does this pass;
+- **the non-statement prompt** (invoice register, SKU): it carries the same hint through the same
+  variable; its wording is not read here;
+- **`AI_NUMERAL_GUARD=enforce` with placeholder prompts** (not live): `numerals.MoneyFact.render`
+  still prints "RON 1,234.00" — the pass would rewrite it, but nothing drives that path here;
+- **astral characters and absurd tokens**: a letter outside the basic plane beside a number is "not
+  a letter" on both runtimes by construction (the browser indexes UTF-16 units); a token of more than
+  300 decimal places is never proved by a handed figure here (the reference would compare infinities);
+- **whether a figure is TRUE.**
+
+**Measured while building (not a gate):** the Python twin against the judge's TypeScript reference
+(`specs-durable/ai_figures/judge_proto/judge.ts`, run under node) on 61,136 inputs — both
+designers' cases, the judge's 80 attack replies, the 984 grid rows and 60,000 composed replies (heads
+× numbers × tails × context words, a third with handed figures): text, rewritten count and every
+left token equal on all of them (`differ 0`); 37,782 texts changed, 55,113
+tokens rewritten, 0 digit changes, 0 texts changed by a second pass.
+
+## ai-figures
+
+`frontend/lib/__tests__/chatLlmFigureFormat.test.ts` —
+`npx vitest run --root . frontend/lib/__tests__/chatLlmFigureFormat.test.ts --reporter=verbose` →
+`15 passed (15)`, canary `GATE-WORK ai-figures-standard grid=984 lone=120 examples=12`.
+(Stage 2 adds the browser's files to this gate.)
+
+It RUNS the product's formatter and holds the copies: (1) every example string of the chat
+function's figure-format rule and conversion note equals lib/money's / the ratio printer's print of
+`FIGURE_FORMAT_VALUES`; the amount the rule says NOT to write ("162.365 RON") is cut out of the
+example, not typed; (2) `standard.json` and `grid.json` regenerated and compared with the committed
+bytes — and `AI_FIGURES_WRITE=1` left on reds (a file compared with itself); the magnitude words
+against BOTH packs; (3) each language's bullet holds no figure of the other language, no built
+prompt holds a currency before a digit (the conversion note, the public-company block) — read by the
+detector, with positive controls; (4) the rule rides ONLY inside the display-currency rule: once for
+Ask CFO AI (converted, RON = RON, with a ticker; both personas), never in the command bar's or
+Explain's real request — their prompt holds no digit example (the command bar's contract is "write
+NO digits"); the rule is static text; (5) the detector itself: positive controls on the shapes the
+base patterns cannot see and on what it must NOT name (a pair, a foreign dollar, a spreadsheet
+reference, a date, a code span, a lone three-digit group).
+
+**PLANT** — the function (`supabase/functions/chat-llm/prompt.ts`), lib/money, the packs, the grid:
+
+| plant (each ALONE) | `ai-figures` | `chat-cap-always` (chatLlmPrompt + chatLlmGuard) | `ai-figures-engine` |
+|---|---|---|---|
+| **V1** an example of the rule is retyped (the Romanian compact amount with an English dot) | `2 failed, 13 passed (15)` (exit 1) | `1 failed, 113 passed (114)` (exit 1) | not run |
+| **V2** the old conversion note is back ("~EUR 918k (converted from RON 4.58M at BNR rate)") | `1 failed, 14 passed (15)` (exit 1) | `3 failed, 111 passed (114)` (exit 1) | not run |
+| **V3** the public-company block prints the code before the figure again ("USD 1,000") | `1 failed, 14 passed (15)` (exit 1) | `2 failed, 112 passed (114)` (exit 1) | not run |
+| **V4** the rule is moved into the persona (the command bar and Explain are handed digit examples) | `5 failed, 10 passed (15)` (exit 1) | `4 failed, 110 passed (114)` (exit 1) | not run |
+| **V5** the rule is missing where the display currency is the stored one (a RON chat) | `2 failed, 13 passed (15)` (exit 1) | `2 failed, 112 passed (114)` (exit 1) | not run |
+| **V6** the rule is reworded ("after a space" dropped) without its pin | `15 passed (15)` | `1 failed, 113 passed (114)` (exit 1) | not run |
+| **V7** the rule carries a figure of the request (the rate): the fragment is no longer static | `3 failed, 12 passed (15)` (exit 1) | `2 failed, 112 passed (114)` (exit 1) | not run |
+| **V8** the English conversion note keeps a Romanian-shaped figure | `1 failed, 14 passed (15)` (exit 1) | `114 passed (114)` | not run |
+| **M1** lib/money changes what it prints (the joiner before the code becomes a plain space) | `3 failed, 12 passed (15)` (exit 1) | `114 passed (114)` | not run |
+| **M2** a pack's magnitude word drifts from lib/money's (cockpit: "mil" without its stop) | `1 failed, 14 passed (15)` (exit 1) | `114 passed (114)` | not run |
+| **M3** the engine's own pack drifts (margin_meaning thousand: "K" in Romanian) | `3 failed, 12 passed (15)` (exit 1) | `114 passed (114)` | `1 failed, 260 passed` (exit 1) |
+| **M4** grid.json is edited by hand (one lone group marked rewritten) | `1 failed, 14 passed (15)` (exit 1) | `114 passed (114)` | `2 failed, 259 passed` (exit 1) |
+
+**RED** — every plant exits `1` on `ai-figures`, on the two `chat-cap-always` files, or on both,
+each planted ALONE (same runner, sha256 compared after each restore). Baseline: `15 passed (15)`,
+`114 passed (114)`. **REVERT** — exit `0`: `15 passed (15)`, `114 passed (114)`, `261 passed`. Verdict:
+proven RED, 12 of 12.
+
+Read with the table: V2 and V3 are seen by all three files that read the prompt; V6 (the rule
+reworded) is seen ONLY by the pin in `chatLlmPrompt.test.ts` — a rewording that keeps every example
+is not this gate's to see, by design; M1 (lib/money changes its bytes) reds this gate and leaves the
+engine green until the fixtures are re-written — then the engine's gate reds until its constants
+follow, which is the order of the bridge; M3 (the engine's own pack) reds both.
+
+**After the repair it reds on** (TC-11): an example retyped in `prompt.ts`; the old conversion note
+or "USD 1,000" back in a prompt; the rule moved into a persona, dropped from the RON = RON branch,
+or made to carry a figure of the request; lib/money, the ratio printer or a pack changing what it
+prints without the fixtures and the engine following; a fixture edited by hand.
+
+**CANNOT SEE:** what the model writes under the prompt; the DEPLOYED function's source (the
+coordinator diffs the download against this tree before the deploy — expected: `prompt.ts` alone);
+a rewording of the rule that keeps its examples (the pin below is what reds); Chromium's own compact
+thousand ("mii") — Node's ICU prints "K" for Romanian thousands, so no generated row is a compact
+thousand and the word comes from the packs; the browser's normaliser (stage 2).
+
+### chat-cap-always — moved on purpose, no pin value changed (2026-10-04)
+
+`chatLlmPrompt.test.ts` holds eight sha256 pins of the system prompt as MAIN's function built it.
+The order changed three things, all inside fragments only a request with a display currency (Ask
+CFO AI) or a ticker with figures carries: the figure-format rule; the conversion note; "USD 1,000" →
+"1,000 USD". The pins are now taken after `asMainSentIt` takes those three back out BY NAME — each
+step asserting that what it removes is there exactly as often as the request says — and the law
+states which pinned requests the order touched at all: the "bare" and the "live ticker, no figures"
+requests hash to main's with NO reversal (the personas did not move by a byte). One new pin: the
+rule's own bytes (`121639d7…ee10`, 1,090 characters) — V6 above is its RED. One new law: the old
+conversion note is in no prompt the function builds. `chatLlmGuard.test.ts`: "Revenue          USD
+1,000" became "Revenue          1,000 USD" (V3 is its RED). The static-head law and the four-files
+law hold unchanged. Measured on the five files of the gate: `193 passed (193)`.

@@ -46,9 +46,9 @@ export function plainSpaces(text: string | null | undefined): string {
 // wrote has shapes they cannot see (measured on the incident's own reply and
 // on a briefing):
 //
-//   · a short decimal that ENDS A SENTENCE ("… iar Z″ este 3.09."): the base
+//   · a short decimal that ENDS A SENTENCE ("… iar Z″ este 2.87."): the base
 //     pattern refuses a decimal followed by a dot, to spare "31.12.2025";
-//   · a decimal of three or more places ("la cursul BNR 0.1871"): the base
+//   · a decimal of three or more places ("la cursul BNR 0.1905"): the base
 //     pattern stops at two;
 //   · a lower-case or two-letter magnitude before a code ("918k EUR",
 //     "2.45bn USD");

@@ -146,6 +146,33 @@ describe("the chat function's example figures are the product's own prints", () 
   });
 });
 
+// ── the detector itself ──────────────────────────────────────────────────
+
+describe("the prose detector every law of this lane reads with", () => {
+  it("POSITIVE CONTROL: it sees the shapes the base patterns cannot — a short decimal that ends a sentence, a decimal of three or more places, a lower-case magnitude, a currency before the figure", () => {
+    // The base pattern's two measured blind spots …
+    expect(foreignNumber("iar Z este 2.87.", "ro")).toBeNull();
+    expect(foreignNumber("la cursul BNR 0.1905", "ro")).toBeNull();
+    // … seen (each pattern starts at ONE digit, so a hit is the tail of the figure).
+    expect(foreignNumbersInProse("iar Z este 2.87.", "ro")).toEqual(["2.87"]);
+    expect(foreignNumbersInProse("la cursul BNR 0.1905", "ro")).toEqual(["0.1905"]);
+    expect(foreignNumbersInProse("creanțe de 918k EUR", "ro")).toEqual(["8k EUR"]);
+    expect(foreignNumbersInProse("the score is 2,87.", "en")).toEqual(["2,87"]);
+    expect(foreignNumbersInProse("at a rate of 0,1905", "en")).toEqual(["0,1905"]);
+    for (const before of ["EUR 12", "RON -4", "~USD 1", "€12", "$391"]) expect(CURRENCY_BEFORE_FIGURE.test(`de ${before}`), before).toBe(true);
+    // A pair, a foreign dollar, a spreadsheet reference, a longer word, a code after the figure, another currency: not this standard's to name.
+    for (const not of ["EUR/RON 4,97", "US$ 5", "$B$2", "EURO 5", "12 EUR", "TRY 3"]) expect(CURRENCY_BEFORE_FIGURE.test(`de ${not}`), not).toBe(false);
+  });
+
+  it("a date, a clock time, a URL and a code span are not prose — and a lone three-digit group is matched by nothing", () => {
+    expect(foreignNumbersInProse("La 31.12.2025, ora 12:30, vezi `RON 4.58M` și https://example.test/a?v=1.5", "ro")).toEqual([]);
+    // …blanked, at the same length (an index into the mask is an index into the text).
+    expect(maskNotProse("vezi `RON 4.58M` acum")).toBe("vezi " + " ".repeat("`RON 4.58M`".length) + " acum");
+    expect(foreignNumbersInProse("162,365 RON sau 162.365 RON", "ro")).toEqual([]);
+    expect(foreignNumbersInProse("162,365 RON or 162.365 RON", "en")).toEqual([]);
+  });
+});
+
 // ── 3 + 4. the prompt the chat really receives ────────────────────────────
 
 const q = [{ role: "user" as const, content: "q" }];
@@ -201,7 +228,7 @@ describe("the figure-format rule in the prompt the model is sent", () => {
     }
     const ticker = buildSystemPrompt(CHAT_TICKER);
     expect(ticker).toContain("  · Revenue          1,234,567 USD");
-    // The shape the old prompt taught (production, 2026-10-04: "~EUR 77.4M (convertit din RON …)").
+    // The shape the old prompt taught — and the chat printed in production on 2026-10-04.
     expect(buildSystemPrompt(CHAT_EUR)).not.toMatch(/~EUR 918k|RON 4\.58M|e\.g\. "~/);
     // POSITIVE CONTROL: the detector sees that shape.
     expect(CURRENCY_BEFORE_FIGURE.test('"~EUR 918k (converted from RON 4.58M at BNR rate)"')).toBe(true);
