@@ -20219,3 +20219,393 @@ FastAPI route table (a script, a cron, `docker exec`); the other files on
 the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
 the journal) — each has its own gates; whether the operator bearer is held
 only by the operator.
+
+## Entitlement holes beside the subscriptions lockdown (2026-10-04)
+
+**INCIDENT.** The adversarial review of the subscriptions write lockdown (2026-10-03) measured, on a real
+local stack, four more ways to an entitlement or to another tenant's data that the lockdown does not touch:
+a trial user (workspace cap 1) holding 2–4 live workspaces by three routes; the anon key overwriting any
+user's dashboard layout through a SECURITY DEFINER function; twelve tables created without row level
+security, written with the anon key alone; and a signup row with no tier that the engine reads as the
+Multi-Country allowance. Re-deriving the third from the catalog (86 public tables: 12 with row level
+security off, 35 with a write policy and a privilege) found two more classes: the operator's calibration
+queue, whose INSERT policy admits a global rule from any signed-in user, and six tables of engine-computed
+figures a member can rewrite for their own organization. Six restrict-only migrations, each with one
+read-only report (`hole_open`), six database gates and one gate of static laws.
+
+**How the database gates run.** `scripts/check_hole_*.sh` over `scripts/entitlement_holes/lib.sh`. Each
+addresses NO database by default: without `ENTITLEMENT_HOLES_DB_URL` it prints `VACUOUS` and
+`GATE-WORK <gate> units=0` (the battery reports PASS(VACUOUS), never a green count); a URL that is not a
+plain loopback one is refused with exit 2 before anything is opened. With it, the gate connects there only
+to CREATE and DROP its own scratch database, builds this repository's schema in it (47 files on this
+branch, in the recorded order; a file the order does not know is applied after it — with the lockdown
+lane merged the base holds its files too, and the gates read the same), shows the hole OPEN, applies the migration
+(one batch, one transaction, the last
+statement's row is the answer), and shows it closed — again on a second run, re-opened by hand, on
+production's shape, on an empty database and on objects another role owns. A request is reproduced the way
+PostgREST runs one: an `authenticator` session, `set local role`, `request.jwt.claims`, then the UPDATE a
+PATCH is and the function call an RPC is.
+
+**The plants.** 81 gate plants and 60 law plants, each applied ALONE. A gate plant is a COPY of a migration
+or a report with one defect, run through `HOLE_MIGRATION` / `HOLE_REPORT` — the repository's file is never
+edited, so there is nothing to restore; such a run says `PLANT RUN` on its first line and ends in exit 1
+(the plant was seen) or exit 3 (`PLANT NOT SEEN` — every case passed over a planted file), never 0. A law
+plant is applied in a scratch copy of the tree and the file restored byte-exact. Drivers and every log:
+`specs-durable/entitlement_holes/` (`gate_plants.py`, `law_plants.py`, `evasions.py`, `plants/`).
+
+**What replaying the plants on the finished files found** — each is now a case or a law, and its RED is in
+the tables below. Two plants were NOT SEEN (exit 3): a report that ignored the dashboard TABLE
+(`r2-ignores-the-table`: all 103 cases passed) and a report that miscounted the listed tables
+(`r3-existing-count-wrong`: all 329 passed). One plant was RED only through the report's digest of the
+guard's body, with no case of behaviour behind it (`h1-service-role-capped`: a service-role request
+carries no user id, so the cap question was skipped either way). No state held one half of the workspace
+verdict open alone (`r1-ignores-restore`, `r1-ignores-direct-write` — written after the gap was read).
+And two evasions of the laws were GREEN: a backfill assembled from string pieces
+(`execute 'upd' || 'ate …'`: `59 passed`) and a grant whose verb is a `format()` argument (`59 passed`).
+
+**Production's shape** (as the coordinator read it, 2026-10-04: no `dashboard_configs`, none of the twelve
+public-market tables, no firm functions, the repository's `create_workspace` and signup function) was
+rebuilt as a scratch database with the subscriptions lockdown applied first, and every file run as ONE
+query string: H1 and H4 changed exactly four catalog lines (the guard function, its trigger, the two signup
+function bodies) and no row of `auth.users`, `profiles`, `subscriptions`, `organizations` or `memberships`;
+H2 and H3 answered `hole_open: false` and changed nothing, saying so under `skipped`; H3c and H3b answered
+`hole_open: true` (they wait for a ruling). `supabase db query` over a direct connection (`--local`,
+`--db-url`) REFUSES the two-statement migration files (`cannot insert multiple commands into a prepared
+statement` — measured, CLI 2.95.4); the single-statement reports run through it, and the files are
+written for the Management API path (`--linked`), which runs a batch and returns the last statement's rows.
+
+## hole-workspace-cap
+
+H1 — `supabase/schema_phase_workspace_cap_guard.sql`, read by `supabase/preflight/schema_phase_workspace_cap_guard_preflight_report.sql`. Script: `scripts/check_hole_workspace_cap.sh`.
+
+**GREEN** — `ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:…@127.0.0.1:<port>/<db> bash scripts/check_hole_workspace_cap.sh`, exit `0`:
+`GATE-WORK hole-workspace-cap units=145` · `PASS hole-workspace-cap — 145 cases`. Without the variable: exit `0`, `VACUOUS`, `units=0`.
+
+**PLANT** — 24, each a copy of the migration or of the report with one defect:
+
+| plant | what is planted | RED |
+|---|---|---|
+| `h1-no-cap-question` (migration) | the guard never asks create_workspace (no cap on a restore or a create) | `34 of 145 cases failed` — `C2 (ii) restore_workspace at the cap is refused with create_workspace's own message`; `C2 (ii) the user has exactly 1 live workspace` |
+| `h1-no-direct-write-refusal` (migration) | a browser session may write archived_at / purge_after / firm_id / cui | `31 of 145 cases failed` — `C2 (i) a member's direct write of archived_at is refused`; `C2 (i) … of purge_after` |
+| `h1-no-lock` (migration) | the cap is asked without the per-user lock (two requests at once) | `22 of 145 cases failed` — `C19 (iv) create ∥ create on a 1-workspace plan: exactly 1 live workspace`; `C19 (iv) … the second request is refused with create_workspace's own message` |
+| `h1-update-only` (migration) | the trigger fires BEFORE UPDATE only (a create is never asked under the lock) | `20 of 145 cases failed` — `C19 (iv) create ∥ create on a 1-workspace plan: exactly 1 live workspace`; `C19 (iv) … the second request is refused with create_workspace's own message` |
+| `h1-security-definer` (migration) | the guard is SECURITY DEFINER (current_user is always the owner) | `32 of 145 cases failed` — `C2 (i) a member's direct write of archived_at is refused`; `C2 (i) … of purge_after` |
+| `h1-cui-unguarded` (migration) | cui is left off the guarded columns | `15 of 145 cases failed` — `C2 (i) … of cui`; `C2 (i) the workspace row is byte-identical after every refused write` |
+| `h1-firm-clients-asked` (migration) | a firm's client is held to the importer's cap (path iii changed — the owner's ruling, not this file's) | `12 of 145 cases failed` — `P0 path (iii) is exactly as it was: the firm functions are not asked for a cap (3 live — the user's own and two clients)` |
+| `h1-probe-kept` (migration) | the cap probe is not rolled back (a workspace is created by every restore) | `31 of 145 cases failed` — `C2 (ii) the user has exactly 1 live workspace`; `C2 the cap probe left no workspace behind` |
+| `h1-definer-reset-not-said` (migration) | a guard that was SECURITY DEFINER is set back without the result saying so | `1 of 145 cases failed` — `H4e the migration says it set the guard back to SECURITY INVOKER` |
+| `r1-accepts-a-definer-guard` (report) | the workspace report accepts a guard altered to SECURITY DEFINER | `1 of 145 cases failed` — `H4b with the guard altered to SECURITY DEFINER (same body, same trigger) the report says hole_open: true` |
+| `r1-always-closed` (report) | the workspace report says hole_open: false without looking | `9 of 145 cases failed` — `O1 the report on the fresh schema says hole_open: true`; `H1 with the trigger DISABLED the report says hole_open: true` |
+| `r1-always-open` (report) | the workspace report says hole_open: true whatever is installed | `9 of 145 cases failed` — `E1 the report answers where NONE of the objects exist: one row, hole_open false` |
+| `h1-owner-not-asked` (migration) | the file tries to create the trigger on a table this role may not attach one to (must be owner: the whole file rolls back with nothing said) | `2 of 145 cases failed` — `X1 … the migration applies WITHOUT an error (exit 0)`; `X1 … changes nothing, and names what it could not close` |
+| `h1-renames-a-workspace` (migration) | the migration changes an existing organizations row — its own digest refuses to commit | `75 of 145 cases failed` — `M1 the migration applies (exit 0)`; `M2 its last statement names the file` |
+| `h1-archives-over-cap-after-the-digest` (migration) | the migration archives workspaces after it has read the rows again (its own check cannot see it) | `6 of 145 cases failed` — `C1c THE FENCE: the report's organizations_fingerprint after the migration is the one read before it (same rows, same md5)`; `C1d … and so is the table, read by the gate: no workspace was archived, restored or renamed by the migration` |
+| `h1-fingerprint-not-measured` (migration) | the result answers a constant digest instead of the one it read | `1 of 145 cases failed` — `M7 the migration MEASURED the existing workspaces: unchanged, and its digest before and after is the one the report read` |
+| `h1-nothing-to-guard-not-said` (migration) | where there is no organizations table the result says nothing about why | `1 of 145 cases failed` — `E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)` |
+| `r1-fingerprint-constant` (report) | the workspace report answers a constant instead of the table's digest | `3 of 145 cases failed` — `O7 the report's organizations_fingerprint is the table's (rows and md5), read before anything is applied`; `C1c THE FENCE: the report's organizations_fingerprint after the migration is the one read before it (same rows, same md5)` |
+| `r1-fingerprint-of-ids-only` (report) | the workspace report digests the ids, not the rows (a rename is invisible) | `3 of 145 cases failed` — `O7 the report's organizations_fingerprint is the table's (rows and md5), read before anything is applied`; `C1c THE FENCE: the report's organizations_fingerprint after the migration is the one read before it (same rows, same md5)` |
+| `r1-ignores-restore` (report) | the workspace report's verdict reads the direct write only | `1 of 145 cases failed` — `V1 no API role holds UPDATE and the guard is gone: the report still says hole_open: true` |
+| `r1-ignores-direct-write` (report) | the workspace report's verdict reads the restore only | `3 of 145 cases failed` — `V3 nobody may call restore_workspace and the guard is gone: the report still says hole_open: true`; `X1 another role's objects: the report says hole_open true — and that this role cannot change them` |
+| `h1-auth-called-on-every-write` (migration) | the guard asks auth.uid() on every write of the table (a signup's first workspace included) | `16 of 145 cases failed` — `C23 a signup lands with auth.uid() and auth.jwt() RAISING — the guard calls neither on that path`; `C23b … nor on the table owner's archive and rename` |
+| `h1-role-read-through-auth-jwt` (migration) | the guard reads the role through auth.jwt() on every asked write and in a flat AND (the first draft) | `12 of 145 cases failed` — `C23c the ONE place it asks: a workspace coming back from the archive — auth.uid(), never auth.jwt()` |
+| `h1-service-role-capped` (migration) | the service role is held to the user's cap too (the workspace migration's rollback refused) | `12 of 145 cases failed` — `C11b the service role is not asked for a cap even when its claims carry the user's id` |
+
+**RED** — every plant: exit `1`, `FAIL hole-workspace-cap — N of 145 cases failed` (the first line of each run:
+`PLANT RUN — HOLE_… is tested INSTEAD of the repository's file`). 24 of 24.
+
+**REVERT** — nothing to revert (the repository's file was never edited); the same command without the
+variable: exit `0`, `PASS hole-workspace-cap — 145 cases`.
+
+**After the repair it reds on:** a signed-in user's direct write of `archived_at`, `purge_after`, `firm_id` or `cui` landing (alone, beside a legitimate column, or through an upsert); a restore or a create at the cap being served — one request, or the second of two at once (create ∥ create, restore ∥ restore, create ∥ restore in both orders); the refusal not being `create_workspace`'s own message; a legitimate path refused (rename / industry / CAEN with the user's JWT, archive, restore under the cap, purge, the firm functions, the service role's un-archive, the SQL editor, a paid plan up to ITS cap, a signup's first workspace); the guard calling a function of schema `auth` on a signup, a rename or an archive (shown with `auth.uid()` and `auth.jwt()` replaced by functions that raise); a workspace function body changing; an `organizations` row changed by the migration (the gate's digest, the report's `organizations_fingerprint` before and after, and the migration's own digests must agree); the cap probe leaving a workspace behind; a second run changing something; the old files re-run re-opening it; a disabled trigger, a guard altered to SECURITY DEFINER or a gutted guard function read as closed; either half of the verdict open alone read as closed; the same on production's shape (no `firm_id` / `cui`, no firm functions); the report or the migration failing, or saying nothing, where no object exists; a `must be owner` where another role owns the table.
+
+**CANNOT SEE:** PostgREST itself (a PATCH is reproduced as the UPDATE it is, in an `authenticator` session with the role and the claims PostgREST sets); **production's own `archive_workspace` and `purge_workspace` bodies** — they are not this repository's final ones, and the gate runs the repository's (the guard needs only that they are SECURITY DEFINER, which the report prints per function); a NEW SECURITY DEFINER function that un-archives for a service-role caller on a user's behalf (the service role is not asked for a cap); the table's owner disabling the trigger (the report is what sees that); a request above READ COMMITTED (PostgREST gives a caller no way to ask for one); more than two requests at once; path (iii) — `create_firm` → `import_firm_client` ×N → `detach_workspace_from_firm` — which is measured as a NOTE and NOT closed (the owner's ruling); a user or a webhook changing an `organizations` row WHILE the migration runs (it compares the rows it found and counts the rest); what the frontend shows for a restore refused at the cap (its generic "couldn't restore"); what GoTrue's own session may execute (a signup is reproduced as the `auth.users` insert it makes, as the table's owner).
+
+## hole-dashboard-config
+
+H2 — `supabase/schema_phase_dashboard_config_caller.sql`, read by `supabase/preflight/schema_phase_dashboard_config_caller_preflight_report.sql`. Script: `scripts/check_hole_dashboard_config.sh`.
+
+**GREEN** — `ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:…@127.0.0.1:<port>/<db> bash scripts/check_hole_dashboard_config.sh`, exit `0`:
+`GATE-WORK hole-dashboard-config units=116` · `PASS hole-dashboard-config — 116 cases`. Without the variable: exit `0`, `VACUOUS`, `units=0`.
+
+**PLANT** — 11, each a copy of the migration or of the report with one defect:
+
+| plant | what is planted | RED |
+|---|---|---|
+| `h2-no-caller-check` (migration) | the function body is the original (no caller check) | `20 of 116 cases failed` — `M3 … and says the function body was replaced`; `M6 … and that nothing was left open` |
+| `h2-anon-keeps-execute` (migration) | EXECUTE is not revoked from PUBLIC and anon | `9 of 116 cases failed` — `M4 … and that EXECUTE was revoked from PUBLIC and anon`; `M6 … and that nothing was left open` |
+| `h2-table-left-open` (migration) | the table's write privileges are not revoked | `35 of 116 cases failed` — `M5 … and that anon lost INSERT on the table`; `M6 … and that nothing was left open` |
+| `h2-grant-widens` (migration) | the builder's first draft: EXECUTE granted to authenticated whenever it lacks it | `2 of 116 cases failed` — `W4 … and authenticated STILL cannot execute it (a privilege it did not hold is not granted)`; `W5 … measured: a signed-in user's call is refused at the door` |
+| `h2-service-role-refused` (migration) | the service role is held to the caller check too (the engine's verified write refused) | `14 of 116 cases failed` — `M6 … and that nothing was left open`; `C3 the service role may call the RPC for any user` |
+| `h2-unknown-body-replaced` (migration) | a function edited by hand is overwritten | `4 of 116 cases failed` — `U3 … and the hand-made body is byte-identical`; `U4 … the result names it as not replaced` |
+| `r2-always-closed` (report) | the dashboard report says hole_open: false without looking | `7 of 116 cases failed` — `O1 the report on the fresh schema says hole_open: true`; `H1 after re-running schema_phase_dashboard_config.sql the report says hole_open: true` |
+| `r2-ignores-the-table` (report) | the dashboard report looks at the function only | `1 of 116 cases failed` — `T1 with only the TABLE re-opened the report says hole_open: true` |
+| `h2-owner-not-asked` (migration) | the file tries to replace a function another role owns | `1 of 116 cases failed` — `X1 … changes nothing, and names what it could not close` |
+| `r2-says-this-role-can` (report) | the dashboard report says this role can replace a function it does not own | `1 of 116 cases failed` — `X1 another role's objects: the report says hole_open true — and that this role cannot change them` |
+| `r2-ignores-the-function` (report) | the dashboard report looks at the table only | `3 of 116 cases failed` — `H1 after re-running schema_phase_dashboard_config.sql the report says hole_open: true`; `K2 the report says hole_open: true` |
+
+**RED** — every plant: exit `1`, `FAIL hole-dashboard-config — N of 116 cases failed` (the first line of each run:
+`PLANT RUN — HOLE_… is tested INSTEAD of the repository's file`). 11 of 11.
+
+**REVERT** — nothing to revert (the repository's file was never edited); the same command without the
+variable: exit `0`, `PASS hole-dashboard-config — 116 cases`.
+
+**After the repair it reds on:** the anon key or a signed-in user writing ANOTHER user's layout through the RPC or the table; the function open with the table closed, or the table open with the function closed, read as closed; the engine's service-role write, the service role's RPC for any user, a user's RPC for themselves or the own-row read refused; SELECT or a policy changed; a privilege the role did not hold being granted; a hand-made body replaced (it must be closed at the door instead); a second run changing something; the original file re-run, the grants handed back or a permissive policy under another name read as closed; the report or the migration failing, or saying nothing, where neither object exists; a `must be owner` where another role owns them.
+
+**CANNOT SEE:** PostgREST and the engine route themselves (`PUT /api/dashboard/config` is reproduced as the service-role upsert it makes); another overload of `upsert_dashboard_config` (reported under `other_overloads`, not touched); a database that holds neither object — production, as read 2026-10-04: there the file is a no-op that says so, and the gate's empty-database block is that case; a grant inherited through a role membership (named under `not_closed` — not exercised).
+
+## hole-public-tables
+
+H3 — `supabase/schema_phase_public_tables_write_revoke.sql`, read by `supabase/preflight/schema_phase_public_tables_write_revoke_preflight_report.sql`. Script: `scripts/check_hole_public_tables.sh`.
+
+**GREEN** — `ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:…@127.0.0.1:<port>/<db> bash scripts/check_hole_public_tables.sh`, exit `0`:
+`GATE-WORK hole-public-tables units=332` · `PASS hole-public-tables — 332 cases`. Without the variable: exit `0`, `VACUOUS`, `units=0`.
+
+**PLANT** — 13, each a copy of the migration or of the report with one defect:
+
+| plant | what is planted | RED |
+|---|---|---|
+| `h3-anon-only` (migration) | the write privileges are revoked from anon only | `127 of 332 cases failed` — `C1b … no listed table is open`; `C2 company_exposure_profiles: a signed-in user's INSERT is refused` |
+| `h3-one-table-missing` (migration) | risk_interpretations is left off the list | `26 of 332 cases failed` — `M3 … revoked something on every listed table`; `C1b … no listed table is open` |
+| `h3-select-revoked-too` (migration) | SELECT is revoked as well (every anon / user read answers 403) | `2 of 332 cases failed` — `C6 SELECT is left exactly as found: anon reads what it read before, table by table`; `C7 … and so does a signed-in user` |
+| `h3-rls-switched-on` (migration) | row level security is switched on (a read without a policy answers nothing) | `9 of 332 cases failed` — `C6 SELECT is left exactly as found: anon reads what it read before, table by table`; `C7 … and so does a signed-in user` |
+| `h3-truncate-kept` (migration) | TRUNCATE is not revoked | `54 of 332 cases failed` — `C1b … no listed table is open`; `C2 company_exposure_profiles: TRUNCATE is refused` |
+| `r3-always-closed` (report) | the public-tables report says hole_open: false without looking | `4 of 332 cases failed` — `O1 the report on the fresh schema says hole_open: true`; `H1 the report says hole_open: true` |
+| `r3-blind-to-column-grants` (report) | the public-tables report does not see a column-level grant | `1 of 332 cases failed` — `H1b … four tables` |
+| `h3-revoked-before-read-back` (migration) | a privilege is named as revoked before the read-back (on another role's table: 'revoked' over a privilege still held) | `1 of 332 cases failed` — `X1 … changes nothing, and names what it could not close` |
+| `r3-no-owner-list` (report) | the public-tables report does not name the listed tables this role cannot revoke on | `1 of 332 cases failed` — `X1 another role's objects: the report says hole_open true — and that this role cannot change them` |
+| `h3-nothing-to-do-not-said` (migration) | where none of the twelve exists the result has no word why it changed nothing | `1 of 332 cases failed` — `E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)` |
+| `h3-calibration-back-on-the-list` (migration) | calibration_rules is back on the public-tables list (the file would act in production) | `3 of 332 cases failed` — `M3 … revoked something on every listed table`; `M5b … and calibration_rules keeps its grants (not this file's table)` |
+| `h3-revokes-calibration-too` (migration) | the file also revokes on calibration_rules outside its list | `1 of 332 cases failed` — `M5b … and calibration_rules keeps its grants (not this file's table)` |
+| `r3-existing-count-wrong` (report) | the public-tables report counts tables that do not exist as existing | `2 of 332 cases failed` — `A3c … one fewer listed table exists (listed_existing_count)`; `E1 … the report said none of the listed tables exists there (listed_existing_count 0 — nothing to do)` |
+
+**RED** — every plant: exit `1`, `FAIL hole-public-tables — N of 332 cases failed` (the first line of each run:
+`PLANT RUN — HOLE_… is tested INSTEAD of the repository's file`). 13 of 13.
+
+**REVERT** — nothing to revert (the repository's file was never edited); the same command without the
+variable: exit `0`, `PASS hole-public-tables — 332 cases`.
+
+**After the repair it reds on:** an anon or signed-in INSERT / UPDATE / DELETE / TRUNCATE landing on any of the twelve; a table missing from the list; SELECT changed for anon or a signed-in user; row level security switched or a policy created or dropped; the service role refused; a privilege named as revoked before the read-back; `calibration_rules` (not this file's) losing a grant; a second run changing something; `grant all`, a grant to PUBLIC, a column-level grant or a re-created table read as closed; an open table nobody classified, or a new RLS-off table, not named by the census; a hand-made view an API role can write through not named; `listed_existing_count` not counting what exists; the migration failing, or saying nothing, where no listed table exists.
+
+**CANNOT SEE:** PostgREST and pg_graphql themselves; a grant made by a THIRD role holding the grant option on a table this role owns (reported under `not_closed` — not exercised); TABLES THIS REPOSITORY DOES NOT DEFINE — production holds some; only the report, run there, names them (`open_tables_not_known_to_this_repository`); whether a table classified "a user's JWT writes it" is scoped (the lane's tenancy probe — 35 tables × insert / update / delete / move with one tenant's JWT against another's key: ONE write landed, the `dashboard_configs` INSERT that H2 closes — is a measurement, not a case of this gate); **production's shape for this file is in `hole-calibration-queue`** (all twelve absent).
+
+## hole-calibration-queue
+
+H3c — `supabase/schema_phase_calibration_queue_write_revoke.sql`, read by `supabase/preflight/schema_phase_calibration_queue_write_revoke_preflight_report.sql`. Script: `scripts/check_hole_calibration_queue.sh`.
+
+**GREEN** — `ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:…@127.0.0.1:<port>/<db> bash scripts/check_hole_calibration_queue.sh`, exit `0`:
+`GATE-WORK hole-calibration-queue units=76` · `PASS hole-calibration-queue — 76 cases`. Without the variable: exit `0`, `VACUOUS`, `units=0`.
+
+**PLANT** — 12, each a copy of the migration or of the report with one defect:
+
+| plant | what is planted | RED |
+|---|---|---|
+| `h3c-anon-only` (migration) | the write privileges are revoked from anon only (a signed-in user still fills the queue) | `26 of 76 cases failed` — `M3 … revoked the four write privileges from both API roles on calibration_rules`; `M4 … 8 changes, the table not absent, nothing skipped, nothing left open` |
+| `h3c-insert-kept` (migration) | INSERT is not revoked | `23 of 76 cases failed` — `M3 … revoked the four write privileges from both API roles on calibration_rules`; `M4 … 8 changes, the table not absent, nothing skipped, nothing left open` |
+| `h3c-truncate-kept` (migration) | TRUNCATE is not revoked | `16 of 76 cases failed` — `M3 … revoked the four write privileges from both API roles on calibration_rules`; `M4 … 8 changes, the table not absent, nothing skipped, nothing left open` |
+| `h3c-select-revoked-too` (migration) | SELECT is revoked as well (a member's read answers 403) | `3 of 76 cases failed` — `C6 SELECT is left exactly as found: a member reads what they read before`; `C6c … and anon answers what it answered before` |
+| `h3c-policy-dropped` (migration) | the write policy is dropped (a policy changed — not this file's to touch) | `11 of 76 cases failed` — `C7 row level security and the number of policies are as found, on every table`; `C7b … and every policy's text (none created, dropped or altered)` |
+| `h3c-revokes-the-twelve-too` (migration) | the file also revokes on public_companies (a table that is not its own) | `1 of 76 cases failed` — `C9 no other table lost a privilege (the twelve public-market tables are not this file's)` |
+| `h3c-nothing-to-do-not-said` (migration) | where the table is absent the result has no word why it changed nothing | `2 of 76 cases failed` — `A1 the migration applies with the table missing (exit 0), changes nothing, names it and says there was nothing to do`; `E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)` |
+| `h3c-revoked-before-read-back` (migration) | a privilege is named as revoked before the read-back | `4 of 76 cases failed` — `M3 … revoked the four write privileges from both API roles on calibration_rules`; `M4 … 8 changes, the table not absent, nothing skipped, nothing left open` |
+| `r3c-always-closed` (report) | the calibration report says hole_open: false without looking | `7 of 76 cases failed` — `O1 the report on the fresh schema says hole_open: true`; `H1 after `grant all … to authenticated` the report says hole_open: true` |
+| `r3c-blind-to-column-grants` (report) | the calibration report does not see a column-level grant | `1 of 76 cases failed` — `H9 after a COLUMN-LEVEL grant the report says hole_open: true` |
+| `r3c-global-row-not-flagged` (report) | the calibration report never says the policy admits a global row | `1 of 76 cases failed` — `O1c … and it says the INSERT policy admits a GLOBAL row` |
+| `r3c-no-owner-list` (report) | the calibration report does not name the table this role cannot revoke on | `1 of 76 cases failed` — `X1 another role's objects: the report says hole_open true — and that this role cannot change them` |
+
+**RED** — every plant: exit `1`, `FAIL hole-calibration-queue — N of 76 cases failed` (the first line of each run:
+`PLANT RUN — HOLE_… is tested INSTEAD of the repository's file`). 12 of 12.
+
+**REVERT** — nothing to revert (the repository's file was never edited); the same command without the
+variable: exit `0`, `PASS hole-calibration-queue — 76 cases`.
+
+**After the repair it reds on:** a signed-in user's INSERT of a global or own-organization rule, an UPDATE (approve), a DELETE or a TRUNCATE landing; anon's write landing; the service role's insert / approve / delete refused; a member's or anon's read changed; a policy or row level security changed; another table losing a grant; a second run changing something; `grant all`, a grant to PUBLIC or a column-level grant read as closed; the report not saying the policy admits a global row; on production's shape (the twelve absent) this file not closing its table, or the public-tables report / migration doing anything but answer `false` / change nothing and say so; the migration failing, or saying nothing, where the table is absent.
+
+**CANNOT SEE:** PostgREST itself; a user-JWT WRITER of the table in the product's code (the static law — it reds the day one appears); the engine's review routes themselves (their writes are reproduced as the service-role statements they are); what the OPERATOR approves; a policy production holds under another name or with another check (the report prints every write policy with its check expression — read it there).
+
+## hole-derived-tables
+
+H3b — `supabase/schema_phase_derived_tables_write_revoke.sql`, read by `supabase/preflight/schema_phase_derived_tables_write_revoke_preflight_report.sql`. Script: `scripts/check_hole_derived_tables.sh`.
+
+**GREEN** — `ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:…@127.0.0.1:<port>/<db> bash scripts/check_hole_derived_tables.sh`, exit `0`:
+`GATE-WORK hole-derived-tables units=145` · `PASS hole-derived-tables — 145 cases`. Without the variable: exit `0`, `VACUOUS`, `units=0`.
+
+**PLANT** — 7, each a copy of the migration or of the report with one defect:
+
+| plant | what is planted | RED |
+|---|---|---|
+| `h3b-update-kept` (migration) | UPDATE is not revoked (a member still rewrites a statement line) | `20 of 145 cases failed` — `M4 … authenticated's UPDATE on statement_line_items among them`; `C2 benchmark_reports: … UPDATE` |
+| `h3b-select-revoked-too` (migration) | SELECT is revoked as well (the engine's per_user reads answer 403) | `3 of 145 cases failed` — `C7 a member still READS their own organization's rows, table by table (the engine's per_user reads)`; `C8 … and so does the other member — their own, not the first one's` |
+| `h3b-briefings-missing` (migration) | briefings is left off the list | `15 of 145 cases failed` — `M3 … revoked something on every listed table`; `C2 briefings: a member's INSERT into their own organization is refused` |
+| `h3b-revokes-the-parents-too` (migration) | the file also takes DELETE on financial_periods and documents from a signed-in user (the browser's delete answers 403) | `4 of 145 cases failed` — `C10b a member still DELETES their own period with their JWT`; `C10c … and its derived rows go with it (the cascade runs as the tables' owner)` |
+| `r3b-always-closed` (report) | the derived-tables report says hole_open: false without looking | `4 of 145 cases failed` — `O1 the report on the fresh schema says hole_open: true`; `H1 the report says hole_open: true` |
+| `h3b-revoked-before-read-back` (migration) | the same in the derived-tables file | `1 of 145 cases failed` — `X1 … changes nothing, and names what it could not close` |
+| `h3b-nothing-to-do-not-said` (migration) | where none of the six exists the result has no word why it changed nothing | `1 of 145 cases failed` — `E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)` |
+
+**RED** — every plant: exit `1`, `FAIL hole-derived-tables — N of 145 cases failed` (the first line of each run:
+`PLANT RUN — HOLE_… is tested INSTEAD of the repository's file`). 7 of 7.
+
+**REVERT** — nothing to revert (the repository's file was never edited); the same command without the
+variable: exit `0`, `PASS hole-derived-tables — 145 cases`.
+
+**After the repair it reds on:** a member's INSERT / UPDATE / DELETE of their own organization's rows in any of the six landing (a statement line's amount, the briefing's text); anon's write landing; the service role refused; a member's read of their own rows changed, or another organization's rows reachable; a member's delete of their own period or document refused, or its derived rows not cascading; a policy created or dropped; a second run changing something; the privileges granted back read as closed; the migration failing, or saying nothing, where no listed table exists.
+
+**CANNOT SEE:** PostgREST itself; a user-JWT WRITER of a listed table in the product's code (the static law); the engine's own pipeline (its writes are reproduced as the service-role statements they are); tables of the same kind this repository does not define (the public-tables report names every open table no committed file creates).
+
+## hole-signup-tier
+
+H4 — `supabase/schema_phase_signup_tier_trial.sql`, read by `supabase/preflight/schema_phase_signup_tier_trial_preflight_report.sql`. Script: `scripts/check_hole_signup_tier.sh`.
+
+**GREEN** — `ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:…@127.0.0.1:<port>/<db> bash scripts/check_hole_signup_tier.sh`, exit `0`:
+`GATE-WORK hole-signup-tier units=67` · `PASS hole-signup-tier — 67 cases`. Without the variable: exit `0`, `VACUOUS`, `units=0`.
+
+**PLANT** — 14, each a copy of the migration or of the report with one defect:
+
+| plant | what is planted | RED |
+|---|---|---|
+| `h4-backfill` (migration) | existing rows with no tier are set to 'trial' (a customer row altered) — the file's own digest refuses to commit | `28 of 67 cases failed` — `M1 the migration applies (exit 0)`; `M2 its last statement names the file` |
+| `h4-backfill-after-the-digest` (migration) | the same backfill, placed after the file has read the rows again (its own check cannot see it) | `14 of 67 cases failed` — `C1c THE FENCE: the report's existing_rows_fingerprint after the migration is the one read before it (same rows, same md5)`; `C1d … and so is the table, read by the gate` |
+| `h4-backfill-and-no-refusal` (migration) | the backfill, and the file no longer refuses to commit over a changed row | `15 of 67 cases failed` — `M6 the migration MEASURED the existing rows: unchanged, and its digest before and after is the one the report read`; `C1c THE FENCE: the report's existing_rows_fingerprint after the migration is the one read before it (same rows, same md5)` |
+| `h4-fingerprint-not-measured` (migration) | the result answers a constant digest instead of the one it read | `1 of 67 cases failed` — `M6 the migration MEASURED the existing rows: unchanged, and its digest before and after is the one the report read` |
+| `h4-nothing-installed-not-said` (migration) | where there is no subscriptions table the result says nothing about why | `2 of 67 cases failed` — `S3 … and says why: the CHECK does not accept 'trial'`; `E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)` |
+| `h4-wrong-tier` (migration) | the patch seeds tier 'starter' | `11 of 67 cases failed` — `M5 … and that nothing is left writing tier NULL`; `C1b … a new signup would be written with tier trial` |
+| `h4-check-ignored` (migration) | the tier CHECK is not read before patching (every signup refused where it rejects 'trial') | `5 of 67 cases failed` — `S2 … changes nothing`; `S3 … and says why: the CHECK does not accept 'trial'` |
+| `h4-legacy-function-skipped` (migration) | only the function a trigger runs is patched (handle_new_user by name is not) | `1 of 67 cases failed` — `M4 … and the legacy handle_new_user` |
+| `h4-unknown-body-raises` (migration) | a signup function it does not recognise aborts the file instead of being named and left | `3 of 67 cases failed` — `U1 the migration exits 0`; `U2 … names the function it did NOT patch` |
+| `r4-always-closed` (report) | the signup report says hole_open: false without looking | `6 of 67 cases failed` — `O1 the report on the fresh schema says hole_open: true`; `H1 after re-running schema_phase3.sql the report says hole_open: true` |
+| `r4-names-a-user` (report) | the signup report lists user ids beside its counts | `1 of 67 cases failed` — `C10d the report names no user: no user id` |
+| `h4-owner-not-asked` (migration) | the file tries to replace a signup function another role owns | `2 of 67 cases failed` — `X1 … the migration applies WITHOUT an error (exit 0)`; `X1 … changes nothing, and names what it could not close` |
+| `r4-fingerprint-constant` (report) | the signup report answers a constant instead of the table's digest | `4 of 67 cases failed` — `O3 the report's existing_rows_fingerprint is the table's (rows and md5), read before anything is applied`; `C1c THE FENCE: the report's existing_rows_fingerprint after the migration is the one read before it (same rows, same md5)` |
+| `r4-fingerprint-of-ids-only` (report) | the signup report digests the user ids, not the rows (an altered tier is invisible) | `4 of 67 cases failed` — `O3 the report's existing_rows_fingerprint is the table's (rows and md5), read before anything is applied`; `C1c THE FENCE: the report's existing_rows_fingerprint after the migration is the one read before it (same rows, same md5)` |
+
+**RED** — every plant: exit `1`, `FAIL hole-signup-tier — N of 67 cases failed` (the first line of each run:
+`PLANT RUN — HOLE_… is tested INSTEAD of the repository's file`). 14 of 14.
+
+**REVERT** — nothing to revert (the repository's file was never edited); the same command without the
+variable: exit `0`, `PASS hole-signup-tier — 67 cases`.
+
+**After the repair it reds on:** a new signup's row not reading tier `trial`, or reading anything else differently (plan, status, cycle, the 14-day trial); the profile, the organization, the owner membership or the first-touch trigger no longer made; the function losing its owner, SECURITY DEFINER, its search_path or its grants; ANY EXISTING ROW CHANGED (the gate's digest, the report's `existing_rows_fingerprint` before and after, and the migration's own digests must agree; one column changed by hand must change the digest); the report naming a user or a Stripe id; a second run changing something; `schema_phase3.sql` re-run read as closed, or the signup written while it was open rewritten; a tier CHECK that rejects `trial` not stopping the file (every signup would be refused); a hand-made signup function patched or aborted on instead of named; the report or the migration failing, or saying nothing, where there is no subscriptions table; a `must be owner` where another role owns the function.
+
+**CANNOT SEE:** GoTrue (a signup is reproduced as the `auth.users` row it inserts); what the ENGINE gives the row — the static law runs the real `_pricing_config.plan_for` over the row each statement seeds; existing rows (untouched by design: what existing free accounts are metered as is the owner's ruling); a subscriptions row created by anything but a trigger on `auth.users`; a signup or a webhook that lands WHILE the migration runs (it counts an added row and compares the rows it found); a role that is not the table's owner reading the rows through row level security (`rows` says how many it saw).
+
+## entitlement-hole-laws
+
+`tests/engine/test_entitlement_hole_laws.py` — the source half no database shows. Hermetic: it reads files;
+the gate-default laws run each gate script with no database named and with URLs it must refuse.
+
+**GREEN** — `python -m pytest tests/engine/test_entitlement_hole_laws.py -q`, exit `0`: `66 passed`.
+
+**PLANT** — 60, each applied ALONE in a scratch copy of the tree:
+
+| plant | what is planted | RED |
+|---|---|---|
+| `A1-second-statement` | a migration with a statement outside its DO block | `5 failed, 61 passed` — `test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raises_on_another_owner`, `test_a_revoke_file_run_where_none_of_its_tables_exists_says_there_was_nothing_to_do[public_tables_write_r` |
+| `A2-no-lock-timeout` | a migration whose block does not start with the lock timeout | `1 failed, 65 passed` — `test_each_migration_is_one_do_block_and_one_select_that_says_what_it_did[workspace_cap_guard]` |
+| `A3-report-two-statements` | a report that is two statements | `1 failed, 65 passed` — `test_each_report_is_one_read_only_statement_returning_one_jsonb_row[signup_tier_trial]` |
+| `A4-report-writes-in-a-count` | a report whose counting query writes | `1 failed, 65 passed` — `test_each_report_is_one_read_only_statement_returning_one_jsonb_row[workspace_cap_guard]` |
+| `A5-migration-missing-from-the-library` | a migration taken out of HOLES_UNDER_TEST (it would be applied in the base build) | `1 failed, 65 passed` — `test_the_six_pairs_exist_and_the_gate_library_tests_exactly_them` |
+| `B1-backfill` | the signup migration updates existing rows | `1 failed, 65 passed` — `test_no_migration_touches_a_row_or_widens_access[signup_tier_trial]` |
+| `B2-grant-widens` | H2 grants EXECUTE to authenticated whenever it lacks it (the first draft) | `1 failed, 65 passed` — `test_no_migration_touches_a_row_or_widens_access[dashboard_config_caller]` |
+| `B3-grant-in-an-execute-string` | a revoke file that also grants, through execute format() | `2 failed, 64 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[public_tables_write_revoke]`, `test_no_migration_touches_a_row_or_widens_access[public_tables_write_revoke]` |
+| `B4-switches-rls` | a revoke file that switches row level security on | `2 failed, 64 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[public_tables_write_revoke]`, `test_no_migration_touches_a_row_or_widens_access[public_tables_write_revoke]` |
+| `B5-drops-a-policy` | a migration that drops a policy | `1 failed, 65 passed` — `test_no_migration_touches_a_row_or_widens_access[dashboard_config_caller]` |
+| `C1-guard-edited-report-not` | the guard's body changed and the report still expects the old one | `2 failed, 64 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs`, `test_the_guarded_columns_are_the_same_in_the_guard_and_in_the_report` |
+| `C2-list-differs` | a table on the report's list and not on the migration's | `2 failed, 64 passed` — `test_each_report_names_exactly_the_tables_its_migration_lists`, `test_the_six_pairs_exist_and_the_gate_library_tests_exactly_them` |
+| `C3-lock-after-the-question` | the per-user lock taken AFTER create_workspace is asked | `2 failed, 64 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs`, `test_the_guard_asks_create_workspace_under_a_lock_and_replaces_no_workspace_function` |
+| `C4-cap-number-in-the-guard` | a cap number copied into the guard | `2 failed, 64 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs`, `test_the_guard_asks_create_workspace_under_a_lock_and_replaces_no_workspace_function` |
+| `C5-unknown-body-literal-stale` | the dashboard migration's md5 of the repository's original body is stale (it would replace nothing) | `1 failed, 65 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs` |
+| `C6-unknown-body-replaced` | the dashboard migration replaces a body it does not recognise | `1 failed, 65 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs` |
+| `D1-browser-writes-briefings` | the browser writes a closed table | `1 failed, 65 passed` — `test_no_browser_mobile_or_edge_function_code_writes_a_closed_table` |
+| `D2-browser-evasion-constant` | the browser writes a closed table through a constant | `1 failed, 65 passed` — `test_no_browser_mobile_or_edge_function_code_writes_a_closed_table` |
+| `D3-browser-calls-the-rpc` | the browser calls upsert_dashboard_config | `1 failed, 65 passed` — `test_no_browser_mobile_or_edge_function_code_writes_a_closed_table` |
+| `D4-engine-user-jwt-writer` | the engine writes a closed table with the user's JWT | `1 failed, 65 passed` — `test_no_user_jwt_client_in_the_engine_writes_a_closed_table` |
+| `D5-browser-writes-archived-at` | the browser writes a guarded column of organizations | `1 failed, 65 passed` — `test_every_user_jwt_writer_of_organizations_writes_only_columns_the_guard_leaves` |
+| `D6-engine-writes-cui` | the engine writes a guarded column of organizations with the user's JWT | `1 failed, 65 passed` — `test_every_user_jwt_writer_of_organizations_writes_only_columns_the_guard_leaves` |
+| `E1-regrant` | a new SQL file grants the write privileges back | `1 failed, 65 passed` — `test_no_other_committed_sql_reopens_a_hole` |
+| `E2-drops-the-guard` | a new SQL file drops the workspace guard | `1 failed, 65 passed` — `test_no_other_committed_sql_reopens_a_hole` |
+| `E3-new-signup-function` | a new signup function seeds a subscription with no tier | `1 failed, 65 passed` — `test_no_other_committed_sql_reopens_a_hole` |
+| `E4-second-dashboard-function` | a new SQL file re-defines upsert_dashboard_config | `1 failed, 65 passed` — `test_no_other_committed_sql_reopens_a_hole` |
+| `E5-warning-removed` | the re-run warning no longer names the file that re-opens H2 | `1 failed, 65 passed` — `test_each_migration_warns_about_the_files_that_re_open_it[dashboard_config_caller]` |
+| `E6-grant-all-tables` | a new SQL file grants on all tables in schema public | `1 failed, 65 passed` — `test_no_other_committed_sql_reopens_a_hole` |
+| `F1-patch-seeds-starter` | the signup patch seeds a paid tier | `3 failed, 63 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs`, `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[signup_tier_trial]` |
+| `F2-engine-reads-plan-first` | the engine resolves plan before tier | `1 failed, 65 passed` — `test_the_engine_gives_a_new_signup_the_trial_and_gave_the_shipped_row_multi_country` |
+| `G1-default-database` | the gate library gains a default database URL | `7 failed, 59 passed` — `test_each_gate_is_vacuous_unless_it_is_told_which_database[check_hole_calibration_queue.sh-hole-calibrati`, `test_each_gate_is_vacuous_unless_it_is_told_which_database[check_hole_dashboard_config.sh-hole-dashboard-` |
+| `G2-accepts-a-remote-host` | the gate library accepts a host that is not loopback | `6 failed, 60 passed` — `test_each_gate_refuses_a_database_that_is_not_plainly_local[check_hole_calibration_queue.sh-hole-calibrat`, `test_each_gate_refuses_a_database_that_is_not_plainly_local[check_hole_dashboard_config.sh-hole-dashboard` |
+| `G3-prints-the-url` | the refusal prints the URL (its password) | `6 failed, 60 passed` — `test_each_gate_refuses_a_database_that_is_not_plainly_local[check_hole_calibration_queue.sh-hole-calibrat`, `test_each_gate_refuses_a_database_that_is_not_plainly_local[check_hole_dashboard_config.sh-hole-dashboard` |
+| `G4-gate-sets-a-role` | a gate script sets a role in a postgres session | `1 failed, 65 passed` — `test_the_gate_library_has_no_default_database_and_requests_run_as_authenticator` |
+| `S1-browser-scanner-blind` | the browser scanner stops seeing update() | `2 failed, 64 passed` — `test_no_browser_mobile_or_edge_function_code_writes_a_closed_table`, `test_the_browser_scanner_sees_a_writer_and_the_evasions` |
+| `S2-read-only-scanner-blind` | the read-only scanner stops seeing writes | `1 failed, 65 passed` — `test_the_read_only_law_sees_a_write` |
+| `S3-sql-scanner-blind` | the SQL scanner stops seeing grants | `1 failed, 65 passed` — `test_the_sql_scanner_sees_the_statements_that_re_open_a_hole` |
+| `S4-engine-census-blind` | the engine census stops seeing per_user blocks | `2 failed, 64 passed` — `test_every_user_jwt_writer_of_organizations_writes_only_columns_the_guard_leaves`, `test_the_engine_census_sees_the_user_jwt_writers_that_exist` |
+| `C7-report-accepts-a-definer-guard` | the workspace report accepts a guard altered to SECURITY DEFINER | `1 failed, 65 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs` |
+| `G5-plant-run-passes` | a gate run over a planted file ends in a pass (exit 0) | `1 failed, 65 passed` — `test_a_plant_run_is_never_a_pass` |
+| `G6-a-third-override` | a gate reads an override the library does not treat as a plant | `1 failed, 65 passed` — `test_a_plant_run_is_never_a_pass` |
+| `B6-revoked-before-read-back` | a revoke file names a privilege as revoked before reading back whether it is gone | `1 failed, 65 passed` — `test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raises_on_another_owner` |
+| `B7-owner-not-asked` | the dashboard file replaces the function without asking whether this role owns it | `1 failed, 65 passed` — `test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raises_on_another_owner` |
+| `C8-report-silent-on-owner` | the signup report no longer says whether this role can replace the function | `1 failed, 65 passed` — `test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raises_on_another_owner` |
+| `B8-fence-is-a-constant` | the signup migration says 'existing_rows_altered', 0 instead of measuring | `1 failed, 65 passed` — `test_the_two_files_applied_to_production_measure_that_no_existing_row_changed[signup_tier_trial-subscript` |
+| `B9-no-refusal` | the workspace migration no longer refuses to commit when a row it found changed | `1 failed, 65 passed` — `test_the_two_files_applied_to_production_measure_that_no_existing_row_changed[workspace_cap_guard-organiz` |
+| `B10-digest-of-ids-only` | the signup migration digests the user ids, not the whole rows | `2 failed, 64 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[signup_tier_trial]`, `test_the_two_files_applied_to_production_measure_that_no_existing_row_changed[signup_tier_trial-subscript` |
+| `B11-before-digest-after-the-change` | the workspace migration takes its BEFORE digest after it has created the guard | `1 failed, 65 passed` — `test_the_two_files_applied_to_production_measure_that_no_existing_row_changed[workspace_cap_guard-organiz` |
+| `B12-report-has-no-fingerprint` | the signup report no longer answers the digest the coordinator compares | `1 failed, 65 passed` — `test_the_two_files_applied_to_production_measure_that_no_existing_row_changed[signup_tier_trial-subscript` |
+| `B13-nothing-to-do-not-said` | a revoke file run where none of its tables exists says nothing | `1 failed, 65 passed` — `test_a_revoke_file_run_where_none_of_its_tables_exists_says_there_was_nothing_to_do[public_tables_write_r` |
+| `C9-calibration-on-two-lists` | calibration_rules is back on the public-tables migration's list | `3 failed, 63 passed` — `test_each_report_names_exactly_the_tables_its_migration_lists`, `test_no_other_committed_sql_reopens_a_hole` |
+| `C10-census-forgets-the-calibration-file` | the census no longer says which file closes calibration_rules | `1 failed, 65 passed` — `test_each_report_names_exactly_the_tables_its_migration_lists` |
+| `C11-calibration-report-lists-another-table` | the calibration report lists a table its migration does not close | `1 failed, 65 passed` — `test_each_report_names_exactly_the_tables_its_migration_lists` |
+| `A6-calibration-missing-from-the-library` | the calibration migration taken out of HOLES_UNDER_TEST (it would be applied in the base build) | `1 failed, 65 passed` — `test_the_six_pairs_exist_and_the_gate_library_tests_exactly_them` |
+| `D7-engine-user-jwt-writes-calibration` | the engine writes calibration_rules with the user's JWT | `1 failed, 65 passed` — `test_no_user_jwt_client_in_the_engine_writes_a_closed_table` |
+| `E7-calibration-warning-removed` | the calibration migration's re-run warning no longer names the file that creates the table | `1 failed, 65 passed` — `test_each_migration_warns_about_the_files_that_re_open_it[calibration_queue_write_revoke]` |
+| `E8-regrant-calibration` | a new SQL file grants INSERT on calibration_rules back to authenticated | `1 failed, 65 passed` — `test_no_other_committed_sql_reopens_a_hole` |
+| `C12-flat-and-in-the-guard` | the guard's cap question is one flat AND again (every operand may be evaluated on a signup) | `2 failed, 64 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs`, `test_the_guard_asks_create_workspace_under_a_lock_and_replaces_no_workspace_function` |
+| `C13-guard-reads-the-role-through-auth-jwt` | the guard reads the role through auth.jwt() | `2 failed, 64 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs`, `test_the_guard_asks_create_workspace_under_a_lock_and_replaces_no_workspace_function` |
+| `C14-auth-uid-on-every-write` | the guard asks auth.uid() at the top of the function | `2 failed, 64 passed` — `test_each_report_recognises_exactly_the_body_its_migration_installs`, `test_the_guard_asks_create_workspace_under_a_lock_and_replaces_no_workspace_function` |
+
+**The evasions** — eleven more, written to get past the laws rather than to break a file:
+
+| evasion | what is planted | RED |
+|---|---|---|
+| `X1-backfill-in-an-execute-string` | a backfill inside an execute string | `2 failed, 64 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[signup_tier_trial]`, `test_no_migration_touches_a_row_or_widens_access[signup_tier_trial]` |
+| `X2-backfill-inside-a-cte` | a backfill inside a CTE of a perform | `2 failed, 64 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[signup_tier_trial]`, `test_no_migration_touches_a_row_or_widens_access[signup_tier_trial]` |
+| `X3-backfill-assembled-from-pieces` | a backfill whose statement is assembled from string pieces | `1 failed, 65 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[signup_tier_trial]` |
+| `X4-grant-assembled-by-format` | a grant whose verb is a format() argument | `1 failed, 65 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[calibration_queue_write_revoke]` |
+| `X5-policy-widened-in-an-execute-string` | a policy created inside an execute string | `2 failed, 64 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[calibration_queue_write_revoke]`, `test_no_migration_touches_a_row_or_widens_access[calibration_queue_write_revoke]` |
+| `X6-guard-disabled-by-the-file-itself` | the workspace file disables its own trigger at the end | `2 failed, 64 passed` — `test_no_migration_touches_a_row_or_widens_access[workspace_cap_guard]`, `test_the_two_files_applied_to_production_measure_that_no_existing_row_changed[workspace_cap_guard-organiz` |
+| `X7-second-statement-after-the-select` | a statement after the result select | `1 failed, 65 passed` — `test_each_migration_is_one_do_block_and_one_select_that_says_what_it_did[signup_tier_trial]` |
+| `X8-perform-a-function-that-writes` | a perform of a function nobody has read | `1 failed, 65 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[workspace_cap_guard]` |
+| `X9-digest-query-writes` | the digest query replaced by one that writes | `2 failed, 64 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[signup_tier_trial]`, `test_the_two_files_applied_to_production_measure_that_no_existing_row_changed[signup_tier_trial-subscript` |
+| `X10-patched-definition-swapped` | v_new_def is not the installed definition patched | `1 failed, 65 passed` — `test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read[signup_tier_trial]` |
+| `S5-dynamic-reader-blind` | the dynamic-statement reader stops seeing execute | `1 failed, 65 passed` — `test_the_dynamic_statement_reader_sees_statements_and_not_words` |
+
+**RED** — every plant and every evasion: exit `1`. 60 of 60 and 11 of 11. (`X3` and `X4` were GREEN — `59 passed` —
+against the verb scan alone; the exact list of dynamic statements is what reds them.)
+
+**REVERT** — each file restored byte-exact after its plant; `CLEAN (after every plant reverted): exit 0 — 66 passed`; `CLEAN (after every evasion reverted): exit 0 — 66 passed`.
+
+**After the repair it reds on:** a migration that is not one `do $migration$` block (lock timeout first,
+`notify pgrst`, the result cleared first) plus one result `select`; a report that is not one read-only
+statement returning one jsonb row with `hole_open`; a migration that writes a row, creates / drops / alters
+a policy, switches row level security, drops or creates an object that is not its guard, or grants (H2's
+two restoring grants excepted, each behind its `v_…_had` test); a dynamic statement outside the seven read
+forms, or a `perform` that is not `set_config`; H1 or H4 not taking the row digest before and after, not
+refusing to commit over a changed row, or their report not answering the same digest; a revoke file that
+says nothing where none of its tables exists, or names a privilege as revoked before the read-back; a
+file that replaces or attaches without asking whether this role may; the guard calling into schema
+`auth` anywhere but `auth.uid()` inside its nest, or in a flat AND; a report and its migration
+disagreeing (the body md5s, the trigger's events, the guarded columns, the table lists, the census
+classification); a table on two lists; a cap number in the guard, the lock after the question, a
+SECURITY DEFINER guard, a workspace function replaced; a browser / mobile / edge-function file or a
+`per_user(jwt)` client in the engine writing a closed table or a guarded column of `organizations`, or
+calling `upsert_dashboard_config`; another committed SQL file that grants a write privilege on a closed
+table to an API role, names the guard, re-defines the dashboard function or seeds a signup without a
+tier; a re-run warning that no longer names the file that re-opens its hole; the engine no longer
+resolving the patched row to the trial (or the shipped row to Multi-Country — the hole the law models);
+a gate with a default database, accepting a host that is not loopback, printing its URL, setting a role
+in a `postgres` session, or ending a plant run in a pass.
+
+**CANNOT SEE:** what a database holds (the six database gates, and on production only the reports); a
+function the block calls inside a `select … into` that itself writes (the dynamic statements and the
+`perform`s are held to an exact list; a plain function call in an expression is not — the database gates'
+digests and catalog diffs are what would show its effect); a user-JWT writer that reaches a table through
+a name built at run time in a way the two scanners do not model (the browser scan reads `.from("…")`
+chains and any file that names a closed table and makes a write call; the engine census follows the
+`per_user` client into every function it is passed to, by name); SQL outside `supabase/`; what
+production's functions and policies actually are.

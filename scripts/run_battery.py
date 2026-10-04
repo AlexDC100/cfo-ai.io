@@ -2443,6 +2443,101 @@ def _engine_gates() -> List[Gate]:
              # can be satisfied by accident is not a canary.
              canaries=("PM1  no AI-authored numerics in the facts path",
                        "PM7  BVB / public_ro untouched")),
+        # ── ENTITLEMENT HOLES (fix/entitlement-holes, 2026-10-04) ───────
+        # Six restrict-only migrations beside the subscriptions lockdown,
+        # each read before and after by one read-only report
+        # (supabase/preflight/*_preflight_report.sql, "hole_open"):
+        #   hole-workspace-cap     schema_phase_workspace_cap_guard.sql — a
+        #       trial user (cap 1) held 2+ live workspaces by a direct write
+        #       of organizations.archived_at, by archive / create / restore,
+        #       and by two creates at once; the guard refuses the direct
+        #       write and asks create_workspace itself, one request at a time
+        #       per user, on a restore and on a create. No organizations row
+        #       is changed by the file: it says so with a digest.
+        #   hole-dashboard-config  schema_phase_dashboard_config_caller.sql —
+        #       the anon key overwrote any user's dashboard layout through a
+        #       SECURITY DEFINER function that took the user id as an argument.
+        #   hole-public-tables     schema_phase_public_tables_write_revoke.sql
+        #       — twelve tables created without row level security: the anon
+        #       key alone inserted, updated and deleted their rows.
+        #   hole-calibration-queue schema_phase_calibration_queue_write_revoke.sql
+        #       — any signed-in user put a GLOBAL pending rule into the
+        #       operator's calibration review queue (its own file: the table
+        #       exists where the twelve do not; applied on its own decision).
+        #   hole-derived-tables    schema_phase_derived_tables_write_revoke.sql
+        #       — a member rewrote their own organization's statement lines,
+        #       metrics and briefing through the REST API (the rest of the
+        #       same census; applied on its own decision).
+        #   hole-signup-tier       schema_phase_signup_tier_trial.sql — a new
+        #       signup's row carried no tier and the engine read it as the
+        #       Multi-Country allowance; forward only — no existing row, and
+        #       the file says so with a digest of every subscriptions row.
+        # Each gate builds ITS OWN scratch database inside a local Supabase
+        # Postgres from this repository's SQL, shows the hole OPEN, applies
+        # the migration, and shows it closed (twice; re-opened by hand; on
+        # production's shape; on an empty database; on objects another role
+        # owns), with every legitimate path still working.
+        # THEY ADDRESS NO DATABASE BY DEFAULT: without
+        # ENTITLEMENT_HOLES_DB_URL (a loopback URL; anything else is refused,
+        # exit 2) each is VACUOUS — units=0, PASS(VACUOUS), never green. Run
+        # them:  ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:postgres@127.0.0.1:<port>/<db>
+        #        [ENTITLEMENT_HOLES_DB_CONTAINER=<container>] python scripts/run_battery.py
+        # A run over a planted file (HOLE_MIGRATION / HOLE_REPORT, the plant
+        # log's drivers) ends in exit 1 or 3, never 0 — an inherited variable
+        # cannot turn one of these green.
+        # Floors = the measured 145 / 116 / 332 / 76 / 145 / 67 cases,
+        # rounded down.
+        #   entitlement-hole-laws  the source half no database shows: each
+        #       file one batch / one read-only statement, restrict only, the
+        #       two files applied to production MEASURE that no existing row
+        #       changed, the pairs agree, no user-JWT writer of a closed
+        #       table or of a guarded column, no other committed SQL that
+        #       re-opens one, every dynamic statement of a block held to an
+        #       exact list, the engine's answer for the row the signup seeds,
+        #       the gates' own default (66 tests).
+        # Plant log: docs/engine_book/gates.md, "Entitlement holes".
+        Gate("hole-workspace-cap", ["bash", "scripts/check_hole_workspace_cap.sh"],
+             work_rx=r"GATE-WORK hole-workspace-cap units=(\d+)", floor=137,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-WORKSPACE-CAP GATE",)),
+        Gate("hole-dashboard-config", ["bash", "scripts/check_hole_dashboard_config.sh"],
+             work_rx=r"GATE-WORK hole-dashboard-config units=(\d+)", floor=110,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-DASHBOARD-CONFIG GATE",)),
+        Gate("hole-public-tables", ["bash", "scripts/check_hole_public_tables.sh"],
+             work_rx=r"GATE-WORK hole-public-tables units=(\d+)", floor=318,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-PUBLIC-TABLES GATE",)),
+        Gate("hole-calibration-queue", ["bash", "scripts/check_hole_calibration_queue.sh"],
+             work_rx=r"GATE-WORK hole-calibration-queue units=(\d+)", floor=72,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-CALIBRATION-QUEUE GATE",)),
+        Gate("hole-derived-tables", ["bash", "scripts/check_hole_derived_tables.sh"],
+             work_rx=r"GATE-WORK hole-derived-tables units=(\d+)", floor=138,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-DERIVED-TABLES GATE",)),
+        Gate("hole-signup-tier", ["bash", "scripts/check_hole_signup_tier.sh"],
+             work_rx=r"GATE-WORK hole-signup-tier units=(\d+)", floor=62,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-SIGNUP-TIER GATE",)),
+        Gate("entitlement-hole-laws",
+             [PY, "-m", "pytest", "tests/engine/test_entitlement_hole_laws.py", "-q"],
+             work_junit=True, floor=62, units="tests",
+             canaries=("test_no_migration_touches_a_row_or_widens_access",
+                       "test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read",
+                       "test_the_two_files_applied_to_production_measure_that_no_existing_row_changed",
+                       "test_a_revoke_file_run_where_none_of_its_tables_exists_says_there_was_nothing_to_do",
+                       "test_each_report_is_one_read_only_statement_returning_one_jsonb_row",
+                       "test_each_report_recognises_exactly_the_body_its_migration_installs",
+                       "test_each_report_names_exactly_the_tables_its_migration_lists",
+                       "test_no_browser_mobile_or_edge_function_code_writes_a_closed_table",
+                       "test_the_engine_census_sees_the_user_jwt_writers_that_exist",
+                       "test_no_user_jwt_client_in_the_engine_writes_a_closed_table",
+                       "test_every_user_jwt_writer_of_organizations_writes_only_columns_the_guard_leaves",
+                       "test_no_other_committed_sql_reopens_a_hole",
+                       "test_the_engine_gives_a_new_signup_the_trial_and_gave_the_shipped_row_multi_country",
+                       "test_each_gate_is_vacuous_unless_it_is_told_which_database",
+                       "test_a_plant_run_is_never_a_pass")),
         # ── FLOOR C6-C8 (wave/floor-c6-public-sku, 2026-09-18) ──────────
         # The owner's rule "absent is never zero and never a floor" over the
         # three non-credit clusters of the floor sweep (scratchpad/specs/
