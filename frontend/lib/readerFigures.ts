@@ -437,10 +437,11 @@ interface Item {
 /** Where the figure ends: its number, its magnitude, its code. */
 const fullEnd = (it: Item) => it.e + it.tail.magLen + it.tail.currencyLen;
 
-/** Where the figure starts: its code (when one is written before it), its sign. */
+/** Where the figure starts: its code (when one is written before it), its
+ *  sign — a "-" written against the digit before it is a dash, not a sign. */
 function ownStart(s: string, it: Item): number {
   let st = it.head.currency ? it.head.start : it.s;
-  if (st > it.floor && SIGNS.includes(s[st - 1])) st -= 1;
+  if (st > it.floor && SIGNS.includes(s[st - 1]) && !isDigit(s[st - 2] ?? "")) st -= 1;
   return st;
 }
 
@@ -450,7 +451,7 @@ function ownStart(s: string, it: Item): number {
  *  milioane") — or null: they are two sentences' worth apart. */
 function connective(gap: string, opener: boolean): "group" | "dash" | "list" | "weak" | null {
   const g = gap.split(NBSP).join(" ").split(NARROW_NBSP).join(" ").toLowerCase();
-  // Nothing in between: only the second number's own sign ("1.5-2.5").
+  // (nothing in between: the second number's sign is all there is)
   if (g === "") return "dash";
   if (g === " " || APOSTROPHES.includes(g)) return "group";
   for (const d of DASH_CHARS) if (g === d || g === ` ${d} ` || g === ` ${d}` || g === `${d} `) return "dash";
@@ -805,8 +806,9 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     // One stop, not two, where "mil." ends a sentence ("4.58M." → "4,58 mil.").
     const stop = mag.endsWith(".") && magChanged && out[to] === "." && !isDigit(out[to + 1] ?? "") && piece.endsWith(".") ? 1 : 0;
     // English text: "… 2,3 mil. The" — the abbreviation's stop was the
-    // sentence's too, and "M" has none.
-    const lostStop = lang === "en" && magChanged && magSrc.endsWith(".") && !it.tail.currency && /^(?:\s*$|\s*\n|\s+\p{Lu})/u.test(out.slice(it.e + it.tail.magLen)) ? "." : "";
+    // sentence's too, and "M" has none. A capitalised WORD starts a sentence;
+    // an acronym or a code does not ("4,58 mil. CAD", "2,3 mil. EBITDA").
+    const lostStop = lang === "en" && magChanged && magSrc.endsWith(".") && !it.tail.currency && /^(?:\s*$|\s*\n|\s+\p{Lu}(?!\p{Lu}))/u.test(out.slice(it.e + it.tail.magLen)) ? "." : "";
     out = out.slice(0, from) + piece + lostStop + out.slice(to + stop);
     rewritten += 1;
   }

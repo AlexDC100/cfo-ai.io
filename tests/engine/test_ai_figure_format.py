@@ -64,9 +64,38 @@ THE LAWS
       always did.
   E10 NO SPEND. No socket was attempted (run with `-p netblock`), and the
       model was only ever the stand-in.
+  E11 WHAT A FIGURE IS BOUND TO (review 2026-10-05: the gate compared digits
+      and nothing else, so a code moved onto the wrong number passed — and
+      with such an output typed in as `expected`, every law stayed green).
+      An INDEPENDENT reader (tests/engine/_figure_reader.py — none of the
+      normaliser's tables) reads every figure's amount (value x magnitude),
+      currency, sign and unit before and after: over the corpus's own
+      `expected` strings, over the grid, and over a GRAMMAR of code-first
+      amounts (heads x numbers x magnitudes x what follows: a range, a list,
+      a number that goes on, a magnitude the standard does not print,
+      another currency, a date). Nothing may differ.
+  E12 NEVER HALF A TEXT. A text holding a lone three-digit group is
+      returned whole, byte for byte, counted `text_held` — rewriting the
+      figures around it would leave the one token with two readings alone in
+      the other notation.
+  E13 THE COMPOSED SET (fixtures/ai_figures/compose.json, 12,000 texts
+      composed from parts by integer arithmetic): no digit moves, a second
+      pass changes nothing, no text is half rewritten — and the sha256 of
+      every output equals the fixture's `digest`, which the browser's twin
+      must reproduce too (a rule changed on one runtime moves one digest).
+  E14 THE RUN-TIME PROOF BEYOND DIGITS. With a rule made to read "Bn" as a
+      million, to drop a sign, or to move a code inside a number, the text
+      comes back exactly as written, counted proof_failed.
 
-REDS ON, with the repair in place (TC-11): a rule of the normaliser changed
-on one runtime only (the corpus / grid differ); a value guessed (a lone
+REDS ON, with the repair in place (TC-11): a code moved onto another number
+(before a range, a list, a spaced or apostrophe-grouped number, an unread
+magnitude, a second currency; a code between two numbers taken by the first);
+a "$" named USD where the reply names another dollar; a bare run of groups
+re-printed as one number; a text half rewritten around a lone group; a
+magnitude, a sign or a ratio mark changed; an `expected` string of the corpus
+that binds a figure differently from its input; a rule of the normaliser
+changed on one runtime only (the corpus / grid / digest differ); a value
+guessed (a lone
 group rewritten, with or without a handed figure); a digit dropped; the
 run-time proof removed; STANDARD or the hint's examples retyped away from
 what lib/money prints; the pass removed from `stage_narrate`, moved before
@@ -75,7 +104,14 @@ field that is not prose; a writer or the route storing something other than
 what the narrator returned; another language's narration or hint changing
 by a byte; an exception of the pass reaching a caller.
 
-CANNOT SEE: what a model WRITES (the provider is a script); rows stored
+CANNOT SEE: a NON-FIGURE the pass re-spells because a currency or a unit
+stands beside it ("Versiunea 2.1 RON", "Pe 5.11 lei", "Contul RON 5121",
+"În EUR 3 scenarii", "Argumentul $1") — the independent reader reads the
+same value before and after, and no reader can know a version from an
+amount; a text HELD as written (it is counted, and it still holds the
+model's notation: the detector is not run on it); a code left before its
+figure on purpose (counted `code_before` / `open_amount`); what a model
+WRITES (the provider is a script); rows stored
 before this release (no stored row is rewritten — the browser's card repairs
 what it shows); a narration the model wrote in ANOTHER language than it was
 asked for (it is normalised in the asked language — notation only, never a
@@ -100,6 +136,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import pytest
 
+import _figure_compose as COMPOSE
+import _figure_reader as READER
 import _real_app_comparatives as RA
 import _served_books as SB
 import test_briefing_keep_last_good_route as ROUTE
@@ -115,8 +153,15 @@ CORPUS: List[Dict[str, Any]] = json.loads((FIXTURES / "reply_corpus.json").read_
 GRID: Dict[str, Any] = json.loads((FIXTURES / "grid.json").read_text(encoding="utf-8"))
 STANDARD_JSON: Dict[str, Any] = json.loads((FIXTURES / "standard.json").read_text(encoding="utf-8"))
 
+COMPOSE_SPEC: Dict[str, Any] = json.loads(COMPOSE.FIXTURE.read_text(encoding="utf-8"))
+
 #: What this gate did, for the battery's canary (printed by the last test).
-WORK = {"corpus": 0, "grid": 0, "narrations": 0}
+WORK = {"corpus": 0, "grid": 0, "narrations": 0, "grammar": 0, "composed": 0}
+
+
+def held(case: Dict[str, Any]) -> bool:
+    """The case is a text returned whole because it holds a lone group."""
+    return any(k["reason"] == "text_held" for k in case["kept"])
 
 #: The nine narration languages (pipeline.NARRATION_LANGUAGES), written out.
 ALL_LANGUAGES = ("en", "ro", "de", "fr", "es", "it", "pt", "nl", "pl")
@@ -241,7 +286,7 @@ def test_the_corpus_is_what_it_says_it_is():
     """POSITIVE CONTROL of every law below: the corpus is not empty, its
     first case is the incident's sentence in shape, every wrong input IS
     flagged by the detector and every expected string passes it."""
-    assert len(CORPUS) >= 110
+    assert len(CORPUS) >= 150
     assert len(set(c["id"] for c in CORPUS)) == len(CORPUS)
     first = CORPUS[0]
     assert first["id"] == "incident-shape" and first["lang"] == "ro" and first["wrong"] is True
@@ -252,7 +297,14 @@ def test_the_corpus_is_what_it_says_it_is():
         assert c["lang"] in ("ro", "en") and c["surface"] in ("chat", "briefing", "both"), c["id"]
         assert c["wrong"] is (c["expected"] != c["input"]), c["id"]
         assert "\u00a0" not in c["expected"] and "\u202f" not in c["expected"], c["id"]
-        assert findings(c["expected"], c["lang"], c["kept"], c.get("allowed", ())) == [], c["id"]
+        if held(c):
+            # A text returned whole: it IS what the model wrote — and the
+            # detector says so (the hold is counted, never a silent pass).
+            assert c["expected"] == c["input"] and c["kept"][-1] == {"token": "", "reason": "text_held"}, c["id"]
+            assert any(k["reason"] == "single_group" for k in c["kept"]), c["id"]
+            assert findings(c["input"], c["lang"]) != [], c["id"]
+        else:
+            assert findings(c["expected"], c["lang"], c["kept"], c.get("allowed", ())) == [], c["id"]
         if c["wrong"]:
             assert findings(c["input"], c["lang"]) != [], "not seen as wrong: %s" % c["id"]
         for k in c["kept"]:
@@ -263,8 +315,14 @@ def test_the_corpus_is_what_it_says_it_is():
     # Every reason a token can be left for is exercised (proof_failed cannot
     # be produced by a text: it is planted below).
     assert reasons == set(F.LEFT_REASONS) - {"proof_failed"}
-    assert sum(1 for c in CORPUS if c["wrong"]) >= 75
-    assert sum(1 for c in CORPUS if c["lang"] == "en") >= 20
+    assert sum(1 for c in CORPUS if c["wrong"]) >= 95
+    assert sum(1 for c in CORPUS if c["lang"] == "en") >= 26
+    # The shapes the review of 2026-10-05 found the corpus without — each is
+    # in it now, by the reason the normaliser must give.
+    counted = {why: sum(1 for c in CORPUS for k in c["kept"] if k["reason"] == why)
+               for why in ("open_amount", "code_before", "text_held", "bare_groups")}
+    assert counted["open_amount"] >= 25 and counted["code_before"] >= 10, counted
+    assert counted["text_held"] >= 4 and counted["bare_groups"] >= 8, counted
 
 
 @pytest.mark.parametrize("case", CORPUS, ids=[c["id"] for c in CORPUS])
@@ -286,8 +344,18 @@ def test_e1_the_corpus_the_output_is_the_expected_string_and_every_token_left_is
         assert report["rewritten"] == 0
     else:
         assert report["rewritten"] >= 1
-    # The independent detector, on what the reader sees.
-    assert findings(out, case["lang"], case["kept"], case.get("allowed", ())) == []
+    # The independent detector, on what the reader sees (a text HELD whole is
+    # the model's own, counted: there is nothing of ours to read in it).
+    if not held(case):
+        assert findings(out, case["lang"], case["kept"], case.get("allowed", ())) == []
+    # NEVER HALF A TEXT: where anything was rewritten, no lone group is left.
+    reasons = [why for _t, why in report["left"]]
+    assert not (out != case["input"] and "single_group" in reasons)
+    assert ("text_held" in reasons) is held(case)
+    # WHAT EVERY FIGURE IS BOUND TO — read by the independent reader, on the
+    # output and on the hand-typed string alike.
+    assert READER.changed_amounts(case["input"], out, case["lang"]) == []
+    assert READER.changed_amounts(case["input"], case["expected"], case["lang"]) == []
 
 
 def test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print_or_untouched():
@@ -309,6 +377,7 @@ def test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print
             assert report["left"] == [], text
             assert findings(out, target) == [], out
         assert digits(out) == digits(text)
+        assert READER.changed_amounts(text, out, target) == [], text
         assert F.normalise_figures(out, target)[0] == out
         # Read in the WRONG language, the same print loses no digit either —
         # and where the code already stands after the figure, nothing moves.
@@ -363,8 +432,16 @@ def test_e1_handed_figures_change_nothing_but_bare_decimals_and_bare_groups():
         bare, bare_report = F.normalise_figures(text, lang)
         out, report = F.normalise_figures(text, lang, handed)
         assert digits(out) == digits(text), c["id"]
+        assert READER.changed_amounts(text, out, lang) == [], c["id"]
         left_bare = [x for x in bare_report["left"]]
         left_handed = [x for x in report["left"]]
+        if ("", "text_held") in left_handed:
+            # The handed figure proved a token beside a lone group: nothing
+            # may then be rewritten at all — the text is returned whole.
+            assert out == text, c["id"]
+            left_handed.remove(("", "text_held"))
+            if ("", "text_held") in left_bare:
+                left_bare.remove(("", "text_held"))
         repaired = list(left_bare)
         for x in left_handed:
             assert x in repaired, (c["id"], x)      # nothing NEW is left
@@ -407,6 +484,281 @@ def test_e1_what_is_not_a_string_or_not_a_language_of_the_standard_comes_back_as
         1.42, 2.0, -7.25]
 
 
+# ══ E11 — what a figure is bound to ═══════════════════════════════════════
+
+#: Outputs the normaliser PRODUCED before the review of 2026-10-05, each a
+#: figure bound to something else than the model wrote (typed here from the
+#: review's transcripts; figures invented). The independent reader must see
+#: every one — it is the law's positive control.
+MISBOUND = [
+    ("ro", "este între EUR 40 și 55 milioane, în", "este între 40 EUR și 55 milioane, în"),
+    ("ro", "a fost de $10–12M în ultimii", "a fost de 10 USD–12M în ultimii"),
+    ("ro", "buget de EUR 1.5-2.5M, în funcție", "buget de 1,5 EUR-2,5 mil., în funcție"),
+    ("ro", "este de RON 4.58 mil în această", "este de 4,58 RON mil în această"),
+    ("ro", "este de EUR 1 milion pentru", "este de 1 EUR milion pentru"),
+    ("ro", "este de RON 4.58 M în", "este de 4,58 RON M în"),
+    ("ro", "este de EUR 12 300 000 în", "este de 12 EUR 300 000 în"),
+    ("ro", "sunt de CAD $7.5M în", "sunt de CAD 7,5 mil. USD în"),
+    ("ro", "sunt de $7.5M CAD în", "sunt de 7,5 mil. USD CAD în"),
+    ("en", "is between USD 1,5 and 2,5 mil. for", "is between 1.5 USD and 2.5M for"),
+    ("ro", "este de USD 4.58Bn în", "este de 4,58 mil. USD în"),            # a billion read as a million
+    ("ro", "este de RON +4.58M față", "este de 4,58 mil. RON față"),         # a sign dropped
+    ("ro", "este de RON -4.58M față", "este de 4,58 mil. RON față"),
+    ("ro", "este 2.5‰ din", "este 2,5% din"),                                # a per-mille made a percentage
+    ("ro", "este de RON 4.58M în", "este de 4,58 mil. EUR în"),              # another currency
+    ("ro", "este de RON 4.58M în", "este de 45,8 mil. RON în"),              # (digits kept, the mark moved)
+]
+
+
+def test_e11_the_independent_reader_sees_a_figure_bound_to_something_else():
+    for lang, before, after in MISBOUND:
+        assert READER.changed_amounts(before, after, lang) != [], (before, after)
+        assert digits(before) == digits(after), "the control must keep every digit: %r" % (after,)
+        # …and the normaliser no longer produces it: the amount keeps its binding.
+        out, _report = F.normalise_figures("Valoarea %s această perioadă." % before, lang)
+        assert READER.changed_amounts("Valoarea %s această perioadă." % before, out, lang) == [], out
+    # What is RIGHT passes it: the same amount, code after, the reader's marks.
+    for lang, before, after in [
+        ("ro", "este de RON 4.58M în", "este de 4,58 mil. RON în"),
+        ("ro", "este de ~EUR 12.3M (din RON 64,567,890)", "este de ~12,3 mil. EUR (din 64.567.890 RON)"),
+        ("ro", "este de RON -2,577,640.82, adică", "este de -2.577.640,82 RON, adică"),
+        ("en", "was 12,3 mil. EUR and 11,25% of", "was 12.3M EUR and 11.25% of"),
+        ("ro", "sunt de 1.5-2.5M EUR în", "sunt de 1,5-2,5 mil. EUR în"),
+    ]:
+        assert READER.changed_amounts(before, after, lang) == [], (before, after)
+    # It shares nothing with the code under test.
+    source = (REPO / "tests" / "engine" / "_figure_reader.py").read_text(encoding="utf-8")
+    imports = sorted(set(
+        (node.module if isinstance(node, ast.ImportFrom) else alias.name)
+        for node in ast.walk(ast.parse(source)) if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names))
+    assert imports == ["__future__", "re", "typing"], imports
+
+
+NB, TH = " ", " "
+#: THE GRAMMAR of a code-first amount: every head x number x magnitude x
+#: what follows. The followers are the review's shapes — a range, a list, a
+#: number that goes on, a magnitude the standard does not print, another
+#: currency, a date — beside the ones a sentence ordinarily has.
+GRAMMAR_FRAMES = {"ro": "Valoarea este de {x} în această perioadă.",
+                  "en": "The value was {x} for the year and that is the total."}
+GRAMMAR_HEADS = ["RON ", "EUR ", "USD ", "$", "€", "~EUR ", "-RON ", "RON -", "RON +", "RON" + NB]
+GRAMMAR_NUMBERS = {"ro": ["1.5", "12.5", "4.58", "64,567,890", "1,234,567.89", "40", "5", "0.19"],
+                   "en": ["1,5", "12,5", "4,58", "64.567.890", "1.234.567,89", "40", "5", "0,19"]}
+GRAMMAR_MAGNITUDES = ["", "M", "B", "K", "bn", "Bn", " mil.", " mld.", " mii"]
+GRAMMAR_FOLLOWERS = [
+    "", ",", ";", ")", " și restul", " and more", "-2.5M", "–3", " - 7 mil.", " – 9", " și 55 milioane",
+    " and 55 million", ", 50 sau 55 milioane", " 300 000", NB + "300" + NB + "000", TH + "300", "'234", " mil", " mld",
+    " M", " milion", " milioane", " trillion", " bn", " mio.", " CAD", " (AUD)", " EUR", "%", " %", "x", " zile",
+    " la 31.12", " la 7 milioane", ", 12.5% peste", " și EUR 3.5M", "$3", " €3", "\n2. Altceva", " to 9M", " sau 7",
+    "-year", " (2025)", "/an", "**", " | 5",
+]
+#: What stands before the code — a number that could own it, a rate word, a
+#: range opener, another currency's code (with the three plain magnitudes).
+GRAMMAR_BEFORE = ["la 31.12 ", "nota 4.2 ", "la 3M ", "În 2025 ", "CAD ", "între ", "de la ", "curs ", "7.5M "]
+
+
+def _grammar():
+    for lang in ("ro", "en"):
+        numbers = GRAMMAR_NUMBERS[lang]
+        for head in GRAMMAR_HEADS:
+            for number in numbers:
+                for magnitude in GRAMMAR_MAGNITUDES:
+                    for follower in GRAMMAR_FOLLOWERS:
+                        yield lang, head + number + magnitude + follower
+        for before in GRAMMAR_BEFORE:
+            for head in GRAMMAR_HEADS:
+                for number in numbers[:3]:
+                    for magnitude in ("", "M", " mil."):
+                        for follower in GRAMMAR_FOLLOWERS:
+                            # (a symbol glued behind a code that is not moved reads as nothing to either reader)
+                            if follower == "$3" and before in ("curs ", "CAD "):
+                                continue
+                            yield lang, before + head + number + magnitude + follower
+
+
+def test_e11_the_grammar_no_code_first_amount_is_bound_to_anything_else_after_the_pass():
+    checked = changed = frozen = 0
+    for lang, expression in _grammar():
+        text = GRAMMAR_FRAMES[lang].replace("{x}", expression)
+        out, report = F.normalise_figures(text, lang)
+        checked += 1
+        assert digits(out) == digits(text), text
+        assert READER.changed_amounts(text, out, lang) == [], (text, out)
+        assert F.normalise_figures(out, lang)[0] == out, text
+        reasons = [why for _t, why in report["left"]]
+        assert not (out != text and "single_group" in reasons), text
+        changed += out != text
+        frozen += "open_amount" in reasons
+    # The law ran on something: thousands rewritten, thousands left as one expression.
+    assert checked >= 100_000 and changed >= 35_000 and frozen >= 30_000, (checked, changed, frozen)
+    WORK["grammar"] = checked
+
+
+#: The review's sentences (2026-10-05, invented figures): each came back with
+#: the code on another number. Now each comes back exactly as written,
+#: counted as ONE expression — in both languages' texts.
+LEFT_AS_ONE_EXPRESSION = [
+    ("ro", "Bugetul este de EUR 1.5-2.5M, în funcție de cerere.", "EUR 1.5-2.5M"),
+    ("ro", "Necesarul este estimat la RON 10-12M pentru 12 luni.", "RON 10-12M"),
+    ("ro", "Capex-ul a fost de $10–12M în ultimii ani.", "$10–12M"),
+    ("ro", "Dobânda la creditele în EUR 5-7% este mare.", "EUR 5-7"),
+    ("en", "The range is EUR 40-55M for this company and that is the envelope.", "EUR 40-55M"),
+    ("ro", "EBITDA este de RON 4.58 mln în această perioadă.", "RON 4.58"),
+    ("ro", "EBITDA este de RON 458 mil în această perioadă.", "RON 458"),
+    ("ro", "Cifra de afaceri este de EUR 12" + NB + "300" + NB + "000 în această perioadă.", "EUR 12" + NB + "300" + NB + "000"),
+    ("ro", "Cifra de afaceri este de EUR 12" + TH + "300" + TH + "000 în această perioadă.", "EUR 12" + TH + "300" + TH + "000"),
+    ("ro", "Perioada 01.03-31.03 RON 5M este acoperită.", "31.03 RON 5M"),
+    ("ro", "Costul este de $7.5M (AUD) pe an.", "$7.5M"),
+    ("en", "The balance at 31,12 EUR 5,2 mil. is higher than before and that is good.", "31,12 EUR 5,2 mil."),
+]
+
+
+@pytest.mark.parametrize("lang,text,token", LEFT_AS_ONE_EXPRESSION, ids=[t[1][:28] for t in LEFT_AS_ONE_EXPRESSION])
+def test_e11_the_reviews_sentences_come_back_as_written_and_counted(lang, text, token):
+    out, report = F.normalise_figures(text, lang)
+    assert out == text
+    assert report["rewritten"] == 0
+    assert (token, "open_amount") in report["left"], report["left"]
+    # …with a handed figure equal to every number in it, too.
+    handed = [float(t.replace(",", "")) for t in re.findall(r"[0-9]+(?:[.,][0-9]+)?", text)
+              if t.replace(",", "").replace(".", "", 1).isdigit() and t.count(".") + t.count(",") <= 1]
+    assert F.normalise_figures(text, lang, handed)[0] == text
+
+
+def test_e11_joiners_the_product_did_not_write_are_read_as_spaces_and_kept_as_bytes():
+    """U+00A0 / U+202F inside what the model wrote (review 2026-10-05): a
+    code-after amount is rewritten and keeps the model's own joiner; a
+    code-first one is moved behind the figure with the product's."""
+    text = "EBITDA este 4.58M" + NB + "RON, adică 12.5" + NB + "% din total și RON" + TH + "7.5M în plus."
+    out, report = F.normalise_figures(text, "ro")
+    assert out == "EBITDA este 4,58" + NB + "mil." + NB + "RON, adică 12,5" + NB + "% din total și 7,5" + NB + "mil." + NB + "RON în plus."
+    assert report == {"rewritten": 3, "left": []}
+    assert READER.changed_amounts(text, out, "ro") == []
+
+
+# ══ E12 — never half a text ═══════════════════════════════════════════════
+
+HELD_RO = ("Cifra de afaceri este RON 98,765,432.10, EBITDA este RON 9.8M (marjă 10.7%), iar dobânzile sunt "
+           "RON 386,102 în această perioadă.")
+
+
+def test_e12_a_text_holding_a_lone_group_is_returned_whole_whatever_else_it_holds():
+    out, report = F.normalise_figures(HELD_RO, "ro")
+    assert out == HELD_RO and report["rewritten"] == 0
+    assert report["left"] == [("386,102", "single_group"), ("", "text_held")]
+    # POSITIVE CONTROL: without the lone group every figure of it IS rewritten …
+    without = HELD_RO.replace("RON 386,102", "RON 386,102.50")
+    converted, r2 = F.normalise_figures(without, "ro")
+    assert plain(converted) == ("Cifra de afaceri este 98.765.432,10 RON, EBITDA este 9,8 mil. RON (marjă 10,7%), "
+                                "iar dobânzile sunt 386.102,50 RON în această perioadă.")
+    assert r2 == {"rewritten": 4, "left": []}
+    # … and the HALF text the pass used to return is what the reader would
+    # misread: the one comma group among Romanian figures reads 386 lei.
+    half = ("Cifra de afaceri este 98.765.432,10 RON, EBITDA este 9,8 mil. RON (marjă 10,7%), iar dobânzile sunt "
+            "RON 386,102 în această perioadă.")
+    assert plain(out) != half
+    # A handed figure equal to either reading changes nothing (never guessed).
+    for anchors in ((386102.0,), (386.102,), (386101.85,), (386102.0, 386.102)):
+        assert F.normalise_figures(HELD_RO, "ro", anchors)[0] == HELD_RO
+    # A lone group with NOTHING to rewrite beside it holds nothing: no marker.
+    alone = "Dobânzile sunt de 386.102 RON, iar marja este 10,7%."
+    assert F.normalise_figures(alone, "ro") == (alone, {"rewritten": 0, "left": [("386.102", "single_group")]})
+    # In English text, and inside an expression left as written.
+    en = "Cash: 1.234 RON; debt 12.345,67 RON; margin 11,25% for the year."
+    assert F.normalise_figures(en, "en") == (en, {"rewritten": 0, "left": [("1.234", "single_group"), ("", "text_held")]})
+    ranged = "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 11.25%."
+    out, report = F.normalise_figures(ranged, "ro")
+    assert out == ranged and ("", "text_held") in report["left"]
+
+
+def test_e12_the_narrator_holds_each_prose_field_on_its_own():
+    """The hold is per TEXT: a briefing that holds a lone group is returned
+    whole while a recommendation beside it is still rewritten."""
+    payload = {"briefing": HELD_RO,
+               "recommendations": [{"title": "Reduceți datoria netă sub 2.5× EBITDA", "rationale": HELD_RO,
+                                    "actions": ["Reduceți DSO de la 61.4 la 48.0 zile."]}]}
+    out, report = F.normalise_narrate_result(payload, "ro")
+    assert out["briefing"] == HELD_RO and out["recommendations"][0]["rationale"] == HELD_RO
+    assert plain(out["recommendations"][0]["title"]) == "Reduceți datoria netă sub 2,5× EBITDA"
+    assert plain(out["recommendations"][0]["actions"][0]) == "Reduceți DSO de la 61,4 la 48,0 zile."
+    assert report["left_by_reason"] == {"single_group": 2, "text_held": 2}
+    assert report["fields_checked"] == 4 and report["fields_changed"] == 2
+    assert "386" not in json.dumps(report)
+
+
+# ══ E13 — the composed set ════════════════════════════════════════════════
+
+def test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_twin_digest_holds():
+    spec = COMPOSE_SPEC
+    assert spec["count"] == 12000
+    changed = held_texts = left_open = 0
+    for i in range(spec["count"]):
+        text, lang, anchors = COMPOSE.compose(spec, i)
+        out, report = F.normalise_figures(text, lang, anchors)
+        assert digits(out) == digits(text), text
+        reasons = [why for _t, why in report["left"]]
+        if "text_held" in reasons:
+            assert out == text and report["rewritten"] == 0 and "single_group" in reasons, text
+            held_texts += 1
+        assert not (out != text and "single_group" in reasons), text
+        # A second pass changes nothing: what is stored and what is shown are one text.
+        assert F.normalise_figures(out, lang, anchors)[0] == out, text
+        # The run-time proof holds on what was returned.
+        assert F._structure_held(text, out), text
+        changed += out != text
+        left_open += "open_amount" in reasons
+    assert changed >= 4000 and held_texts >= 500 and left_open >= 1500, (changed, held_texts, left_open)
+    # POSITIVE CONTROL of the composition: the first text, written out.
+    assert COMPOSE.compose(spec, 0) == COMPOSE.compose(spec, 0)
+    assert len(set(COMPOSE.compose(spec, i)[0] for i in range(200))) >= 195
+    # THE TWIN: the browser's normaliser must reproduce the same digest over
+    # the same texts (frontend/lib/__tests__/readerFigures.test.ts).
+    assert COMPOSE.digest_of(spec, F.normalise_figures) == spec["digest"], (
+        "the engine's outputs over the composed set changed: %s — if the rule change is deliberate and made in "
+        "BOTH runtimes, commit this digest in compose.json" % COMPOSE.digest_of(spec, F.normalise_figures))
+    WORK["composed"] = spec["count"]
+
+
+# ══ E14 — the run-time proof beyond the digits ════════════════════════════
+
+def test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_another_number(monkeypatch):
+    """PLANTED HERE, not in the source — each keeps every digit, so the digit
+    proof alone passes all three."""
+    text = "Capitalizarea este de USD 4.58Bn, iar variația de RON +2.5M față de buget."
+    good, report = F.normalise_figures(text, "ro")
+    assert plain(good) == "Capitalizarea este de 4,58 mld. USD, iar variația de +2,5 mil. RON față de buget."
+    assert report["left"] == []
+
+    # 1 — a rule that reads "Bn" as a million.
+    monkeypatch.setattr(F, "_MAG_GLUED", (("Bn", "M"),) + F._MAG_GLUED[1:])
+    out, report = F.normalise_figures(text, "ro")
+    assert out == text and [why for _t, why in report["left"]] == ["proof_failed"]
+    monkeypatch.undo()
+
+    # 2 — a head reader that loses the sign.
+    real_head = F._read_head
+    monkeypatch.setattr(F, "_read_head", lambda s, i, floor: dict(real_head(s, i, floor), sign=""))
+    out, report = F.normalise_figures(text, "ro")
+    assert out == text and [why for _t, why in report["left"]] == ["proof_failed"]
+    monkeypatch.undo()
+
+    # 3 — the closure made blind: the code would land inside a spaced number.
+    spaced = "Cifra de afaceri este de RON 64 567 890.50 în această perioadă."
+    assert F.normalise_figures(spaced, "ro")[0] == spaced
+    monkeypatch.setattr(F, "_amount_ends", lambda *_a, **_k: True)
+    out, report = F.normalise_figures(spaced, "ro")
+    assert out == spaced and [why for _t, why in report["left"]] == ["proof_failed"]
+    monkeypatch.undo()
+
+    # POSITIVE CONTROL: with the proof itself blinded, plant 3 DOES produce the misbound text.
+    monkeypatch.setattr(F, "_amount_ends", lambda *_a, **_k: True)
+    monkeypatch.setattr(F, "_structure_held", lambda *_a: True)
+    out, _ = F.normalise_figures(spaced, "ro")
+    assert plain(out) == "Cifra de afaceri este de 64 RON 567 890.50 în această perioadă."
+    assert READER.changed_amounts(spaced, out, "ro") != []
+
+
 # ══ the narrator, with a scripted provider ════════════════════════════════
 
 FX = {"EUR": 1.0, "RON": 5.0, "USD": 1.25}
@@ -446,9 +798,10 @@ SEAM_CASES = [c for c in CORPUS
 
 
 def test_the_seam_cases_are_a_real_share_of_the_corpus_in_both_languages():
-    assert len(SEAM_CASES) >= 60
-    assert sum(1 for c in SEAM_CASES if c["lang"] == "en") >= 12
-    assert sum(1 for c in SEAM_CASES if c["wrong"]) >= 45
+    assert len(SEAM_CASES) >= 85
+    assert sum(1 for c in SEAM_CASES if c["lang"] == "en") >= 18
+    assert sum(1 for c in SEAM_CASES if c["wrong"]) >= 55
+    assert sum(1 for c in SEAM_CASES if held(c)) >= 3
     assert "briefing-all-wrong-with-units" in [c["id"] for c in SEAM_CASES]
 
 
@@ -471,7 +824,9 @@ def test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_
     for field in prose:
         assert plain(field) == case["expected"]
         assert digits(field) == digits(text)
-        assert findings(field, lang, case["kept"], case.get("allowed", ())) == []
+        assert READER.changed_amounts(text, field, lang) == []
+        if not held(case):
+            assert findings(field, lang, case["kept"], case.get("allowed", ())) == []
     assert len(set(prose)) == 1   # the same bytes in every prose field
     # What is not prose did not move: the structure, the non-strings, the
     # fields the numeral guard does not walk.
@@ -946,6 +1301,8 @@ def test_e10_no_socket_was_attempted_and_the_model_was_only_ever_the_stand_in():
     real = sys.modules.get("anthropic")
     assert real is None or isinstance(real, types.SimpleNamespace) or not getattr(real, "__file__", None), (
         "the real anthropic SDK was imported by this run")
-    assert WORK["corpus"] == len(CORPUS) and WORK["grid"] == 984 and WORK["narrations"] >= 100, WORK
-    print("\nGATE-WORK ai-figures-engine corpus=%d grid=%d narrations=%d languages=%d"
-          % (WORK["corpus"], WORK["grid"], WORK["narrations"], len(ALL_LANGUAGES)))
+    assert WORK["corpus"] == len(CORPUS) and WORK["grid"] == 984 and WORK["narrations"] >= 130, WORK
+    assert WORK["grammar"] >= 100_000 and WORK["composed"] == 12000, WORK
+    print("\nGATE-WORK ai-figures-engine corpus=%d grid=%d narrations=%d languages=%d grammar=%d composed=%d"
+          % (WORK["corpus"], WORK["grid"], WORK["narrations"], len(ALL_LANGUAGES), WORK["grammar"],
+             WORK["composed"]))

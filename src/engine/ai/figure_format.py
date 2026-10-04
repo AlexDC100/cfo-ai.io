@@ -500,14 +500,16 @@ def _outline_follows(rest: str) -> bool:
 
 
 def _sentence_ends(rest: str) -> bool:
-    """`^(?:\\s*$|\\s*\\n|\\s+\\p{Lu})` — the text ends, the line ends, or a
-    new sentence starts."""
+    """`^(?:\\s*$|\\s*\\n|\\s+\\p{Lu}(?!\\p{Lu}))` — the text ends, the line
+    ends, or a new sentence starts: a capitalised WORD, not an acronym or a
+    code ("4,58 mil. CAD", "2,3 mil. EBITDA" go on)."""
     n = 0
     while n < len(rest) and rest[n] in _JS_SPACE_SET:
         n += 1
     if n == len(rest) or "\n" in rest[:n]:
         return True
-    return n >= 1 and unicodedata.category(rest[n]) == "Lu"
+    return (n >= 1 and unicodedata.category(rest[n]) == "Lu"
+            and not (n + 1 < len(rest) and unicodedata.category(rest[n + 1]) == "Lu"))
 
 
 def _full_end(it: Dict[str, Any]) -> int:
@@ -516,9 +518,10 @@ def _full_end(it: Dict[str, Any]) -> int:
 
 
 def _own_start(s: str, it: Dict[str, Any]) -> int:
-    """Where the figure starts: its code (when one is written before it), its sign."""
+    """Where the figure starts: its code (when one is written before it), its
+    sign — a "-" written against the digit before it is a dash, not a sign."""
     st = it["head"]["start"] if it["head"]["currency"] else it["s"]
-    if st > it["floor"] and _at(s, st - 1) in _SIGNS:
+    if st > it["floor"] and _at(s, st - 1) in _SIGNS and not _is_digit(_at(s, st - 2)):
         st -= 1
     return st
 
@@ -529,7 +532,7 @@ def _connective(gap: str, opener: bool) -> Optional[str]:
     range: "1.5-2.5M", "10 – 12"), "list" (a comma, a joining word:
     "40 și 55 milioane") — or None: they are two sentences' worth apart."""
     g = gap.replace(NBSP, " ").replace(" ", " ").lower()
-    # Nothing in between: only the second number's own sign ("1.5-2.5").
+    # (nothing in between: the second number's sign is all there is)
     if g == "":
         return "dash"
     if g == " " or g in _APOSTROPHES:
