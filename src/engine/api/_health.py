@@ -67,9 +67,19 @@ def _check_stripe() -> Dict[str, Any]:
 
 
 def _check_fx_rates() -> Dict[str, Any]:
-    """FX rates ship from the BNR cache. Stale rates mean reports show
-    wrong RON↔EUR conversions. The cache file mtime tells us when it was
-    last refreshed; >24h is stale enough to flag."""
+    """Is the engine serving a CURRENT BNR rate?
+
+    ``ok`` is true only when the payload's source is BNR and it is not marked
+    stale. Until 2026-10-03 this read ``fetched_at`` alone — which is "now"
+    for the bundled fallback — and answered ``ok: true`` for as long as the
+    feed had moved and the fallback was being served. ``source``, ``stale``
+    and ``as_of`` are carried so the operator reads WHAT is being served, not
+    only that something is.
+
+    This check is a WARNING, like Stripe: it does not enter the overall
+    ``ok`` or the HTTP status (``_build_body`` — only the database does), so
+    a BNR outage never drains the container.
+    """
     t0 = time.time()
     try:
         from .fx_rates import get_fx_rates
@@ -82,9 +92,17 @@ def _check_fx_rates() -> Dict[str, Any]:
                 age_hours = round((datetime.now(timezone.utc) - fetched).total_seconds() / 3600, 1)
             except Exception:  # noqa: BLE001
                 age_hours = None
-        ok = bool(rates) and (age_hours is None or age_hours < 48)
+        source = rates.get("source")
+        stale = bool(rates.get("stale", True))
+        # The engine's own verdict, not a second clock: `stale` is false only
+        # for a BNR file accepted inside the 24 h window (fx_rates.py), so
+        # `age_hours` is information and no longer part of `ok`.
+        ok = bool(rates) and source == "BNR" and not stale
         return {
             "ok": ok,
+            "source": source,
+            "stale": stale,
+            "as_of": rates.get("as_of"),
             "currencies": len(rates.get("rates") or {}) if isinstance(rates, dict) else 0,
             "age_hours": age_hours,
             "latency_ms": round((time.time() - t0) * 1000, 1),
@@ -208,7 +226,9 @@ def _build_body() -> Dict[str, Any]:
     # DB is the only check whose failure means "container should be
     # restarted, traffic should be drained". Stripe/FX are warnings —
     # billing returns 503 on its own, reports still render with stale
-    # FX. Keep the 503 trigger narrow.
+    # FX. Keep the 503 trigger narrow: `checks.fx_rates.ok` is false while
+    # the engine serves anything but a current BNR rate, and that never
+    # changes `ok` or the status (the deploy lane reads `ok` and `mode`).
     checks = {
         "db": _check_db(),
         "stripe": _check_stripe(),

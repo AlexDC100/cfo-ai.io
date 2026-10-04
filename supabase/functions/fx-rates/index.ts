@@ -13,15 +13,47 @@
 // would refetch BNR on every cold start and could hand two users different
 // rates in the same minute.
 //
-// Response shape is byte-compatible with the engine's, so `frontend/lib/
-// rates.ts` needed only a URL swap:
+// Response shape is byte-compatible with the engine's:
 //   { base, rates: {EUR,RON,USD}, source, as_of, fetched_at, stale }
+// `stale: true` means "not a BNR file accepted inside the 24 h window" — the
+// last cached row after BNR stopped answering, or the bundled fallback.
+// `frontend/lib/rates.ts` asks the engine as well whenever it reads that.
 //
-// KEEP IN SYNC: `_FALLBACK_RATES` / `_FALLBACK_AS_OF` in fx_rates.py mirror
-// FALLBACK_* below, and `frontend/lib/rates.ts` carries a third copy for the
-// first-paint case. Update all three when they drift materially (>5%).
+// THIS FILE IS THE WIRING ONLY: the HTTP method, the CORS allowlist, the
+// Cache-Control header and the three statements that touch the row.
+// Everything that can be wrong about the feed — the address list, the parser,
+// the plausibility bounds, the freshness rule, the fallback constants, when
+// BNR may be asked again, and the order in which a request reads the row,
+// asks BNR and writes the row (`resolveRates`) — lives in `./bnr.ts`, which
+// has no Deno global and is run by the gate `fx-browser` on BNR's own bytes.
+// Until 2026-10-03 all of it sat inside `Deno.serve`, no test could reach it,
+// and the one address it knew had been dead for two months (see bnr.ts).
+//
+// THE FAILURE COOLDOWN, AND WHERE IT IS KEPT. `fx_rates_cache` holds exactly
+// one row (`check (id = 'current')`), so there is no second row to write a
+// failure into without a migration. The row's `updated_at` is used instead:
+// a success writes `fetched_at = updated_at = now`; a FAILED attempt touches
+// `updated_at` alone. "BNR was last asked at" is therefore
+// max(fetched_at, updated_at), shared by every instance. When there is no row
+// yet (BNR has never answered this project) there is nothing to touch, and
+// the cooldown falls back to a timestamp in this instance's memory — one
+// attempt per window per instance, not per project. The same memory holds the
+// last file this instance accepted, so a row that cannot be read or written
+// does not turn every request into a BNR fetch. No migration either way.
+//
+// REDEPLOY (the CLI must be signed in) — docs/engine_book/gates.md,
+// "fx-browser", carries the command and the before/after probe:
+//   supabase functions deploy fx-rates --project-ref <ref> --use-api --no-verify-jwt
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  newInstanceMemory,
+  resolveRates,
+  type CacheRow,
+  type FeedFetch,
+  type RatesPayload,
+  type RatesStore,
+} from "./bnr.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -48,115 +80,27 @@ function corsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-// ── Constants (mirror fx_rates.py) ──────────────────────────────────────
-
-const BNR_URL = "https://www.bnr.ro/nbrfxrates.xml";
-const TTL_MS = 24 * 60 * 60 * 1000; // daily refresh
-const FETCH_TIMEOUT_MS = 8000; // don't hang the request on BNR
-
-const FALLBACK_RATES: Rates = { EUR: 1.0, RON: 4.97, USD: 1.08 };
-const FALLBACK_AS_OF = "2026-05-01";
-
-interface Rates {
-  EUR: number;
-  RON: number;
-  USD: number;
-}
-
-interface RatesPayload {
-  base: "EUR";
-  rates: Rates;
-  source: string;
-  as_of: string;
-  fetched_at: string;
-  stale: boolean;
-}
-
-function json(body: unknown, status: number, cors: Record<string, string>): Response {
+function json(body: RatesPayload | { error: string }, status: number, cors: Record<string, string>): Response {
+  // A CURRENT rate may be reused by the browser/CDN for an hour (the row is
+  // refreshed daily; this absorbs the "every tab on mount" fan-out). A STALE
+  // answer must not be: the moment BNR answers again, the next request should
+  // see it — an hour of browser cache on a stale payload is an hour of the
+  // wrong rate after the repair.
+  const fresh = "stale" in body && body.stale === false;
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       ...cors,
       "Content-Type": "application/json",
-      // Let the browser/CDN reuse a rate for an hour; the row itself is only
-      // refreshed daily, so a short client cache costs nothing in freshness
-      // and absorbs the "every tab on mount" fan-out.
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": fresh ? "public, max-age=3600" : "no-store",
     },
   });
 }
 
-// ── BNR parsing ─────────────────────────────────────────────────────────
-//
-// Document shape:
-//   <DataSet><Header><PublishingDate>…</PublishingDate></Header>
-//     <Body><Cube date="2026-07-26">
-//       <Rate currency="EUR">5.2348</Rate>
-//       <Rate currency="USD">4.5876</Rate>
-//   …
-//
-// BNR quotes everything in RON ("1 EUR = X RON"); we normalise to "X units
-// per 1 EUR" so the frontend has a single consistent base.
-//
-// Parsed with regex rather than an XML DOM: Deno has no built-in DOMParser,
-// and this document is a flat, machine-generated list of <Rate> elements —
-// pulling in an XML library for it would be more surface than the format
-// warrants.
-
-function parseBnrXml(xml: string): Omit<RatesPayload, "fetched_at" | "stale"> {
-  const cube = xml.match(/<Cube\b[^>]*>([\s\S]*?)<\/Cube>/);
-  if (!cube) throw new Error("BNR XML missing Cube");
-
-  const dateMatch = xml.match(/<Cube\b[^>]*\bdate="([^"]+)"/);
-  const asOf = dateMatch?.[1] ?? FALLBACK_AS_OF;
-
-  // How many RON one unit of <currency> equals.
-  const inRon: Record<string, number> = {};
-  const rateRe = /<Rate\b([^>]*)>([^<]*)<\/Rate>/g;
-  for (let m = rateRe.exec(cube[1]); m !== null; m = rateRe.exec(cube[1])) {
-    const attrs = m[1];
-    const cur = attrs.match(/\bcurrency="([^"]+)"/)?.[1];
-    if (!cur) continue;
-    let v = Number.parseFloat(m[2].trim());
-    if (!Number.isFinite(v)) continue;
-    // BNR publishes some currencies per 100 units (HUF, JPY, KRW) via a
-    // `multiplier` attribute. Divide it out so every entry is per-1-unit.
-    const mult = Number.parseFloat(attrs.match(/\bmultiplier="([^"]+)"/)?.[1] ?? "");
-    if (Number.isFinite(mult) && mult !== 0) v = v / mult;
-    inRon[cur] = v;
-  }
-
-  const oneEurInRon = inRon.EUR;
-  const oneUsdInRon = inRon.USD;
-  if (!Number.isFinite(oneEurInRon) || oneEurInRon <= 0) {
-    throw new Error("BNR XML missing EUR rate");
-  }
-  if (!Number.isFinite(oneUsdInRon) || oneUsdInRon <= 0) {
-    throw new Error("BNR XML missing USD rate");
-  }
-
-  return {
-    base: "EUR",
-    rates: { EUR: 1.0, RON: oneEurInRon, USD: oneEurInRon / oneUsdInRon },
-    source: "BNR",
-    as_of: asOf,
-  };
-}
-
-async function fetchBnr(): Promise<Omit<RatesPayload, "fetched_at" | "stale">> {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const resp = await fetch(BNR_URL, {
-      headers: { "User-Agent": "cfo-ai/1.0 (+https://cfo-ai.io)" },
-      signal: ctl.signal,
-    });
-    if (!resp.ok) throw new Error(`BNR HTTP ${resp.status}`);
-    return parseBnrXml(await resp.text());
-  } finally {
-    clearTimeout(timer);
-  }
-}
+/** This instance's memory of its last attempt and its last accepted file —
+ *  the cooldown's and the cache's fallback when the row cannot carry them
+ *  (see the header). */
+const memory = newInstanceMemory();
 
 // ── Handler ─────────────────────────────────────────────────────────────
 
@@ -165,56 +109,26 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "GET") return json({ error: "Method not allowed" }, 405, cors);
 
-  const forceRefresh = new URL(req.url).searchParams.get("refresh") === "true";
-  const now = new Date();
-
   // Service role: the cache row is world-READABLE but service-role-writable
-  // only, and we may need to write on this request.
+  // only, and this request may need to write it.
   const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // 1. Read the shared cache row.
-  let cached: RatesPayload | null = null;
-  let cachedAt = 0;
-  try {
-    const { data } = await db
-      .from("fx_rates_cache")
-      .select("base, rates, source, as_of, fetched_at")
-      .eq("id", "current")
-      .maybeSingle();
-    if (data?.rates?.EUR && data?.rates?.RON && data?.rates?.USD) {
-      cachedAt = new Date(data.fetched_at).getTime();
-      cached = {
-        base: "EUR",
-        rates: data.rates as Rates,
-        source: data.source,
-        as_of: data.as_of,
-        fetched_at: data.fetched_at,
-        stale: false,
-      };
-    }
-  } catch (e) {
-    // Table missing / migration not applied yet — fall through to BNR.
-    console.warn("[fx-rates] cache read failed", e);
-  }
-
-  // 2. Fresh enough? Serve it.
-  if (!forceRefresh && cached && now.getTime() - cachedAt < TTL_MS) {
-    return json(cached, 200, cors);
-  }
-
-  // 3. Cache miss or TTL elapsed — try BNR.
-  try {
-    const fresh = await fetchBnr();
-    const payload: RatesPayload = {
-      ...fresh,
-      base: "EUR",
-      fetched_at: now.toISOString(),
-      stale: false,
-    };
-    try {
-      await db.from("fx_rates_cache").upsert(
+  // supabase-js reports a failed statement in `error` and does not throw;
+  // each of the three raises it so `resolveRates` logs it and carries on.
+  const store: RatesStore = {
+    async read() {
+      const { data, error } = await db
+        .from("fx_rates_cache")
+        .select("base, rates, source, as_of, fetched_at, updated_at")
+        .eq("id", "current")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data ?? null) as CacheRow | null;
+    },
+    async writeAccepted(payload) {
+      const { error } = await db.from("fx_rates_cache").upsert(
         {
           id: "current",
           base: payload.base,
@@ -226,29 +140,24 @@ Deno.serve(async (req: Request) => {
         },
         { onConflict: "id" },
       );
-    } catch (e) {
-      // A failed write only costs the next caller a refetch — still serve
-      // the rate we just got rather than 500-ing on a cache-layer problem.
-      console.warn("[fx-rates] cache write failed", e);
-    }
-    return json(payload, 200, cors);
-  } catch (e) {
-    console.warn("[fx-rates] BNR fetch failed; falling back", e);
-  }
+      if (error) throw new Error(error.message);
+    },
+    async stampFailedAttempt(atIso) {
+      const { error } = await db
+        .from("fx_rates_cache")
+        .update({ updated_at: atIso })
+        .eq("id", "current");
+      if (error) throw new Error(error.message);
+    },
+  };
 
-  // 4. BNR unreachable. Last-known-good beats the bundled constant.
-  if (cached) return json({ ...cached, stale: true }, 200, cors);
-
-  return json(
-    {
-      base: "EUR",
-      rates: { ...FALLBACK_RATES },
-      source: "fallback",
-      as_of: FALLBACK_AS_OF,
-      fetched_at: now.toISOString(),
-      stale: true,
-    } satisfies RatesPayload,
-    200,
-    cors,
-  );
+  const payload = await resolveRates({
+    store,
+    fetchFn: fetch as unknown as FeedFetch,
+    now: new Date(),
+    forceRefresh: new URL(req.url).searchParams.get("refresh") === "true",
+    memory,
+    warn: (message, error) => console.warn(message, error),
+  });
+  return json(payload, 200, cors);
 });

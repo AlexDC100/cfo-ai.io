@@ -9,12 +9,24 @@ Endpoint: GET /api/fx-rates
 Response shape:
   {
     "base": "EUR",                             # rates are X units per 1 EUR
-    "rates": { "RON": 4.97, "EUR": 1.0, "USD": 1.08 },
+    "rates": { "RON": 5.3447, "EUR": 1.0, "USD": 1.1248 },
     "source": "BNR" | "fallback",
-    "as_of": "2026-05-23",                      # date the upstream published these
-    "fetched_at": "2026-05-23T15:32:11Z",       # when we last refreshed cache
-    "stale": false                               # true if served from fallback
+    "as_of": "2026-10-02",                      # date the upstream published these
+    "fetched_at": "2026-10-03T06:32:11+00:00",  # when we last refreshed cache
+    "stale": false                               # true = NOT a current BNR rate
   }
+
+`stale` is true whenever the answer is not a BNR file accepted inside the
+24 h window: the bundled fallback, or the last accepted file after a refetch
+failed. A reader of this endpoint must never present a stale payload as
+current.
+
+WHO READS THIS (2026-10-03). The browser's display-currency rates come from
+the Supabase Edge Function `fx-rates` (supabase/functions/fx-rates), not from
+here; since the same date `frontend/lib/rates.ts` asks this endpoint as well
+whenever the function's answer is stale and uses the fresher of the two. The
+engine itself converts with it in the EUR/USD briefing regeneration, and
+`/api/health` reports it (`checks.fx_rates`).
 
 Cache: process-local dict, 24h TTL. Single-tenant VPS so no need for Redis.
 """
@@ -24,6 +36,7 @@ import datetime as _dt
 import logging
 import re
 import threading
+import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, Optional
@@ -31,26 +44,45 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 
-# ── Bundled fallback rates (last-known good as of 2026-05) ──
-# Used when BNR is unreachable AND no cached fetch is available. Bundled
-# directly so the app NEVER renders garbage. Update when these drift
-# materially from market reality (>5%).
+# ── Bundled fallback rates (BNR's file of 2026-10-02) ──
+# Used when BNR is unreachable AND no accepted fetch is cached. Always served
+# with `stale: true`. THREE LIVE COPIES, kept equal: this one,
+# supabase/functions/fx-rates/bnr.ts (FALLBACK_RATES / FALLBACK_AS_OF) and
+# frontend/lib/rates.ts (FALLBACK_RATES / FALLBACK_PAYLOAD). Update all three
+# when they drift more than 5% from BNR's rate — the gate fx-feed holds this
+# copy within 5% of the committed feed file, and fx-browser holds the other
+# two equal to it.
 _FALLBACK_RATES: Dict[str, float] = {
-    "EUR": 1.00,    # base
-    "RON": 4.97,    # 1 EUR ≈ 4.97 RON (matches lib/currency.ts FX_RON_TO_EUR)
-    "USD": 1.08,    # 1 EUR ≈ 1.08 USD
+    "EUR": 1.00,               # base
+    "RON": 5.3447,             # 1 EUR = 5.3447 RON
+    "USD": 5.3447 / 4.7519,    # 1 EUR = 1.12475 USD (BNR: 1 USD = 4.7519 RON)
 }
-_FALLBACK_AS_OF = "2026-05-01"
+_FALLBACK_AS_OF = "2026-10-02"
 
 # WHERE THE FEED LIVES. Until 2026 it was https://www.bnr.ro/nbrfxrates.xml
 # with the default namespace http://www.bnr.ro/xsd. BNR moved it: measured
 # 2026-10-03, the old address answers a redirect to an HTML page (200,
 # text/html once followed) and the feed is at https://curs.bnr.ro/ with the
 # namespace https://www.bnr.ro/xsd. Nothing failed loudly — the HTML did not
-# parse, the fallback below was served with `stale: true`, and every amount
-# shown in EUR was converted at 4.97 while BNR published 5.3447 (7.5% high).
-# The addresses are tried in order and the first one that PARSES wins: a 200
-# that is not the feed is a failure, not an answer.
+# parse and the answer fell back, marked `stale: true`.
+#
+# TWO FACTS, measured on production 2026-10-03, and they are not the same:
+#   · THIS endpoint served the bundled fallback — 4.97 RON per EUR as of
+#     2026-05-01 while BNR published 5.3447 (7.5% high on EUR amounts). That
+#     reached GET /api/fx-rates, /api/health and the EUR/USD briefing
+#     regeneration ONLY.
+#   · What a READER saw in the browser came from the Edge Function, which
+#     asked the same dead address and served its last cached row, marked
+#     stale: 5.2489 RON per EUR as of 2026-08-05 — for two months. EUR
+#     amounts 1.8% too high (5.3447 / 5.2489), USD amounts 4.5% too high
+#     (4.548 RON per USD served against 4.7519).
+#
+# Every address is a candidate: a 200 that is not the feed is a failure, not
+# an answer, and so is a feed whose Cube date is missing, unparseable, in the
+# future or more than `_MAX_AGE_DAYS` old. Among the addresses that answer an
+# acceptable feed the NEWEST Cube date wins (the first listed on a tie); an
+# address that answers today's file ends the search, because nothing newer
+# can exist.
 # Gate: fx-feed (tests/engine/test_fx_bnr_feed.py, on the feed's real bytes).
 _BNR_URLS = (
     "https://curs.bnr.ro/nbrfxrates.xml",
@@ -66,10 +98,21 @@ _BNR_URL = _BNR_URLS[0]
 _PLAUSIBLE_RON_PER_EUR = (3.0, 10.0)
 _PLAUSIBLE_USD_PER_EUR = (0.5, 2.0)
 
-#: The root element's default namespace, whichever scheme BNR writes it with.
-_DEFAULT_XMLNS = re.compile(rb'\sxmlns="https?://www\.bnr\.ro/xsd"')
 _TTL_SECONDS = 24 * 3600   # daily refresh
 _TIMEOUT_SECONDS = 8       # don't block the request handler on BNR
+
+# FRESHNESS. BNR publishes once per business day; the longest gap between two
+# files is a holiday bridge of five or six days. A Cube older than ten days
+# is an address that keeps answering a file that stopped updating — the
+# likeliest next failure after a move — and is refused like a web page.
+_MAX_AGE_DAYS = 10
+
+# THE BODY. The feed is under 2 KB. Anything over 64 KB is not the feed, and
+# a body that declares a DOCTYPE or an ENTITY is refused before it reaches
+# the XML parser (entity expansion: 637 bytes became 30 MB on expat 2.2.8).
+_MAX_BODY_BYTES = 64 * 1024
+_DECLARATION = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)", re.IGNORECASE)
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # A FAILURE IS CACHED TOO. `GET /api/fx-rates` is anonymous and so is
 # `/api/health` (which reads this module). Before 2026-09-05 only the
@@ -83,8 +126,10 @@ _TIMEOUT_SECONDS = 8       # don't block the request handler on BNR
 # BNR publishes once a day, but a failure is a transient we want to leave
 # behind quickly. Five minutes bounds the retry rate at 12/hour no matter
 # how much traffic arrives, and delays recovery by at most one window.
-# `force_refresh=True` (the operator's `?refresh=true`) ignores it, so
-# the cooldown can never make the manual retry a no-op.
+# `force_refresh=True` ignores it, so the cooldown can never make the manual
+# retry a no-op — and `GET /api/fx-rates?refresh=true` passes it ONLY for a
+# caller holding the operator bearer (pipeline.py): an anonymous
+# `?refresh=true` is answered exactly like the plain route.
 _FAILURE_COOLDOWN_SECONDS = 300
 
 _CACHE_LOCK = threading.Lock()
@@ -103,18 +148,47 @@ def reset_fx_cache() -> None:
         _CACHE["failed_at"] = 0.0
 
 
+def _now() -> float:
+    """Epoch seconds. The two memos read the clock here; tests replace it."""
+    return time.time()
+
+
+def _today_ro() -> _dt.date:
+    """The latest calendar date it can be in Romania right now (UTC+3, the
+    summer offset — no tz database needed). The freshness rule reads the
+    clock here and nowhere else; tests replace it."""
+    return (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=3)).date()
+
+
+def _local(tag: Any) -> str:
+    """An element's local name, whatever namespace it is written in."""
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _cube_date(cube: ET.Element) -> Optional[str]:
+    """The Cube's date as YYYY-MM-DD, or None when missing or not a date."""
+    raw = (cube.get("date") or "").strip()
+    if not _ISO_DATE.match(raw):
+        return None
+    try:
+        _dt.date.fromisoformat(raw)
+    except ValueError:
+        return None
+    return raw
+
+
 def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
     """Parse BNR's nbrfxrates.xml format.
 
     Document shape:
       <DataSet xmlns="https://www.bnr.ro/xsd" ...>
-        <Header><PublishingDate>2026-05-22</PublishingDate></Header>
+        <Header><PublishingDate>2026-10-02</PublishingDate></Header>
         <Body>
-          <Subject>Reference rates for major currencies</Subject>
+          <Subject>Reference rates</Subject>
           <OrigCurrency>RON</OrigCurrency>
-          <Cube date="2026-05-22">
-            <Rate currency="EUR">4.9712</Rate>
-            <Rate currency="USD">4.5876</Rate>
+          <Cube date="2026-10-02">
+            <Rate currency="EUR">5.3447</Rate>
+            <Rate currency="USD">4.7519</Rate>
             ...
           </Cube>
         </Body>
@@ -122,23 +196,43 @@ def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
 
     BNR publishes "1 EUR = X RON" style (RON is the origin/quote currency).
     We invert to our normalised "X units per 1 EUR" base.
-    """
-    # BNR XML uses a default namespace; strip it for simpler XPath. It was
-    # http://www.bnr.ro/xsd until 2026 and is https:// since the feed moved.
-    cleaned = _DEFAULT_XMLNS.sub(b"", xml_bytes, count=1)
-    root = ET.fromstring(cleaned)
 
-    body = root.find("Body")
+    Raises on anything that is not the feed: a body over 64 KB, one that is
+    not UTF-8, one that declares a DOCTYPE or an ENTITY, a document with no
+    Body / dated Cube / EUR / USD, a rate outside the plausible range. The
+    clock is NOT read here — ``_require_fresh`` judges the date.
+    """
+    if len(xml_bytes) > _MAX_BODY_BYTES:
+        raise ValueError("BNR body is %d bytes (over %d) — not the feed"
+                         % (len(xml_bytes), _MAX_BODY_BYTES))
+    # Decoded here and handed to the parser as text, so the encoding the
+    # parser reads is the one the DOCTYPE/ENTITY scan read (a declared
+    # single-byte codec cannot hide a declaration from the scan).
+    text = xml_bytes.decode("utf-8-sig")
+    if _DECLARATION.search(text):
+        raise ValueError("BNR body declares a DOCTYPE or an ENTITY — not the feed")
+    root = ET.fromstring(text)
+
+    # Elements are matched by LOCAL name: the default namespace was
+    # http://www.bnr.ro/xsd until 2026, is https://www.bnr.ro/xsd since the
+    # feed moved, and the file's own schemaLocation already says curs.bnr.ro.
+    body = next((el for el in root if _local(el.tag) == "Body"), None)
     if body is None:
         raise ValueError("BNR XML missing Body")
-    cube = body.find("Cube")
-    if cube is None:
+    cubes = [el for el in body if _local(el.tag) == "Cube"]
+    if not cubes:
         raise ValueError("BNR XML missing Cube")
+    dated = [(d, c) for d, c in ((_cube_date(c), c) for c in cubes) if d]
+    if not dated:
+        raise ValueError("BNR XML carries no Cube with a date (YYYY-MM-DD)")
+    # More than one Cube (the ten-day file): the newest date is the rate.
+    as_of, cube = max(dated, key=lambda pair: pair[0])
 
-    as_of = cube.get("date") or _FALLBACK_AS_OF
     # Per-currency rates: how many RON one unit of <currency> equals.
     bnr_rates: Dict[str, float] = {}
-    for rate_el in cube.findall("Rate"):
+    for rate_el in cube:
+        if _local(rate_el.tag) != "Rate":
+            continue
         cur = rate_el.get("currency")
         if not cur:
             continue
@@ -185,47 +279,105 @@ def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
     }
 
 
+def _require_fresh(as_of: str, today: _dt.date) -> None:
+    """Raise unless ``as_of`` is a date not after ``today`` and at most
+    ``_MAX_AGE_DAYS`` before it."""
+    published = _dt.date.fromisoformat(as_of)
+    if published > today:
+        raise ValueError("BNR Cube is dated %s, after today (%s)" % (as_of, today.isoformat()))
+    age = (today - published).days
+    if age > _MAX_AGE_DAYS:
+        raise ValueError("BNR Cube is dated %s — %d days old (limit %d): the address "
+                         "answers a file that stopped updating" % (as_of, age, _MAX_AGE_DAYS))
+
+
+def _published_fresh(as_of: Any, today: _dt.date) -> bool:
+    """``_require_fresh`` as a yes or no — False for anything that is not a
+    date at most ``_MAX_AGE_DAYS`` before ``today`` and not after it."""
+    try:
+        _require_fresh(str(as_of), today)
+    except Exception:  # noqa: BLE001 — not a date is not fresh
+        return False
+    return True
+
+
+def _memo_is_current(cached: Optional[Dict[str, Any]], cached_at: float, now: float) -> bool:
+    """Is the memoised payload a CURRENT rate right now: accepted less than
+    ``_TTL_SECONDS`` ago AND published within ``_MAX_AGE_DAYS``?
+
+    The one place the memo is called current (the memo hit). Until
+    2026-10-03 the label rested on the acceptance time alone, and the
+    freshness rule was applied only on the way IN: a file accepted on its
+    tenth day was still served ``stale: False`` 23 hours later, on its
+    eleventh. Now that hit is a miss: BNR is asked again, and while the
+    address still answers the frozen file the memo is served marked stale."""
+    return (
+        cached is not None
+        and (now - cached_at) < _TTL_SECONDS
+        and _published_fresh(cached.get("as_of"), _today_ro())
+    )
+
+
+def _read_address(url: str) -> Dict[str, Any]:
+    """One address: fetch (bounded), parse. Raises on any failure."""
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "cfo-ai/1.0 (+https://cfo-ai.io)"},
+    )
+    with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
+        if resp.status != 200:
+            raise RuntimeError(f"BNR HTTP {resp.status}")
+        body = resp.read(_MAX_BODY_BYTES + 1)
+    return _parse_bnr_xml(body)
+
+
 def _fetch_bnr_rates() -> Dict[str, Any]:
     """Network-fetch + parse BNR. Raises on any failure (caller handles
-    fallback to cached or bundled)."""
+    fallback to cached or bundled).
+
+    Every address is asked in order; one that does not answer an acceptable
+    feed is a failure and the next is tried. Among those that do, the newest
+    Cube date wins (the first listed on a tie). An address that answers
+    TODAY's file ends the search — nothing newer can exist."""
+    today = _today_ro()
+    best: Optional[Dict[str, Any]] = None
     problems = []
     for url in _BNR_URLS:
         try:
-            req = urllib.request.Request(
-                url,
-                headers={"User-Agent": "cfo-ai/1.0 (+https://cfo-ai.io)"},
-            )
-            with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
-                if resp.status != 200:
-                    raise RuntimeError(f"BNR HTTP {resp.status}")
-                body = resp.read()
-            return _parse_bnr_xml(body)
+            got = _read_address(url)
+            _require_fresh(got["as_of"], today)
         except Exception as exc:  # noqa: BLE001 — the next address is the handler
             problems.append("%s: %s" % (url, exc))
-    raise RuntimeError("; ".join(problems))
+            continue
+        if best is None or got["as_of"] > best["as_of"]:
+            best = got
+        if best["as_of"] >= today.isoformat():
+            break
+    if best is None:
+        raise RuntimeError("; ".join(problems))
+    return best
 
 
 def get_fx_rates(force_refresh: bool = False) -> Dict[str, Any]:
     """Return the current FX rates payload.
 
     Cache strategy:
-      - 24h TTL on the cached BNR fetch
-      - If BNR fetch fails AND we have ANY cached payload (even stale), return cached + stale=False
-      - If no cache exists at all, return bundled fallback with stale=True
+      - 24h TTL on the accepted BNR fetch — served with stale=False while its
+        publication date is still inside the freshness rule (re-checked on
+        every memo hit: `_memo_is_current`)
+      - If the refetch fails AND an accepted payload is cached (however old),
+        return it with stale=True
+      - If nothing is cached at all, return the bundled fallback with stale=True
+      - A failure is memoised for `_FAILURE_COOLDOWN_SECONDS`
 
-    Always returns a valid payload; never raises. The `stale=True` flag
-    is the FE's signal to render a "rates from <date>" indicator.
+    Always returns a valid payload; never raises. `stale=True` means "this is
+    not a current BNR rate" — every reader must carry it through.
     """
-    import time
-    now = time.time()
+    now = _now()
     with _CACHE_LOCK:
         cached = _CACHE.get("payload")
         cached_at = _CACHE.get("fetched_at") or 0
-        if (
-            not force_refresh
-            and cached is not None
-            and (now - cached_at) < _TTL_SECONDS
-        ):
+        if not force_refresh and _memo_is_current(cached, cached_at, now):
             return {**cached, "fetched_at": _iso_from_epoch(cached_at), "stale": False}
 
     # Either cache miss or TTL elapsed; try BNR — unless a recent attempt
@@ -249,7 +401,10 @@ def get_fx_rates(force_refresh: bool = False) -> Dict[str, Any]:
             logger.warning("[fx_rates] BNR fetch failed (%s); falling back "
                            "and not retrying for %ss", e, _FAILURE_COOLDOWN_SECONDS)
 
-    # BNR failed. Return last-known cache if we have one (marked stale).
+    # BNR failed (or was not asked: the cooldown). Return last-known cache if
+    # we have one — ALWAYS marked stale here: this branch is reached only
+    # when the memo is not a current rate, or when a forced refresh did not
+    # get an answer (scripts/check_fx_live.py reads that as "not on this call").
     with _CACHE_LOCK:
         cached = _CACHE.get("payload")
         cached_at = _CACHE.get("fetched_at") or 0

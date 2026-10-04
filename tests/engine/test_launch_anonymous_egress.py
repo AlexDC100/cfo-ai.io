@@ -36,6 +36,16 @@ nothing at all across the whole sweep, the harness is broken and the
 green means nothing, so a positive control asserts a known-costly route
 still measures its cost.
 
+THE QUERY STRING WAS THE BLIND SPOT (2026-10-03). The sweep above calls
+every route with NO query string, so it classified ``GET /api/fx-rates`` as
+CACHED while ``GET /api/fx-rates?refresh=true`` skipped both of the route's
+memos for anyone: five anonymous hits were five BNR fetches, ten with the
+feed down (measured on the real app). So every anonymous GET that DECLARES
+a query parameter asking for a cold read (refresh / force / reload / bust /
+nocache) is driven a second way — with that parameter set true, twice — and
+must not be OPEN that way either. The plant: honour ``refresh`` for anyone
+on ``/api/fx-rates`` again; the route lands in OPEN naming the BNR hosts.
+
 Hermetic: the test-manifest Supabase URL, boot verification skipped, a
 throwaway ``PUBLIC_RO_DB_PATH``, and a socket tripwire that refuses (and
 records) anything that escaped the three transports. Nothing here points
@@ -49,6 +59,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import re
 import sys
 
 import pytest
@@ -281,3 +292,59 @@ def test_the_ro_storefront_reaches_no_provider(census):
             offenders.append("%s %s -> %s" % (r["method"], p, third_party))
     assert offenders == [], (
         "the RO storefront reached a third-party host:\n  " + "\n  ".join(offenders))
+
+
+# ── the same sweep, with the parameter that asks for a cold read ────────
+
+#: A query parameter with one of these in its name asks the route to skip a
+#: cache. The sweep above never sends one.
+FORCING_PARAM = re.compile(r"refresh|force|reload|bust|nocache", re.IGNORECASE)
+
+
+def _forcing_routes(app):
+    """(path, parameter) for every GET in the sweep that declares one."""
+    swept = set(p for m, p in _anonymous_routes(app) if m == "GET")
+    rows = []
+    for r in app.routes:
+        path = getattr(r, "path", None)
+        if path not in swept or "GET" not in (getattr(r, "methods", None) or set()):
+            continue
+        dependant = getattr(r, "dependant", None)
+        for q in (getattr(dependant, "query_params", None) or []):
+            name = getattr(q, "alias", None) or getattr(q, "name", "")
+            if FORCING_PARAM.search(name or ""):
+                rows.append((path, name))
+    return sorted(set(rows))
+
+
+def test_no_anonymous_route_becomes_a_tap_when_asked_to_refresh(prod_app, rec):
+    """An anonymous caller appending ``?refresh=true`` must not be able to
+    loop the route into repeated upstream work either."""
+    routes = _forcing_routes(prod_app)
+    assert ("/api/fx-rates", "refresh") in routes, (
+        "the discovery of cache-skipping query parameters found %r — it must "
+        "at least find the one this law was written for" % (routes,))
+    from engine.api import _health, fx_rates
+
+    client = TestClient(prod_app, raise_server_exceptions=False)
+    open_rows = []
+    for path, param in routes:
+        fx_rates.reset_fx_cache()
+        _health.reset_health_cache()
+        url = "%s?%s=true" % (_concrete(path), param)
+        rec.reset()
+        r1 = client.get(url)
+        hosts1 = rec.hosts()
+        rec.reset()
+        r2 = client.get(url)
+        hosts2 = rec.hosts()
+        bucket = _classify(r1.status_code, hosts1, r2.status_code, hosts2)
+        print("[anonymous-egress] forced: GET %s -> %s then %s, hosts %s then %s: %s"
+              % (url, r1.status_code, r2.status_code, hosts1, hosts2, bucket))
+        if bucket == "OPEN":
+            open_rows.append("GET %s -> %s then %s, hosts %s then %s"
+                             % (url, r1.status_code, r2.status_code, hosts1, hosts2))
+    fx_rates.reset_fx_cache()
+    assert open_rows == [], (
+        "ANONYMOUS ROUTES THAT REACH A HOST ON EVERY CALL WHEN ASKED TO "
+        "REFRESH — the parameter must be the operator's:\n  " + "\n  ".join(open_rows))
