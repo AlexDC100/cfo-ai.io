@@ -2561,7 +2561,7 @@ def _engine_gates() -> List[Gate]:
         #                    that never answers. VACUOUS — never green —
         #                    without the stack or Deno; refuses (exit 2, a
         #                    FAIL here) a non-loopback API and an API that is
-        #                    not that stack's gateway. Measured 99.
+        #                    not that stack's gateway. Measured 100.
         # Plant log: docs/engine_book/gates.md "chat-cap-always",
         # "chat-cap-real".
         Gate("chat-cap-always",
@@ -2605,7 +2605,7 @@ def _engine_gates() -> List[Gate]:
                        "it says whether a browser's roles can write the plan row or the counters",
                        "after a metering refusal the next request carries the reader's two questions and NOT the refusal")),
         Gate("chat-cap-real", [PY, "scripts/check_chat_cap_real.py"],
-             work_rx=r"GATE-WORK chat-cap-real units=(\d+)", floor=94,
+             work_rx=r"GATE-WORK chat-cap-real units=(\d+)", floor=95,
              units="cases on the local stack", vacuous_ok=True,
              canaries=("CHAT-CAP-REAL GATE",)),
     ]

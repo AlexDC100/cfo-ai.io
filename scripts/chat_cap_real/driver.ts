@@ -207,7 +207,7 @@ const RECORDER_URL = `http://127.0.0.1:${(recorder.addr as Deno.NetAddr).port}`;
 // guard.ts sets ONE timer of MODEL_TIMEOUT_MS per model request. Every timer
 // this process is asked for with exactly that delay is counted; while
 // `compressDeadlineTo` is set (case 14 only) it runs that fast instead.
-const MODEL_TIMEOUT_MS: number = (await import(`file://${FUNCTION_FILE.replace(/index\.ts$/, "guard.ts")}`)).MODEL_TIMEOUT_MS;
+const { MODEL_TIMEOUT_MS, METERING_TIMEOUT_MS } = (await import(`file://${FUNCTION_FILE.replace(/index\.ts$/, "guard.ts")}`)) as { MODEL_TIMEOUT_MS: number; METERING_TIMEOUT_MS: number };
 const realSetTimeout = globalThis.setTimeout.bind(globalThis);
 let deadlineTimersAsked = 0;
 let compressDeadlineTo: number | null = null;
@@ -745,6 +745,11 @@ try {
   // nothing releases: the slot stays counted for the day and the month.
   // (The deadline is MODEL_TIMEOUT_MS; its timer is compressed to 1.5 s for
   // these two calls — see the header.)
+  // The platform's number is written HERE, not read from the function: a
+  // request that has not been answered in 150 s is cut off (Supabase Edge
+  // Functions: request idle timeout; the free plan's wall clock is the same).
+  check("14.0 the function's own deadlines fit under the platform's 150 s: the auth check, the plan read, the reservation and the release at 8 s each, the model request at 100 s — 132 s",
+    [METERING_TIMEOUT_MS, MODEL_TIMEOUT_MS, 4 * METERING_TIMEOUT_MS + MODEL_TIMEOUT_MS < 150_000 - 10_000], [8000, 100_000, true]);
   for (const [mode, what] of [["hang", "never answers"], ["hang-body", "sends the first bytes of an answer and then nothing"]] as const) {
     const u = await newUser(mode);
     await setTier(u, "trial");
