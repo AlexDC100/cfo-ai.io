@@ -35,7 +35,7 @@ import { RadarStrip } from "@/components/cfo/RadarStrip";
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
-import { formatDateTime } from "@/lib/locale";
+import { activeLocale, formatDateTime, useActiveLocale } from "@/lib/locale";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { Money } from "@/components/ui/Money";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -3784,7 +3784,7 @@ function KpiTile({
 
 // ─── Phase F: State B compact header + Replace ▾ dropdown ─────────────────
 
-function CompactPeriodHeader({
+export function CompactPeriodHeader({
   statements,
   invoices,
   activeSampleId,
@@ -3827,9 +3827,12 @@ function CompactPeriodHeader({
   // A date-shaped label OUTSIDE the sane window (a corrupt period like
   // 2115-03-31) still formats via the loose path — a raw ISO string in the
   // page title reads as a glitch (operator-reported).
+  // In the reader's language: this header said "Dec 2024" in a Romanian
+  // interface, beside a breadcrumb saying "dec. 2024".
+  const locale = useActiveLocale();
   const periodLabel =
-    formatPeriodMonth(rawPeriodLabel)
-    ?? formatPeriodMonthLoose(rawPeriodLabel)
+    formatPeriodMonth(rawPeriodLabel, locale)
+    ?? formatPeriodMonthLoose(rawPeriodLabel, locale)
     ?? rawPeriodLabel;
 
   // The Replace dropdown also offers "Add ... on top" for samples that
@@ -4100,7 +4103,7 @@ function DashboardDevTools() {
           () => false,
         );
         if (ok) deleted += 1;
-        else failed.push(formatPeriodMonth(p.period_end) ?? p.period_label);
+        else failed.push(formatPeriodMonth(p.period_end, activeLocale()) ?? p.period_label);
       }
       // Repaint from scratch — every period-scoped cache entry is now stale.
       queryClient.removeQueries({ queryKey: ["period"] });

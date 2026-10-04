@@ -20640,3 +20640,118 @@ today — counted on every run and held at zero, so the first one is seen);
 strings added with `addResourceBundle` at run time rather than at module
 load. The store law imports the dashboard page among the 29 modules: about
 15 s alone, more inside the full suite (its timeout is 180 s).
+
+## period-month-locale
+
+**The defect (review of the no-prior hotfix, 2026-10-04).** In a Romanian
+interface the dashboard's own header read "Dec 2024" while the breadcrumb
+beside it read "dec. 2024". The month formatters (`lib/orgPeriods`
+`formatPeriodMonth`, `formatPeriodMonthLoose`) took the locale as an
+OPTIONAL argument defaulting to `"en-GB"`. Nothing failed where a caller
+forgot it: an English month is a perfectly good string.
+
+**Measured before anything was changed** (the TypeScript AST of every
+non-test file): 36 calls in 13 files; **eight** passed no locale — the
+dashboard's header (two), the stepper's `selectedMonth` and the label it
+hands the period-switch overlay ("Loading Dec 2024…"), the Products page's
+two month labels, the workspace cards' month chips, the "could not delete"
+list of the dashboard's danger zone. One helper took the locale as an
+optional pass-through (`scopeMonth(scope, locale?)`, the command bar's
+header month). A third printer, `lib/detectPeriodEnd` `formatDetectedMonth`
+(the upload dialog's "March 2025"), had `"en-GB"` written into it.
+
+**The repair is the signature.** `locale` is REQUIRED on both formatters —
+a default is how the argument gets forgotten, and TypeScript now refuses a
+call without it; the eight call sites pass the active one (`useActiveLocale`
+in a component, `activeLocale` in the danger zone's handler); `scopeMonth`'s
+is required; `formatDetectedMonth` reads `activeLocale()` itself.
+
+**Found by the rendered check on its first run, fixed in the same change.**
+The formatters read whatever `new Date()` would — and V8 reads the LABEL
+"FY 2025" as 1 January 2025 in the viewer's timezone, "Decembrie 2025" as
+1 December. The dashboard's header passes `statements.periodLabel` (a served
+date for most books, a label where the reader produced one — the extraction
+schema's own examples are "FY 2025" and "Decembrie 2025") through them, so
+east of Greenwich the header printed **"Dec 2024" for "FY 2025"** and "Nov
+2025" for "Decembrie 2025". The header's own comment said such labels "are
+left as-is". The formatters now read the dates the engine serves
+(`YYYY-MM-DD`, with or without a time) and nothing else; a label stays as
+written.
+
+**The law.**
+
+1. *Source:* neither formatter declares its `locale` optional or with a
+   default.
+2. *Source:* every call of either passes a locale that comes from the UI
+   language — a call to `lib/locale` (`useActiveLocale()`, `activeLocale()`,
+   `localeFor(…)`), or a name every declaration of which, in that file, is
+   one of those calls or a REQUIRED parameter. Never a string literal, never
+   an optional pass-through.
+3. *Source:* a function that takes the locale as a parameter and hands it to
+   a formatter is held to rule 2 at every call of it — in its own file, and
+   wherever it is imported (to a fixed point).
+4. *Source:* `formatDetectedMonth` formats with `activeLocale()`.
+5. *Rendered, RO and EN:* the three printers; the dashboard's header
+   (`CompactPeriodHeader`: the breadcrumb's own string in Romanian, the
+   English one in English, and across a language switch while mounted); the
+   stepper's month and the label it hands the period-switch overlay; a label
+   that is not a served date is never read as one.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/periodMonthLocale.test.tsx --reporter=verbose` |
+| work count | `GATE-WORK period-month-locale calls=(\d+)`, floor **30** (measured 36 calls in 13 files; helpers `monthLabel`, `scopeMonth`, 4 calls of them) |
+| canary | the `GATE-WORK period-month-locale` line and the titles named in `scripts/run_battery.py` |
+
+### period-month-locale — PLANT / RED / REVERT (2026-10-04, branch `fix/compare-followups`)
+
+Runner: `specs-durable/compare_followups/plants.py <worktree> f5`; record
+`plants_f5.json` beside it.
+
+**BASELINE** — exit `0`: `11 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the dashboard's header formats its month without a locale | `3 failed, 8 passed` |
+| P2 the default returns to `formatPeriodMonth` | `1 failed, 10 passed` |
+| P3 `formatPeriodMonthLoose`'s locale becomes optional | `1 failed, 10 passed` |
+| P4 the stepper hands the period-switch overlay a month with no locale | `2 failed, 9 passed` |
+| P5 the stepper's `selectedMonth` is formatted with a written locale | `2 failed, 9 passed` |
+| P6 the Products page's month label loses its locale | `1 failed, 10 passed` |
+| P7 the workspace cards' month chips lose their locale | `1 failed, 10 passed` |
+| P8 the danger zone's "could not delete" list loses its locale | `1 failed, 10 passed` |
+| P9 a component fixes its locale as a constant (the breadcrumb) | `1 failed, 10 passed` |
+| P10 the command bar's month helper takes its locale as optional again | `1 failed, 10 passed` |
+| P11 the command bar calls its month helper without a locale | `1 failed, 10 passed` |
+| P12 a file-local helper that passes the locale on is called with a written one | `1 failed, 10 passed` |
+| P13 the upload dialog's month is written in English again | `2 failed, 9 passed` |
+| P14 THE SECOND DEFECT — `formatPeriodMonth` reads a label as a date again | `1 failed, 10 passed` |
+| P15 `formatPeriodMonthLoose` reads a label as a date again | `1 failed, 10 passed` |
+
+**RED** — every plant exits `1`. **REVERT** — every file restored
+byte-exact; exit `0`: `11 passed`. Verdict: proven RED, fifteen of fifteen.
+
+**After the repair it reds on:** a new call without a locale, or with a
+written one; a default or a `?` returning to either formatter, or to a
+helper that passes the locale on; a helper called with a locale that is not
+the UI language's; `formatDetectedMonth` going back to a written locale; the
+dashboard's header or the stepper printing an English month in Romanian (or
+a Romanian one in English); a header that does not follow a language switch
+while mounted; either formatter reading a label ("FY 2024", "Decembrie
+2024", a bare year, "31.12.2024") as a date.
+
+**CANNOT SEE:** a month printed by anything OTHER than these three functions
+— a date formatted in place with a written locale
+(`toLocaleDateString("en-GB", …)`: the Products page's upload dates, the
+extra-document dialog's reset date, the industry audit trail's timestamps)
+or with the browser's (`toLocaleDateString(undefined, …)`: the stock chart's
+axis, the renewal date in Settings); a month name written into a
+translation; a label the ENGINE serves; a locale handed down as a component
+PROP (a destructured parameter is "the caller's to state", and JSX callers
+are not traced); a call through a re-export or a renamed import; the report
+and the exports, which are English by contract; `formatPeriodYear` and
+`isImplausiblePeriod`, which still read whatever `new Date()` would (they
+are handed period ends only); whether "dec. 2024" is what a Romanian reader
+expects (it is ICU's `ro-RO` form, and the breadcrumb's); the Products
+page's labels and the workspace chips RENDERED (they are held by the source
+law alone).

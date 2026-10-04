@@ -52,6 +52,7 @@ import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActiveOrg } from "@/lib/org";
 import { fetchWorkspacePeriodsDirect, formatPeriodMonth } from "@/lib/orgPeriods";
+import { useActiveLocale } from "@/lib/locale";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { useAuth } from "@/lib/auth";
 import { readSkuVerdict, writeSkuVerdict } from "@/lib/dataPresence";
@@ -325,6 +326,7 @@ export default function Products() {
         (ratesPayload.rates[sourceCurrency] ?? 1);
 
   const { t } = useTranslation();
+  const locale = useActiveLocale();
   const [params, setParams] = useSearchParams();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -887,7 +889,7 @@ export default function Products() {
         <EmptyState
           onUploaded={refresh}
           datasets={datasetsPayload?.datasets ?? []}
-          monthLabel={period.id ? formatPeriodMonth(period.periodEnd) : null}
+          monthLabel={period.id ? formatPeriodMonth(period.periodEnd, locale) : null}
           uploadPeriodId={uploadPeriodId}
         />
       </>
@@ -935,7 +937,7 @@ export default function Products() {
           datasets={datasetsPayload?.datasets ?? []}
           activeDatasetId={activeDatasetId}
           activePeriodId={period.id ?? null}
-          activeMonthLabel={period.id ? formatPeriodMonth(period.periodEnd) : null}
+          activeMonthLabel={period.id ? formatPeriodMonth(period.periodEnd, locale) : null}
           onUpload={(f) => void handlePageUploadFile(f)}
         />
 

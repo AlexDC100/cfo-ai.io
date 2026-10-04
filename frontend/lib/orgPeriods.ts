@@ -271,15 +271,31 @@ function saneYear(d: Date): boolean {
   return y >= 2000 && y <= 2035;
 }
 
+/** The dates the engine serves: `YYYY-MM-DD`, with or without a time.
+ *  The month formatters read nothing else. `new Date()` is far more
+ *  willing: V8 reads the LABEL "FY 2025" as 1 January 2025 in the viewer's
+ *  timezone and "Decembrie 2025" as 1 December — which, pinned to UTC, the
+ *  dashboard's header then printed as "Dec 2024" and "Nov 2025" for a
+ *  viewer east of Greenwich. A label is not a date: the caller keeps it as
+ *  written. */
+const SERVED_DATE = /^\d{4}-\d{2}-\d{2}(?:$|[T ])/;
+
 /** "Mar 2026" from a period_end date string; null when unparseable or
  *  implausible. UTC-pinned: period_end is a date-only string, so
  *  local-time parsing shifted it a day back (and sometimes a month)
- *  west of Greenwich. */
+ *  west of Greenwich.
+ *
+ *  `locale` is REQUIRED — the reader's (lib/locale `useActiveLocale` in a
+ *  component, `activeLocale` in a plain module). It used to default to
+ *  "en-GB", and every caller that forgot it printed an English month in a
+ *  Romanian interface: the dashboard's header said "Dec 2024" beside a
+ *  breadcrumb saying "dec. 2024". A default is how the argument gets
+ *  forgotten (gate period-month-locale). */
 export function formatPeriodMonth(
   periodEnd: string | null | undefined,
-  locale: string = "en-GB",
+  locale: string,
 ): string | null {
-  if (!periodEnd) return null;
+  if (!periodEnd || !SERVED_DATE.test(periodEnd)) return null;
   const d = new Date(periodEnd);
   if (Number.isNaN(d.getTime()) || !saneYear(d)) return null;
   return d.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" });
@@ -299,12 +315,13 @@ export function formatPeriodYear(periodEnd: string | null | undefined): string |
  *  included. For LIST surfaces (Workspace months, Docs panel, delete
  *  dialogs) where a corrupt row must still be readable so the user can
  *  find and delete it: "Dec 2050" beats a raw "2050-12-31". Ambient
- *  labels (sidebar year, header) keep the strict formatter above. */
+ *  labels (sidebar year, header) keep the strict formatter above. The
+ *  locale is required, as above. */
 export function formatPeriodMonthLoose(
   periodEnd: string | null | undefined,
-  locale: string = "en-GB",
+  locale: string,
 ): string | null {
-  if (!periodEnd) return null;
+  if (!periodEnd || !SERVED_DATE.test(periodEnd)) return null;
   const d = new Date(periodEnd);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" });

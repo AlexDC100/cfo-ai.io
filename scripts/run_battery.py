@@ -2238,6 +2238,37 @@ def _engine_gates() -> List[Gate]:
                        "the two bundle files: every key in both, every plural form its language needs",
                        "the store i18next reads, once every module that registers strings in code has loaded",
                        "the stale checker is gone")),
+        #   period-month-locale  every month label in the reader's language
+        #                    (the dashboard's header said "Dec 2024" in a
+        #                    Romanian interface, beside a breadcrumb saying
+        #                    "dec. 2024"): the two month formatters REQUIRE a
+        #                    locale (no default, not optional); every call —
+        #                    and every call of a helper that passes a locale
+        #                    on — hands them one that comes from the UI
+        #                    language (lib/locale), never a written one;
+        #                    formatDetectedMonth reads the active locale; the
+        #                    formatters read served dates only (a label such
+        #                    as "FY 2024" is not a date). Rendered in RO and
+        #                    EN: the dashboard header (and across a live
+        #                    language switch), the stepper's month and the
+        #                    period-switch overlay's label. Plant log:
+        #                    docs/engine_book/gates.md.
+        Gate("period-month-locale",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/periodMonthLocale.test.tsx",
+              "--reporter=verbose"],
+             # measured 36 calls in 13 files, 4 helper calls (2026-10-04)
+             work_rx=r"GATE-WORK period-month-locale calls=(\d+)", floor=30,
+             units="month-formatter calls held to the UI language",
+             canaries=("GATE-WORK period-month-locale calls=",
+                       "neither formatter declares its locale optional, or with a default",
+                       "the rule sees each way a locale goes missing",
+                       "every call of the month formatters, and of each helper that passes a locale on",
+                       "the upload dialog's month (formatDetectedMonth) is formatted with the active locale",
+                       "ro: the dashboard's header prints the period's month in Romanian",
+                       "en: the same header prints the English month",
+                       "a label that is not a served date is never read as one",
+                       "ro: the stepper's month, and the label it hands the period-switch overlay, are Romanian")),
         # ── end of lane compare-followups ───────────────────────────────
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the

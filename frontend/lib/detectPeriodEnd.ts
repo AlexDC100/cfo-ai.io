@@ -11,6 +11,8 @@
 // Both return an ISO date (YYYY-MM-DD) or null when nothing is recognizable —
 // the caller then asks the user to pick.
 
+import { activeLocale } from "@/lib/locale";
+
 const MONTHS_RO: Record<string, number> = {
   ian: 1, feb: 2, mar: 3, apr: 4, mai: 5, iun: 6,
   iul: 7, aug: 8, sep: 9, oct: 10, noi: 11, dec: 12,
@@ -187,10 +189,11 @@ export async function detectPeriodEndFromFile(file: File): Promise<string | null
   return fromContent ?? detectPeriodEndFromFilename(file.name);
 }
 
-/** "March 2025" from an ISO date; "" when unparseable. */
+/** "March 2025" from an ISO date, in the reader's language ("martie 2025");
+ *  "" when unparseable. It printed English whatever the interface said. */
 export function formatDetectedMonth(isoDate: string | null): string {
   if (!isoDate) return "";
   const d = new Date(`${isoDate}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString(activeLocale(), { month: "long", year: "numeric", timeZone: "UTC" });
 }
