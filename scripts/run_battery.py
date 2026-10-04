@@ -2528,8 +2528,10 @@ def _engine_gates() -> List[Gate]:
         #                    carries, kept byte for byte and executed); the
         #                    coordinator's preflight report held to the SQL
         #                    and to the names index.ts calls; the app's
-        #                    sentences from the refusal CODES in EN and RO;
-        #                    one refresh + one retry on a 401. Measured 169.
+        #                    sentences from the refusal CODES in EN and RO,
+        #                    and no labelled link in a bubble that a browser
+        #                    would take to another site; one refresh + one
+        #                    retry on a 401. Measured 170.
         #   chat-cap-real    the DEPLOYED FILE (index.ts) under Deno on a
         #                    loopback port against the local stack's real
         #                    auth server, plan row and reserve / commit /
@@ -2575,7 +2577,8 @@ def _engine_gates() -> List[Gate]:
                        "the LAN dev allowance the deployed function carries is kept, byte for byte — a private-range host on :5173 and nothing else",
                        "its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's",
                        "401, then a fresh session: ONE refresh, ONE retry with the NEW token — and the answer",
-                       "a refused turn reads as the app's own sentence, from the code — ro > sign_in")),
+                       "a refused turn reads as the app's own sentence, from the code — ro > sign_in",
+                       "no labelled link leaves the site")),
         Gate("chat-cap-real", [PY, "scripts/check_chat_cap_real.py"],
              work_rx=r"GATE-WORK chat-cap-real units=(\d+)", floor=72,
              units="cases on the local stack", vacuous_ok=True,

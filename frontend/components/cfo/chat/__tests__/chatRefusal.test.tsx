@@ -242,6 +242,37 @@ describe("the bubble's labelled link is for pages of THIS app only", () => {
     }
   });
 
+  // A browser reads a backslash in an http(s) URL as a slash: `/\\host/path`
+  // IS `//host/path` — another site. The label would hide it. So the test is
+  // not what the path looks like but where a browser takes it: every link
+  // whose text is not its own address must resolve to THIS origin.
+  it("…and that holds for a path a browser reads as another host: '/\\host' is '//host' — no labelled link leaves the site", () => {
+    const APP = "https://cfo-ai.io";
+    expect(new URL("/\\evil.example/login", APP).origin).toBe("https://evil.example"); // CONTROL: the parser really does that
+    for (const md of [
+      "[Sign in](/\\evil.example/login)",
+      "[Sign in](/\\/evil.example)",
+      "[Sign in](/\\\\evil.example)",
+      "[Sign in](//evil.example/login)",
+      "[Sign in](/pricing\\..\\..\\evil)",
+      "[See plans](/pricing)",
+      "[the dashboard](/dashboard?tab=pl&x=1#top)",
+    ]) {
+      const { container, unmount } = bubble(`Read this: ${md}`);
+      for (const a of container.querySelectorAll("a")) {
+        const href = a.getAttribute("href") ?? "";
+        if (a.textContent === href) continue; // an address shown as itself hides nothing
+        expect(new URL(href, APP).origin, `${md} → ${href}`).toBe(APP);
+        expect(href, md).toMatch(/^\/(?!\/)[A-Za-z0-9\-._~/?=&%#]*$/);
+      }
+      unmount();
+    }
+    // …and the two honest ones above ARE links with their labels.
+    const ok = bubble("[See plans](/pricing) and [the dashboard](/dashboard?tab=pl&x=1#top)");
+    expect([...ok.container.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["See plans", "the dashboard"]);
+    ok.unmount();
+  });
+
   it("a labelled same-site path is a link with its label", () => {
     const { container, unmount } = bubble("Open [the dashboard](/dashboard?tab=pl) now.");
     expect([...container.querySelectorAll("a")].map((a) => [a.getAttribute("href"), a.textContent])).toEqual([["/dashboard?tab=pl", "the dashboard"]]);

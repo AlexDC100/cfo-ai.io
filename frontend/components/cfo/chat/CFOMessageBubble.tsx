@@ -270,10 +270,12 @@ function renderInline(text: string): React.ReactNode {
   // of THIS app — `[See plans →](/pricing)`, which the app's own messages
   // (the plan cap, "sign in again") carry and which used to print as raw
   // brackets. Only a same-site path gets a label: a labelled link to
-  // another host is left as text with its URL in view. Order matters —
+  // another host is left as text with its URL in view. The path is a
+  // closed set of characters — no backslash: a browser reads `/\host` as
+  // `//host`, another site behind an innocent label. Order matters —
   // codespans win over bold so we don't accidentally bold ``...``.
   const tokens: Array<{ kind: "text" | "bold" | "code" | "link" | "applink"; v: string; label?: string }> = [];
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|\[([^\]\n]+)\]\((\/(?!\/)[^\s)]*)\)|(https?:\/\/[^\s)]+)/g;
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|\[([^\]\n]+)\]\((\/(?!\/)[A-Za-z0-9\-._~/?=&%#]*)\)|(https?:\/\/[^\s)]+)/g;
   let i = 0; let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     if (m.index > i) tokens.push({ kind: "text", v: text.slice(i, m.index) });
