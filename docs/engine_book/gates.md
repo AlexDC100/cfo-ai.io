@@ -20530,3 +20530,113 @@ source (the law is a match over `LearningPopover.tsx`: a harmless rename of
 `activePeriod` reds it); the rendered popover in a browser (the row's
 fallback list shows only when a concept has no account with activity in the
 period — it is checked live after the deploy, not by this gate).
+
+## i18n-parity
+
+**The defect (review of the no-prior hotfix, 2026-10-04).** The product
+ships in English and Romanian, and nothing held the two to the same keys.
+`scripts/check-i18n-coverage.ts` was written for exactly that and never ran:
+it imported `../src/i18n/locales/{en,ro,fr}.json` — the bundles live in
+`frontend/i18n/locales/`, and French left on 2026-07-24 — so it could not
+start, and no gate, hook or CI job named it. Each gate that needed a
+sentence in both languages checked its own handful of keys; the bundles as a
+whole were nobody's. A key in one language only prints the OTHER language's
+sentence (i18next falls back to English) or the raw key.
+
+**Measured before anything was changed.** The two bundle files: 3,174
+English keys, 3,202 Romanian — **no gap**. The 28 Romanian extras are all
+`_few` plural forms, which English does not have; 5 placeholder differences
+are Romanian singulars spelling the count out ("acum o zi"). The strings
+registered IN CODE (`i18n.addResourceBundle`, 29 modules, 1,038 keys — the
+capsule, the command bar, the account view, the dashboard's own table…),
+which the stale script never read: **one gap** —
+`capsuleAnswer.citation.period` had `_one` / `_other` in Romanian and no
+`_few`. Added ("Perioade"). Nothing was baselined; there is no burn-down
+file.
+
+**The stale script is deleted,** not repaired: its four checks (a key
+missing either way, an empty value, a placeholder mismatch) are this gate's
+laws, it knew nothing of plural forms (it would have called every Romanian
+`_few` an orphan) or of the strings registered in code, and a second
+checker beside the gate is a second answer.
+
+**The law,** over two sets of strings — the two bundle files, and the store
+i18next actually reads once every module that registers strings in code has
+loaded (found by walking the source; each is imported):
+
+1. **Keys.** Every key of one language exists in the other. The exception is
+   i18next's own plural rule, READ from its resolver
+   (`pluralResolver.getSuffixes`, i.e. `Intl.PluralRules`): a plural key
+   carries one form per category of its language — English `_one` /
+   `_other`, Romanian `_one` / `_few` / `_other` — and `_zero`, i18next's
+   extra form for a count of 0, in both languages or in neither. A missing
+   form is a gap, not a nicety: i18next falls back to the other LANGUAGE,
+   never to another form of the same one, so Romanian without `_few` prints
+   the English sentence for 0 and 2–19 (the first test proves it on a fresh
+   instance). A key that merely ends in `_other` ("equity_other") is an
+   ordinary key: a plural family is a base with both `_one` and `_other`.
+2. **Placeholders.** The `{{placeholders}}` of a key are the same in both
+   languages (a Romanian `_few` is held to the family's `_other`). A
+   singular form (`_one`, `_zero`) may omit `{{count}}`; nothing else may
+   differ.
+3. **Not empty.** Every value is a non-empty string.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/i18n/__tests__/localeParity.test.ts --reporter=verbose` |
+| work count | `GATE-WORK i18n-parity store modules=… en_keys=(\d+)`, floor **3,800** (measured 4,212 English keys / 4,248 Romanian in the store; 28 plural families in the files, 132 identical values printed, not judged) |
+| canary | the two `GATE-WORK i18n-parity` lines and the titles named in `scripts/run_battery.py` |
+
+### i18n-parity — PLANT / RED / REVERT (2026-10-04, branch `fix/compare-followups`)
+
+Runner: `specs-durable/compare_followups/plants.py <worktree> f4`; record
+`plants_f4.json` beside it.
+
+**BASELINE** — exit `0`: `5 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE CLASS — a sentence exists in English only (the Romanian key removed from `ro.json`) | `2 failed, 3 passed` |
+| P2 a sentence exists in Romanian only | `2 failed, 3 passed` |
+| P3 a Romanian plural loses its `_few` form | `3 failed, 2 passed` |
+| P4 English is given a `_few` form — a category English does not have | `2 failed, 3 passed` |
+| P5 a `_zero` form is written in English only | `2 failed, 3 passed` |
+| P6 a placeholder is renamed in Romanian | `2 failed, 3 passed` |
+| P7 a Romanian plural (not a singular) drops `{{count}}` | `2 failed, 3 passed` |
+| P8 a Romanian value is empty | `2 failed, 3 passed` |
+| P9 a value is not a string | `2 failed, 3 passed` |
+| P10 THE GAP FOUND — the capsule's in-code table loses the Romanian `_few` again | `1 failed, 4 passed` |
+| P11 a module registers its strings for English only | `1 failed, 4 passed` |
+| P12 an in-code table renames a placeholder in Romanian | `1 failed, 4 passed` |
+| P13 the stale checker is back beside the law | `1 failed, 4 passed` |
+
+**RED** — every plant exits `1` (P10–P12 red the store law alone: the bundle
+files are untouched). **REVERT** — every file restored byte-exact; exit `0`:
+`5 passed`. Verdict: proven RED, thirteen of thirteen.
+
+**After the repair it reds on:** a key added to one language and not the
+other, either way, in a bundle file or in a table registered in code; a
+plural form missing for a language's category, a form of a category the
+language does not have, a `_zero` in one language only; a placeholder
+renamed, dropped or added in one language (a plural's `{{count}}` included);
+an empty or non-string value; a module registering strings for one language
+only; a source file that starts calling `addResourceBundle` and cannot be
+imported by the test; i18next's plural categories for English or Romanian
+changing under an upgrade; `scripts/check-i18n-coverage.ts` returning.
+
+**CANNOT SEE:** whether a translation is RIGHT, or is a translation at all —
+an English sentence pasted into `ro.json` passes (132 values are identical
+in both files today: "EBITDA {{year}}", "CAEN {{caen}}", product names; the
+count is printed on every run, not judged); a key the source USES that
+neither language has (a raw key on screen — the i18n sweep,
+`e2e/i18n-mobile-sweep.spec.ts`, is the only reader of that); a string that
+is in no bundle — a hard-coded English label in a component, the landing
+page's own table (`pages/cfo/landingStrings.ts`, held to one shape by its
+TypeScript type), the sentences the ENGINE serves in both languages (packs;
+`ui-language-figures` holds the ones it names); a plural key addressed by
+its full name (`t("…period_other")`) being used with the wrong count; markup
+inside a value beyond its placeholders; a `$t(…)` nesting reference (none
+today — counted on every run and held at zero, so the first one is seen);
+strings added with `addResourceBundle` at run time rather than at module
+load. The store law imports the dashboard page among the 29 modules: about
+15 s alone, more inside the full suite (its timeout is 180 s).

@@ -2211,6 +2211,33 @@ def _engine_gates() -> List[Gate]:
                        "every code of the static map: a routed path, the period and company on screen",
                        "a click stays in the app: the location becomes the account view",
                        "the popover hands the row the period on screen and its own close")),
+        #   i18n-parity      English and Romanian carry the same strings:
+        #                    every key in both languages, every plural key
+        #                    with exactly the forms i18next looks up for its
+        #                    language (Romanian one / few / other — read from
+        #                    i18next's resolver), the same {{placeholders}}
+        #                    (a singular may spell the count out), nothing
+        #                    empty — over the two bundle files AND over the
+        #                    store i18next reads once every module that
+        #                    registers strings in code has loaded. Replaces
+        #                    scripts/check-i18n-coverage.ts, which imported
+        #                    paths that do not exist and was run by nothing.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("i18n-parity",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/i18n/__tests__/localeParity.test.ts",
+              "--reporter=verbose"],
+             # measured 4,212 English keys in the store (3,174 in en.json,
+             # 1,038 registered in code by 29 modules), 2026-10-04
+             work_rx=r"GATE-WORK i18n-parity store modules=\d+ en_keys=(\d+)", floor=3800,
+             units="English keys held to Romanian",
+             canaries=("GATE-WORK i18n-parity bundles en_keys=",
+                       "GATE-WORK i18n-parity store modules=",
+                       "i18next's plural categories are the ones the law is written for",
+                       "the laws see each kind of gap",
+                       "the two bundle files: every key in both, every plural form its language needs",
+                       "the store i18next reads, once every module that registers strings in code has loaded",
+                       "the stale checker is gone")),
         # ── end of lane compare-followups ───────────────────────────────
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
