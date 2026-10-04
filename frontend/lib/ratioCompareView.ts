@@ -36,6 +36,17 @@
 // the badge state the one sector decision and a withheld movement prints
 // its served `sector_unconfirmed` reason.
 //
+// A second one, of the same kind: WHICH WAY TIME RUNS is the comparatives
+// document's to say (`direction`), not the ratio block's alone. When the
+// comparison period closes after the one on screen — or the order of the two
+// cannot be read — the engine serves no improved / deteriorated verdict, and
+// its ratio block says so itself (`band_movements.verdicts_withheld`). A
+// document whose `direction` serves no verdict and whose ratio block LISTS
+// them anyway (the shape the engine served until 2026-10-04) is not
+// believed: no list, no count of improved and deteriorated, no adjective's
+// colour, and a crossing reads "not comparable" with the direction's reason.
+// The figures, both bands and every delta's value are printed as served.
+//
 // `PrintedRatioRow` is the printed form every tab surface embeds
 // (`data-ratio-printed-json`), so a surface that formats on its own can be
 // caught by comparing strings. The served row itself rides as
@@ -59,6 +70,7 @@ import {
   type RatioCompareRow,
   type RatioComparisonV1,
   type RatioDisplayUnit,
+  type RatioMovement,
   type RatioSide,
   type RatioTableV1,
 } from "@/lib/ratioTable";
@@ -115,12 +127,40 @@ export type RatioPriorState =
   /** A comparatives document arrived without `ratios`. */
   | { kind: "without_ratios"; priorLabel: string };
 
+/** Why a comparison serves no improved / deteriorated verdict — the engine's
+ *  two reason codes. */
+export type VerdictsWithheld = "prior_is_later" | "period_order_unknown";
+
 export interface RatioCompareView {
   currentLabel: string;
   priorLabel: string | null;
   periodTable: RatioTableV1 | null;
   comparison: RatioComparisonV1 | null;
   prior: RatioPriorState;
+  /** The comparatives DOCUMENT's own word on which way time runs: the
+   *  reason it serves no verdict, or null / absent when it serves them (or
+   *  predates the field). Read off `direction.order`; never derived from
+   *  the dates here. */
+  directionWithheld?: VerdictsWithheld | null;
+}
+
+/** `direction.order` of the comparatives document, as the reason the engine
+ *  gives for serving no verdict under it. */
+function directionWithheldOf(doc: unknown): VerdictsWithheld | null {
+  if (!isObj(doc) || !isObj(doc.direction)) return null;
+  const order: unknown = doc.direction.order;
+  if (order === "prior_is_later") return "prior_is_later";
+  if (order === "unknown") return "period_order_unknown";
+  return null;
+}
+
+/** The reason this view prints no verdict: the ratio block's own
+ *  (`band_movements.verdicts_withheld`) first, else the document's
+ *  direction. Null when verdicts are served. */
+export function verdictsWithheldOf(view: RatioCompareView | null): VerdictsWithheld | null {
+  const flagged: unknown = view?.comparison?.band_movements?.verdicts_withheld;
+  if (flagged === "prior_is_later" || flagged === "period_order_unknown") return flagged;
+  return view?.directionWithheld ?? null;
 }
 
 export function buildRatioCompareView(input: {
@@ -164,6 +204,7 @@ export function buildRatioCompareView(input: {
     periodTable: input.periodTable,
     comparison,
     prior,
+    directionWithheld: comparison ? directionWithheldOf(input.comparativesDoc) : null,
   };
 }
 
@@ -342,16 +383,41 @@ export function printRatioRow(
     };
   }
   const d = formatRatioDelta(cmp.delta, loc);
+  // A VERDICT THE DIRECTION DOES NOT SERVE IS NOT PRINTED. The engine's own
+  // withheld row already carries no adjective and no crossing; a row that
+  // still does, under a direction that serves none, loses both here: the
+  // delta keeps its value and its colour goes, the crossing reads "not
+  // comparable" with the reason. Nothing else of the row changes.
+  const withheld = verdictsWithheldOf(view);
+  const crossing = cmp.movement?.status === "crossed_up" || cmp.movement?.status === "crossed_down";
+  const adjective = cmp.delta?.favourable === "improved" || cmp.delta?.favourable === "deteriorated";
+  const movement: RatioMovement | null | undefined =
+    withheld && crossing && cmp.movement
+      ? {
+          ...cmp.movement,
+          status: "not_comparable",
+          from: null,
+          to: null,
+          rungs_crossed: 0,
+          rung_crossed: null,
+          distance_past_rung: null,
+          band_width: null,
+          band_width_basis: null,
+          distance_fraction: null,
+          materiality: null,
+          reason_code: withheld,
+        }
+      : cmp.movement;
   return {
     ...base,
     prior: formatRatioSide(cmp.prior, unit, loc),
     delta: d.primary,
     deltaSecondary: d.secondary,
     bandPrior: formatRatioBand(cmp.prior, loc),
-    movement: formatRatioMovement(cmp.movement, loc),
-    deltaTone: deltaTone(cmp.delta?.favourable, cmp.delta?.value),
-    movementTone: movementTone(cmp.movement),
-    movementStatus: cmp.movement?.status ?? null,
+    movement: formatRatioMovement(movement, loc),
+    deltaTone: adjective && withheld ? "neutral" : deltaTone(cmp.delta?.favourable, cmp.delta?.value),
+    movementTone: movementTone(movement),
+    movementStatus: movement?.status ?? null,
     priorStatus,
     currentDiffers: false,
   };
@@ -511,7 +577,7 @@ export interface PrintedBandMovements {
    *  comparison period closes later, or the order of the two cannot be read.
    *  The lists above are empty by the engine's hand, and "nothing crossed a
    *  band" would be a false sentence — the tab says THIS instead. */
-  verdictsWithheld: "prior_is_later" | "period_order_unknown" | null;
+  verdictsWithheld: VerdictsWithheld | null;
 }
 
 function listedRow(view: RatioCompareView, key: string, loc: string): PrintedRatioRow {
@@ -545,16 +611,24 @@ export function printBandMovements(
           field: "rank_basis.sentence_key",
           value: JSON.stringify(sentenceKey) ?? "undefined",
         });
-  const withheld: unknown = bm.verdicts_withheld;
+  // The block's own word, else the document's direction (`verdictsWithheldOf`).
+  // Under either, NOTHING is listed as improved or deteriorated: a block that
+  // lists keys under a direction that serves no verdict is not believed —
+  // its crossings are counted with the not-comparable ones, where the engine
+  // itself puts them.
+  const withheld = verdictsWithheldOf(view);
+  const improved = withheld ? [] : bm.improved ?? [];
+  const deteriorated = withheld ? [] : bm.deteriorated ?? [];
+  const unlisted = withheld ? [...(bm.improved ?? []), ...(bm.deteriorated ?? [])] : [];
   return {
-    verdictsWithheld: withheld === "prior_is_later" || withheld === "period_order_unknown" ? withheld : null,
-    improved: (bm.improved ?? []).map((k) => listedRow(view, k, loc)),
-    deteriorated: (bm.deteriorated ?? []).map((k) => listedRow(view, k, loc)),
+    verdictsWithheld: withheld,
+    improved: improved.map((k) => listedRow(view, k, loc)),
+    deteriorated: deteriorated.map((k) => listedRow(view, k, loc)),
     counts: {
-      improved: (bm.improved ?? []).length,
-      deteriorated: (bm.deteriorated ?? []).length,
+      improved: improved.length,
+      deteriorated: deteriorated.length,
       unchanged: (bm.unchanged ?? []).length,
-      notComparable: (bm.not_comparable ?? []).length,
+      notComparable: [...(bm.not_comparable ?? []), ...unlisted].length,
       refused: (bm.refused ?? []).length,
       bothSides: c.coverage.both_sides,
     },

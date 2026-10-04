@@ -821,6 +821,10 @@ function FinancialStatementsInner() {
   // …and the same for a COMPARISON off the disk that carries no `direction`
   // (an engine older than the one answering now): the page could not say
   // which way time runs, and would stay silent until the blob expired.
+  // (At most twice, never in a loop: when the hydrated answer is also older
+  // than the comparison's own five-minute stale time, the query library has
+  // already asked once as the pair became enabled; the answer that comes
+  // back is this session's own and is believed.)
   useEffect(() => {
     if (!cmpCompanyId || !remotePeriod.id || !cmpPriorId || !documentPredatesDirection(cmpDoc)) return;
     const key = comparativesQueryKey(cmpCompanyId, remotePeriod.id, cmpPriorId);

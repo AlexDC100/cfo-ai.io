@@ -240,7 +240,8 @@ function OwnShare({
   pts?: number | null;
   /** With a document on screen the cell carries its text as a title. */
   titled?: boolean;
-  /** The reason on a row the block has no line for. */
+  /** The reason on a row the block has no line for, when the caller knows
+   *  a nearer one than "no share is served for this line". */
   unmappedTitle?: string;
 }) {
   const { t, i18n } = useTranslation();
@@ -265,8 +266,9 @@ function OwnShare({
     return wordKey ? <span className="cmp-cell cmp-cell--word" title={reason}>{t(wordKey)}</span> : gap(reason);
   }
   if (outcome.kind === "definition_differs") return gap(t("statements.cmp.share.definitionDiffers"));
-  // No engine line for this row: a blank cell, no claim.
-  return gap(unmappedTitle);
+  // No engine line for this row: a blank cell, no claim — and the reason,
+  // on every statement (the P&L's gap used to carry none).
+  return gap(unmappedTitle ?? t("statements.cmp.share.unavailable"));
 }
 
 /** ONE SHARE CELL of a single-period render. */
@@ -334,25 +336,38 @@ export function CmpCells({
     <span className="cmp-cell cmp-cell--word" title={title ?? text}>{text}</span>
   );
 
+  // THE PERIOD'S OWN SHARE FOR THIS ROW, when the payload carries the block
+  // (always, on the dashboard: `statementComparisonOf` hands a share column
+  // only with it) — read BEFORE the document's row is judged: the share cell
+  // prints it in every state, also on a row the document has no line for and
+  // on one the document cannot be held to (another book under the same id, a
+  // prior assembled on another EBITDA definition). Those rows used to blank
+  // the share with the three comparison cells, where "No comparison" printed
+  // it. A provider handed no block prints the document's share on a row the
+  // parity guard held, and nothing on these two.
+  const own = ctx.block ? shareForRow(ctx.block, rowKey, amount) : null;
+  const ownStatus = own ? ownShareStatus(own) : undefined;
+
   if (outcome.kind === "unmapped") {
-    // No engine line for this row: blank cells, no claim.
+    // No engine line for this row in the document: blank comparison cells,
+    // no claim.
     return (
-      <span className="cmp-cells" data-cmp="unmapped">
+      <span className="cmp-cells" data-cmp="unmapped" data-share-status={ownStatus}>
         {!bs && cols.prior && gap()}
         {!bs && cols.delta && gap()}
         {cols.deltaPct && gap()}
-        {cols.share && gap()}
+        {cols.share && (own ? <OwnShare outcome={own} statement={ctx.statement} titled /> : gap())}
       </span>
     );
   }
   if (outcome.kind === "definition_differs") {
     const title = t("statements.cmp.definitionDiffers");
     return (
-      <span className="cmp-cells" data-cmp="definition-differs" data-cmp-key={outcome.key}>
+      <span className="cmp-cells" data-cmp="definition-differs" data-cmp-key={outcome.key} data-share-status={ownStatus}>
         {!bs && cols.prior && gap(title)}
         {!bs && cols.delta && gap(title)}
         {cols.deltaPct && gap(title)}
-        {cols.share && gap(title)}
+        {cols.share && (own ? <OwnShare outcome={own} statement={ctx.statement} titled /> : gap(title))}
       </span>
     );
   }
@@ -380,18 +395,13 @@ export function CmpCells({
   const deltaPctText = formatDeltaPct(c.deltaPct, i18n.language);
   const shareText = formatShare(c.currentShare, i18n.language);
   const ptsText = formatPts(c.deltaPts, i18n.language);
-  // The period's own share for this row, when the payload carries the block
-  // (always, on the dashboard: `statementComparisonOf` hands a share column
-  // only with it). A provider handed no block prints the document's share,
-  // which the parity guard above already held to the row's amount.
-  const own = ctx.block ? shareForRow(ctx.block, rowKey, amount) : null;
 
   return (
     <span
       className="cmp-cells"
       data-cmp={c.status}
       data-cmp-key={c.key}
-      data-share-status={own ? ownShareStatus(own) : undefined}
+      data-share-status={ownStatus}
     >
       {!bs && cols.prior && (
         c.prior === null
@@ -555,12 +565,15 @@ export function CfCmpCells({
   priorRefused?: string | null;
 }) {
   const ctx = useComparativeContext();
+  const { t } = useTranslation();
   const fmt = useAmountFormatter(ctx?.currency ?? "RON");
   if (!ctx) return null;
   const cols = ctx.columns;
   if (priorRefused) {
+    // The word in the reader's language ("refuzat" — it was the literal
+    // "refused" on a Romanian screen).
     const refused = (
-      <span className="cmp-cell cmp-cell--gap" data-cmp-refused="" title={priorRefused}>refused</span>
+      <span className="cmp-cell cmp-cell--gap" data-cmp-refused="" title={priorRefused}>{t("statements.cmp.refused")}</span>
     );
     return (
       <span className="cmp-cells" data-cmp="cf">

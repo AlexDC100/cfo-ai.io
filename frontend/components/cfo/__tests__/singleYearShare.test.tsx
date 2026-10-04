@@ -47,26 +47,35 @@
 // failure with no sentence on a tab, or said twice; an automatic retry; the
 // Ratios tab repeating the sentence; a formal-register sentence.
 //
-// What it cannot see: the dashboard page itself (it needs the router,
-// Supabase and the period queries). Its COMPOSITION is not mirrored here any
-// more: the controls, the two notes, each statement's provider and what the
-// tab can paint are `lib/comparisonSurface.ts` and
-// `components/cfo/ComparisonSurface.tsx`, which the page AND the `Dashboard`
-// harness below both render (review of 2026-10-04: five defects planted in
-// the page's own inline composition left this gate green). What stays in the
-// page — one call and three elements — is held to its exact text by the
-// source laws at the foot of this file; what feeds that call (the period
-// query, the comparison query, the company's period list) is not exercised.
-// Nor can it see: whether the ENGINE's shares are right (gate
+// THE DASHBOARD PAGE ITSELF is the gate's SECOND FILE
+// (`pages/cfo/__tests__/singleYearSharePage.test.tsx`): it mounts
+// `FinancialStatements.tsx` with the network mocked and holds what a reader
+// sees. Here the page's COMPOSITION is rendered — the controls, the two
+// notes, each statement's provider and what the tab can paint are
+// `lib/comparisonSurface.ts` and `components/cfo/ComparisonSurface.tsx`,
+// which the page AND the `Dashboard` harness below both render (first review
+// of 2026-10-04: five defects planted in the page's own inline composition
+// left this gate green) — and what stays in the page, one call and three
+// elements, is held to its exact text by the source laws at the foot of this
+// file. Text laws read what they were told to read: the second review
+// planted the same defects one wrapper element away and they stayed green,
+// which is why the page is mounted now.
+//
+// What it cannot see: whether the ENGINE's shares are right (gate
 // common-size-single holds the identity over the corpus; the fixtures here
 // are its bytes); the balance sheet's Δ %, which is still the browser's
 // classifier over the row's own two figures (the engine serves no percentage
 // for a canonical row); the exported report / workbook / PDF's own share
-// column and band lists, and the command bar (out of scope, S8); arithmetic
-// added to a module the share path ALREADY imports (a new import into a
-// share-path file is red; an old one is trusted).
+// column and band lists, and the command bar (out of scope, S8). THE SOURCE
+// LAWS' LIMIT: a share-path file holds no arithmetic and loads no module the
+// law cannot read; a module it imports holds the arithmetic it held when it
+// was trusted (pinned by text) and re-exports nothing unscanned — but what a
+// TRUSTED module itself imports is not followed (a division two modules
+// away, reached through a new function with no arithmetic of its own), and
+// no law by value can see a division that reproduces the served fraction to
+// the printed decimal.
 // Plant log: docs/engine_book/gates.md, "single-year-share".
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -1387,16 +1396,56 @@ describe("a comparison document that describes another book paints no share — 
     });
   }
 
-  it("P&L: the row guard blanks every keyed row against the stale document — no prior, no Δ, no share of its", () => {
-    const { body } = stale();
-    renderWithProviders(mount({ tab: "pl", body, rows: TWO_YEARS, currentId: P25 }));
-    const keyed = [...document.querySelectorAll<HTMLElement>(".cmp-cells[data-cmp-key]")];
-    expect(keyed.length).toBeGreaterThanOrEqual(12);
-    const blank = keyed.filter((c) => c.getAttribute("data-cmp") === "definition-differs");
-    expect(blank.length).toBeGreaterThanOrEqual(12);
-    for (const c of blank) expect(c.textContent, c.getAttribute("data-cmp-key")!).not.toMatch(/\d/);
-    statesChecked += 1;
-  });
+  for (const lang of ["ro", "en"] as const) {
+    it(`${lang} · P&L: the row guard blanks the stale document's prior, Δ and Δ % on every keyed row — and the share cell is the on-screen book's own`, async () => {
+      // (Until the second review the share cell was blanked with the three
+      // comparison cells: on the P&L a document the row could not be held to
+      // took the period's own share off the screen, where "No comparison"
+      // printed it — and where the balance sheet, in this very state, did.)
+      const { body } = stale();
+      renderWithProviders(mount({ tab: "pl", body, rows: TWO_YEARS, currentId: P25 }));
+      await language(lang);
+      const own = servedRows(body);
+      const keyed = [...document.querySelectorAll<HTMLElement>(".cmp-cells[data-cmp-key]")];
+      expect(keyed.length).toBeGreaterThanOrEqual(12);
+      const blank = keyed.filter((c) => c.getAttribute("data-cmp") === "definition-differs");
+      expect(blank.length).toBeGreaterThanOrEqual(12);
+      let printed = 0;
+      for (const c of blank) {
+        const key = c.getAttribute("data-cmp-key")!;
+        const cells = [...c.querySelectorAll<HTMLElement>(":scope > .cmp-cell")];
+        expect(cells.length, key).toBe(4);
+        // prior, Δ, Δ %: nothing of the document's, and the reason.
+        for (const cell of cells.slice(0, 3)) {
+          expect(cell.textContent, key).not.toMatch(/\d/);
+          expect(cell.getAttribute("title"), key).toBe(text(lang, "statements.cmp.definitionDiffers"));
+        }
+        // the share: the on-screen book's own, with no points of the document's.
+        const share = cells[3];
+        const mine = own.get(key);
+        expect(share.querySelector(".cmp-cell--pts"), `${key}: the stale document's change in points`).toBeNull();
+        if (c.getAttribute("data-share-status") === "share") {
+          expect(mine?.status, key).toBe("share");
+          expect(share.textContent, `${key}: not the on-screen book's own share`).toBe(formatShare(mine!.share, lang));
+          printed += 1;
+        } else {
+          expect(share.textContent, key).not.toMatch(/\d/);
+        }
+      }
+      expect(printed, "no own share printed beside the blanked comparison").toBeGreaterThanOrEqual(10);
+      cellsChecked += printed;
+      // A row with NO engine line says why in its share cell (it was a bare
+      // gap on the P&L, where the balance sheet said it).
+      const unmapped = [...document.querySelectorAll<HTMLElement>('.cmp-cells[data-cmp="unmapped"]')];
+      expect(unmapped.length).toBeGreaterThanOrEqual(1);
+      for (const c of unmapped) {
+        const share = [...c.querySelectorAll<HTMLElement>(":scope > .cmp-cell")].at(-1)!;
+        if (c.getAttribute("data-share-status") !== "unmapped") continue;
+        expect(share.getAttribute("title")).toBe(text(lang, "statements.cmp.share.unavailable"));
+      }
+      statesChecked += 1;
+    });
+  }
 
   it("resetting a period resets every comparison that names it, on either side — and no other", () => {
     expect(comparisonNamesPeriod(comparativesQueryKey(ORG, P25, P24), P25)).toBe(true);
@@ -1821,7 +1870,7 @@ describe("S5 a comparison period that closes LATER reads backwards — and is sa
     statesChecked += 1;
   });
 
-  it("the withheld state is the ENGINE's: an unknown order has its own sentence; a reason this build has no word for lists nothing it was not served", async () => {
+  it("the withheld state is the ENGINE's: an unknown order has its own sentence; where the block does not say, the document's direction does", async () => {
     const p = later();
     p.comparatives.ratios!.band_movements.verdicts_withheld = "period_order_unknown";
     renderRatiosTab(p, true);
@@ -1844,12 +1893,32 @@ describe("S5 a comparison period that closes LATER reads backwards — and is sa
     };
     expect(view("prior_is_later").verdictsWithheld).toBe("prior_is_later");
     expect(view("period_order_unknown").verdictsWithheld).toBe("period_order_unknown");
-    expect(view(null).verdictsWithheld).toBeNull();
-    expect(view(undefined).verdictsWithheld).toBeNull();
-    expect(view("some_reason_of_tomorrow").verdictsWithheld).toBeNull();
-    // Whatever the reason, the lists are the served ones — empty here.
+    // The block does not say (an older engine), or says a word this build
+    // does not know: the DOCUMENT's direction is read — a later comparison
+    // period serves no verdict whatever its ratio block carries.
+    expect(view(null).verdictsWithheld).toBe("prior_is_later");
+    expect(view(undefined).verdictsWithheld).toBe("prior_is_later");
+    expect(view("some_reason_of_tomorrow").verdictsWithheld).toBe("prior_is_later");
     expect(view("some_reason_of_tomorrow").improved).toEqual([]);
-    statesChecked += 6;
+    // …and a document that says nothing about the order withholds nothing
+    // (the order is the engine's to state, never derived here): forwards,
+    // and with no `direction` at all.
+    const silent = (doc: ComparativesResponse) =>
+      printBandMovements(
+        buildRatioCompareView({
+          periodTable: readRatioTable(forward().current_body.assembled_metrics),
+          comparativesDoc: doc,
+          currentLabel: "Dec 2025",
+        }),
+        "en",
+      )!;
+    const fwd = forward().comparatives;
+    expect(silent(fwd).verdictsWithheld).toBeNull();
+    const undated = forward().comparatives;
+    delete undated.direction;
+    expect(silent(undated).verdictsWithheld).toBeNull();
+    expect(silent(undated).counts.improved).toBe(fwd.ratios!.band_movements.improved.length);
+    statesChecked += 9;
   });
 
   it("the exports' band lists do not say \"no ratio moved\" over a withheld direction — they say no direction is given", () => {
@@ -1899,6 +1968,69 @@ describe("S5 a comparison period that closes LATER reads backwards — and is sa
     expect(screen.queryByTestId("cmp-deteriorated")).toBeNull();
     statesChecked += 1;
   });
+
+  for (const order of ["prior_is_later", "unknown"] as const) {
+    it(`the Ratios tab does not believe one either (${order}): the document's direction is read, not the ratio block's flag alone`, () => {
+      // CONSTRUCTED — the shape the engine served until 2026-10-04 (and what
+      // a regression of its ratio block would serve): a direction that
+      // serves no verdict over a ratio block that lists sixteen, with no
+      // `verdicts_withheld`. The Ratios tab read the block's flag alone and
+      // printed "4 improved and 12 deteriorated" and both lists under the
+      // page's own "reads backwards" sentence.
+      // Built on the served forward pair, so every figure ties to the
+      // period on screen: only the document's direction is changed.
+      const reason = order === "prior_is_later" ? "prior_is_later" : "period_order_unknown";
+      const p = forward();
+      p.comparatives.direction = { ...p.comparatives.direction!, order, verdicts_served: false, reason };
+      const bm = p.comparatives.ratios!.band_movements;
+      expect(bm.verdicts_withheld ?? null).toBeNull();
+      const crossed = [...bm.improved, ...bm.deteriorated];
+      expect(crossed.length).toBeGreaterThan(5);
+      const view = buildRatioCompareView({
+        periodTable: readRatioTable(p.current_body.assembled_metrics),
+        comparativesDoc: p.comparatives,
+        currentLabel: "Dec 2025",
+      })!;
+      const printed = printBandMovements(view, "en")!;
+      expect(printed.verdictsWithheld).toBe(reason);
+      expect(printed.improved).toEqual([]);
+      expect(printed.deteriorated).toEqual([]);
+      // Nothing is counted as improved or deteriorated; the listed crossings
+      // are counted where the engine itself puts a withheld one.
+      expect([printed.counts.improved, printed.counts.deteriorated]).toEqual([0, 0]);
+      expect(printed.counts.notComparable).toBe(bm.not_comparable.length + crossed.length);
+      renderRatiosTab(p, true);
+      const section = screen.getByTestId("band-movements");
+      expect(section.getAttribute("data-verdicts")).toBe("withheld");
+      expect(screen.getByTestId("band-movements-withheld").textContent).toBe(
+        text("en", order === "prior_is_later" ? "statements.ratioCmp.ui.verdictsWithheldLater" : "statements.ratioCmp.ui.verdictsWithheldUnknown"),
+      );
+      for (const id of ["band-improved", "band-deteriorated", "band-movements-counts", "band-movements-nothing", "band-movement-item"]) {
+        expect(screen.queryAllByTestId(id).length, id).toBe(0);
+      }
+      // …and no row of the table carries the adjective's colour or the
+      // crossing: the change is printed, the movement says why it is not
+      // judged.
+      const rows = [...document.querySelectorAll<HTMLElement>('[data-testid="ratio-compare-row"]')];
+      expect(rows.length).toBeGreaterThan(20);
+      let said = 0;
+      for (const row of rows) {
+        const delta = row.querySelector<HTMLElement>('[data-cell="delta"]');
+        const movement = row.querySelector<HTMLElement>('[data-cell="movement"]');
+        for (const cell of [delta, movement]) {
+          const classes = cell ? [cell, ...cell.querySelectorAll<HTMLElement>("*")].map((n) => n.className).join(" ") : "";
+          expect(classes, `${row.dataset.ratioKey}: a verdict's colour`).not.toMatch(/text-(success|alert)/);
+        }
+        if (crossed.includes(row.dataset.ratioKey!)) {
+          expect(movement!.textContent, row.dataset.ratioKey).toBe(text("en", `statements.ratioCmp.reason.${reason}`));
+          expect(delta!.textContent, row.dataset.ratioKey).toMatch(/\d/);
+          said += 1;
+        }
+      }
+      expect(said).toBe(crossed.length);
+      statesChecked += 1;
+    });
+  }
 
   it("an order the engine could not read: its own sentence, no verdict — constructed: no committed pair has the shape", async () => {
     storeView({ priorPeriodId: P25 });
@@ -2358,15 +2490,21 @@ const ARITHMETIC = new Set([
   ts.SyntaxKind.PercentEqualsToken,
   ts.SyntaxKind.AsteriskAsteriskEqualsToken,
 ]);
-const ROUNDING_METHODS = new Set(["toFixed", "toPrecision"]);
-const ROUNDING_MATH = new Set(["round", "floor", "ceil", "trunc"]);
+const ROUNDING_METHODS = new Set(["toFixed", "toPrecision", "toExponential"]);
+/** The ONLY things `Math` may be asked on the share path: none of them
+ *  divides, scales or rounds. Every other use of `Math` is a site — a
+ *  rounding (`round`, `floor`, …), and a division written without a `/`
+ *  (`Math.exp(Math.log(a) - Math.log(b))`, `Math.pow(b, -1)`), which the
+ *  second review planted and the operator scan alone did not see. */
+const MATH_SAFE = new Set(["abs", "max", "min", "sign"]);
 
 interface Site { text: string; context: string }
 
-/** Every division, multiplication, remainder or power, and every rounding
- *  call, in a source — read off the syntax tree, so a `/` in a comment, a
- *  string, a class name or a closing tag is not one. `context` is the
- *  nearest enclosing declaration, attribute or braced expression. */
+/** Every division, multiplication, remainder or power, every rounding call
+ *  and every use of `Math` beyond `MATH_SAFE`, in a source — read off the
+ *  syntax tree, so a `/` in a comment, a string, a class name or a closing
+ *  tag is not one. `context` is the nearest enclosing declaration,
+ *  attribute or braced expression. */
 function arithmeticSites(source: string, name = "x.tsx"): Site[] {
   const sf = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const flat = (n: ts.Node) => n.getText(sf).replace(/\s+/g, " ");
@@ -2382,11 +2520,18 @@ function arithmeticSites(source: string, name = "x.tsx"): Site[] {
   const visit = (n: ts.Node) => {
     if (ts.isBinaryExpression(n) && ARITHMETIC.has(n.operatorToken.kind)) {
       out.push({ text: flat(n), context: contextOf(n) });
-    } else if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
-      const method = n.expression.name.text;
-      const on = n.expression.expression.getText(sf);
-      if (ROUNDING_METHODS.has(method) || (on === "Math" && ROUNDING_MATH.has(method))) {
-        out.push({ text: flat(n), context: contextOf(n) });
+    } else if (
+      ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ROUNDING_METHODS.has(n.expression.name.text)
+    ) {
+      out.push({ text: flat(n), context: contextOf(n) });
+    } else if (ts.isIdentifier(n) && n.text === "Math") {
+      // `Math.abs(x)` and its three siblings pass; `Math.round(x)`,
+      // `Math.exp(…)`, `Math["log"]`, `const { pow } = Math` do not.
+      const access = n.parent;
+      const safe = ts.isPropertyAccessExpression(access) && access.expression === n && MATH_SAFE.has(access.name.text);
+      if (!safe) {
+        const site = ts.isPropertyAccessExpression(access) && ts.isCallExpression(access.parent) ? access.parent : access;
+        out.push({ text: flat(site), context: contextOf(site) });
       }
     }
     ts.forEachChild(n, visit);
@@ -2485,6 +2630,11 @@ const TRUSTED_MODULES = [
   "frontend/stores/currency",
 ];
 
+const localModule = (rel: string, spec: string): string | null =>
+  spec.endsWith(".css")
+    ? null
+    : spec.startsWith("@/") ? `frontend/${spec.slice(2)}` : spec.startsWith(".") ? join(dirname(rel), spec) : null;
+
 /** Every local module a source imports a VALUE from, as a repo path without
  *  its extension ("@/lib/x" and "./x" resolved; packages, type-only imports
  *  and stylesheets left out). */
@@ -2493,9 +2643,7 @@ function valueImportsOf(rel: string, source = read(rel)): string[] {
   const out: string[] = [];
   sf.forEachChild((n) => {
     if (!ts.isImportDeclaration(n) || !ts.isStringLiteral(n.moduleSpecifier)) return;
-    const spec = n.moduleSpecifier.text;
-    if (spec.endsWith(".css")) return;
-    const local = spec.startsWith("@/") ? `frontend/${spec.slice(2)}` : spec.startsWith(".") ? join(dirname(rel), spec) : null;
+    const local = localModule(rel, n.moduleSpecifier.text);
     if (local === null) return;
     const clause = n.importClause;
     const named = clause?.namedBindings && ts.isNamedImports(clause.namedBindings) ? clause.namedBindings.elements : null;
@@ -2504,6 +2652,65 @@ function valueImportsOf(rel: string, source = read(rel)): string[] {
   });
   return out;
 }
+
+/** Every local module a source RE-EXPORTS a value from (`export { x } from`,
+ *  `export * from`): a module reached through another one's name. A
+ *  type-only re-export carries no code. */
+function valueReexportsOf(rel: string, source = read(rel)): string[] {
+  const sf = ts.createSourceFile(rel, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const out: string[] = [];
+  sf.forEachChild((n) => {
+    if (!ts.isExportDeclaration(n) || !n.moduleSpecifier || !ts.isStringLiteral(n.moduleSpecifier)) return;
+    const local = localModule(rel, n.moduleSpecifier.text);
+    if (local === null) return;
+    const named = n.exportClause && ts.isNamedExports(n.exportClause) ? n.exportClause.elements : null;
+    const typeOnly = n.isTypeOnly || (!!named && named.every((e) => e.isTypeOnly));
+    if (!typeOnly) out.push(local);
+  });
+  return out;
+}
+
+/** Every way a source loads code WITHOUT an import declaration: `import(…)`,
+ *  `require(…)`, and anything asked of `import.meta` but its `env`
+ *  (`import.meta.glob`, a URL to load). None has a module the import law
+ *  can read. */
+function undeclaredLoadsOf(rel: string, source = read(rel)): string[] {
+  const sf = ts.createSourceFile(rel, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const flat = (n: ts.Node) => n.getText(sf).replace(/\s+/g, " ");
+  const out: string[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword) out.push(flat(n));
+    else if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "require") out.push(flat(n));
+    else if (ts.isMetaProperty(n) && n.keywordToken === ts.SyntaxKind.ImportKeyword) {
+      const reads = ts.isPropertyAccessExpression(n.parent) && n.parent.expression === n ? n.parent.name.text : null;
+      if (reads !== "env") out.push(flat(n.parent));
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The file of a module named without its extension. */
+function moduleFile(mod: string): string {
+  const found = [".ts", ".tsx", "/index.ts", "/index.tsx"].map((ext) => mod + ext).find((f) => existsSync(resolve(REPO, f)));
+  if (!found) throw new Error(`no file for module ${mod}`);
+  return found;
+}
+
+/**
+ * THE ARITHMETIC OF EVERY TRUSTED MODULE, by its text, as it stood when the
+ * module was trusted (`fixtures/sharePathTrustedArithmetic.json`). A module
+ * on `TRUSTED_MODULES` is not scanned for being arithmetic-free — `lib/money`
+ * and `lib/financialReport` divide for a living — so a division ADDED to one
+ * and called from a share cell passed every law (second review, 2026-10-04:
+ * `ratioOf` planted in `lib/changeKind`, called from `ComparativeCells`). Now
+ * a site added to, changed in or removed from a trusted module is a
+ * difference somebody must look at. After looking — and only then — rewrite
+ * the pin:
+ *   SHARE_PATH_PIN=write npx vitest run frontend/components/cfo/__tests__/singleYearShare.test.tsx -t "trusted module"
+ */
+const TRUSTED_PIN = "frontend/components/cfo/__tests__/fixtures/sharePathTrustedArithmetic.json";
 
 describe("the source — no share is divided, multiplied or rounded in the browser", () => {
   it("the detector sees what it must, and nothing in a comment, a string or a tag", () => {
@@ -2514,10 +2721,19 @@ describe("the source — no share is divided, multiplied or rounded in the brows
     expect(seen("const r = Math.round(x);")).toEqual(["Math.round(x)"]);
     expect(seen("let t = 1; t /= 3; t *= 2; const m = t % 2; const q = t ** 2;").length).toBe(4);
     expect(seen("const x = <span title={`${a / b}`}>{c}</span>;")).toEqual(["a / b"]);
+    // A division needs no `/`: every use of `Math` beyond abs / max / min /
+    // sign is a site, and so is an exponent's rounding.
+    expect(seen("const s = Math.exp(Math.log(part) - Math.log(total));")).toEqual([
+      "Math.exp(Math.log(part) - Math.log(total))", "Math.log(part)", "Math.log(total)",
+    ]);
+    expect(seen("const s = part * Math.pow(total, -1);").length).toBe(2);
+    expect(seen('const f = Math["exp"]; const { log } = Math; const m = Math;').length).toBe(3);
+    expect(seen("const s = x.toExponential(2);")).toEqual(["x.toExponential(2)"]);
+    expect(seen("const a = Math.abs(x) + Math.max(y, 0) - Math.min(z, 1) + Math.sign(w);")).toEqual([]);
     expect(
       seen('// a / b * c\n/* x.toFixed(1) */\nconst s = "1 / 2 * 3"; const c = <br/>; const d = <i className="w-1/2">a / b</i>; const re = /a*b/;'),
     ).toEqual([]);
-    statesChecked += 7;
+    statesChecked += 12;
   });
 
   it("the share path holds no arithmetic at all", () => {
@@ -2555,6 +2771,73 @@ describe("the source — no share is divided, multiplied or rounded in the brows
       "frontend/lib/shareHelper", "frontend/components/cfo/sibling",
     ]);
     statesChecked += 3;
+  });
+
+  it("no module is reached without an import declaration: no re-export to an unscanned module, no dynamic import, on the share path or in a trusted module", () => {
+    const stem = (rel: string) => rel.replace(/\.tsx?$/, "");
+    const scanned = [...NO_ARITHMETIC, ...Object.keys(PINNED)];
+    const allowed = new Set([...scanned.map(stem), ...TRUSTED_MODULES]);
+    // A share-path file loads nothing the import law cannot read…
+    for (const rel of NO_ARITHMETIC) {
+      expect(undeclaredLoadsOf(rel), `${rel} loads code without an import declaration`).toEqual([]);
+      statesChecked += 1;
+    }
+    // …and neither a scanned nor a trusted module hands on, under its own
+    // name, a value from a module nobody scans (`export { x } from "./new"`).
+    for (const rel of [...scanned, ...TRUSTED_MODULES.map(moduleFile)]) {
+      expect(valueReexportsOf(rel).filter((mod) => !allowed.has(mod)), `${rel} re-exports a module nobody scans`).toEqual([]);
+      statesChecked += 1;
+    }
+    for (const mod of TRUSTED_MODULES) {
+      expect(undeclaredLoadsOf(moduleFile(mod)), `${mod} loads code without an import declaration`).toEqual([]);
+    }
+    // The readers see what they must.
+    const src = [
+      'export { a } from "@/lib/newHelper";',
+      'export * from "./other";',
+      'export type { T } from "@/lib/onlyTypes";',
+      'export { type U } from "@/lib/alsoOnlyTypes";',
+      "export const local = 1;",
+    ].join("\n");
+    expect(valueReexportsOf("frontend/lib/x.ts", src)).toEqual(["frontend/lib/newHelper", "frontend/lib/other"]);
+    expect(
+      undeclaredLoadsOf(
+        "frontend/lib/x.ts",
+        'const { d } = await import("@/lib/h"); const r = require("./h"); const g = import.meta.glob("./*.ts"); ' +
+          'const mode = import.meta.env.MODE; import s from "./static";',
+      ),
+    ).toEqual(['import("@/lib/h")', 'require("./h")', "import.meta.glob"]);
+    statesChecked += 2;
+  });
+
+  it("a trusted module holds the arithmetic it held when it was trusted, and no other", () => {
+    const now: Record<string, string[]> = {};
+    for (const mod of TRUSTED_MODULES) now[mod] = arithmeticSites(read(moduleFile(mod)), moduleFile(mod)).map((s) => s.text);
+    if (process.env.SHARE_PATH_PIN === "write") {
+      writeFileSync(
+        resolve(REPO, TRUSTED_PIN),
+        JSON.stringify(
+          {
+            _what: "Every arithmetic site (the gate's detector) of every module on TRUSTED_MODULES of singleYearShare.test.tsx, by its text.",
+            _rewrite: 'After LOOKING at the difference: SHARE_PATH_PIN=write npx vitest run frontend/components/cfo/__tests__/singleYearShare.test.tsx -t "trusted module"',
+            modules: now,
+          },
+          null,
+          1,
+        ) + "\n",
+      );
+    }
+    const pinned = (JSON.parse(read(TRUSTED_PIN)) as { modules: Record<string, string[]> }).modules;
+    expect(Object.keys(pinned).sort(), "the pin names exactly the trusted modules").toEqual([...TRUSTED_MODULES].sort());
+    let sites = 0;
+    for (const mod of TRUSTED_MODULES) {
+      expect(now[mod], `${mod}: its arithmetic changed — look at the difference, then rewrite the pin`).toEqual(pinned[mod]);
+      sites += now[mod].length;
+      statesChecked += 1;
+    }
+    // The detector is not blind to them: the trusted modules DO divide.
+    expect(sites).toBeGreaterThan(50);
+    expect(process.env.SHARE_PATH_PIN, "the pin was rewritten by this run — run again without SHARE_PATH_PIN").toBeUndefined();
   });
 
   it("the other touched files hold the sites they held before this lane, and no new one", () => {
@@ -2752,10 +3035,18 @@ describe("the dashboard — it renders the ONE composition, and nothing of the c
     expect(BARE.test(read("frontend/lib/periodReset.ts"))).toBe(true);
     expect(calls).toEqual({
       "frontend/components/cfo/BSStatementView.tsx": 2,
+      // The workspace upload card: a finished job resets the period its file
+      // landed on (it was the one upload path that reset neither the period
+      // nor its comparisons).
+      "frontend/components/cfo/upload/UploadFlowHost.tsx": 1,
       "frontend/components/cfo/workspace/PeriodsSection.tsx": 3,
       "frontend/pages/cfo/FinancialStatements.tsx": 1,
     });
-    statesChecked += 3;
+    const host = read("frontend/components/cfo/upload/UploadFlowHost.tsx").replace(/\s+/g, " ");
+    // …where a job finishes ANALYSED, before it is announced.
+    const finished = host.slice(host.indexOf("if (done) { void queryClient.invalidateQueries"), host.indexOf("pushUploadNotice("));
+    expect(finished).toContain("if (job.periodId) resetPeriodAnswers(queryClient, job.periodId);");
+    statesChecked += 4;
   });
 });
 
@@ -2803,6 +3094,13 @@ describe("every new sentence exists in English and in Romanian", () => {
       expect(r, `ro ${key}: formal register`).not.toMatch(/încărcați|alegeți|reîncărcați|vă rugăm|dumneavoastră/i);
       statesChecked += 1;
     }
+    // The cash-flow tab's word for a refused prior is the bundle's, not a
+    // literal ("refused" was printed on a Romanian screen).
+    const cells = read("frontend/components/cfo/ComparativeCells.tsx").replace(/\s+/g, " ");
+    expect(cells).toContain('data-cmp-refused="" title={priorRefused}>{t("statements.cmp.refused")}</span>');
+    expect(cells).not.toMatch(/>refused<\/span>/);
+    expect(text("ro", "statements.cmp.refused")).toBe("refuzat");
+    expect(text("en", "statements.cmp.refused")).toBe("refused");
     // The bridge's end row is a label and a month: the same shape in both.
     for (const lang of ["en", "ro"] as const) {
       expect(text(lang, "statements.cmp.bridgePeriod")).toBe("{{label}} — {{period}}");

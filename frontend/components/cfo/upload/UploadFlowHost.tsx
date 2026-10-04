@@ -27,6 +27,7 @@ import { ORG_INDUSTRIES, orgIndustryDisplayLabel } from "@/components/cfo/OrgInd
 import { ExtraDocConfirmDialog } from "@/components/cfo/pricing/ExtraDocConfirmDialog";
 import { activateWorkspace, useActiveOrg } from "@/lib/org";
 import { formatDateOnly, useActiveLocale } from "@/lib/locale";
+import { resetPeriodAnswers } from "@/lib/periodReset";
 import { subscribeToDocumentStatus } from "@/lib/supabase";
 import { pushUploadNotice } from "@/lib/uploadNotices";
 import {
@@ -144,6 +145,12 @@ export function UploadFlowHost() {
         // on mount). Same two families the dashboard's own upload refreshes.
         void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
         void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+        // …and what the engine answered about the period the file landed on:
+        // a month replaced under the SAME period id leaves the period's
+        // payload and every comparison naming it describing the previous
+        // book (lib/periodReset). This host was the one upload path that
+        // reset neither.
+        if (job.periodId) resetPeriodAnswers(queryClient, job.periodId);
       }
       pushUploadNotice({
         id: job.docId,

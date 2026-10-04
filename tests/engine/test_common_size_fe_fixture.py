@@ -1,7 +1,7 @@
-"""The two frontend fixtures of the single-period share lane are the
+"""The three frontend fixtures of the single-period share lane are the
 engine's bytes, today.
 
-`frontend/lib/__tests__/fixtures/comparatives/` gains two files beside
+`frontend/lib/__tests__/fixtures/comparatives/` gains three files beside
 `pair_served.json`, built from the SAME committed corpus pair by the same
 builder (`test_ratio_compare_fe_fixture._labelled_pair`: agras as Dec 2025,
 carniprod as Dec 2024, each read back through the real router):
@@ -24,8 +24,17 @@ carniprod as Dec 2024, each read back through the real router):
       renders it, and what it must NOT list under a later prior is the
       frontend gate's law.
 
+  period_line_items.json
+      The line items GET /api/period serves for each of the two periods —
+      the one field the pair fixtures trim. The frontend gate that mounts
+      THE REAL dashboard page (`pages/cfo/__tests__/singleYearSharePage.
+      test.tsx`) puts them back, so the body its mocked network answers
+      with is the route's whole body: the page's balance-sheet tab paints
+      the canonical rows (and their shares) only for a period that carries
+      line items.
+
 A frontend gate over a hand-written document is a gate over a product that
-does not exist (CLAUDE.md 21), so this test rebuilds both and reds when the
+does not exist (CLAUDE.md 21), so this test rebuilds all three and reds when the
 committed bytes differ — and holds, on the committed bytes, the two facts
 the frontend gate relies on: the comparison document's current share IS
 the period's own block (one figure per page), and the later-prior document
@@ -48,6 +57,7 @@ import test_ratio_compare_fe_fixture as FX
 REPO = Path(__file__).resolve().parents[2]
 PERIOD_BLOCKS_FIXTURE = FX.FIXTURE.with_name("period_common_size.json")
 PRIOR_LATER_FIXTURE = FX.FIXTURE.with_name("pair_prior_later.json")
+LINE_ITEMS_FIXTURE = FX.FIXTURE.with_name("period_line_items.json")
 
 PRIOR_LATER_TRIMMED = ("current_body.line_items", "comparatives.prior_line_items")
 
@@ -76,6 +86,19 @@ def build_prior_later_fixture() -> Dict[str, Any]:
     return {"_trimmed": list(PRIOR_LATER_TRIMMED), "current_body": earlier, "comparatives": doc}
 
 
+def build_line_items_fixture() -> Dict[str, Any]:
+    cur, pri = FX._labelled_pair()
+    return {
+        "_source": "GET /api/period/{id} -> line_items, for the two periods of pair_served.json "
+                   "(the field pair_served.json and pair_prior_later.json trim)",
+        "periods": dict((body["period"]["id"], {"line_items": body["line_items"]}) for body in (cur, pri)),
+    }
+
+
+def line_items_fixture_text() -> str:
+    return FX._dump(build_line_items_fixture())
+
+
 def period_blocks_fixture_text() -> str:
     return FX._dump(build_period_blocks_fixture())
 
@@ -85,7 +108,8 @@ def prior_later_fixture_text() -> str:
 
 
 OUTPUTS = ((PERIOD_BLOCKS_FIXTURE, period_blocks_fixture_text),
-           (PRIOR_LATER_FIXTURE, prior_later_fixture_text))
+           (PRIOR_LATER_FIXTURE, prior_later_fixture_text),
+           (LINE_ITEMS_FIXTURE, line_items_fixture_text))
 
 
 def test_the_committed_period_blocks_fixture_is_todays_served_block():
@@ -99,6 +123,13 @@ def test_the_committed_prior_later_fixture_is_todays_served_document():
     assert PRIOR_LATER_FIXTURE.is_file(), "missing %s: run this file with --write" % PRIOR_LATER_FIXTURE
     assert PRIOR_LATER_FIXTURE.read_text(encoding="utf-8") == prior_later_fixture_text(), (
         "pair_prior_later.json drifted from the engine's served comparatives document; "
+        "re-run with --write after an intended change and review the frontend gate")
+
+
+def test_the_committed_line_items_fixture_is_todays_served_line_items():
+    assert LINE_ITEMS_FIXTURE.is_file(), "missing %s: run this file with --write" % LINE_ITEMS_FIXTURE
+    assert LINE_ITEMS_FIXTURE.read_text(encoding="utf-8") == line_items_fixture_text(), (
+        "period_line_items.json drifted from the line items GET /api/period serves; "
         "re-run with --write after an intended change and review the frontend gate")
 
 
@@ -135,6 +166,16 @@ def test_the_committed_fixtures_carry_what_the_frontend_gate_needs():
             assert row["prior_share"] == (theirs[row["key"]]["share"] if row["key"] in theirs else None), row["key"]
             shared += row["current_share"] is not None
         assert shared >= 60, shared
+
+    # THE REAL PAGE'S BODIES: the trimmed field, for both periods — and each
+    # period carries the canonical rows its balance-sheet tab paints.
+    items = json.loads(LINE_ITEMS_FIXTURE.read_text(encoding="utf-8"))["periods"]
+    assert set(items) == {cur_id, pri_id}
+    for pid, body in ((cur_id, pair["current_body"]), (pri_id, later["current_body"])):
+        assert "line_items" not in body  # trimmed there, kept here
+        assert len(items[pid]["line_items"]) >= 200, len(items[pid]["line_items"])
+        assert set(items[pid]["line_items"][0]) >= {"statement", "bucket", "amount"}
+        assert len(body["statements"]["canonical_bs"]["rows"]) >= 30
 
     # which way time runs
     assert pair["comparatives"]["direction"]["order"] == "prior_is_earlier"
