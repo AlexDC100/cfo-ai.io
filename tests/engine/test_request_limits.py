@@ -256,10 +256,13 @@ def test_a_body_under_the_cap_is_unaffected(client):
 
 
 def test_the_document_paths_keep_their_higher_cap():
-    """`pdf_b64` legitimately carries 33.4 MB of base64 (a 25 MB PDF)."""
+    """The paths that carry a whole document (a 25 MB multipart file)."""
     from engine.api.server import body_limit_for
 
-    assert body_limit_for("/api/financial-statements/parse") == DOCUMENT_BODY_LIMIT_BYTES
+    # The PDF lane's path is no longer a route (2026-10-04, gate
+    # no-anonymous-model-call): an unrouted path does not get to make the
+    # app buffer a 36 MiB chunked body before answering 404.
+    assert body_limit_for("/api/financial-statements/parse") == GENERAL_BODY_LIMIT_BYTES
     assert body_limit_for("/api/firm/requests/abc123/upload") == DOCUMENT_BODY_LIMIT_BYTES
     # The company-workspace upload flow carries the same 25 MB multipart file.
     assert body_limit_for("/api/uploads/identify") == DOCUMENT_BODY_LIMIT_BYTES
@@ -268,8 +271,8 @@ def test_the_document_paths_keep_their_higher_cap():
     assert body_limit_for("/api/skus") == GENERAL_BODY_LIMIT_BYTES
     # 25 MB decoded PDF -> 4/3 base64 = 33,554,432 bytes, plus envelope.
     assert DOCUMENT_BODY_LIMIT_BYTES > (25 * 1024 * 1024) * 4 // 3, (
-        "the document cap (%d) is below the 25 MB PDF ceiling the parse "
-        "route states for itself, once base64 inflation is counted"
+        "the document cap (%d) is below a 25 MB document once base64 "
+        "inflation is counted (the number the front proxy also carries)"
         % DOCUMENT_BODY_LIMIT_BYTES)
 
 
