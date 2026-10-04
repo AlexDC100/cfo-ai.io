@@ -886,6 +886,8 @@ def test_the_served_check_judges_the_payload_it_is_handed(served, monkeypatch, c
     assert _served_check(monkeypatch).main([served.base]) == 1
     out = capsys.readouterr().out
     assert "FX-SERVED RED" in out and names in out
+    # A payload WAS read and judged: this is the case the paragraph is for.
+    assert "THIS IS NOT A ROLLBACK" in out and "NOTHING WAS READ" not in out
 
 
 @pytest.mark.parametrize("status, body, ctype", [
@@ -901,6 +903,11 @@ def test_the_served_check_reds_when_the_route_does_not_answer_a_payload(served, 
     assert _served_check(monkeypatch).main([served.base]) == 1
     out = capsys.readouterr().out
     assert "did not answer a payload (HTTP %d)" % status in out
+    # Nothing was read: the check says so, and gives no advice about a
+    # rollback (that paragraph is about a payload judged not current).
+    assert "the serving process did not answer GET /api/fx-rates" in out
+    assert "NOTHING WAS READ" in out and "says nothing" in out
+    assert "THIS IS NOT A ROLLBACK" not in out and "NOT answering a current BNR rate" not in out
 
 
 def test_the_served_check_reds_when_nothing_listens(monkeypatch, capsys):
@@ -912,6 +919,7 @@ def test_the_served_check_reds_when_nothing_listens(monkeypatch, capsys):
     assert _served_check(monkeypatch).main([base]) == 1
     out = capsys.readouterr().out
     assert "did not answer a payload (HTTP None)" in out and "health UNREADABLE" in out
+    assert "NOTHING WAS READ" in out and "THIS IS NOT A ROLLBACK" not in out
 
 
 def test_the_served_check_verdict_is_the_payload_not_the_health_rollup(served, monkeypatch, capsys):

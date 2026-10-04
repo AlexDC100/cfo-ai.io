@@ -24133,3 +24133,23 @@ not exercised); that "% of revenue" needs a comparison document at all (a
 single-period common-size column is an engine change — owner ruling
 2026-10-04, after this release). The rendered page is checked live after
 each deploy, not by this gate.
+
+---
+
+### fx-feed — the round-3 verifier's medium finding (2026-10-04)
+
+`scripts/check_fx_served.py` printed its "THIS IS NOT A ROLLBACK … rolling
+back restores nothing" paragraph on EVERY red — including when `GET
+/api/fx-rates` answered no payload at all (nothing listening, a 502, the
+SPA's page, a 404). With nothing read, the check has nothing to say about the
+rate, and advice about a rollback is advice on a question nobody asked: what
+failed is the engine or the ingress. It now prints that paragraph only when a
+200 JSON payload was read and judged not current; otherwise "NOTHING WAS
+READ … this check says nothing about the exchange rate" and points at the
+boot probe and `/api/health` (CLAUDE.md §14, steps 3 and 6). Laws (existing
+tests, tightened): the three "route does not answer a payload" cases and
+"nothing listens" carry the new words and NOT the rollback paragraph; the
+five "payload judged" cases carry the rollback paragraph and not the new
+words. PLANT: print the rollback paragraph unconditionally → RED, `4 failed`
+(the three not-a-payload cases and nothing-listens); REVERT → `96 passed`
+(`tests/engine/test_fx_bnr_feed.py` + `test_gate_canaries.py`).
