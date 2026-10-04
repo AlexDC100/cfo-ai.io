@@ -190,12 +190,23 @@ class World:
         return self
 
     # ── the run ────────────────────────────────────────────────────────
-    def run(self) -> str:
+    def run(self, *, staged_rerun: bool = False) -> str:
         """The daemon thread's whole run, for real. Returns what it stored
-        in `documents.error`."""
+        in `documents.error`.
+
+        `staged_rerun`: the run a Docs-panel re-run queued for a document
+        that OWNS its period (gate rerun-data-loss, stage 2, 2026-10-04). It
+        is staged beside the month: refused or failed, the document is NOT
+        marked failed — it stays `analyzed` over the month it still serves —
+        and its row carries `rerun_failed: ` in front of the very text a
+        first run stores. Returned WITHOUT that prefix, so the assertions on
+        the stored refusal are the same ones."""
         self.db.reads.clear()
         pipeline._run_pipeline_sync(DOC)
         row = self.db.rows("documents")[0]
+        if staged_rerun:
+            assert row["status"] == "analyzed" and str(row["error"]).startswith("rerun_failed: "), row
+            return str(row["error"])[len("rerun_failed: "):]
         assert row["status"] == "failed", row
         return str(row["error"])
 
@@ -681,7 +692,14 @@ def test_a_members_rerun_is_gated_by_the_workspace_not_by_the_caller(world, owne
     r = _retry(COLLEAGUE)
     assert r.status_code == 202 and r.json()["status"] == "queued", r.text
     assert world.enqueued == [DOC]
-    stored = world.run()
+    # The document owns its period: the re-run is STAGED. A refusal by the
+    # workspace's plan leaves it analysed over its month, the neutral code
+    # on its row — never `failed`, and never the month reset first.
+    stored = world.run(staged_rerun=True)
     assert _passed(stored) is entitled, stored
+    if not entitled:
+        assert stored == STORED["non_ro_not_included"], stored
+    assert [p["id"] for p in world.db.rows("financial_periods")] == [PERIOD], world.db.rows("financial_periods")
+    assert world.db.rows("documents")[0]["period_id"] == PERIOD
     assert world.plans_read() == [OWNER], world.db.reads
     assert world.meter == [], "a re-run of a counted book touched the meter: %r" % world.meter

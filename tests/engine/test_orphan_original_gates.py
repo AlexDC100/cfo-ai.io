@@ -52,18 +52,25 @@ def _pre(world, h=SCANDIA):
 
 
 def _twins_whose_live_copy_failed_its_retry(world):
+    """Two copies of one book that shared a period; the period is GONE, both
+    are pinned to nothing, and the live copy is `failed` — what a re-run that
+    RESET the period and then failed left behind.
+
+    CONSTRUCTED DIRECTLY since 2026-10-04 (gate rerun-data-loss, stage 2).
+    This used to be reached through POST /api/pipeline/retry, as a way to
+    delete the shared period: the retry's reset deleted it and a failed run
+    left nothing. A re-run is STAGED now — it never deletes its period and a
+    failed one leaves the document analysed over its month — so the route no
+    longer produces this state. Stored data still holds it (every failed
+    re-run before that date), and what these two laws say about it is
+    unchanged."""
     db = world["db"]
-    db.rows("financial_periods")[0]["source_document_id"] = "live"
+    del db.rows("financial_periods")[:]
     db.rows("documents").extend([
-        _doc("older", status="analyzed", period_id=PERIOD, created=_ago(days=3)),
-        _doc("live", status="analyzed", period_id=PERIOD, created=_ago(days=1)),
+        _doc("older", status="analyzed", period_id=None, created=_ago(days=3)),
+        _doc("live", status="failed", period_id=None, created=_ago(days=1), started=_ago(hours=2),
+             error="HTTPException: 502: Claude extraction failed"),
     ])
-    assert world["post"]("/api/pipeline/retry", {"document_id": "live"}).json()["status"] == "queued"
-    assert db.rows("financial_periods") == [], "the retry did not delete the shared period"
-    for d in db.rows("documents"):  # production FK: ON DELETE SET NULL
-        if d.get("period_id") == PERIOD:
-            d["period_id"] = None
-    world["finish"]("live", "failed")
 
 
 def test_after_the_live_twin_failed_its_retry_the_re_upload_is_not_a_duplicate(world):

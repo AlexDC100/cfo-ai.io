@@ -477,7 +477,7 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_briefing_keep_last_good_route.py",
               "tests/engine/test_briefing_keep_last_good_served.py",
               "tests/engine/test_briefing_keep_last_good_writers.py", "-q"],
-             work_junit=True, floor=640, units="tests",
+             work_junit=True, floor=624, units="tests",
              canaries=("test_a_failed_regenerate_leaves_the_stored_briefing_byte_identical",
                        "test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing",
                        "test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_spent_allowance",
@@ -490,8 +490,8 @@ def _engine_gates() -> List[Gate]:
                        "test_a_failed_narration_never_deletes_the_periods_recommendations_whatever_the_briefing_row_holds",
                        "test_a_takeover_whose_staged_run_left_no_briefing_row_keeps_the_months_briefing",
                        "test_a_docs_panel_rerun_whose_narration_fails_still_serves_the_last_good_briefing",
-                       "test_a_docs_panel_rerun_whose_narrative_write_is_refused_still_serves_what_the_reset_took",
-                       "test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_keeps_the_carry_for_the_next_run",
+                       "test_a_docs_panel_rerun_whose_narrative_write_is_refused_keeps_the_months_briefing",
+                       "test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_leaves_the_month_as_it_was",
                        "test_a_failed_narration_never_replaces_a_usable_sku_briefing",
                        "test_the_runs_alerts_are_written_even_when_a_narrative_write_raises")),
         # A RE-RUN ACTS ONLY ON A PERIOD THAT IS THE DOCUMENT'S OWN (owner
@@ -521,12 +521,16 @@ def _engine_gates() -> List[Gate]:
         # period. Measured 38. Plant log (15 plants, each alone, byte-exact
         # restore): docs/engine_book/gates.md "rerun-data-loss".
         Gate("rerun-data-loss",
-             [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py", "-q"],
-             work_junit=True, floor=38, units="tests",
+             [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
+              "tests/engine/test_rerun_staged.py", "-q"],
+             work_junit=True, floor=134, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_the_refusal_is_one_answer_whatever_the_pin_names",
-                       "test_the_reset_deletes_only_a_period_this_document_is_the_source_of",
-                       "test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin")),
+                       "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
+                       "test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin",
+                       "test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point",
+                       "test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was",
+                       "test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result")),
         # … AND THE DOCS PANEL SAYS SO. The refusal is a CODE and nothing
         # else (no sentence, no period id, no document id); the panel used
         # to discard the body of every failed retry and say "Couldn't start

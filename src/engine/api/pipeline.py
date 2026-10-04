@@ -2670,8 +2670,8 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
            · whatever the staged run left in those two tables is deleted
              explicitly, the tenant in the filter, so nothing is left under
              the staged id — EXCEPT recommendations under the staged id when
-             the month holds none: those are a re-run's carried ones and
-             they move onto the month.
+             the month holds none: there is nothing of the month's to keep,
+             and they move onto it.
          `keep_recommendations`: the caller knows the run stored no
          recommendations to replace the month's with — the narration was
          usable but its `recommendations` could not be read
@@ -2785,8 +2785,9 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
         # No staged row is the least usable briefing there is: the keep
         # decision must never require one to exist (it did — and a staged
         # run whose narrative write raised cost the month its briefing).
-        # A run whose narration FAILED brought no briefing either, whatever
-        # row sits under the staged id (a re-run's carried briefing can).
+        # A run whose narration FAILED — or whose usable narration could not
+        # be stored — brought no briefing either, whatever row sits under the
+        # staged id (a write whose reply was lost can have landed).
         staged_narration_unusable = (narration_unavailable is not None
                                      or not _is_usable_stored_briefing(staged_briefing))
         keep_served_briefing = (staged_narration_unusable
@@ -2798,10 +2799,8 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
         # the caller says stored none that may replace the month's. The
         # month's are kept — WHEN IT HOLDS ANY. A month that holds none has
         # nothing to keep, and what sits under the staged id is then not
-        # deleted but moved: a Docs-panel re-run staged beside another
-        # document's month has its CARRIED recommendations there (statuses,
-        # owners, due dates), and deleting them "because the month keeps its
-        # own" cost the reader all of them (review 2026-10-04, measured).
+        # deleted but moved: deleting it "because the month keeps its own"
+        # left the month with none (review 2026-10-04, measured).
         month_holds_recommendations = bool(admin_client.select(
             "recommendations",
             filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}"},
@@ -2937,13 +2936,13 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
 # in step with `financial_periods.source_document_id`, the pointer the engine
 # writes. A document superseded for its month by a newer upload stays pinned
 # to that month's row (archived); restored from the shelf and re-run, its
-# reset deleted the NEWER document's period, the carry took the newer
-# document's briefing and recommendations, and the month came back as the
-# OLDER file's statements under them. A pin the company filter rejected (or
+# reset deleted the NEWER document's period, what it carried across was the
+# newer document's briefing and recommendations, and the month came back as
+# the OLDER file's statements under them. A pin the company filter rejected (or
 # no pin at all) matched nothing, and the run then found the document's real
 # period by its own tuple and ran IN PLACE — the withdrawn design's path.
 #
-# THE RULE. Before anything is carried, deleted or written, the period is
+# THE RULE. Before anything is staged, replaced or written, the period is
 # read by id AND company AND source: it is the document's own, or the re-run
 # is refused with a neutral code — never a period id, never a sign of
 # whether another company's row exists. The engine-written pointer is the
@@ -3537,202 +3536,6 @@ def _staged_rerun_failed(document_id: str, doc: Optional[Dict[str, Any]], msg: s
     return "failed"
 
 
-# ── The Docs panel's "Re-run analysis" carries the last good briefing across its reset ──
-#
-# POST /api/pipeline/retry RESETS before it re-runs: it deletes the period
-# the document is pinned to (the original phase-3 design, 2026-05-10 — the
-# foreign keys cascade the line items, the metrics, the briefing and the
-# recommendations away) and the run then files the document afresh. With the
-# provider refusing (production, 2026-09/10) that re-run's narration fails,
-# `stage_persist_narrative` finds nothing to keep on the fresh period, and
-# the reader was served "unavailable" where the last good briefing stood —
-# keep-last-good never engaged on the one re-run a user can start; the
-# recommendations (their statuses, owners and due dates) went the same way
-# (owner rulings 2026-10-03).
-#
-# THE RULE. The reset stays exactly as it was — it is the path with the
-# mileage, and everything downstream relies on it (a re-run that fails
-# leaves NO period, never a failed document over a served month; a document
-# has one period; the AI lane's cache is cleared). What a user would lose is
-# CARRIED ACROSS it instead: before the reset the period's usable briefing
-# and its recommendations are read (the tenant in every filter) and held
-# for the document; `stage_persist_narrative` puts them back on the period
-# the re-run files the document under when — and only when — the run's own
-# narration brings nothing to replace them with. A usable narration is
-# written as always and the carry is dropped.
-#
-# A first try made the re-run go IN PLACE (no reset when the period held a
-# usable briefing). Independent review, 2026-10-03, measured three wrong
-# states of it — a re-run that fails left a FAILED document over a served
-# period (the year tile vanished; `empty_live_periods` called the month
-# empty), a failure after `stage_persist` served the new statements beside
-# the old metrics and an unmarked briefing, and a re-filed document kept two
-# periods — so it was withdrawn.
-#
-# THE CARRY IS LET GO ONLY ONCE THE RUN IS DURABLE. `stage_persist_narrative`
-# reports that it settled the carry (`stored["carry_settled"]`); the
-# orchestrator drops it after the document is marked analysed. A run that
-# fails AFTER the narrative stage (the period touch, the takeover, the last
-# status write) is rolled back with its period — the one the carry had just
-# been restored on — and the carry must still be there for the next run
-# (review 2026-10-04, measured: one timeout on the last status write lost
-# the briefing and the worked recommendations for good).
-#
-# WHAT THE CARRY CANNOT DO (stated, not hidden): it lives in this process.
-# A re-run whose RUN fails leaves no period, as it always did — the carry
-# then waits for the document's next run; a restart in between loses it,
-# and with it the briefing. The durable form is a re-run that stages beside
-# the month and takes it over on success, like a same-month re-upload
-# (ticket). And a lane that pins the document WITHOUT narrating (the AI
-# lane) never consults the carry: nothing is put back there (ticket).
-
-_RERUN_CARRY: Dict[str, Dict[str, Any]] = {}
-_RERUN_CARRY_LOCK = threading.Lock()
-
-#: Columns of a carried `recommendations` row that are re-keyed when it is put
-#: back on the document's new period. Everything else travels as it was — its
-#: id too (the reset cascaded the old row away; the recommendation a user
-#: worked is the same recommendation).
-_RECOMMENDATION_REKEYED_COLUMNS = ("period_id", "target_id", "org_id")
-
-
-def _carry_before_rerun_reset(doc: Dict[str, Any]) -> None:
-    """Hold what the reset is about to cascade away and a failed narration
-    could not bring back: the period's USABLE briefing row and its
-    recommendations — read under the service role with the DOCUMENT's own
-    organization in every filter (`documents.period_id` is browser-written:
-    a row carrying another workspace's period id finds nothing there).
-
-    Raises when they cannot be read: the reset must not run blind (the
-    caller's claim and reservation are given back by `_start_rerun`).
-    A period that holds neither leaves an earlier carry of this document
-    untouched — a previous re-run that failed before it could narrate."""
-    document_id = str(doc.get("id") or "").strip()
-    period_id = doc.get("period_id")
-    org_id = str(doc.get("org_id") or "").strip()
-    if not document_id or not period_id or not org_id:
-        return
-    with _supabase.admin() as admin_client:
-        briefing_row = _stored_briefing_row(admin_client, str(period_id), org_id)
-        recommendations = admin_client.select(
-            "recommendations",
-            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
-        ) or []
-    recommendations = [dict(r) for r in recommendations if str(r.get("org_id")) == org_id]
-    usable = dict(briefing_row) if _is_usable_stored_briefing(briefing_row) else None
-    if usable is None and not recommendations:
-        return
-    with _RERUN_CARRY_LOCK:
-        earlier = _RERUN_CARRY.get(document_id) or {}
-        _RERUN_CARRY[document_id] = {
-            "org_id": org_id,
-            # A period holding recommendations but no usable briefing keeps
-            # the briefing an earlier failed re-run was already carrying.
-            "briefing": usable if usable is not None else (
-                earlier.get("briefing") if earlier.get("org_id") == org_id else None),
-            "recommendations": recommendations or (
-                earlier.get("recommendations") if earlier.get("org_id") == org_id else []) or [],
-        }
-
-
-def _rerun_carry_of(document_id: Any, org_id: Any) -> Optional[Dict[str, Any]]:
-    """The carry held for `document_id` — only for the organization it was
-    read in."""
-    with _RERUN_CARRY_LOCK:
-        carry = _RERUN_CARRY.get(str(document_id or ""))
-    if not carry or str(carry.get("org_id")) != str(org_id):
-        return None
-    return carry
-
-
-def _drop_rerun_carry(document_id: Any) -> None:
-    with _RERUN_CARRY_LOCK:
-        _RERUN_CARRY.pop(str(document_id or ""), None)
-
-
-def _restore_carried_recommendations(admin_client: Any, carry: Optional[Dict[str, Any]],
-                                     org_id: Any, period_id: str) -> int:
-    """Put the carried recommendations back on `period_id` — only when the
-    period holds none (the run brought none: its narration failed, or its
-    list could not be read). Statuses, owners and due dates travel with
-    them; the rows are re-keyed to the period the document is filed under
-    now. Returns how many were written."""
-    rows = [r for r in ((carry or {}).get("recommendations") or []) if isinstance(r, dict)]
-    if not rows:
-        return 0
-    present = admin_client.select(
-        "recommendations",
-        filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
-        columns="id", limit=1,
-    )
-    if present:
-        return 0
-    restored = []
-    for r in rows:
-        row = {k: v for k, v in r.items() if k not in _RECOMMENDATION_REKEYED_COLUMNS}
-        row.update({"org_id": org_id, "period_id": period_id})
-        # A recommendation about the period points at the period it is on now;
-        # one about anything else (a SKU, a category) keeps its target.
-        row["target_id"] = str(period_id) if str(r.get("target_id")) == str(r.get("period_id")) \
-            else r.get("target_id")
-        restored.append(row)
-    admin_client.insert("recommendations", restored, returning=False)
-    return len(restored)
-
-
-def _write_carried_briefing(admin_client: Any, carried: Dict[str, Any], org_id: Any,
-                            period_id: str, reason: str) -> None:
-    """The briefing a re-run's reset carried, written on `period_id` as it
-    was — its own body, language, model and definition stamp — and marked
-    stale with `reason`."""
-    admin_client.upsert(
-        "briefings",
-        {
-            "period_id": period_id,
-            "org_id": org_id,
-            "body": carried["body"],
-            "language": carried.get("language") or "en",
-            "model": carried.get("model"),
-            "ebitda_definition": carried.get("ebitda_definition"),
-        },
-        on_conflict="period_id",
-        returning=False,
-    )
-    _mark_briefing_stale(admin_client, carried, period_id, org_id, reason, restored=True)
-
-
-def _restore_rerun_carry(admin_client: Any, carry: Optional[Dict[str, Any]], org_id: Any,
-                         period_id: str, reason: str) -> bool:
-    """BEST EFFORT, never raises: put back on `period_id` whatever a
-    Docs-panel re-run's carry holds that the period LACKS — the carried
-    briefing (marked stale with `reason`) when the period holds no usable
-    one, the carried recommendations when it holds none. What the period
-    already holds is newer and is never written over.
-
-    Returns whether the period now holds everything the carry did — the
-    carry may then be let go. False when a read or a write was refused: the
-    carry waits for the document's next run."""
-    if not carry:
-        return True
-    whole = True
-    carried_briefing = carry.get("briefing")
-    if carried_briefing is not None:
-        try:
-            if not _is_usable_stored_briefing(_stored_briefing_row(admin_client, period_id, org_id)):
-                _write_carried_briefing(admin_client, carried_briefing, org_id, period_id, reason)
-        except Exception:  # noqa: BLE001 — best effort; the carry is kept
-            whole = False
-            logger.exception("[rerun carry] the carried briefing could not be put back on period %s",
-                             period_id)
-    try:
-        _restore_carried_recommendations(admin_client, carry, org_id, period_id)
-    except Exception:  # noqa: BLE001 — best effort; the carry is kept
-        whole = False
-        logger.exception("[rerun carry] the carried recommendations could not be put back on period %s",
-                         period_id)
-    return whole
-
-
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any], *,
                   staged_rerun_of: Optional[str] = None) -> str:
     """Lookup-or-create the financial_period for this document's
@@ -4294,9 +4097,9 @@ NARRATION_UNAVAILABLE_CODES = ("no_api_key", "sdk_missing", "provider_error",
                                "unparseable_reply", "empty_reply", "withheld_numerals")
 
 #: Why a KEPT briefing is stale when no narration failed — `stale_reason`
-#: only, beside the codes above: a Docs-panel re-run's carried briefing put
-#: back because the run's own usable narration could not be STORED (the
-#: database refused the write).
+#: only, beside the codes above: a Docs-panel re-run whose own usable
+#: narration could not be STORED (the database refused the write) keeps the
+#: month's briefing, and says so.
 BRIEFING_STALE_WRITE_REFUSED = "write_refused"
 
 #: Provider error text as a stored body BEGINS with it: the SDK's own
@@ -4425,8 +4228,7 @@ def _kept_briefing_body(row: Optional[Dict[str, Any]]) -> Optional[str]:
 
 
 def _mark_briefing_stale(admin_client: Any, row: Optional[Dict[str, Any]],
-                         period_id: str, org_id: Any, reason: str, *,
-                         restored: bool = False) -> bool:
+                         period_id: str, org_id: Any, reason: str) -> bool:
     """The kept row is marked stale: a SEPARATE, best-effort service-role
     update filtered by period AND tenant — never part of a briefing upsert
     (an upsert naming a column PostgREST does not know is rejected whole,
@@ -4434,19 +4236,12 @@ def _mark_briefing_stale(admin_client: Any, row: Optional[Dict[str, Any]],
     supabase/schema_phase_briefing_stale.sql having been applied).
     `stale_since` is the FIRST failure since the last good write.
 
-    `restored`: `row` is a briefing a re-run's reset carried and the caller
-    has just written back on `period_id` — the fresh row holds no marker, so
-    the first-failure time `row` carried is written again (now, when it
-    carried none).
-
     Returns whether the marker was STORED (the update was accepted): a
     caller that reports `stale` reports what the row holds, never what it
     asked for (owner ruling 2026-10-03: "never report a state that isn't
     stored")."""
     patch: Dict[str, Any] = {"stale_reason": reason}
-    if restored:
-        patch["stale_since"] = (row or {}).get("stale_since") or _now_iso()
-    elif not (row or {}).get("stale_since"):
+    if not (row or {}).get("stale_since"):
         patch["stale_since"] = _now_iso()
     try:
         admin_client.update(
@@ -6082,29 +5877,18 @@ def stage_persist_narrative(
     briefing or recommendation write raises (a transient database error, a
     schema drift): the raise still reaches the caller, after the alerts.
 
-    A DOCS-PANEL RE-RUN'S CARRY (`_carry_before_rerun_reset`): the re-run's
-    reset took the document's previous period — and with it the last good
-    briefing and the recommendations — before this run. When the run's
-    narration brings nothing to replace them with, they are put back here,
-    on the period the document is filed under now: the briefing as it was,
-    marked stale; the recommendations with their statuses, owners and due
-    dates. A usable narration is written as always. A narrative write the
-    DATABASE REFUSED on such a re-run puts back whatever the period then
-    lacks (best effort, before the raise reaches the caller): a refused
-    write of a usable narration used to leave the reader with no briefing,
-    or no recommendations, while the carry sat unused in memory.
-    THE STAGE NEVER DROPS THE CARRY: it reports `carry_settled` and the
-    orchestrator drops it once the run is durable (a run that fails later
-    is rolled back with this period — the carry must outlive it). A restore
-    the database refused leaves the carry unsettled: the document's next
-    run puts it back.
+    A DOCS-PANEL RE-RUN reaches this stage on its STAGED row — a fresh one,
+    with nothing stored under it: a failed narration writes the sentinel
+    there and nothing else, and the takeover that follows keeps what the
+    MONTH holds (`_finalize_same_month_takeover`). Nothing is carried across
+    a reset any more (2026-10-04: the reset is gone — what it took lived in
+    process memory and a restart lost it).
 
     `stored` (optional, filled in as the stage goes, readable after a
-    raise): `recommendations` — the run's own recommendations replaced the
-    period's; `alerts` — the run's alerts were written (the same-month
-    takeover is told from these two what may replace the month's);
-    `carry_settled` — the period holds everything a re-run's carry did, or
-    the run's own narration replaced it.
+    raise): `briefing` — a briefing row was written (the run's prose, or the
+    sentinel); `recommendations` — the run's own recommendations replaced
+    the period's; `alerts` — the run's alerts were written. The takeover is
+    told from these what may replace the month's.
     """
     if stored is None:
         stored = {}
@@ -6131,8 +5915,6 @@ def stage_persist_narrative(
             )
             return
 
-        # What a Docs-panel re-run's reset carried for this document.
-        carry = _rerun_carry_of(document_id, org_id)
         try:
             # The last good briefing, when this run's narration failed. Read
             # only then (a usable narration is written whatever is stored),
@@ -6150,28 +5932,6 @@ def stage_persist_narrative(
                     unavailable, period_id,
                 )
                 _mark_briefing_stale(admin_client, kept_row, period_id, org_id, str(unavailable))
-                # What the period holds is newer than the briefing a re-run
-                # carried. Recommendations still waiting in the carry are
-                # put back when the period holds none.
-                _restore_carried_recommendations(admin_client, carry, org_id, period_id)
-                stored["carry_settled"] = True
-                return
-
-            carried_briefing = (carry or {}).get("briefing") if unavailable is not None else None
-            if carried_briefing is not None:
-                # The re-run's narration failed and its reset had taken the
-                # last good briefing with the old period: it is written back
-                # as it was — its own body, language, model and definition
-                # stamp — and marked stale; the recommendations with it.
-                _write_carried_briefing(admin_client, carried_briefing, org_id, period_id,
-                                        str(unavailable))
-                restored_recs = _restore_carried_recommendations(admin_client, carry, org_id, period_id)
-                stored["carry_settled"] = True
-                logger.warning(
-                    "[stage_persist_narrative] narration unavailable (%s) for period %s — the "
-                    "briefing the re-run's reset carried is restored and marked stale "
-                    "(%d recommendation(s) with it)", unavailable, period_id, restored_recs,
-                )
                 return
 
             # Briefing — upsert one row per period
@@ -6206,10 +5966,6 @@ def stage_persist_narrative(
                     "the sentinel is stored; the period's recommendations are kept",
                     unavailable, period_id,
                 )
-                # … and a re-run's carried ones are put back (the reset took
-                # them with a period whose briefing was not usable).
-                _restore_carried_recommendations(admin_client, carry, org_id, period_id)
-                stored["carry_settled"] = True
                 return
 
             # A good write: the row is current again. NEVER inside the
@@ -6237,10 +5993,6 @@ def stage_persist_narrative(
                     "for period %s — the stored recommendations are kept",
                     period_id,
                 )
-                # The briefing is new; the recommendations a re-run's reset
-                # carried are still the period's (nothing replaced them).
-                _restore_carried_recommendations(admin_client, carry, org_id, period_id)
-                stored["carry_settled"] = True
                 return
             # What the period holds, read BEFORE the delete: the replacement
             # is a delete then an insert, and an insert the database refused
@@ -6276,21 +6028,6 @@ def stage_persist_narrative(
                         "could not be put back for period %s", period_id)
                 raise
             stored["recommendations"] = True
-            # The run's own narration replaced everything a re-run carried.
-            stored["carry_settled"] = True
-        except Exception:
-            # A NARRATIVE WRITE THE DATABASE REFUSED. On a Docs-panel re-run
-            # the period is new and the reset took what the old one held:
-            # whatever this period now lacks is put back from the carry —
-            # the briefing when the period holds no usable one, the
-            # recommendations when it holds none (best effort; a refused
-            # restore leaves the carry for the next run). The raise still
-            # reaches the caller.
-            if carry is not None and not stored.get("carry_settled"):
-                if _restore_rerun_carry(admin_client, carry, org_id, period_id,
-                                        str(unavailable or BRIEFING_STALE_WRITE_REFUSED)):
-                    stored["carry_settled"] = True
-            raise
         finally:
             # ── Alerts — DETERMINISTIC rules only (read from canonical views) ──
             # LLM-generated alerts are NO LONGER persisted. The "15 duplicate
@@ -6884,7 +6621,8 @@ def _live_reservation_ids() -> List[str]:
 
 def _orphan_analysis_finished(document_id: str) -> bool:
     """Did the orphaned run's analysis FINISH — the document analysed and
-    not an archived duplicate — so that only its settlement was lost?"""
+    not an archived duplicate, and no staged re-run of it left unfinished —
+    so that only its settlement was lost?"""
     try:
         with _supabase.admin() as ac:
             found = ac.select("documents", filters={"id": f"eq.{document_id}"}, single=True) or []
@@ -6892,8 +6630,26 @@ def _orphan_analysis_finished(document_id: str) -> bool:
         logger.exception("[pipeline] orphan settlement: could not read document %s", document_id)
         return False
     doc = dict(found[0]) if found else {}
-    return (str(doc.get("status") or "").lower() == "analyzed"
-            and not _doc_dedupe.is_archived_duplicate(doc) and not doc.get("deleted_at"))
+    if not (str(doc.get("status") or "").lower() == "analyzed"
+            and not _doc_dedupe.is_archived_duplicate(doc) and not doc.get("deleted_at")):
+        return False
+    # A STAGED re-run never re-statuses its document: `analyzed` here may be
+    # the analysis the document had BEFORE the orphaned run. That run did not
+    # finish when its row says so, or when its staged row is still there —
+    # never applied, or interrupted mid-replacement (a resume will complete
+    # the analysis; this sweep cannot say it has). Unknown is released, never
+    # charged.
+    if str(doc.get("error") or "").startswith(RERUN_FAILED_PREFIX):
+        return False
+    try:
+        with _supabase.admin() as ac:
+            staged = _staged_rerun_rows(ac, str(doc.get("org_id") or ""))
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] orphan settlement: the staged rows of %s could not be read",
+                         document_id)
+        return False
+    return not any(str((_staged_rerun.marker_of(r) or {}).get("document_id") or "") == str(document_id)
+                   for r in staged)
 
 
 def _settle_orphaned_reservation(row: Dict[str, Any]) -> None:
@@ -8087,11 +7843,6 @@ def _run_pipeline_stages(document_id: str) -> str:
         # The period is now backed by an analysed document — nothing to
         # roll back from here on.
         _pop_period_minted(document_id)
-        # … and what a Docs-panel re-run carried across its reset may be let
-        # go — only now (a failure up to the status write above rolls the
-        # period back, and the carry with what it was restored on).
-        if narrative_stored.get("carry_settled"):
-            _drop_rerun_carry(document_id)
         # Pricing V3 (gap D) — analysis SUCCEEDED. `_run_pipeline_sync`
         # settles this run's reservation on the returned outcome.
         logger.info("[pipeline] %s complete in %dms", document_id, int((time.time() - t0) * 1000))
@@ -10730,6 +10481,12 @@ def build_router() -> APIRouter:
                         admin.delete(table, filters={"document_id": f"eq.{doc_id}"})
                     except Exception:  # noqa: BLE001
                         logger.debug("[docs] clear-deleted: no cascade on %s", table)
+                # A re-run of it that is staged (in flight, or dead) names no
+                # source: no foreign key takes its staged row with the
+                # document. Dropped explicitly, never resumed — the month
+                # goes with the document.
+                _clear_staged_rerun_rows(admin, doc.get("org_id"), document_id=str(doc_id),
+                                         resume=False)
                 admin.delete("documents", filters={"id": f"eq.{doc_id}"})
                 deleted_ids.append(doc_id)
 
@@ -10874,7 +10631,12 @@ def build_router() -> APIRouter:
                     # fine — the FK simply doesn't exist there.
                     logger.debug("[docs] no document_id cascade on %s (skipping)", table)
 
-            # 3) Hard-delete the document row.
+            # 3) Hard-delete the document row — after the staged row(s) of a
+            # re-run of it (in flight, or dead): they name no source, so no
+            # foreign key takes them with the document. Dropped, never
+            # resumed — the month goes with the document.
+            _clear_staged_rerun_rows(admin, doc.get("org_id"), document_id=str(document_id),
+                                     resume=False)
             admin.delete("documents", filters={"id": f"eq.{document_id}"})
 
         return {"document_id": document_id, "permanently_deleted": True}
@@ -11625,9 +11387,19 @@ def build_router() -> APIRouter:
 
     def _retry_rerun(document_id: str, doc: Dict[str, Any]) -> None:
         """The body of a claimed retry: the ownership look again (under the
-        claim), carry what the reset would cost the reader, wipe the prior
-        derivatives of the document's OWN period, queue, hand the run to its
-        thread."""
+        claim), then the hand-off.
+
+        A document that OWNS its period is handed off as a STAGED re-run:
+        NOTHING is deleted, unpinned or re-statused here — the month keeps
+        being served, the run persists under a staged row beside it and
+        takes the month over only once it has succeeded (see "The Docs
+        panel's Re-run analysis is STAGED" above). Until 2026-10-04 this body
+        deleted the period first and held what the delete cascaded away —
+        the last good briefing, the worked recommendations — in process
+        memory: a restart lost them, and a failed run left no month at all.
+
+        A document that holds no period (its first run failed, its 402 was
+        dismissed) re-runs as it always did."""
         doc_org = str(doc.get("org_id") or "").strip()
         # THE PERIOD IS THE DOCUMENT'S OWN — looked at again here, under the
         # claim: the route's look came before it, and a newer upload's
@@ -11636,81 +11408,49 @@ def build_router() -> APIRouter:
         # reservation) back; nothing has been written. `own` is what the
         # STORE says now — never `doc`, the row the wall read.
         own = _own_periods_or_refuse_rerun(document_id, doc_org)
-        # THE LAST GOOD BRIEFING AND THE RECOMMENDATIONS ARE CARRIED across
-        # the reset below (owner rulings 2026-10-03): `briefings` keeps no
-        # history, and a re-run whose narration fails used to leave the
-        # reader "unavailable" where they stood. `stage_persist_narrative`
-        # puts them back when the run's narration brings nothing. An
-        # unreadable period refuses the re-run — nothing is reset blind.
-        # The carry reads the document's OWN period (`own`), never the pin:
-        # read through the pin, it held a NEWER document's briefing and
-        # recommendations for the older file (measured, 2026-10-04).
-        with _RERUN_CARRY_LOCK:
-            _held = _RERUN_CARRY.get(document_id)
-            carry_before = copy.deepcopy(_held) if _held is not None else None
-        try:
-            _carry_before_rerun_reset(dict(doc, period_id=own[0]["id"] if own else None))
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("[pipeline] retry of %s: the period's briefing and recommendations "
-                             "could not be read — the re-run is not started", document_id)
-            raise HTTPException(503, {"code": "rerun_unavailable"}) from exc
-        # Wipe prior derivatives via cascade — deleting the financial_periods
-        # row removes statement_line_items, calculated_metrics, briefings,
-        # AND alerts (alerts.document_id has on delete set null, we explicitly
-        # wipe by document below for that one).
-        # THE ORG IS PART OF THE FILTER, not an assumption (P0, 2026-09-09).
-        # `documents.period_id` is written by the BROWSER — `documents` RLS is
-        # is_member_of(org_id) with no column restriction, and its FK to
-        # financial_periods is EXISTENCE-only, so nothing ties it to the same
-        # tenant. The write wall above validated the DOCUMENT; it never looked
-        # at period_id. This delete runs under the SERVICE ROLE, so the filter
-        # IS the access control — filtering on id alone let a row filed in
-        # your own workspace, carrying another workspace's period id, delete
-        # that period and cascade away its line items, metrics and briefings.
-        # Same defect as the storage-path bypass and the make-active twin
-        # fixed the same day. With org_id in the filter a cross-tenant id
-        # simply matches nothing.
-        # AND THE SOURCE IS PART OF THE FILTER (2026-10-04): the delete names
-        # the document the period must still be the analysis of (`is.null`
-        # for a period that names none and was read as the document's own),
-        # so a period that changed hands since the look above matches
-        # nothing. The re-read after it is how that is NOTICED: a row still
-        # there was not this document's to reset — what the carry held
-        # before is put back and the re-run is refused, nothing else touched.
-        # The carried period (`own[0]`) goes LAST, so a refusal part-way
-        # never leaves its briefing neither stored nor carried.
-        for period in reversed(own):
+        if not own:
+            _pop_staged_rerun(document_id)
             with _supabase.admin() as admin_client:
-                admin_client.delete("financial_periods", filters={
-                    "id": f"eq.{period['id']}",
-                    "org_id": f"eq.{doc_org}",
-                    "source_document_id": (f"eq.{document_id}" if period.get("source_document_id")
-                                           else "is.null"),
-                })
-                still_there = admin_client.select(
-                    "financial_periods",
-                    filters={"id": f"eq.{period['id']}", "org_id": f"eq.{doc_org}"},
-                    columns="id", limit=1,
+                admin_client.delete("alerts", filters={"document_id": f"eq.{document_id}"})
+                admin_client.update(
+                    "documents",
+                    {"period_id": None, "error": None, "duration_ms": None},
+                    filters={"id": f"eq.{document_id}"},
                 )
-            if still_there:
-                with _RERUN_CARRY_LOCK:
-                    if carry_before is None:
-                        _RERUN_CARRY.pop(document_id, None)
-                    else:
-                        _RERUN_CARRY[document_id] = carry_before
-                logger.warning("[pipeline] retry of %s: its period changed hands before the reset — "
-                               "nothing was reset; the re-run is not started", document_id)
-                raise HTTPException(409, {"code": RERUN_REFUSED_SUPERSEDED})
-        with _supabase.admin() as admin_client:
-            admin_client.delete("alerts", filters={"document_id": f"eq.{document_id}"})
-            admin_client.update(
-                "documents",
-                {"period_id": None, "error": None, "duration_ms": None},
-                filters={"id": f"eq.{document_id}"},
-            )
-        _admin_set_status(document_id, "queued", pipeline_started_at=_now_iso())
-        _doc_dedupe.mark_running(document_id)
-        _enqueue(document_id)
+            _admin_set_status(document_id, "queued", pipeline_started_at=_now_iso())
+            _doc_dedupe.mark_running(document_id)
+            _enqueue(document_id)
+            return
+        # WHAT AN EARLIER RE-RUN OF THIS DOCUMENT LEFT BEHIND, FIRST: a run a
+        # restart killed leaves its staged row. One whose takeover had begun
+        # is completed (the month is then that run's analysis, whole); any
+        # other is dropped. A committed row that cannot be completed — or a
+        # store that cannot be read — refuses this re-run: a second staged
+        # run over a month that is mid-replacement would be resumed over by
+        # the older one later.
+        try:
+            with _supabase.admin() as admin_client:
+                leftover = _clear_staged_rerun_rows(admin_client, doc_org, document_id=document_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[pipeline] retry of %s: its earlier staged rows could not be "
+                             "looked at — the re-run is not started", document_id)
+            raise HTTPException(503, {"code": "rerun_unavailable"}) from exc
+        if leftover["left"] or leftover["unreadable"]:
+            logger.warning("[pipeline] retry of %s: an earlier re-run's interrupted takeover could "
+                           "not be completed (%r) — the re-run is not started", document_id, leftover)
+            raise HTTPException(503, {"code": "rerun_unavailable"})
+        # The newest of the document's own periods is the one the run is
+        # staged beside (a document has one; legacy rows may have left more —
+        # the others are not touched).
+        _set_staged_rerun(document_id, own[0]["id"])
+        try:
+            _doc_dedupe.mark_running(document_id)
+            _enqueue(document_id)
+        except BaseException:
+            # The run was never handed off: the note that it is staged must
+            # not outlive this attempt.
+            _pop_staged_rerun(document_id)
+            raise
 
     @router.get("/api/period/{period_id}")
     def get_period(period_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:

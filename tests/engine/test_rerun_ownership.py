@@ -35,12 +35,13 @@ THE LAW.
   O4  The period changing hands between the route's look and the claim is
       refused under the claim, and the claim — and a metered re-run's
       reservation — is given back.
-  O5  The reset deletes only a period this document is the source of: the
-      DELETE names id, company and source, and is followed by a re-read — a
-      period that changed hands a moment before the delete is not deleted,
-      the carry is as it was, the re-run is refused.
+  O5  A re-run DELETES NO PERIOD (stage 2: nothing is reset — the run is
+      staged beside the document's own month), and a month that changes
+      hands after the route accepted is never taken over: ownership is
+      looked at again where the staged row is inserted and once more at the
+      takeover.
   O6  A document with NO pin is never re-run in place: its period is found
-      by the pointer the engine wrote, and reset.
+      by the pointer the engine wrote, and the run is staged beside it.
   O7  A period that names no source is the document's only when its
       analysis says so, or — with no stamp — when no other document of the
       company, live or deleted, is pinned to it. NULL is never "anyone's".
@@ -50,12 +51,17 @@ THE LAW.
   O10 A move never deletes a period whose analysis is another document's.
   O11 A run whose period insert failed adopts only its OWN row.
   O12 Census: every `delete("financial_periods", …)` in the engine is one of
-      the six sites stated here, each with its ownership rule.
+      the sites stated here, each with its ownership rule — and the retry
+      route is not one of them.
 
-STAGE 1 OF 3 (design of 2026-10-04). The reset and the in-memory carry are
-still production's; stage 2 replaces the reset with a re-run STAGED beside
-the document's own month (O5 then becomes "no delete at all"), stage 3 takes
-the AI lane through the same mechanism.
+STAGE 2 OF 3 (design of 2026-10-04). Stage 1 put the ownership rule on
+production's reset; stage 2 REPLACED the reset: the re-run is staged beside
+the document's own month and takes it over on success (tests/engine/
+test_rerun_staged.py, test_rerun_restart.py — the same gate). O5, O6 and the
+accepted cells of O7 were restated then: where they said "the reset deletes
+only its own period", they now say "nothing is deleted, and the staged run
+never takes over a month that is not the document's". Stage 3 takes the AI
+lane through the same mechanism.
 
 WHAT RUNS HERE. The REAL `create_app()` routes (`POST /api/pipeline/retry`,
 `/api/documents/{id}/restore`, `DELETE /api/documents/{id}`, the upload
@@ -73,9 +79,10 @@ Two things the double does not model are modelled here by hand
 CASCADE), and `documents.period_id` set NULL when its period is deleted.
 
 WHAT THESE RED ON, with the defect repaired (TC-11):
-  · a re-run that reads, carries from, deletes or resets a period whose
-    source is another document — at the route, under the claim, or at the
-    DELETE itself;
+  · a re-run that reads from, deletes, resets or takes over a period whose
+    source is another document — at the route, under the claim, where the
+    staged row is inserted, or at the takeover;
+  · the reset coming back (any delete of a period by the retry route);
   · a refusal that writes, claims, meters, enqueues, or tells "another
     company's period" from "no such period";
   · a refusal body carrying a message, a period id or a document id;
@@ -92,16 +99,16 @@ CANNOT SEE.
     whether production holds source-less periods or documents pinned to a
     period that names another document (the owner's read-only count).
   · A hand-over INSIDE one HTTP statement, and two backend processes: the
-    look, the carry and the delete are three statements; the DELETE's own
-    filter and the re-read are what hold between them.
+    looks and the takeover's commit point are separate statements; a newer
+    upload's takeover that lands AFTER the commit point is not serialised
+    against the apply (in-flight is per process; stated in gates.md).
   · `make-active` on a LIVE attachment, which deletes the month's briefing
     before its own re-run by design (ticket), and an OLDER document's FIRST
     run replacing a newer document's month through `/api/pipeline/run` or
     recover-stuck (G4's rule; owner ruling needed).
   · The Docs panel printing the refusal: gate `rerun-refusal-surfaces`
     (vitest), which reads the same fixture file O1 holds the route to.
-  · A restart between the reset and the run (the carry is in memory until
-    stage 2).
+  · A restart anywhere in a re-run: tests/engine/test_rerun_restart.py.
 
 PLANT LOG: docs/engine_book/gates.md "rerun-data-loss".
 """
@@ -177,7 +184,6 @@ def _own_month(app, gw, monkeypatch, outcomes: List[Any]) -> Dict[str, Any]:
     """doc1: Agras's December analysed with a narration that worked (BODY_A),
     one recommendation worked by a user; the database behaving as
     production's; the provider scripted with `outcomes` for what follows."""
-    monkeypatch.setattr(P, "_RERUN_CARRY", {})
     _production_foreign_keys(gw, monkeypatch)
     W._script_the_provider(monkeypatch, [W._reply(W.BODY_A, W.TITLES_A)] + list(outcomes))
     first = W._first_analysis(app, gw)
@@ -243,6 +249,16 @@ def _month_view(app, gw, org_id: str, period_id: str) -> Dict[str, Any]:
 def _nothing_was_started(gw, document_id: str, enqueued_before: List[str]) -> None:
     assert gw.enqueued == enqueued_before, "a refused re-run was enqueued: %r" % gw.enqueued[len(enqueued_before):]
     assert _doc_dedupe.in_flight(document_id) is None, "a refused re-run left the document in flight"
+    assert document_id not in P._STAGED_RERUNS, "a refused re-run was noted as a staged re-run"
+
+
+def _names_the_period(write: Dict[str, Any], period_id: str) -> bool:
+    """Does this write act ON the period — its row, or a row under its id?
+    (An alert KEY names the month it will sit on; that is not a write on it.)"""
+    payload = write["payload"]
+    rows = payload if isinstance(payload, list) else [payload]
+    return ("eq.%s" % period_id in (write["filters"] or {}).values()
+            or any(isinstance(r, dict) and r.get("period_id") == period_id for r in rows))
 
 
 def _claim_writes_only(spy: W._Spy, document_id: str) -> None:
@@ -285,7 +301,6 @@ def test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothin
     assert spy.writes == [], "a refused re-run wrote: %r" % spy.writes
     assert gw.state() == state_before, "a refused re-run changed the store"
     _nothing_was_started(gw, w["doc1"], enqueued_before)
-    assert P._RERUN_CARRY == {}, "a refused re-run carried the newer document's briefing: %r" % P._RERUN_CARRY
     assert _month_view(app, gw, w["org"], w["month"]) == month_before, \
         "the month is not served as it was before the refused re-run"
 
@@ -335,7 +350,6 @@ def test_a_sales_document_pinned_to_the_month_never_resets_the_months_period(app
     assert spy.writes == [], "a refused re-run wrote: %r" % spy.writes
     assert gw.state() == state_before
     _nothing_was_started(gw, OTHER_DOC, enqueued_before)
-    assert P._RERUN_CARRY == {}
     assert _month_view(app, gw, w["org"], w["month"]) == month_before
 
 
@@ -380,7 +394,6 @@ def test_the_refusal_is_one_answer_whatever_the_pin_names(app, gw, monkeypatch):
         assert leaked not in text, "the refusal names %r: %s" % (leaked, text)
     # The document's own month is still there, whole: nothing ran in place.
     assert [p["id"] for p in gw.db.rows("financial_periods") if p["org_id"] == w["org"]] == [w["month"]]
-    assert P._RERUN_CARRY == {}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -436,7 +449,7 @@ def test_a_period_that_changes_hands_between_the_look_and_the_claim_is_refused_u
     """The route's look comes before the claim; a newer upload's takeover
     can land in between. The look is made AGAIN under the claim: 409, no
     delete even attempted, the month's briefing and recommendations never
-    read into a carry, and the claim given back."""
+    read, nothing noted as staged, and the claim given back."""
     w = _own_month(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
     gw.db.insert("documents", dict(w["doc"], id=OTHER_DOC, content_hash="%064x" % 0xd0c2))
     (d1_before,) = copy.deepcopy(gw.docs(id=w["doc1"]))
@@ -473,8 +486,7 @@ def test_a_period_that_changes_hands_between_the_look_and_the_claim_is_refused_u
         "a delete was attempted on a period that is another document's: %r" % spy.writes
     spy.writes = [x for x in spy.writes if x["table"] != "financial_periods"]   # the test's own hand-over
     _claim_writes_only(spy, w["doc1"])
-    assert reads == [], "the other document's %s were read into a carry" % sorted(set(reads))
-    assert P._RERUN_CARRY == {}
+    assert reads == [], "the other document's %s were read" % sorted(set(reads))
     _nothing_was_started(gw, w["doc1"], enqueued_before)
     assert gw.docs(id=w["doc1"]) == [d1_before], "the refusal did not give the claim back"
     assert V._rows_under(gw, w["month"]) == rows_before
@@ -538,69 +550,91 @@ def test_a_metered_rerun_refused_under_the_claim_gives_its_reservation_back(app,
     _nothing_was_started(gw, doc2, enqueued_before)
     assert gw.docs(id=doc2) == [dict(d2_before, period_id=w["month"])], "the refusal did not give the claim back"
     assert _month_view(app, gw, w["org"], w["month"]) == month_before
-    assert P._RERUN_CARRY == {}
 
 
 # ══════════════════════════════════════════════════════════════════════
-# O5 — the reset itself names the source, and looks again
+# O5 — nothing is deleted, and a month that changed hands is never taken over
 # ══════════════════════════════════════════════════════════════════════
+#
+# (Stage 1's O5 held the RESET to its own period: the DELETE named id, company
+# and source and was followed by a re-read. Stage 2 removed the reset — the
+# re-run is staged beside the document's own month — so the law is restated:
+# the route deletes nothing at all, and the two later looks hold where the
+# delete's own filter used to.)
 
-_EARLIER_CARRY = {"an_earlier_carry_is_held": True, "no_carry_is_held": False}
+#: When the month changes hands: after the route accepted and before the run
+#: persists (refused where the staged row would be inserted), or while the
+#: run is going (refused at the takeover).
+_HANDS_CHANGE = ["before_the_run_persists", "while_the_run_is_going"]
 
 
-@pytest.mark.parametrize("cell", sorted(_EARLIER_CARRY))
-def test_the_reset_deletes_only_a_period_this_document_is_the_source_of(app, gw, monkeypatch, cell):
-    """Both looks passed; the month changes hands just before the DELETE
-    executes. The delete names id, company AND source, so it matches
-    nothing; the re-read finds the row still there: 409, the carry exactly
-    what it was before this re-run, the document as it was, nothing
-    enqueued, the other document's month whole."""
-    w = _own_month(app, gw, monkeypatch, [])
+@pytest.mark.parametrize("cell", _HANDS_CHANGE)
+def test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands(app, gw, monkeypatch, cell):
+    """Both looks of the route passed and the re-run was accepted. The route
+    wrote the claim's stamp and NOTHING else — no delete of anything. Then
+    the month changes hands (a newer upload's takeover). The run looks again
+    where it would insert its staged row, and once more at the takeover: it
+    is refused with the neutral code, the other document's month is whole,
+    nothing is left staged, and the document is not marked failed."""
+    w = _own_month(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
     gw.db.insert("documents", dict(w["doc"], id=OTHER_DOC, content_hash="%064x" % 0xd0c2))
-    earlier = None  # type: Optional[Dict[str, Any]]
-    if _EARLIER_CARRY[cell]:
-        # What a previous re-run of this document that failed before it
-        # narrated still holds for it.
-        earlier = {"org_id": w["org"], "recommendations": [],
-                   "briefing": {"period_id": "an-earlier-period", "org_id": w["org"],
-                                "body": "Comentariul purtat de o rulare anterioară.", "language": "ro"}}
-        P._RERUN_CARRY[w["doc1"]] = copy.deepcopy(earlier)
-    (d1_before,) = copy.deepcopy(gw.docs(id=w["doc1"]))
     rows_before = V._rows_under(gw, w["month"])
-    enqueued_before = list(gw.enqueued)
-    under_the_database = gw.db.delete
-    handed_over = []  # type: List[Dict[str, str]]
-
-    def delete(table: str, *args: Any, **kwargs: Any) -> Any:
-        if table == "financial_periods" and not handed_over:
-            handed_over.append(dict(kwargs.get("filters") or {}))
-            for p in gw.db.rows("financial_periods"):
-                if p["id"] == w["month"]:
-                    p["source_document_id"] = OTHER_DOC     # a newer upload's takeover lands NOW
-        return under_the_database(table, *args, **kwargs)
-
-    monkeypatch.setattr(gw.db, "delete", delete)
     spy = W._Spy(gw.db, monkeypatch)
 
     r = _retry(app, w["org"], w["doc1"])
 
-    assert handed_over == [{"id": "eq.%s" % w["month"], "org_id": "eq.%s" % w["org"],
-                            "source_document_id": "eq.%s" % w["doc1"]}], \
-        "the reset's DELETE does not name the period, its company and its source: %r" % handed_over
-    assert r.status_code == 409 and r.json() == REFUSED_SUPERSEDED, (r.status_code, r.text[:300])
+    assert r.status_code == 202 and r.json()["status"] == "queued", (r.status_code, r.text[:300])
+    assert [(x["op"], x["table"], sorted(x["payload"] or {})) for x in spy.writes] == [
+        ("update", "documents", ["pipeline_started_at"])], (
+        "the accepted re-run wrote more than its claim (a reset?): %r" % spy.writes)
+    assert [p["id"] for p in gw.db.rows("financial_periods")] == [w["month"]]
+    assert P._STAGED_RERUNS == {w["doc1"]: w["month"]}
+
+    def hand_over() -> None:
+        for p in gw.db.rows("financial_periods"):
+            if p["id"] == w["month"]:
+                p["source_document_id"] = OTHER_DOC          # a newer upload's takeover lands NOW
+
+    handed = []  # type: List[str]
+    if cell == "before_the_run_persists":
+        hand_over()
+        handed.append(cell)
+    else:
+        real_compute = P.stage_compute
+
+        def compute(*a: Any, **kw: Any) -> Any:
+            if not handed:
+                hand_over()
+                handed.append(cell)
+            return real_compute(*a, **kw)
+
+        monkeypatch.setattr(P, "stage_compute", compute)
+    del spy.writes[:]
+
+    rerun = V.run_analysis(gw, w["doc1"])
+
+    assert handed == [cell], "the scenario never happened"
     (period,) = gw.db.rows("financial_periods")
-    assert period["id"] == w["month"] and period["source_document_id"] == OTHER_DOC, \
-        "the reset deleted a period that is another document's"
+    assert period["id"] == w["month"] and period["source_document_id"] == OTHER_DOC, (
+        "the re-run took over (or left a row beside) a month that is another document's: %r"
+        % [(p["id"], p["source_document_id"]) for p in gw.db.rows("financial_periods")])
     assert V._rows_under(gw, w["month"]) == rows_before, "the other document's month is not whole"
-    assert (P._RERUN_CARRY.get(w["doc1"]) == earlier) and \
-        (set(P._RERUN_CARRY) == ({w["doc1"]} if earlier else set())), \
-        "the carry is not what it was before the refused re-run: %r" % P._RERUN_CARRY
-    assert gw.docs(id=w["doc1"]) == [d1_before], "a refused reset touched the document"
-    _nothing_was_started(gw, w["doc1"], enqueued_before)
-    # Nothing but the claim's stamp, the one delete that matched nothing,
-    # and the claim's release.
-    assert [(x["op"], x["table"]) for x in spy.writes] == [
-        ("update", "documents"), ("delete", "financial_periods"), ("update", "documents")], spy.writes
+    for table in W._PERIOD_CHILD_TABLES:
+        assert [x for x in gw.db.rows(table) if x.get("period_id") != w["month"]] == [], table
+    touching = [x for x in spy.writes if _names_the_period(x, w["month"])]
+    assert touching == [], "the overtaken re-run wrote into (or deleted under) the month: %r" % touching
+    # WHERE it was refused: a month that had changed hands before the run
+    # persisted is refused BEFORE anything is staged (no row inserted at
+    # all); one that changes hands mid-run, at the takeover (its one staged
+    # row inserted, and removed again).
+    staged_inserts = [x for x in spy.writes if x["op"] == "insert" and x["table"] == "financial_periods"]
+    assert len(staged_inserts) == (0 if cell == "before_the_run_persists" else 1), staged_inserts
+    assert rerun["status"] == "analyzed" and rerun["period_id"] == w["month"], (rerun["status"], rerun["period_id"])
+    assert rerun["error"] == "rerun_failed: document_superseded", rerun["error"]
+    assert P._STAGED_RERUNS == {} and _doc_dedupe.in_flight(w["doc1"]) is None
+    # … and from here on the route refuses it, as O1 says.
+    r = _retry(app, w["org"], w["doc1"])
+    assert r.status_code == 409 and r.json() == REFUSED_SUPERSEDED, (r.status_code, r.text[:300])
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -608,17 +642,20 @@ def test_the_reset_deletes_only_a_period_this_document_is_the_source_of(app, gw,
 # ══════════════════════════════════════════════════════════════════════
 
 
-def test_a_document_with_no_pin_is_reset_by_the_pointer_the_engine_wrote_never_run_in_place(
+def test_a_document_with_no_pin_is_staged_beside_the_period_the_engine_wrote_never_run_in_place(
         app, gw, monkeypatch):
     """`documents.period_id` lost (a browser write, an earlier defect): the
-    reset used to match nothing, the run found the document's period by its
-    own tuple and went IN PLACE — and a run that failed left a FAILED
-    document over a served month. The period is found by
-    `financial_periods.source_document_id` and reset; the carry is read from
-    it, and the next re-run serves the last good briefing."""
+    run used to find the document's period by its own tuple and go IN PLACE —
+    and a run that failed left a FAILED document over a served month, its
+    line items replaced beside the old metrics. The period is found by
+    `financial_periods.source_document_id`; the run is STAGED beside it: a
+    run that fails leaves the month exactly as it was and the document
+    analysed, and the next re-run serves the last good briefing."""
     w = _own_month(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
     (d1,) = gw.docs(id=w["doc1"])
     d1["period_id"] = None
+    (period_before,) = copy.deepcopy(gw.db.rows("financial_periods"))
+    rows_before = V._rows_under(gw, w["month"])
     real_compute = P.stage_compute
 
     def _boom(*a: Any, **kw: Any) -> Any:
@@ -629,22 +666,24 @@ def test_a_document_with_no_pin_is_reset_by_the_pointer_the_engine_wrote_never_r
     r = _retry(app, w["org"], w["doc1"])
 
     assert r.status_code == 202, (r.status_code, r.text[:300])
-    assert gw.db.rows("financial_periods") == [], \
-        "the document's own period was not reset: the run goes in place on %r" % gw.db.rows("financial_periods")
+    assert P._STAGED_RERUNS == {w["doc1"]: w["month"]}, (
+        "the document's own period was not found by the engine's pointer: the run goes in place "
+        "(or fresh) — %r" % P._STAGED_RERUNS)
     failed = V.run_analysis(gw, w["doc1"])
-    assert failed["status"] == "failed", (failed["status"], failed.get("error"))
-    assert gw.db.rows("financial_periods") == [], "a failed re-run left a period"
+    assert failed["status"] == "analyzed" and str(failed["error"]).startswith("rerun_failed: ") and \
+        "compute failed" in failed["error"], (failed["status"], failed["error"])
+    assert gw.db.rows("financial_periods") == [period_before], "a failed re-run touched (or left a row beside) the month"
+    assert V._rows_under(gw, w["month"]) == rows_before, \
+        "the run went IN PLACE: the month's rows are not the ones that were served"
     assert empty_live_periods(gw.db.tables) == []
-    held = P._RERUN_CARRY.get(w["doc1"]) or {}
-    assert (held.get("briefing") or {}).get("body") == W.BODY_A, \
-        "the carry was not read from the document's own period: %r" % (held,)
 
     monkeypatch.setattr(P, "stage_compute", real_compute)
     again = W._docs_panel_rerun(app, gw, w)
-    assert again["status"] == "analyzed", (again["status"], again.get("error"))
-    body = W._served_period(app, w["org"], again["period_id"])
+    assert again["status"] == "analyzed" and again["error"] is None, (again["status"], again.get("error"))
+    assert again["period_id"] == w["month"], "the completed re-run did not pin the document to its month"
+    body = W._served_period(app, w["org"], w["month"])
     assert body["briefing"]["body"] == W.BODY_A and body["briefing"]["unavailable"] is False, body["briefing"]
-    assert W._rec_view(gw.db.rows("recommendations")) == W._rec_view(w["recommendations"])
+    assert gw.db.rows("recommendations") == w["recommendations"]
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -703,13 +742,12 @@ def test_a_period_that_names_no_source_is_the_documents_only_when_that_can_be_sh
         assert r.json() == REFUSED_NOT_OWN, r.text[:300]
         assert spy.writes == [] and gw.state() == state_before, spy.writes
         _nothing_was_started(gw, w["doc1"], enqueued_before)
-        assert P._RERUN_CARRY == {}
     else:
-        # Reset as its own: the DELETE names the source it was read with.
-        assert [x["filters"] for x in spy.writes if x["op"] == "delete" and x["table"] == "financial_periods"] == [
-            {"id": "eq.%s" % w["month"], "org_id": "eq.%s" % w["org"], "source_document_id": "is.null"}], spy.writes
-        assert [p for p in gw.db.rows("financial_periods") if p["org_id"] == w["org"]] == []
-        assert (P._RERUN_CARRY[w["doc1"]]["briefing"] or {}).get("body") == W.BODY_A
+        # Accepted as its own: staged beside it — nothing deleted, the period
+        # as it was, the run handed off with the period it is staged beside.
+        assert [x for x in spy.writes if x["op"] == "delete"] == [], spy.writes
+        assert [p["id"] for p in gw.db.rows("financial_periods") if p["org_id"] == w["org"]] == [w["month"]]
+        assert P._STAGED_RERUNS == {w["doc1"]: w["month"]}
         assert gw.enqueued == enqueued_before + [w["doc1"]]
 
 
@@ -735,7 +773,7 @@ def _is_an_ownership_read(table: str, kwargs: Dict[str, Any]) -> bool:
 @pytest.mark.parametrize("cell", sorted(_UNREADABLE))
 def test_ownership_that_cannot_be_read_does_not_start_the_rerun(app, gw, monkeypatch, cell):
     """An unreadable period is never "own": 503 `rerun_unavailable`, nothing
-    reset, nothing carried — at the route nothing written at all; under the
+    deleted, nothing staged — at the route nothing written at all; under the
     claim, the claim given back. The same re-run works a moment later."""
     table, nth = _UNREADABLE[cell]
     w = _own_month(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
@@ -766,7 +804,6 @@ def test_ownership_that_cannot_be_read_does_not_start_the_rerun(app, gw, monkeyp
     else:
         _claim_writes_only(spy, w["doc1"])
     assert gw.docs(id=w["doc1"]) == [d1_before]
-    assert P._RERUN_CARRY == {}
     _nothing_was_started(gw, w["doc1"], enqueued_before)
     monkeypatch.setattr(gw.db, "select", real_select)
     assert _month_view(app, gw, w["org"], w["month"]) == month_before
@@ -1012,10 +1049,6 @@ def test_a_run_whose_own_period_insert_landed_with_its_reply_lost_adopts_its_own
 #: the columns its filter must name). A NEW site is red until it is added
 #: here with its rule — and every rule names the company.
 PERIOD_DELETE_SITES = {
-    ("api/pipeline.py", "_retry_rerun"): (
-        "the re-run's reset: only a period `_own_periods_for_rerun` read as this document's, and "
-        "the DELETE itself names the source (is.null for a legacy-own row); re-read afterwards",
-        ("id", "org_id", "source_document_id")),
     ("api/pipeline.py", "_rollback_period_of_failed_run"): (
         "the period THIS failed run inserted, still naming the document, no other document pinned",
         ("id", "org_id", "source_document_id")),
