@@ -91,7 +91,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 #: The languages whose figure format the product defines.
 FIGURE_LANGUAGES = ("ro", "en")
 
-NBSP = " "
+NBSP = "\u00a0"
 
 #: THE STANDARD AS DATA — equal to tests/engine/fixtures/ai_figures/
 #: standard.json (written from frontend/lib/money; gate ai-figures-engine).
@@ -168,9 +168,9 @@ _SIGNS = ("-", "−", "+")
 _DASHES = ("-", "–", " - ", " – ")
 
 #: What the browser's `\s` matches (the twin's regexes use it).
-_JS_SPACE = "\t\n\x0b\x0c\r    -     　﻿"
+_JS_SPACE = "\t\n\x0b\x0c\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 _JS_SPACE_SET = frozenset(
-    "\t\n\x0b\x0c\r       　﻿"
+    "\t\n\x0b\x0c\r \u00a0\u1680\u2028\u2029\u202f\u205f\u3000\ufeff"
     + "".join(chr(c) for c in range(0x2000, 0x200B))
 )
 _WORD = "A-Za-z0-9_"
@@ -213,7 +213,7 @@ def _is_letter(c: str) -> bool:
 
 
 def _is_space(c: str) -> bool:
-    return c in (" ", NBSP, " ") and c != ""
+    return c in (" ", NBSP, "\u202f") and c != ""
 
 
 def _digits_of(s: str) -> str:

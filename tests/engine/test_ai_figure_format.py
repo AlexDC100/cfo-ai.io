@@ -134,7 +134,7 @@ def _no_ambient_environment(monkeypatch):
 
 def plain(text: str) -> str:
     """U+00A0 / U+202F read as a space — the corpus states plain spaces."""
-    return text.replace(" ", " ").replace(" ", " ")
+    return text.replace("\u00a0", " ").replace("\u202f", " ")
 
 
 def digits(text: str) -> str:
@@ -218,7 +218,7 @@ def test_e2_the_standard_and_the_hint_examples_are_what_lib_money_prints():
     # The owner's two shapes, in the standard's own bytes (written out):
     ro = STANDARD_JSON["languages"]["ro"]
     assert (ro["group"], ro["decimal"], ro["magnitudes"]["M"]) == (".", ",", "mil.")
-    assert ro["magnitude_joiner"] == ro["code_joiner"] == " "
+    assert ro["magnitude_joiner"] == ro["code_joiner"] == "\u00a0"
     assert STANDARD_JSON["hint"]["ro"]["whole"] == "1.234.567"
     assert STANDARD_JSON["hint"]["en"]["compact"] == "12.3M"
 
@@ -251,7 +251,7 @@ def test_the_corpus_is_what_it_says_it_is():
     for c in CORPUS:
         assert c["lang"] in ("ro", "en") and c["surface"] in ("chat", "briefing", "both"), c["id"]
         assert c["wrong"] is (c["expected"] != c["input"]), c["id"]
-        assert " " not in c["expected"] and " " not in c["expected"], c["id"]
+        assert "\u00a0" not in c["expected"] and "\u202f" not in c["expected"], c["id"]
         assert findings(c["expected"], c["lang"], c["kept"], c.get("allowed", ())) == [], c["id"]
         if c["wrong"]:
             assert findings(c["input"], c["lang"]) != [], "not seen as wrong: %s" % c["id"]
@@ -330,7 +330,7 @@ def test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print
 #: readings (1234 or 1.234), so it comes back byte-identical, currency
 #: position included, whatever was handed.
 LONE_GROUPS = [
-    "{n}", "{n} RON", "RON {n}", "{n} RON", "-RON {n}", "RON -{n}", "~EUR {n}", "{n} EUR", "{n}M RON",
+    "{n}", "{n} RON", "RON {n}", "{n}\u00a0RON", "-RON {n}", "RON -{n}", "~EUR {n}", "{n} EUR", "{n}M RON",
     "{n} mil. RON", "{n}%", "{n} %", "{n}x", "{n} zile", "{n} lei", "€{n}", "${n}", "({n} RON)", "**{n} RON**",
 ]
 

@@ -226,7 +226,7 @@ describe("the figure-format rule in the prompt the model is sent", () => {
 
 /** JSON with every non-ASCII character escaped — a U+00A0 joiner is visible
  *  in a diff and survives any editor. */
-const ascii = (s: string) => s.replace(/[\u007f-￿]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
+const ascii = (s: string) => s.replace(/[\u007f-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
 
 /** The magnitude word of a pack's money_display template ("{value} mil. RON" → "mil."). */
 function packMagnitudes(file: string): Record<"million" | "thousand", Record<Lang, string>> {
@@ -252,12 +252,12 @@ function buildStandard(): unknown {
     const marks = /^1(\D)234(?:\1)567(\D)89$/.exec(full);
     if (!marks) throw new Error(`lib/money printed an unexpected shape: ${JSON.stringify(full)}`);
     const magnitude = (value: number) => {
-      const m = /^[\d.,]+([\s ]*)(\D+)$/.exec(figure(money(value, lang, { compact: true })));
+      const m = /^[\d.,]+([\s\u00a0]*)(\D+)$/.exec(figure(money(value, lang, { compact: true })));
       if (!m) throw new Error(`lib/money printed no magnitude for ${value} in ${lang}`);
       return { joiner: m[1], word: m[2] };
     };
     const million = magnitude(12_300_000), billion = magnitude(2_300_000_000);
-    const code = /^[\d.,]+([\s ]+)RON$/.exec(money(1234567, lang, { fractionDigits: 0 }));
+    const code = /^[\d.,]+([\s\u00a0]+)RON$/.exec(money(1234567, lang, { fractionDigits: 0 }));
     if (!code) throw new Error("lib/money printed no joiner before the code");
     languages[lang] = {
       locale: moneyLocaleFor(lang),
@@ -353,8 +353,8 @@ describe("the shared standard: what lib/money prints NOW is what the engine and 
     const s = standard as { codes: string[]; symbols: Record<string, string>; languages: Record<Lang, Record<string, unknown>>; hint: Record<Lang, Record<string, string>> };
     expect(s.codes).toEqual(["RON", "EUR", "USD"]);
     expect(s.symbols).toEqual({ "€": "EUR", "$": "USD" });
-    expect(s.languages.ro).toEqual({ locale: "ro-RO", group: ".", decimal: ",", magnitudes: { K: "mii", M: "mil.", B: "mld." }, magnitude_joiner: " ", code_joiner: " " });
-    expect(s.languages.en).toEqual({ locale: "en-US", group: ",", decimal: ".", magnitudes: { K: "K", M: "M", B: "B" }, magnitude_joiner: "", code_joiner: " " });
+    expect(s.languages.ro).toEqual({ locale: "ro-RO", group: ".", decimal: ",", magnitudes: { K: "mii", M: "mil.", B: "mld." }, magnitude_joiner: "\u00a0", code_joiner: "\u00a0" });
+    expect(s.languages.en).toEqual({ locale: "en-US", group: ",", decimal: ".", magnitudes: { K: "K", M: "M", B: "B" }, magnitude_joiner: "", code_joiner: "\u00a0" });
     // The owner's two strings, in shape: "413.727.560 RON" and "~77,4 mil. EUR".
     expect(plainSpaces(money(64567890, "ro", { fractionDigits: 0 }))).toBe("64.567.890 RON");
     expect(plainSpaces(money(12300000, "ro", { compact: true }, "EUR"))).toBe("12,3 mil. EUR");
@@ -380,7 +380,7 @@ describe("the shared standard: what lib/money prints NOW is what the engine and 
     expect(rows.length).toBe(984);
     const lone = rows.filter((r) => r[3] === "single_group");
     expect(lone.length).toBe(120);
-    for (const [, written] of lone) expect(written).toMatch(/^-?(?:[A-Z]{3} )?\d{1,3}[.,]\d{3}(?: [A-Z]{3})?$/);
+    for (const [, written] of lone) expect(written).toMatch(/^-?(?:[A-Z]{3} )?\d{1,3}[.,]\d{3}(?:\u00a0[A-Z]{3})?$/);
     for (const [target, written, print, outcome] of rows) {
       expect(foreignNumbersInProse(print, target), print).toEqual([]);
       expect(CURRENCY_BEFORE_FIGURE.test(print), print).toBe(false);

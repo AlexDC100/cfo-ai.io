@@ -73,14 +73,14 @@ const ROMANIAN_NUMBER_IN_PROSE =
   /\d,\d{1,2}(?!\d|,\d)|(?<![\d.,])\d+,\d{4,}(?![\d,])|(?<![\d.,])0,\d{3}(?![\d,])/;
 
 const ENGLISH_NUMBER_IN_PROSE =
-  /\d\.\d{1,2}(?!\d|\.\d)|(?<![\d.,])\d+\.\d{4,}(?![\d.])|(?<![\d.,])0\.\d{3}(?![\d.])|\d(?:k|[Bb]n)[\s ]?(?:RON|EUR|USD)\b/;
+  /\d\.\d{1,2}(?!\d|\.\d)|(?<![\d.,])\d+\.\d{4,}(?![\d.])|(?<![\d.,])0\.\d{3}(?![\d.])|\d(?:k|[Bb]n)[\s\u00a0]?(?:RON|EUR|USD)\b/;
 
 /** An ISO code of the product, or a currency symbol, standing BEFORE a
  *  figure. Not a code inside a pair ("EUR/RON 4,97") or a longer word, and
  *  not a symbol that follows a letter, a digit or another symbol ("US$ 5",
  *  "$B$2"): those are not this standard's to name. */
 export const CURRENCY_BEFORE_FIGURE =
-  /(?:(?<![A-Za-z/])(?:RON|EUR|USD)|(?<![A-Za-z0-9$€])[$€])[  ]?[-−+~≈]?\d/;
+  /(?:(?<![A-Za-z/])(?:RON|EUR|USD)|(?<![A-Za-z0-9$€])[$€])[ \u00a0]?[-−+~≈]?\d/;
 
 /** EVERY figure in a model's prose written in the OTHER language's format —
  *  the two base patterns, made global, plus the prose shapes above. Code,
