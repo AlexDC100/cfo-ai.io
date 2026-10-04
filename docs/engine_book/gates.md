@@ -20629,3 +20629,380 @@ a committed fixture that is not the engine's bytes.
   taken in absolute value, as the two-period document always did;
 - production data: the gate runs on the committed corpus. The check for the
   stored periods is the pre-flight, run inside the new image.
+
+## single-year-share
+
+**What it guards (owner ruling 2026-10-04: "'% din venituri' must work for a
+single year without a comparison. Engine change, with a gate.").** This is
+the frontend half; `common-size-single` above is the engine's. The share
+column — "% din venituri" on the P&L, "% din total active" on the balance
+sheet — existed only inside the two-period comparison, and the hotfix of the
+same morning (`compare-no-prior`) had switched its box off with the other
+three. Now the page prints the period's OWN served shares
+(`statements.common_size`), and the comparison says what it is on every tab.
+
+**Read before anything was changed.**
+
+- *The balance-sheet share was divided in the browser.* `BsCmpCells`
+  (`frontend/components/cfo/ComparativeCells.tsx`) struck each row against
+  total assets itself: closing ÷ |total assets|, a second division for the
+  prior, a subtraction × 100 for the points. The engine builder extended the
+  block and the comparison's `common_size` with the canonical rows
+  (`bs.row.<id>`, `bs.section.<id>`, `bs.total.assets`,
+  `bs.total.equity_plus_liabilities`); the three operations are gone and the
+  cell prints the served fraction — with a document and without.
+- *A refused or failed comparison said nothing on most tabs.* The refusal's
+  sentence was on the P&L and the balance sheet only (two copies); a failed
+  request (401, 5xx, no network) was said on the Ratios tab only. The
+  Overview and the cash flow showed one column and no word why — the class of
+  the morning's incident.
+- *A comparison with a LATER period read backwards and said so nowhere*, and
+  its variance bridge called the later period "prior" ("net income
+  (statutory) — anterior" over a figure of the year AFTER).
+- *The Ratios tab said "no comparison" three times*: the page's notice, the
+  sentence above the band movements, the same sentence above the table.
+- *A payload can outlive the engine that served it.* The persisted query
+  cache (`cfoai-query-cache-v1`) is hydrated at boot, and nothing refetches a
+  hydrated query that no page mounts in the first 2.5 seconds
+  (`refetchOnMount: false`): a pre-deploy period payload would have read
+  "shares are not available" until its blob aged out.
+- *A failed comparison was persisted.* `fetchComparatives` answers
+  `{ kind: "error" }` as DATA, which the cache wrote to disk as a success —
+  the next boot would have opened on "the comparison could not be loaded"
+  before anything had been asked.
+
+**The page, as built.**
+
+- `lib/commonSize.ts` reads the block and computes nothing: `readCommonSize`
+  (a share is taken only under status `share`; a shape it cannot read is no
+  block), `shareForRow` (the row guard — the comparison's own
+  `rowIsEngineFigure`, to PARITY_FLOOR), `shareOfferOf` (what a tab can
+  paint: the P&L from any block, the balance sheet only from canonical rows
+  it renders, no other tab).
+- `lib/comparisonState.ts`: `comparisonBlockOf` and `columnBoxesOf` (the
+  boxes: Prior / Δ / Δ % follow the comparison, the share box follows what
+  the tab can paint), `comparisonNoteOf` (refused, failed, pending, or a
+  comparison that reads backwards), `comparisonSaidByPage`. The request's
+  outcome is sorted ONCE, in `lib/useRatioSurfaces.ts` (`comparison`) — the
+  boxes, the note, the Ratios tab and the exports read that.
+- `ComparativeProvider` hands down the document (as before) or, with none and
+  the share box ticked, the period's own block (`useShareOnlyContext`); the
+  P&L and the balance sheet then paint ONE extra column. A line with no share
+  prints a word ("fără bază", "refuzat", "nedezvăluit la acest nivel de
+  detaliu") or the gap glyph with the reason as its title — never 0 %.
+- A company with ONE period gets the share box alone (no picker, no notice);
+  so does "Fără comparație". A payload without the block switches the box off
+  and says "Ponderile nu sunt disponibile pentru această perioadă." beside it.
+- `ComparisonOutcomeNote`, under the sticky tab bar beside the no-prior
+  notice, on the five tabs that have the controls: the refusal's sentence
+  (for its CODE, once — the two per-tab copies are gone); a failed request
+  with "Încearcă din nou" (it asks once more; nothing asks on its own); a
+  request in flight, quiet — `statements.cmp.loading` only after
+  `PENDING_NOTE_DELAY_MS`, because a sentence that appears and vanishes
+  inside a normal answer time is noise (chosen over "not at all": a request
+  that hangs must not leave the comparison on, nothing compared and nothing
+  said); and a comparison period that closes LATER (or an order the engine
+  could not read). The order is the engine's `direction.order`; the page
+  compares no dates.
+- With a later comparison period no improved / deteriorated list is shown
+  (whatever the document carries); the bridge's end rows name each period by
+  its own month ("… — dec. 2025"), never "prior"; and a line one period lacks
+  is not called "nou" / "nu mai apare" — the word says where the line is
+  ("doar în perioada afișată" / "doar în comparație"), in the cells and on
+  the bridge's steps (`absentLineWordKey`). Found on the static replica of
+  the balance sheet: a line the LATER year lacks read "NOU".
+- The Ratios tab says "no comparison" once, at the top, and not at all when
+  the page already says it; the cash-flow card speaks in the informal
+  register and its action names the missing month in the notice's own words.
+- The persisted cache is `cfoai-query-cache-v2` (the v1 blob is removed at
+  boot, never read); a period payload that came off the disk with no block is
+  asked of the engine once more (`answeredBeforeThisSession`); an answer of
+  kind `error` is never written to disk.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/__tests__/singleYearShare.test.tsx --reporter=verbose` |
+| work count | `GATE-WORK single-year-share cells=(\d+)`, floor **1,000** (measured 1,125 share cells and movers held to the served documents; 74 tests, 276 states) |
+| canary | `GATE-WORK single-year-share cells=` and the titles named in `scripts/run_battery.py` |
+
+The laws. *The fixtures:* both period bodies carry `common_size/1` with P&L,
+registry and canonical rows; the stand-alone fixture is the same block; the
+single period's share IS the comparison's (`current_share` on the 2025
+screen, `prior_share` for 2024 — every key). *The incident state* (earliest
+year on screen), in Romanian and English, on the P&L and the balance sheet:
+the three comparison boxes off and described by the notice, the share box on
+and labelled for the tab, ONE extra column, every share cell equal to
+`formatShare(served share, language)`, in the reader's number shape, six of
+them also written out by hand; every canonical row, subtotal and total
+prints its served share, and that share is the row's own amount over total
+assets to 5e-7 (the figure the tab used to divide itself); unticking removes
+the column and writes only `share`; Simple mode carries the column on its
+headline rows; a tab with no share column keeps all four boxes off. *The row
+guard:* a P&L row and a balance-sheet row showing another amount are blank
+with the reason; `rowIsEngineFigure`'s truth table. *No share:* a book whose
+EBITDA the engine refused (served bytes) prints "refuzat" on every refused
+line; a base below the zero floor (constructed) prints "fără bază" on every
+line and no "0,0%"; the reader drops a share under any other status and
+reads no malformed shape. *The share box alone:* "No comparison" and a
+one-period company, both tabs, both languages; no boxes elsewhere. *No
+block:* the box off, unticked, the sentence beside it, no cell, the stored
+choice untouched. *With a document:* four columns as before; every share
+cell is the document's `current_share` with its points, equal to the block's
+share for the key; the same string with the document and without it; the
+balance-sheet guard holds there too; a document with no canonical share
+leaves the cell blank. *The stored columns* through five states; the boxes
+as a function over every block × offer × stored share. *S5:* the sentence on
+each of the five tabs in both languages; no verdict list and the bridge's
+month labels; a line one period lacks worded by where it is, the same lines
+reading "new" / "no longer present" forward; forward unchanged (and the movers' materiality and floor are
+the served fractions, the base named in the reader's language); a document
+listing verdicts under a later period is not believed; an unknown order; no
+`direction`, `same_close`, a garbled order. *S6:* a refusal and a failed
+request (502 and no response) on each of the five tabs in both languages;
+the outcome's five values off `ratioSurfacesOf`; the pending delay; "try
+again" over the real hook and the app's own query defaults — one request,
+none after 1.3 s, a second on the click. *S7:* the Ratios tab once / not at
+all; the cash-flow action's words equal the notice's; `missingPreviousYearEnd`.
+*The cache:* the v1 blob removed and not hydrated, v2 hydrated; a failed
+answer not written; an answer off the disk told apart. *The source:* see
+below. *The page's wiring*, read from its source. *The words:* twenty-one new
+keys in both bundles, with their placeholders, differing, informal.
+
+**The source law — no share is divided, multiplied or rounded in the
+browser.** The detector reads the TypeScript syntax tree (a `/` in a comment,
+a string, a class name or a closing tag is not a division): every `/ * % **`
+(and their assignments) and every `toFixed` / `toPrecision` / `Math.round |
+floor | ceil | trunc`. Twelve files on the share path hold NONE
+(`lib/commonSize.ts`, `lib/comparisonState.ts`, `lib/useRatioSurfaces.ts`,
+`lib/bsStructure.ts`, `lib/buildBsStatement.ts`, `ComparativeCells.tsx`,
+`ComparativesPanel.tsx`, `PLStatementView.tsx`, `CashFlowStatementView.tsx`,
+and the three Ratios-tab components). Three other touched files hold exactly
+the sites they held before the lane, pinned by their text:
+`lib/comparatives.ts` (the three printers of a served fraction —
+`formatDeltaPct`, `formatShare`, `formatPts` — and one duration),
+`BSStatementView.tsx` (the canonical status strip's sanctioned "% of assets"
+readout and the AI lane's confidence), `lib/queryPersist.ts` (a duration).
+The dashboard page holds arithmetic of its own (its ratio and valuation
+panels); the law there is that no site sits in a declaration, an attribute or
+a braced expression that names the comparison, the share block or anything
+built from them.
+
+### single-year-share — PLANT / RED / REVERT (2026-10-04, branch `feat/single-period-share`)
+
+Runner: `specs-durable/single_period_share/plants_frontend.py` — one PLANT at
+a time, the file restored byte-exact from memory after each, in a tree
+nothing else was using; record `plants_frontend.json` beside it.
+
+**BASELINE** — exit `0`: `74 passed`.
+
+| PLANT | result |
+|---|---|
+| F1 THE RULING UNDONE — with no document the share box is off again | `13 failed, 61 passed` |
+| F2 the provider hands the rows no single-period column | `19 failed, 55 passed` |
+| F3 the reader keeps a share under a status that is not the share status | `1 failed, 73 passed` |
+| F4 the row guard is gone: a row built another way carries the engine's share | `2 failed, 72 passed` |
+| F5 the share cell is multiplied and rounded in the browser | `8 failed, 66 passed` |
+| F6 the share is printed in English number shape for a Romanian reader | `7 failed, 67 passed` |
+| F7 the share box says '% of revenue' on the balance sheet | `4 failed, 70 passed` |
+| F8 a payload without the block: the share box is offered anyway | `5 failed, 69 passed` |
+| F9 the balance-sheet share is offered from a block with no canonical rows | `1 failed, 73 passed` |
+| F10 a switched-off box writes over the reader's stored column | `4 failed, 70 passed` |
+| F11 a one-period company gets no controls at all (the share box is gone) | `5 failed, 69 passed` |
+| F12 a one-period company gets a picker with nothing to pick | `2 failed, 72 passed` |
+| F13 'No comparison' hides the share box | `5 failed, 69 passed` |
+| F14 the balance-sheet share is divided in the browser again | `1 failed, 73 passed` |
+| F15 with a document the balance-sheet row guard is gone | `1 failed, 73 passed` |
+| F16 the canonical builder stamps no share key on a row | `14 failed, 60 passed` |
+| F17 the canonical builder stamps no share key on a section subtotal | `6 failed, 68 passed` |
+| F18 the grand-total rows have no share key | `6 failed, 68 passed` |
+| F19 a line with no share prints 0 % | `3 failed, 71 passed` |
+| F20 the P&L header keeps the comparison's columns with no document (no share header) | `2 failed, 72 passed` |
+| F21 verdict lists are shown under a later comparison period | `3 failed, 71 passed` |
+| F22 the bridge calls a later period 'prior' | `3 failed, 71 passed` |
+| F23 a comparison that reads backwards says nothing | `3 failed, 71 passed` |
+| F24 English months in the Romanian backwards sentence | `1 failed, 73 passed` |
+| F25 an order the engine could not read is treated as forward | `1 failed, 73 passed` |
+| F26 the order is assumed forward when the engine says the same close | `1 failed, 73 passed` |
+| F27 the verdict clause is printed on a tab with no movers | `1 failed, 73 passed` |
+| F28 the outcome note is not rendered on the Overview | `1 failed, 73 passed` |
+| F29 a refusal says nothing (the note skips it) | `2 failed, 72 passed` |
+| F30 the per-tab copy of the refusal is back on the P&L | `1 failed, 73 passed` |
+| F31 the failed state has no 'try again' | `3 failed, 71 passed` |
+| F32 the failed request is retried automatically | `3 failed, 71 passed` |
+| F33 the comparison boxes stay on when the engine refused | `3 failed, 71 passed` |
+| F34 the comparison boxes stay on when the request failed | `3 failed, 71 passed` |
+| F35 the pending sentence shows at once (it flickers) | `1 failed, 73 passed` |
+| F36 the page does not hand the controls the outcome | `1 failed, 73 passed` |
+| F37 the outcome exposed by the surfaces is always 'none' when no document | `6 failed, 68 passed` |
+| F38 a failure is not said as failed (the note reads it as pending) | `4 failed, 70 passed` |
+| F39 the Ratios table repeats the sentence at the foot of the tab | `2 failed, 72 passed` |
+| F40 the Ratios tab says it although the page already does | `2 failed, 72 passed` |
+| F41 the page does not tell the Ratios tab what it says | `1 failed, 73 passed` |
+| F42 the cash-flow card's action does not name the month | `2 failed, 72 passed` |
+| F43 the formal register is back on the cash-flow card | `1 failed, 73 passed` |
+| F44 a month is called missing while the company's periods are not known | `1 failed, 73 passed` |
+| F45 the page does not hand the cash-flow card the missing month | `1 failed, 73 passed` |
+| F46 the persisted cache is still the previous version's | `3 failed, 71 passed` |
+| F47 the retired blob is left in the quota | `2 failed, 72 passed` |
+| F48 a failed answer is persisted and replayed on the next boot | `1 failed, 73 passed` |
+| F49 the page refetches a block-less payload on every render (no session guard) | `1 failed, 73 passed` |
+| F50 every answer counts as off the disk | `1 failed, 73 passed` |
+| F51 arithmetic where the page wires the share block | `1 failed, 73 passed` |
+| F52 a new rounding in a pinned file | `1 failed, 73 passed` |
+| F53 the block is read a second time on the page (two readings) | `2 failed, 72 passed` |
+| F54 the cash-flow tab's provider is handed the share block | `1 failed, 73 passed` |
+| F55 the balance-sheet tab's provider is not handed the share block | `1 failed, 73 passed` |
+| F56 a Romanian sentence is missing (a raw key on screen) | `2 failed, 72 passed` |
+| F57 the English 'not available' sentence is missing | `2 failed, 72 passed` |
+| F58 the materiality is multiplied and rounded in the browser again | `2 failed, 72 passed` |
+| F59 the mover's base is an English word in a Romanian sentence | `1 failed, 73 passed` |
+| F60 a line the later period lacks is called 'new' (the order is assumed forward in the cells) | `1 failed, 73 passed` |
+| F61 the bridge's step says 'new' under a later comparison period | `1 failed, 73 passed` |
+
+**RED** — every plant exits `1`. **REVERT** — every file restored
+byte-exact; exit `0`: `74 passed`. Verdict: proven RED, sixty-one of
+sixty-one.
+
+### compare-no-prior — amended by single-year-share
+
+The existing gate's law changed ON PURPOSE in three places, and only there:
+
+- *"Every column box is off"* is now *"every COMPARISON box is off"*. On a
+  tab that can paint the period's own shares (P&L, balance sheet) the share
+  box stays the reader's own; on a tab with no share column (cash flow,
+  ratios) all four are off, as before. The incident test (both languages)
+  keeps every expectation it had — that state is the cash-flow / ratios tab —
+  and adds the P&L state: three boxes off and described by the notice, each
+  carrying the reason as its own title, the share box enabled and ticked, the
+  group no longer "all off".
+- *"No comparison: no notice, no boxes"* holds on a tab with no share column;
+  on the P&L the share box alone is offered (added to the same test).
+- *"A company with ONE period — the page renders no controls at all"* left
+  the CANNOT SEE list: there is a columns group with the share box alone now,
+  held by `single-year-share`. So did *"the refusal sentence is on the P&L
+  and balance-sheet tabs only, and a failed request says nothing"* — the
+  ticket that line recorded is this lane's S6.
+
+The file's 26 tests keep their names (the battery's canaries are unchanged);
+`GATE-WORK compare-no-prior states=` reads 193 (was 190). Every
+other law of the file is untouched and green. Two neighbouring files follow
+the same changes: `lib/__tests__/ratioCompareTab.test.tsx` (the "no
+comparison" sentence is asserted once on the tab, not above both the band
+movements and the table — S7) and `components/scenarios/__tests__/signFlip.test.tsx`
+(`BsCmpCells` lost the two base props it no longer divides by).
+
+Because the controls were rewritten, ALL twenty-six plants of
+`compare-no-prior` were re-run against the code as it stands (P2, P3, P21 and
+P24 with the new source text; the others byte-identical), with three plants
+for the amended law:
+
+**BASELINE** — exit `0`: `26 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE INCIDENT — the notice is not rendered | `10 failed, 16 passed` |
+| P2 the comparison boxes stay enabled with nothing compared | `6 failed, 20 passed` |
+| P3 the comparison boxes stay ticked with no column on screen | `6 failed, 20 passed` |
+| P4 AUTO's label does not name the balance it looked for | `4 failed, 22 passed` |
+| P5 the Romanian sentence is missing (a raw key on screen) | `3 failed, 23 passed` |
+| P6 the English upload action is missing | `3 failed, 23 passed` |
+| P7 the page hands the controls AUTO's pick instead of the prior it requests | `1 failed, 25 passed` |
+| P8 the page hands the notice no prior at all | `1 failed, 25 passed` |
+| P9 AUTO picks the later year in place of the missing one | `7 failed, 19 passed` |
+| P10 the notice stands over a comparison that exists | `7 failed, 19 passed` |
+| P11 the notice shows after the reader chose 'No comparison' | `4 failed, 22 passed` |
+| P12 the offered period does nothing when clicked | `1 failed, 25 passed` |
+| P13 the previous year of a leap February is read as 28 Feb | `1 failed, 25 passed` |
+| P14 priorId becomes optional on the controls | `1 failed, 25 passed` |
+| P15 'missing' is said about a balance that is there (another length) | `2 failed, 24 passed` |
+| P16 the comparison hook keeps the previous pair's document as a placeholder | `2 failed, 24 passed` |
+| P17 the page paints a document that names other periods | `1 failed, 25 passed` |
+| P18 a refusal held over is shown with no request | `1 failed, 25 passed` |
+| P19 a LATER period is offered in the notice | `5 failed, 21 passed` |
+| P20 the notice offers every earlier period (the cap is gone) | `2 failed, 24 passed` |
+| P21 English month names in the Romanian sentences | `2 failed, 24 passed` |
+| P22 the notice is not rendered on the cash-flow tab | `1 failed, 25 passed` |
+| P23 after a pick the focus is dropped (not handed to the picker) | `1 failed, 25 passed` |
+| P24 the switched-off boxes are not described by the notice | `2 failed, 24 passed` |
+| P25 the cash-flow card's upload link points at a path with no route again | `1 failed, 25 passed` |
+| P26 a finished upload does not refresh the period lists the comparison reads | `1 failed, 25 passed` |
+| A1 AMENDED — on the P&L the share box is off again with no prior | `3 failed, 23 passed` |
+| A2 AMENDED — 'No comparison' on the P&L offers no share box | `1 failed, 25 passed` |
+| A3 AMENDED — the off boxes beside an enabled share box carry no reason | `2 failed, 24 passed` |
+
+**RED** — every plant exits `1`. **REVERT** — every file restored
+byte-exact; exit `0`: `26 passed`. Verdict: proven RED, twenty-nine of
+twenty-nine.
+
+**After the repair `single-year-share` reds on:** the share box off, or no
+share column, with a served block and no document; a share cell that is not
+the served fraction through `formatShare`, or in the other language's number
+shape; a row carrying the engine's share beside an amount that is not the
+engine's; a figure — 0 % included — on a refused, absent, undisclosed or
+no-base line; a share box offered over a payload with no block (or a
+balance-sheet share over a block with no canonical rows), or a crash there; a
+state writing the reader's stored columns; a one-period company with a picker
+or with no share box; the document's share differing from the block's for a
+key, or printing differently with and without the document; any division,
+multiplication or rounding entering a share-path file, a new site in a pinned
+file, or arithmetic beside the page's comparison wiring; improved /
+deteriorated lists under a later comparison period, "prior" / "anterior" on
+its bridge, "new" / "no longer present" on a line against it, no sentence for
+it on any of the five tabs, an unknown order read as forward; a refusal or a failure with no sentence on a tab, said twice, or
+printing the engine's message; a failed request retried without a click, or
+"try again" not asking; comparison boxes enabled over a refused or failed
+request; the pending sentence flickering; the Ratios tab repeating the
+sentence, or saying it when the page already does; the cash-flow action not
+naming the month the notice names, or a formal-register sentence; a month
+called missing while the company's periods are unknown; the previous cache
+version hydrated or left in the quota, a failed answer persisted, the
+one-shot refetch losing its guard; a new sentence missing from either
+language.
+
+**CANNOT SEE:**
+
+- **the dashboard page itself.** It needs the router, Supabase and the period
+  queries, so the gate renders a harness that composes what the page composes
+  and holds the page's own wiring by reading its source (regular expressions
+  over `FinancialStatements.tsx`: a harmless rename reds it, a guard added
+  around the controls would pass it). The rendered page is checked live after
+  the deploy;
+- **whether the engine's shares are right** — `common-size-single` holds the
+  identity over the corpus; the fixtures here are its bytes;
+- **the balance sheet's Δ %** — still the browser's classifier over the row's
+  own opening and closing (`lib/changeKind.ts`; the engine serves no
+  percentage for a canonical row), and `bsDelta` still subtracts. Not a share
+  and not on the scanned list;
+- **arithmetic behind an import**: a file on the share path calling a
+  function of an unscanned module that divides. The detector reads operators
+  and rounding calls in the listed files, not their callees;
+- **a legacy (non-canonical) balance sheet**: its rows have no engine key, so
+  they carry no share in either state — with a document the cell is blank
+  where the browser used to divide. No committed fixture has the shape; every
+  stored period is expected to carry the canonical object;
+- **a document from an engine that predates the canonical shares**: the
+  balance-sheet share cells are blank until the backend is deployed (the gate
+  holds that they are blank and not computed, not that the deploy order is
+  kept);
+- **a one-sided refusal** with a document on screen: the document serves no
+  share on either side of the refused line while the clean period's own block
+  has one; the page prints the document's (blank). For the owner;
+- **the Ratios tab under a later comparison period**: its band movements and
+  each row's "favourable" are still the engine's, judged current − later. The
+  page says "every change reads backwards in time" there and does NOT say
+  that no verdict is given, because on that tab one still is;
+- **the cash-flow card's claim** ("for exact figures, upload the prior
+  year"): the engine marks every cash flow approximated today whatever is
+  uploaded. The card's register and its action's label are held, not its
+  premise;
+- the exported report / workbook / PDF's own share column, the command bar
+  (its figures still word an absent line "new" / "no longer present" whatever
+  the order — `cmdbarFigures.ts`), the Ratios tab's figures (out of scope);
+- the P&L's per-account rows (no engine line is the same figure by
+  definition): blank in the share column, as with a document;
+- the rendered layout: checked once on a static replica built from the
+  production CSS (desktop and a phone's width: one column beside the amount;
+  on a phone the column header is hidden and the share sits under the
+  amount, as the comparison's cells always did) — by eye, not by a gate;
+- the `title` reasons as a screen reader announces them; the pending note's
+  timing under a real network.

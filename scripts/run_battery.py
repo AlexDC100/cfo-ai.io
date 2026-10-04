@@ -2207,6 +2207,35 @@ def _engine_gates() -> List[Gate]:
         #                    deploy pre-flight (check_served_periods.py
         #                    --require-common-size) reads the block.
         #                    Plant log: docs/engine_book/gates.md.
+        #   single-year-share   the PAGE prints it. With no comparison
+        #                    document on screen — no prior resolves, "No
+        #                    comparison", a one-period company, a refused or
+        #                    failed request — the P&L and the balance sheet
+        #                    offer the share box, enabled, and paint ONE
+        #                    column from statements.common_size: every cell
+        #                    the served fraction through formatShare, in the
+        #                    reader's number shape; the row guard is the
+        #                    comparison's own; a line with no share says why
+        #                    and never prints 0 %; a payload without the block
+        #                    switches the box off and computes nothing; no
+        #                    state writes the stored columns; the document's
+        #                    share IS the block's (one figure per page), on
+        #                    the balance sheet too, where the browser no
+        #                    longer divides. No division, multiplication or
+        #                    rounding in any file on the share path (read off
+        #                    the syntax tree). A later comparison period is
+        #                    said to read backwards, lists no improved /
+        #                    deteriorated line, is never called "prior" and
+        #                    no line is called "new" or "gone" against it;
+        #                    a refused or failed request is said once on each
+        #                    of the five tabs, "try again" asks once more and
+        #                    nothing asks on its own; "no prior" is said one
+        #                    way (the Ratios tab at most once, the cash-flow
+        #                    card in the informal register, naming the month);
+        #                    a pre-deploy persisted payload is not hydrated.
+        #                    compare-no-prior is amended where its law changed
+        #                    (the share box, a one-period company, the
+        #                    refusal note). Plant log: docs/engine_book/gates.md.
         Gate("common-size-single",
              [PY, "-m", "pytest", "tests/engine/test_common_size_single.py",
               "tests/engine/test_common_size_fe_fixture.py", "-q", "-s"],
@@ -2217,6 +2246,30 @@ def _engine_gates() -> List[Gate]:
              canaries=("GATE-WORK common-size-single rows=",
                        "GATE-WORK common-size-single served_periods=",
                        "GATE-WORK common-size-single swaps=")),
+        Gate("single-year-share",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/singleYearShare.test.tsx",
+              "--reporter=verbose"],
+             # measured 2026-10-04: 1,125 share cells and movers held to the
+             # served documents (74 tests, 276 states).
+             work_rx=r"GATE-WORK single-year-share cells=(\d+)", floor=1000,
+             units="share cells held to the served block and document",
+             canaries=("GATE-WORK single-year-share cells=",
+                       "the share box is on, the other three are off, and ONE column is printed from the served block",
+                       "every canonical balance-sheet row, subtotal and total on screen prints its served share",
+                       "a row whose amount is not the block's is blank; the rule is the comparison's own guard",
+                       "a book whose EBITDA the engine refused prints the word, with the reason, on every refused line",
+                       "a company with ONE period: no picker, no notice, the share box alone",
+                       "the share box alone is off, unticked, and says why beside it; no column",
+                       "the share a row prints is the same string with the document and without it",
+                       "the reader's stored columns are the same key in every state, and no state writes them",
+                       "no improved / deteriorated list, and the bridge names each period by its own month",
+                       "the code's sentence, once, on each of the five tabs; the comparison boxes off",
+                       "asks the engine once more",
+                       "the Ratios tab says it ONCE on its own, and not at all when the page already does",
+                       "the persisted cache of the previous version is never hydrated, and is removed",
+                       "the share path holds no arithmetic at all",
+                       "ONE outcome note on the five tabs, fed by the one reading")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
