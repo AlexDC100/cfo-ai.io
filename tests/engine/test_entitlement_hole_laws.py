@@ -468,9 +468,51 @@ def test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raise
         assert "'%s'" % key in read(report(stem)), "%s does not say whether this role can change the object (%s)" % (report(stem).name, key)
 
 
-def test_the_signup_migration_says_it_alters_no_existing_row_and_the_others_say_what_they_leave():
-    h4 = read(migration("schema_phase_signup_tier_trial"))
-    assert "'existing_rows_altered', 0" in h4
+#: (migration stem, the table whose rows it must leave, the row alias,
+#:  the result's key prefix, the report's key) — the two files the
+#: coordinator applies to production, each MEASURING the owner's fence
+_FENCED = [
+    ("schema_phase_signup_tier_trial", "subscriptions", "s", "existing_rows", "existing_rows_fingerprint"),
+    ("schema_phase_workspace_cap_guard", "organizations", "o", "existing_organizations", "organizations_fingerprint"),
+]
+
+
+@pytest.mark.parametrize("stem,table,alias,key,report_key", _FENCED)
+def test_the_two_files_applied_to_production_measure_that_no_existing_row_changed(stem, table, alias, key, report_key):
+    """"No customer row is altered" is the owner's fence. A constant in the
+    result (`'existing_rows_altered', 0`) is a promise; these two files take
+    one digest of every row BEFORE they create or replace anything and again
+    AFTER, refuse to commit if a row they found is no longer byte-identical,
+    and answer both digests — and the report answers the same digest, so the
+    coordinator reads it before and after."""
+    text = read(migration(stem))
+    body = mask_nested_bodies(migration_statements(stem)[0])
+    assert "'existing_rows_altered', 0" not in text, "a constant is not a measurement"
+    digest = "'select coalesce(array_agg(md5(%s::text) order by md5(%s::text)), ''{}''::text[]) from public.%s %s'" % (alias, alias, table, alias)
+    assert "c_row_digests constant text :=" in body and digest in re.sub(r"\s+", " ", body), (
+        "%s.sql: the row digest must be one md5 per WHOLE row of public.%s (every column)" % (stem, table))
+    first = body.find("execute c_row_digests into v_rows_before;")
+    last = body.find("execute c_row_digests into v_rows_after;")
+    assert body.count("execute c_row_digests into") == 2 and 0 < first < last, "%s.sql must read the rows twice: before and after" % stem
+    changes = [m.start() for m in re.finditer(r"(?i)\bcreate\s+(or\s+replace\s+function|trigger)\b|\bexecute\s+v_new_def\b|\bdrop\s+trigger\b|\balter\s+table\b", body)]
+    assert changes and first < min(changes) and max(changes) < last, (
+        "%s.sql: the BEFORE digest must be taken before the file changes anything, and the AFTER digest after everything" % stem)
+    assert re.search(r"if v_fp_after is distinct from v_fp_before then\s+raise exception", body), (
+        "%s.sql must REFUSE TO COMMIT when a row it found changed (raise — the whole file rolls back)" % stem)
+    tail = body[last:]
+    assert tail.find("raise exception") < tail.find("perform set_config('cfo_holes.result'"), "the refusal must come before the result is written"
+    assert "where x = any (v_rows_before)" in body, "the AFTER digest must be of the rows found at the start (a row added meanwhile is counted, not compared)"
+    for k in ("'%s', cardinality(v_rows_before)" % key, "'%s_fingerprint_before', v_fp_before" % key,
+              "'%s_fingerprint_after', v_fp_after" % key, "'%s_unchanged'" % key):
+        assert k in body, "%s.sql's result does not answer %s" % (stem, k)
+    rep = re.sub(r"\s+", " ", read(report(stem)))
+    assert "'%s', case" % report_key in rep and \
+        "'md5', md5(coalesce(string_agg(md5(%s::text), '' order by md5(%s::text)), '')))::text as j from public.%s %s" % (alias, alias, table, alias) in rep, (
+        "%s does not answer the same digest of public.%s under %r — the coordinator reads it before and after" % (report(stem).name, table, report_key))
+    assert "'rows', count(*)" in rep
+
+
+def test_each_migration_names_its_rollback_and_its_preflight_report():
     for stem in STEMS:
         text = read(migration(stem))
         assert "ROLLBACK" in text or stem == "schema_phase_dashboard_config_caller", "%s.sql names no rollback" % stem

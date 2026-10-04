@@ -32,7 +32,16 @@
 -- holds TRIGGER). Where it is false the migration installs nothing and says
 -- so under "not_closed" — run it as "organizations.owner".
 --
--- It reads ROWS in one place only, and returns a COUNT, never a user:
+-- It reads ROWS in two places, and returns a COUNT and ONE DIGEST, never a
+-- user and never a workspace:
+-- "organizations_fingerprint" — {"rows": N, "md5": …}, one digest over every
+-- row of public.organizations (the md5 of each whole row, sorted,
+-- concatenated, md5'd). THE PROOF THAT NO WORKSPACE WAS CHANGED: read it
+-- before the migration and after it — the same "rows" and "md5" mean every
+-- row is byte-identical (no workspace archived, restored, renamed). A user
+-- who renames or creates a workspace between the two reads changes it too;
+-- the migration answers the same digest of the rows it found, taken inside
+-- its own transaction ("existing_organizations_fingerprint_before" / "_after").
 -- "users_over_their_cap" — how many users hold more LIVE workspaces than
 -- create_workspace would let them have. The tier → cap mapping is READ OUT OF
 -- THE INSTALLED create_workspace BODY (its `when '<tier>' then <n>` arms and
@@ -187,5 +196,16 @@ select jsonb_build_object(
                        ((regexp_match(f.prosrc, 'else\s+(\d+)\s+end', 'i'))[1])::int)
             $count$, false, true, '')))[1]::text)::int
     end,
-  'users_over_their_cap_note', 'a count, never a list; the migration alters none of their rows'
+  'users_over_their_cap_note', 'a count, never a list; the migration alters none of their rows',
+  'organizations_fingerprint', case
+      when not exists (select 1 from org)
+           or not has_table_privilege(current_user, to_regclass('public.organizations'), 'SELECT') then null
+      else ((xpath('/row/j/text()', query_to_xml($digest$
+              select jsonb_build_object(
+                       'rows', count(*),
+                       'md5', md5(coalesce(string_agg(md5(o::text), '' order by md5(o::text)), '')))::text as j
+                from public.organizations o
+            $digest$, false, true, '')))[1]::text)::jsonb
+    end,
+  'organizations_fingerprint_note', 'one digest over every row of public.organizations, every column: the same "rows" and "md5" before and after the migration = no workspace was changed'
 ) as report;

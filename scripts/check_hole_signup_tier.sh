@@ -18,8 +18,13 @@
 #          the owner membership are still created; the first-touch trigger
 #          still runs); the function keeps its owner, SECURITY DEFINER, its
 #          search_path and its grants; every row that EXISTED is byte-
-#          identical (no backfill); the report counts the existing rows by
-#          (tier, plan, status, has a Stripe subscription) and names no user;
+#          identical (no backfill) — read three ways that must agree: the
+#          gate's own digest of the rows, the report's
+#          "existing_rows_fingerprint" before and after, and the digest the
+#          migration takes inside its own transaction
+#          ("existing_rows_unchanged": true); the report counts the existing
+#          rows by (tier, plan, status, has a Stripe subscription) and names
+#          no user; one column of one row changed by hand changes the digest;
 #   RUN 2  a second run changes nothing and says so;
 #   RE-OPENED  supabase/schema_phase3.sql re-run (it re-creates the function
 #          without tier) — shown OPEN again, then closed;
@@ -42,7 +47,11 @@
 # _pricing_config.plan_for over the row each statement seeds); existing rows
 # (untouched by design: what existing free accounts are metered as is the
 # owner's ruling); a subscriptions row created by anything but a trigger on
-# auth.users.
+# auth.users; a signup or a webhook that lands WHILE the migration runs (the
+# file counts an added row and compares the rows it found; the gate runs one
+# session at a time); a role that is not the table's owner reading the rows
+# through row level security (the digest is then of what that role sees —
+# "rows" says how many).
 #
 # LOCAL ONLY, never by default: see scripts/entitlement_holes/lib.sh.
 #   ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:postgres@127.0.0.1:<port>/<db> \
@@ -70,6 +79,10 @@ holes_build_scratch h4
 uid() { printf '%s0000000-0000-4000-8000-0000000000%s' "$1" "$2"; }
 sub_row() { q "select coalesce(tier, 'NULL') || '|' || plan || '|' || status || '|' || billing_cycle || '|' || (trial_end - trial_start)::text from subscriptions where user_id = '$1';"; }
 all_rows_digest() { q "select md5(coalesce(string_agg(s::text, E'\n' order by s.user_id), '')) from subscriptions s where s.user_id = any ('{$1}'::uuid[]);"; }
+# The whole table as "<rows>:<md5>" — the gate's OWN reading (row by row, in
+# psql), held against what the report and the migration answer.
+table_fingerprint() { q "select count(*) || ':' || md5(coalesce(string_agg(d, '' order by d), '')) from (select md5(s::text) as d from subscriptions s) x;"; }
+report_fingerprint() { echo "$(jget "$REPORT" '{existing_rows_fingerprint,rows}'):$(jget "$REPORT" '{existing_rows_fingerprint,md5}')"; }
 fn_attrs() { q "select p.prosecdef::text || '|' || pg_get_userbyid(p.proowner) || '|' || coalesce(array_to_string(p.proconfig, ','), '-') || '|' || coalesce(p.proacl::text, '-') from pg_proc p where p.oid = 'public.$1()'::regprocedure;"; }
 report_says() { # label want-hole_open
   run_report "$REPORT_SQL"
@@ -91,6 +104,9 @@ EXISTING="$OLD1,$OLD2,00000000-0000-4000-8000-000000000001"
 DIGEST_BEFORE="$(all_rows_digest "$EXISTING")"
 ATTRS_V2_BEFORE="$(fn_attrs handle_new_user_v2)"
 ATTRS_V1_BEFORE="$(fn_attrs handle_new_user)"
+FP_BEFORE="$(table_fingerprint)"
+check "O3 the report's existing_rows_fingerprint is the table's (rows and md5), read before anything is applied" "$(report_fingerprint)" "$FP_BEFORE"
+check_has "O3b … (a digest of rows that exist: at least the two accounts above)" "|${FP_BEFORE%%:*}|" "|$(q "select count(*) from subscriptions;")|"
 
 # ── RUN 1 ────────────────────────────────────────────────────────────────
 echo "── RUN 1 — the migration, one batch"
@@ -101,8 +117,11 @@ check "M2 its last statement names the file" "$(jget "$MIG_RESULT" '{migration}'
 check_has "M3 … and says it patched handle_new_user_v2" "$MIG_RESULT" "handle_new_user_v2(): its subscriptions insert now writes tier 'trial'"
 check_has "M4 … and the legacy handle_new_user" "$MIG_RESULT" "handle_new_user(): its subscriptions insert now writes tier 'trial'"
 check "M5 … and that nothing is left writing tier NULL" "$(jget "$MIG_RESULT" '{not_closed}')" "[]"
+check "M6 the migration MEASURED the existing rows: unchanged, and its digest before and after is the one the report read" "$(jget "$MIG_RESULT" '{existing_rows_unchanged}')|$(jget "$MIG_RESULT" '{existing_rows}'):$(jget "$MIG_RESULT" '{existing_rows_fingerprint_before}')|$(jget "$MIG_RESULT" '{existing_rows}'):$(jget "$MIG_RESULT" '{existing_rows_fingerprint_after}')|$(jget "$MIG_RESULT" '{rows_added_while_this_file_ran}')" "true|$FP_BEFORE|$FP_BEFORE|0"
 report_says "C1 the report after the migration says hole_open: false" "false"
 check "C1b … a new signup would be written with tier trial" "$(jget "$REPORT" '{new_signup_tier}')" "trial"
+check "C1c THE FENCE: the report's existing_rows_fingerprint after the migration is the one read before it (same rows, same md5)" "$(report_fingerprint)" "$FP_BEFORE"
+check "C1d … and so is the table, read by the gate" "$(table_fingerprint)" "$FP_BEFORE"
 NEW1="$(uid b 01)"
 q "insert into auth.users (id, email, raw_user_meta_data) values ('$NEW1', 'h4-after-1@holes-gate.invalid', '{\"company_name\":\"Gate Fixture SRL\",\"first_touch\":{\"src\":\"gate\"}}'::jsonb);" >/dev/null
 check "C2 a NEW signup's row reads tier trial — plan, status, cycle and the 14-day trial as before" "$(sub_row "$NEW1")" "trial|professional|trial|monthly|14 days"
@@ -148,6 +167,15 @@ report_says "H4 the report says hole_open: false" "false"
 NEW4="$(uid c 02)"; new_user "$NEW4" h4-reopened-2
 check "H5 a new signup reads tier trial" "$(sub_row "$NEW4")" "trial|professional|trial|monthly|14 days"
 check "H6 the signup written while it was open is NOT rewritten (no backfill)" "$(sub_row "$NEW3")" "NULL|professional|trial|monthly|14 days"
+# The digest SEES a change: one column of one row, by hand — the rows are the
+# same number, the md5 is another.
+run_report "$REPORT_SQL"; FP_H="$(report_fingerprint)"
+check "H7 the report's fingerprint is still the table's (more rows now)" "$FP_H" "$(table_fingerprint)"
+q "update subscriptions set cancel_at_period_end = not coalesce(cancel_at_period_end, false) where user_id = '$NEW3';" >/dev/null
+run_report "$REPORT_SQL"
+check "H8 one column of one row changed by hand: the same number of rows" "$(jget "$REPORT" '{existing_rows_fingerprint,rows}')" "${FP_H%%:*}"
+if [ "$(jget "$REPORT" '{existing_rows_fingerprint,md5}')" != "${FP_H##*:}" ]; then pass "H8b … and ANOTHER md5 (the digest sees an altered row)"
+else fail "H8b … and ANOTHER md5 (the digest sees an altered row)" "the md5 did not change: ${FP_H##*:}"; fi
 
 # ── it refuses to break signup ───────────────────────────────────────────
 echo "── A TIER CHECK THAT DOES NOT ACCEPT 'trial' — the migration must install nothing"

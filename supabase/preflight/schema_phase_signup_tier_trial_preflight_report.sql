@@ -22,9 +22,25 @@
 --                     accepts 'trial' — where one does not, the migration
 --                     installs nothing (a signup would be refused).
 --
--- It reads ROWS in one place only, and returns COUNTS, never a user:
--- "existing_rows" — public.subscriptions grouped by (tier is null, plan,
--- status, has a Stripe subscription). The migration alters none of them.
+-- It reads ROWS in two places, and returns COUNTS and ONE DIGEST, never a
+-- user:
+--   existing_rows              public.subscriptions grouped by (tier is null,
+--                              plan, status, has a Stripe subscription).
+--   existing_rows_fingerprint  {"rows": N, "md5": …} — one digest over every
+--                              row of public.subscriptions (the md5 of each
+--                              whole row, sorted, concatenated, md5'd). THE
+--                              PROOF THAT NO EXISTING ROW WAS ALTERED: read it
+--                              before the migration and after it — the same
+--                              "rows" and the same "md5" mean every row is
+--                              byte-identical (every column, the timestamps
+--                              included). A signup or a Stripe webhook that
+--                              lands between the two reads changes it too:
+--                              "rows" then grows, or "existing_rows" shows
+--                              which group moved — the migration itself
+--                              answers the same digest of the rows it found
+--                              ("existing_rows_fingerprint_before" / "_after",
+--                              taken inside its own transaction).
+-- The migration alters none of them.
 
 with sub as (
   select c.oid from pg_class c where c.oid = to_regclass('public.subscriptions')
@@ -123,5 +139,16 @@ select jsonb_build_object(
                        group by 1, 2, 3, 4, 5) x
             $count$, false, true, '')))[1]::text)::jsonb
     end,
-  'existing_rows_note', 'counts, never a user; the migration alters none of these rows (no backfill). Rows with tier NULL and plan professional are what the engine meters as Multi-Country today.'
+  'existing_rows_note', 'counts, never a user; the migration alters none of these rows (no backfill). Rows with tier NULL and plan professional are what the engine meters as Multi-Country today.',
+  'existing_rows_fingerprint', case
+      when not exists (select 1 from sub)
+           or not has_table_privilege(current_user, to_regclass('public.subscriptions'), 'SELECT') then null
+      else ((xpath('/row/j/text()', query_to_xml($digest$
+              select jsonb_build_object(
+                       'rows', count(*),
+                       'md5', md5(coalesce(string_agg(md5(s::text), '' order by md5(s::text)), '')))::text as j
+                from public.subscriptions s
+            $digest$, false, true, '')))[1]::text)::jsonb
+    end,
+  'existing_rows_fingerprint_note', 'one digest over every row of public.subscriptions, every column: the same "rows" and "md5" before and after the migration = no existing row was altered'
 ) as report;

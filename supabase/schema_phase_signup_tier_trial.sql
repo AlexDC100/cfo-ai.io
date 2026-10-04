@@ -42,7 +42,12 @@
 -- altered, no plan limit changes):
 --   · NO BACKFILL. Rows that exist keep the tier they have (NULL for every
 --     free account created by the old trigger). What the engine gives THOSE
---     accounts does not change with this file.
+--     accounts does not change with this file. MEASURED, not promised: the
+--     file takes one digest of every subscriptions row before it touches a
+--     function and again after (the md5 of each whole row, sorted,
+--     concatenated, md5'd — the preflight report's
+--     "existing_rows_fingerprint"), answers both, and REFUSES TO COMMIT if a
+--     row it found is no longer byte-identical.
 --   · no engine change, no change to `plan`, `status` or the trial dates.
 --
 -- ── HOW IT IS APPLIED ────────────────────────────────────────────────────
@@ -55,11 +60,14 @@
 --      or pasted whole into the SQL editor). One DO block: everything or — on
 --      any error, a lock timeout included (5 s) — nothing. Its LAST statement
 --      returns one jsonb row: each function it patched (md5 before → after),
---      each it left and why.
+--      each it left and why, and the digest of the existing rows before and
+--      after ("existing_rows_unchanged": true).
 --   2. Dashboard → Settings → API → "Reload schema cache" (CLAUDE.md §14; no
 --      API surface changes, the click is the discipline).
---   3. POST-CHECK: the preflight report again — "hole_open": false. Then one
---      throw-away signup: its subscriptions row reads tier 'trial'.
+--   3. POST-CHECK: the preflight report again — "hole_open": false, and its
+--      "existing_rows_fingerprint" equal to the one read in step 0 (same
+--      "rows", same "md5": no existing row was altered). Then one throw-away
+--      signup: its subscriptions row reads tier 'trial'.
 -- Idempotent: a second run changes nothing and says so.
 --
 -- ⚠ RE-RUN THIS FILE AFTER RE-RUNNING supabase/schema.sql OR
@@ -89,6 +97,14 @@ declare
   v_new_def  text;
   v_before   text;
   v_after    text;
+  -- THE FENCE, MEASURED: one md5 per whole subscriptions row, at the start
+  -- and at the end. This file writes no row; it says so with a digest.
+  v_rows_before text[];
+  v_rows_after  text[];
+  v_fp_before   text;
+  v_fp_after    text;
+  c_row_digests constant text :=
+    'select coalesce(array_agg(md5(s::text) order by md5(s::text)), ''{}''::text[]) from public.subscriptions s';
   -- The repository's subscriptions insert, whitespace-tolerant. Three
   -- groups; the patch puts ` tier,` after the first and ` 'trial',` after
   -- the second.
@@ -106,6 +122,13 @@ declare
 begin
   perform set_config('lock_timeout', '5s', true);
   perform set_config('cfo_holes.result', '', false);   -- never answer with another file's result
+
+  if v_sub is not null and has_table_privilege(current_user, v_sub, 'SELECT') then
+    execute c_row_digests into v_rows_before;
+    v_fp_before := md5(array_to_string(v_rows_before, ''));
+  elsif v_sub is not null then
+    v_skipped := v_skipped || to_jsonb(format('public.subscriptions is not readable by %s: the existing rows were NOT fingerprinted (this file writes no row either way)', current_user));
+  end if;
 
   if v_sub is null then
     v_refused := 'public.subscriptions does not exist';
@@ -211,6 +234,19 @@ begin
     end if;
   end if;
 
+  -- Every row that existed when this file started, read again: the digest
+  -- of THOSE rows must be the one taken at the start. (A signup that lands
+  -- while the file runs adds a row; it is counted, not compared.)
+  if v_rows_before is not null then
+    execute c_row_digests into v_rows_after;
+    v_fp_after := md5(array_to_string(array(
+      select x from unnest(v_rows_after) as x where x = any (v_rows_before) order by x), ''));
+    if v_fp_after is distinct from v_fp_before then
+      raise exception 'signup tier: a subscriptions row that existed when this file started is no longer byte-identical (digest % -> %). This file writes no row — nothing was applied; run it again.',
+        v_fp_before, v_fp_after;
+    end if;
+  end if;
+
   notify pgrst, 'reload schema';
 
   perform set_config('cfo_holes.result', jsonb_build_object(
@@ -219,7 +255,11 @@ begin
     'changed_count', jsonb_array_length(v_changed),
     'skipped', v_skipped,
     'not_closed', v_left,
-    'existing_rows_altered', 0,
+    'existing_rows', cardinality(v_rows_before),
+    'existing_rows_fingerprint_before', v_fp_before,
+    'existing_rows_fingerprint_after', v_fp_after,
+    'existing_rows_unchanged', case when v_rows_before is null then null else v_fp_after is not distinct from v_fp_before end,
+    'rows_added_while_this_file_ran', cardinality(v_rows_after) - cardinality(v_rows_before),
     'not_changed_on_purpose', 'no existing subscriptions row (no backfill); the engine; plan, status and the trial dates of a new row',
     'next', 'Reload the schema cache (Dashboard → Settings → API), then run the preflight report again: "hole_open" must be false.'
   )::text, false);

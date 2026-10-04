@@ -28,6 +28,11 @@
 #          firm functions, the service role's un-archive (the workspace
 #          migration's rollback), the SQL editor, a paid plan's restore;
 #          the user who was ALREADY over the cap keeps every workspace;
+#          NO WORKSPACE ROW IS CHANGED by the migration — read three ways
+#          that must agree: the gate's own digest of the table, the report's
+#          "organizations_fingerprint" before and after, and the digest the
+#          migration takes inside its own transaction
+#          ("existing_organizations_unchanged": true); a rename changes it;
 #          the cap probe leaves no workspace behind; TWO REQUESTS AT ONCE
 #          (create ∥ create, restore ∥ restore, in two real sessions) leave
 #          exactly one live workspace and the second is refused with
@@ -107,6 +112,10 @@ archived() { q "select count(*) from memberships m join organizations o on o.id 
 first_org() { q "select m.org_id from memberships m join organizations o on o.id = m.org_id where m.user_id = '$1' order by o.created_at, o.id limit 1;"; }
 org_row()  { q "select coalesce(archived_at::text, 'live') || '|' || coalesce(purge_after::text, '-') || '|' || coalesce(firm_id::text, '-') || '|' || coalesce(cui, '-') from organizations where id = '$1';"; }
 fn_md5()   { q "select string_agg(p.oid::regprocedure::text || '=' || md5(p.prosrc), ' ' order by p.oid::regprocedure::text) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('create_workspace', 'restore_workspace', 'archive_workspace');"; }
+# The whole table as "<rows>:<md5>" — the gate's OWN reading (row by row, in
+# psql), held against what the report and the migration answer.
+table_fingerprint() { q "select count(*) || ':' || md5(coalesce(string_agg(d, '' order by d), '')) from (select md5(o::text) as d from organizations o) x;"; }
+report_fingerprint() { echo "$(jget "$REPORT" '{organizations_fingerprint,rows}'):$(jget "$REPORT" '{organizations_fingerprint,md5}')"; }
 report_says() { # label want-hole_open
   run_report "$REPORT_SQL"
   if [ "$REPORT_RC" != 0 ]; then fail "$1" "the report failed: $REPORT"; return; fi
@@ -240,6 +249,9 @@ check "O6 OPEN (iv): archive, then create ∥ create = 2 live workspaces on a 1-
 # ── RUN 1 ────────────────────────────────────────────────────────────────
 echo "── RUN 1 — the migration, one batch"
 MD5_BEFORE="$(fn_md5)"
+FP_BEFORE="$(table_fingerprint)"
+run_report "$REPORT_SQL"
+check "O7 the report's organizations_fingerprint is the table's (rows and md5), read before anything is applied" "$(report_fingerprint)" "$FP_BEFORE"
 apply_migration "$MIGRATION"
 check "M1 the migration applies (exit 0)" "$MIG_RC" "0"
 [ "$MIG_RC" = 0 ] || echo "     | $MIG_OUT"
@@ -249,8 +261,11 @@ check_has "M4 … and the trigger" "$MIG_RESULT" "trigger organizations_guard_wr
 check "M5 … and that no workspace function body changed" "$(jget "$MIG_RESULT" '{workspace_function_bodies_unchanged}')" "true"
 check "M6 create_workspace, restore_workspace and archive_workspace are byte-identical (md5 of each, read by the gate)" "$(fn_md5)" "$MD5_BEFORE"
 check_has "M6b … and create_workspace is among them" "$MD5_BEFORE" "create_workspace(text,text,text)="
+check "M7 the migration MEASURED the existing workspaces: unchanged, and its digest before and after is the one the report read" "$(jget "$MIG_RESULT" '{existing_organizations_unchanged}')|$(jget "$MIG_RESULT" '{existing_organizations}'):$(jget "$MIG_RESULT" '{existing_organizations_fingerprint_before}')|$(jget "$MIG_RESULT" '{existing_organizations}'):$(jget "$MIG_RESULT" '{existing_organizations_fingerprint_after}')|$(jget "$MIG_RESULT" '{organizations_added_while_this_file_ran}')" "true|$FP_BEFORE|$FP_BEFORE|0"
 report_says "C1 the report after the migration says hole_open: false" "false"
 check "C1b … guard_in_place (the trigger runs exactly the body the report expects)" "$(jget "$REPORT" '{guard_in_place}')" "true"
+check "C1c THE FENCE: the report's organizations_fingerprint after the migration is the one read before it (same rows, same md5)" "$(report_fingerprint)" "$FP_BEFORE"
+check "C1d … and so is the table, read by the gate: no workspace was archived, restored or renamed by the migration" "$(table_fingerprint)" "$FP_BEFORE"
 closed_checks "C2" "$U_C1" "$U_C2"
 
 echo "   legitimate paths"
@@ -296,6 +311,8 @@ check "C13 detach_workspace_from_firm still clears it" "$(q "select coalesce(fir
 check "C14 the user who was already over the cap keeps both workspaces (no row altered)" "$(live "$U_I")|$(live "$U_II")" "2|2"
 out="$(sql_as authenticated "$U_I" "update organizations set name = 'still mine' where id = '$ORG_I' returning name;")"
 check "C15 … and still renames them" "$out" "still mine"
+run_report "$REPORT_SQL"
+check "C15b the digest SEES a change: after that rename (and the paths above) the report's fingerprint is the table's — and no longer the one read before" "$(report_fingerprint)|$([ "$(report_fingerprint)" != "$FP_BEFORE" ] && echo changed)" "$(table_fingerprint)|changed"
 check "C16 the report counts them, and names nobody" "$(run_report "$REPORT_SQL"; jget "$REPORT" '{users_over_their_cap}')" "$(q "select count(*) from (select m.user_id from memberships m join organizations o on o.id = m.org_id left join subscriptions s on s.user_id = m.user_id where o.archived_at is null group by m.user_id, s.tier having count(*) > case lower(coalesce(s.tier, '')) when 'pro' then 5 else 1 end) x;")"
 check_lacks "C16b … (no user id in the report)" "$REPORT" "$U_I"
 check "C17 the cap probe left no workspace behind" "$(q "select count(*) from organizations where name like 'workspace cap probe%';")" "0"
