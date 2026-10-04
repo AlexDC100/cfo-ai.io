@@ -22,7 +22,10 @@
 --                      migration installs
 --                      (md5 'b93ee1df602e2f6c2eebb425fa1b97e7' —
 --                      tests/engine/test_entitlement_hole_laws.py holds the two
---                      files to each other).
+--                      files to each other), as SECURITY INVOKER. A guard
+--                      altered to SECURITY DEFINER keeps its body and refuses
+--                      nothing — inside it current_user is the function's
+--                      owner, never `authenticated` — so it is NOT in place.
 --
 -- It reads ROWS in one place only, and returns a COUNT, never a user:
 -- "users_over_their_cap" — how many users hold more LIVE workspaces than
@@ -54,6 +57,7 @@ guard as (
   select coalesce((
     select t.tgenabled = 'O' and t.tgtype = 23
            and md5(p.prosrc) = 'b93ee1df602e2f6c2eebb425fa1b97e7'
+           and not p.prosecdef
       from org
       join pg_trigger t on t.tgrelid = org.oid and t.tgname = 'organizations_guard_write' and not t.tgisinternal
       join pg_proc p on p.oid = t.tgfoid), false) as in_place,
@@ -62,7 +66,8 @@ guard as (
                                           when 'R' then 'replica only' else 'always' end,
               'before_insert_or_update_for_each_row', t.tgtype = 23,
               'function', t.tgfoid::regprocedure::text,
-              'function_md5', md5(p.prosrc))
+              'function_md5', md5(p.prosrc),
+              'function_is_security_invoker', not p.prosecdef)
        from org
        join pg_trigger t on t.tgrelid = org.oid and t.tgname = 'organizations_guard_write' and not t.tgisinternal
        join pg_proc p on p.oid = t.tgfoid) as detail

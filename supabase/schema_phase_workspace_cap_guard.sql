@@ -132,6 +132,7 @@ declare
   v_after     jsonb;
   v_guard_before text;
   v_guard_after  text;
+  v_guard_was_definer boolean;
   v_trigger   record;
 begin
   perform set_config('lock_timeout', '5s', true);
@@ -151,13 +152,14 @@ begin
        and p.proname in ('create_workspace', 'restore_workspace', 'archive_workspace',
                          'purge_workspace', 'purge_expired_workspaces');
 
-    select md5(p.prosrc) into v_guard_before
+    select md5(p.prosrc), p.prosecdef into v_guard_before, v_guard_was_definer
       from pg_proc p
      where p.oid = to_regprocedure('public._organizations_guard_write()');
 
     -- SECURITY INVOKER on purpose: current_user must be the role the
     -- statement runs as (authenticated for a PATCH, the owner inside a
-    -- SECURITY DEFINER function).
+    -- SECURITY DEFINER function). `create or replace` without a SECURITY
+    -- clause sets it back to INVOKER where somebody altered it.
     create or replace function public._organizations_guard_write()
     returns trigger
     language plpgsql
@@ -226,6 +228,9 @@ $$;
     if v_guard_after is distinct from v_guard_before then
       v_changed := v_changed || to_jsonb(format('_organizations_guard_write(): %s (md5 %s)',
         case when v_guard_before is null then 'created' else 'body replaced, was md5 ' || v_guard_before end, v_guard_after));
+    end if;
+    if coalesce(v_guard_was_definer, false) then
+      v_changed := v_changed || to_jsonb('_organizations_guard_write(): it was SECURITY DEFINER (inside it current_user is the owner — it refused nothing) — SECURITY INVOKER again'::text);
     end if;
 
     select t.tgenabled, t.tgtype, t.tgfoid into v_trigger

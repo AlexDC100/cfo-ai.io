@@ -24,7 +24,8 @@
 #          table is byte-identical; the SERVICE ROLE still inserts, updates
 #          and deletes (the engine); a member still READS their own
 #          organization's rows and nobody else's (the engine's per_user
-#          reads); the policies are as found;
+#          reads); a member still DELETES their own period and document with
+#          their JWT and the derived rows cascade; the policies are as found;
 #   RUN 2  a second run changes nothing and says so;
 #   RE-OPENED BY HAND  the privileges granted back on two tables — shown OPEN
 #          again (the amount is rewritten), then closed.
@@ -194,6 +195,19 @@ check "C7 a member still READS their own organization's rows, table by table (th
 check "C8 … and so does the other member — their own, not the first one's" "$READ_B_AFTER" "$READ_B_BEFORE"
 check_has "C8b … (the read is real: one statement line each)" "$READ_A_BEFORE|$READ_B_BEFORE" "statement_line_items=1"
 check "C9 every policy is as found (none created, none dropped)" "$(q "select md5(string_agg(tablename || ':' || policyname || ':' || cmd, ',' order by tablename, policyname)) from pg_policies where schemaname = 'public';")" "$POLICIES_BEFORE"
+# What the BROWSER still does with the user's JWT: it deletes a period and a
+# document (frontend/lib/orgPeriods.ts, frontend/lib/supabase.ts). Their
+# derived rows go through the foreign keys' ON DELETE CASCADE, which Postgres
+# runs as the referencing table's owner — the revoke must not stop it.
+derived_of_period() { q "select (select count(*) from statement_line_items where period_id = '$1') || '|' || (select count(*) from calculated_metrics where period_id = '$1') || '|' || (select count(*) from briefings where period_id = '$1') || '|' || (select count(*) from benchmark_reports where period_id = '$1');"; }
+check "C10 before: the other member's period holds a row in each of the four period-keyed tables" "$(derived_of_period "$P1B")" "1|1|1|1"
+v="$(attempt authenticated "$USER_B" "delete from public.financial_periods where id = '$P1B'")"
+check "C10b a member still DELETES their own period with their JWT" "$v" "LANDED"
+check "C10c … and its derived rows go with it (the cascade runs as the tables' owner)" "$(derived_of_period "$P1B")" "0|0|0|0"
+check "C11 before: the member's document holds a SKU analysis" "$(q "select count(*) from sku_analyses where document_id = '$D1B';")" "1"
+v="$(attempt authenticated "$USER_B" "delete from public.documents where id = '$D1B'")"
+check "C11b a member still DELETES their own document with their JWT" "$v" "LANDED"
+check "C11c … and its SKU analysis goes with it" "$(q "select count(*) from sku_analyses where document_id = '$D1B';")" "0"
 
 # ── RUN 2 ────────────────────────────────────────────────────────────────
 echo "── RUN 2 — the same file again (statement by statement)"

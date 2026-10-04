@@ -36,8 +36,10 @@
 #   OLD FILES RE-RUN  schema_phase_multi_workspace.sql and
 #          schema_phase_archive_hold_guard.sql (they re-create
 #          restore_workspace) do NOT re-open it — the cap is on the table;
-#   RE-OPENED BY HAND  the trigger disabled; then dropped and its function
-#          gutted — shown OPEN again each time, then closed by the migration;
+#   RE-OPENED BY HAND  the trigger disabled; the guard altered to SECURITY
+#          DEFINER (same body — it then refuses nothing); the trigger dropped
+#          and its function gutted — shown OPEN again each time, then closed
+#          by the migration;
 #   PRODUCTION'S SHAPE  organizations WITHOUT firm_id / cui and without the
 #          firm functions (schema_phase_firm.sql was never applied there):
 #          the migration installs the same guard and it holds;
@@ -84,12 +86,12 @@ holes_build_scratch h1
 uid() { printf '%s0000000-0000-4000-8000-0000000000%s' "$1" "$2"; }
 U_I="$(uid a 01)";  U_II="$(uid a 02)"; U_FIRMOWNER="$(uid a 03)"
 U_C1="$(uid b 01)"; U_C2="$(uid b 02)"; U_C3="$(uid b 03)"; U_PRO="$(uid b 04)"; U_SVC="$(uid b 05)"
-U_R1="$(uid c 01)"; U_R2="$(uid c 02)"; U_H1="$(uid d 01)"; U_H2="$(uid d 02)"; U_H3="$(uid d 03)"
+U_R1="$(uid c 01)"; U_R2="$(uid c 02)"; U_H1="$(uid d 01)"; U_H2="$(uid d 02)"; U_H3="$(uid d 03)"; U_H4="$(uid d 04)"
 U_III="$(uid e 01)"
 U_RACE_OPEN="$(uid f 01)"; U_RACE_A="$(uid f 02)"; U_RACE_B="$(uid f 03)"; U_RACE_PRO="$(uid f 04)"
 U_NF1="$(uid f 05)"; U_NF2="$(uid f 06)"; U_NF3="$(uid f 07)"
 n=0
-for u in "$U_I" "$U_II" "$U_FIRMOWNER" "$U_C1" "$U_C2" "$U_C3" "$U_PRO" "$U_SVC" "$U_R1" "$U_R2" "$U_H1" "$U_H2" "$U_H3" "$U_III" \
+for u in "$U_I" "$U_II" "$U_FIRMOWNER" "$U_C1" "$U_C2" "$U_C3" "$U_PRO" "$U_SVC" "$U_R1" "$U_R2" "$U_H1" "$U_H2" "$U_H3" "$U_H4" "$U_III" \
          "$U_RACE_OPEN" "$U_RACE_A" "$U_RACE_B" "$U_RACE_PRO" "$U_NF1" "$U_NF2" "$U_NF3"; do
   n=$((n + 1)); new_user "$u" "h1-user-$n"
 done
@@ -323,7 +325,7 @@ check_has "F2 … and restore at the cap is still refused" "$ATTACK_OUT" "worksp
 check "F3 … 1 live workspace" "$(live "$U_H1")" "1"
 
 # ── RE-OPENED BY HAND ────────────────────────────────────────────────────
-echo "── RE-OPENED BY HAND — the trigger disabled; then dropped and its function gutted"
+echo "── RE-OPENED BY HAND — the trigger disabled; the guard made SECURITY DEFINER; then dropped and its function gutted"
 q "alter table public.organizations disable trigger organizations_guard_write;" >/dev/null
 report_says "H1 with the trigger DISABLED the report says hole_open: true" "true"
 attack_i "$U_H2"
@@ -331,6 +333,19 @@ check "H2 OPEN AGAIN (i): 2 live workspaces on a 1-workspace plan" "$(live "$U_H
 apply_migration "$MIGRATION"
 check_has "H3 the migration says it enabled the trigger" "$MIG_RESULT" "trigger organizations_guard_write enabled (it was DISABLED)"
 report_says "H4 the report says hole_open: false" "false"
+# The same body, the same trigger — and SECURITY DEFINER: inside the guard
+# current_user is then the function's owner, so it refuses nothing.
+q "alter function public._organizations_guard_write() security definer;" >/dev/null
+report_says "H4b with the guard altered to SECURITY DEFINER (same body, same trigger) the report says hole_open: true" "true"
+check "H4c … and says why" "$(jget "$REPORT" '{guard_trigger,function_is_security_invoker}')" "false"
+ORG_H4="$(first_org "$U_H4")"
+out="$(sql_as authenticated "$U_H4" "update organizations set purge_after = now() + interval '10 years' where id = '$ORG_H4' returning 'landed';")"
+check "H4d OPEN AGAIN: a member's direct write of purge_after LANDS through a definer guard" "$out" "landed"
+apply_migration "$MIGRATION"
+check_has "H4e the migration says it set the guard back to SECURITY INVOKER" "$MIG_RESULT" "SECURITY INVOKER again"
+report_says "H4f the report says hole_open: false" "false"
+out="$(sql_as authenticated "$U_H4" "update organizations set purge_after = null where id = '$ORG_H4';")"
+check_has "H4g a direct write of purge_after is refused again" "$out" "organizations.purge_after is not writable directly"
 q "drop trigger organizations_guard_write on public.organizations;
    create or replace function public._organizations_guard_write() returns trigger language plpgsql as \$g\$ begin return new; end \$g\$;
    create trigger organizations_guard_write before update on public.organizations for each row execute function public._organizations_guard_write();" >/dev/null

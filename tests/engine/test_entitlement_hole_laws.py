@@ -490,6 +490,10 @@ def test_each_report_recognises_exactly_the_body_its_migration_installs():
         "the workspace report's guard_in_place tests another body than the migration installs (%s)" % h1)
     assert "t.tgtype = 23" in h1_report and "tgtype <> 23" in read(migration("schema_phase_workspace_cap_guard")), \
         "the report and the migration must agree on the trigger's events (BEFORE INSERT OR UPDATE, ROW = 23)"
+    guard_cte = strip_sql_comments(h1_report).split("guard as (")[1].split("as in_place")[0]
+    assert re.search(r"and\s+not\s+p\.prosecdef", guard_cte), (
+        "guard_in_place must require a SECURITY INVOKER guard: altered to SECURITY DEFINER the same body "
+        "refuses nothing (current_user is the owner), and the report would say hole_open: false over an open hole")
     assert "before insert or update on public.organizations" in read(migration("schema_phase_workspace_cap_guard"))
 
     # H4 — the two functions the repository defines, and each as patched
