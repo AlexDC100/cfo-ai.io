@@ -24,6 +24,10 @@
 #          without the caller check), EXECUTE handed back to anon, the table
 #          privileges handed back, a permissive policy under another name —
 #          shown OPEN again (the attack lands), then closed by the migration;
+#   THE TABLE ALONE  the function still checks its caller and INSERT on the
+#          table is handed back to anon: the report says "hole_open": true
+#          through table_open alone (function_open false), the anon key
+#          plants a row, the migration closes it;
 #   NOTHING IS WIDENED  where authenticated could NOT execute the function
 #          before the file (a database hardened by hand: the service role
 #          only), it cannot after it; where authenticated and the service
@@ -186,6 +190,21 @@ check_has "H6 … and says it replaced the body again" "$MIG_RESULT" "upsert_das
 report_says "H7 the report says hole_open: false" "false"
 attacks_refused "H8"
 legitimate_paths "H9"
+
+# ── THE TABLE ALONE ──────────────────────────────────────────────────────
+# The function closed, the table re-opened: the verdict must not hang on the
+# function only (a report that reads the function alone says "false" here).
+echo "── THE TABLE ALONE — the function still checks its caller; INSERT on the table handed back to anon"
+q "grant insert on public.dashboard_configs to anon;" >/dev/null
+report_says "T1 with only the TABLE re-opened the report says hole_open: true" "true"
+check "T1b … function_open false, table_open true" "$(jget "$REPORT" '{function_open}')|$(jget "$REPORT" '{table_open}')" "false|true"
+sql_as anon "" "insert into dashboard_configs (user_id, cards) values ('$NOROW2', '[{\"planted\":\"table-alone\"}]'::jsonb);" >/dev/null
+check "T2 OPEN AGAIN: the anon key plants a row for a user who had none, through the table alone" "$(cards_of "$NOROW2")" '[{"planted": "table-alone"}]'
+q "delete from dashboard_configs where user_id = '$NOROW2';" >/dev/null
+apply_migration "$MIGRATION"
+check_has "T3 the migration says it took INSERT back from anon" "$MIG_RESULT" "dashboard_configs: INSERT revoked from anon"
+report_says "T4 the report says hole_open: false" "false"
+attacks_refused "T5"
 
 # ── NOTHING IS WIDENED ───────────────────────────────────────────────────
 echo "── NOTHING IS WIDENED — a database where authenticated could not call the function; one where PUBLIC's grant was the only one"

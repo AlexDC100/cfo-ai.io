@@ -455,6 +455,92 @@ def test_no_migration_touches_a_row_or_widens_access(stem):
         "restrict access'; no customer row, no policy, no grant: %s" % (stem, found))
 
 
+#: EVERY dynamic statement the six blocks run, whitespace-normalised. A
+#: scanner for verbs is evaded by a statement assembled from pieces
+#: (`execute 'upd' || 'ate …'`, `execute format('%s insert …', 'grant')` —
+#: both measured GREEN against the verb scan above, 2026-10-04); an allowlist
+#: of the exact statements is not.
+ALLOWED_EXECUTES = {
+    "execute format('revoke %s on table public.%I from public', v_priv, v_t);",
+    "execute format('revoke %s on table public.%I from %I', v_priv, v_t, v_role);",
+    "execute format('revoke %s on table public.dashboard_configs from %I', v_priv, v_role);",
+    # H4: the tier CHECK is asked whether it accepts 'trial'; the installed
+    # signup function is re-created from its own definition, patched
+    "execute format('select (%s) is not false from (select ''trial''::text as tier) as s', v_con.expr) into v_ok;",
+    "execute v_new_def;",
+    # H1 / H4: the digest of the existing rows (a `select`, held below)
+    "execute c_row_digests into v_rows_before;",
+    "execute c_row_digests into v_rows_after;",
+}
+
+
+def blank_strings(text: str) -> str:
+    """Single-quoted strings blanked CHARACTER FOR CHARACTER (the offsets of
+    everything outside them stay what they are)."""
+    return re.sub(r"'(?:[^']|'')*'", lambda m: "'" + " " * (len(m.group(0)) - 2) + "'", text)
+
+
+def dynamic_statements(body: str) -> list[str]:
+    """Each `execute …;` and `perform …;` STATEMENT of a plpgsql block (the
+    word inside a string, and `execute function` of a trigger, are not)."""
+    blank = blank_strings(body)
+    out = []
+    for m in re.finditer(r"(?i)(?:(?<=;)|(?<=\bthen)|(?<=\belse)|(?<=\bloop)|(?<=\bbegin))\s*\b(execute|perform)\b", blank):
+        start = m.start(1)
+        end = blank.find(";", start)
+        out.append(re.sub(r"\s+", " ", body[start:end + 1]).strip())
+    return out
+
+
+def test_the_dynamic_statement_reader_sees_statements_and_not_words():
+    body = """begin
+      perform set_config('a', 'execute this; perform that', true);
+      if x then execute format('revoke %s', v); end if;
+      v := 'the role may EXECUTE; perform nothing';
+      create trigger t before update on o for each row execute function f();
+      execute 'upd' || 'ate t set a = 1';
+    end"""
+    assert dynamic_statements(body) == [
+        "perform set_config('a', 'execute this; perform that', true);",
+        "execute format('revoke %s', v);",
+        "execute 'upd' || 'ate t set a = 1';",
+    ]
+
+
+@pytest.mark.parametrize("stem", STEMS)
+def test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read(stem):
+    """A migration's own block runs dynamic SQL in seven forms and no other,
+    and its only `perform` is set_config. Anything else — a statement built
+    from string pieces, a call to a function that writes — is red until it is
+    read and added here."""
+    body = mask_nested_bodies(migration_statements(stem)[0])
+    found = dynamic_statements(body)
+    assert found, "%s.sql: no dynamic statement found — the reader is not reading the block" % stem
+    unknown = [s for s in found if s.startswith("execute") and s not in ALLOWED_EXECUTES]
+    assert not unknown, (
+        "%s.sql runs a dynamic statement this law has not read — the verb scan cannot see into a "
+        "statement assembled at run time, so every `execute` is held to an exact list:\n  %s"
+        % (stem, "\n  ".join(unknown)))
+    performs = [s for s in found if s.startswith("perform")]
+    assert performs and all(re.match(r"perform set_config\('(lock_timeout|cfo_holes\.result)',", s) for s in performs), (
+        "%s.sql performs something that is not set_config (a function call is a statement nobody "
+        "has read): %s" % (stem, [s[:90] for s in performs]))
+    # the two strings an `execute <name>` runs are what they are said to be
+    text = read(migration(stem))
+    if "execute c_row_digests into" in text:
+        m = re.search(r"c_row_digests constant text :=\s*'((?:[^']|'')*)';", text)
+        assert m and re.match(r"select coalesce\(array_agg\(md5\(\w::text\) order by md5\(\w::text\)\), ''\{\}''::text\[\]\) from public\.\w+ \w$", m.group(1)), \
+            "%s.sql: c_row_digests is not the one read-only digest query" % stem
+        # CONSTANT: plpgsql refuses a second assignment, so the string above is the one that runs
+        assert len(re.findall(r"\bc_row_digests\b", strip_sql_comments(text))) == 3, \
+            "%s.sql: c_row_digests is declared once (constant) and executed twice — and named nowhere else" % stem
+    if "execute v_new_def;" in text:
+        assigned = re.findall(r"\bv_new_def\s*:=\s*(.*?);", strip_sql_comments(text), re.S)
+        assert [re.sub(r"\s+", " ", a) for a in assigned] == ["regexp_replace(v_def, c_insert, '\\1 tier,\\2 ''trial'',\\3', 'i')"], (
+            "%s.sql: v_new_def must be the installed definition with the one statement patched, nothing else: %s" % (stem, assigned))
+        assert re.findall(r"\bv_def\s*:=\s*(.*?);", strip_sql_comments(text), re.S) == ["pg_get_functiondef(v_fn.oid)"]
+
+
 def test_a_file_says_it_changed_only_what_the_read_back_confirms_and_never_raises_on_another_owner():
     """PRODUCTION'S OBJECTS ARE NOT ALL THIS ROLE'S. A revoke by a role that
     cannot act for the table's owner answers a WARNING and changes nothing; a

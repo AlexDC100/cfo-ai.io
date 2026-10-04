@@ -34,9 +34,9 @@
 #          migration takes inside its own transaction
 #          ("existing_organizations_unchanged": true); a rename changes it;
 #          the cap probe leaves no workspace behind; TWO REQUESTS AT ONCE
-#          (create ∥ create, restore ∥ restore, in two real sessions) leave
-#          exactly one live workspace and the second is refused with
-#          create_workspace's message;
+#          (create ∥ create, restore ∥ restore, create ∥ restore in both
+#          orders, in two real sessions) leave exactly one live workspace and
+#          the second is refused with create_workspace's message;
 #   RUN 2  a second run changes nothing and says so; still closed;
 #   OLD FILES RE-RUN  schema_phase_multi_workspace.sql and
 #          schema_phase_archive_hold_guard.sql (they re-create
@@ -45,6 +45,11 @@
 #          DEFINER (same body — it then refuses nothing); the trigger dropped
 #          and its function gutted — shown OPEN again each time, then closed
 #          by the migration;
+#   EACH HALF ALONE  the two halves of the report's verdict, each open with
+#          the other closed by something that is not the guard (no API role
+#          holds UPDATE; nobody may call restore_workspace): "hole_open" is
+#          true through restore_uncapped alone, then through
+#          direct_write_open alone, and the attack lands each time;
 #   PRODUCTION'S SHAPE  organizations WITHOUT firm_id / cui and without the
 #          firm functions (schema_phase_firm.sql was never applied there):
 #          the migration installs the same guard and it holds;
@@ -98,12 +103,13 @@ uid() { printf '%s0000000-0000-4000-8000-0000000000%s' "$1" "$2"; }
 U_I="$(uid a 01)";  U_II="$(uid a 02)"; U_FIRMOWNER="$(uid a 03)"
 U_C1="$(uid b 01)"; U_C2="$(uid b 02)"; U_C3="$(uid b 03)"; U_PRO="$(uid b 04)"; U_SVC="$(uid b 05)"
 U_R1="$(uid c 01)"; U_R2="$(uid c 02)"; U_H1="$(uid d 01)"; U_H2="$(uid d 02)"; U_H3="$(uid d 03)"; U_H4="$(uid d 04)"
+U_H5="$(uid d 05)"; U_H6="$(uid d 06)"
 U_III="$(uid e 01)"
 U_RACE_OPEN="$(uid f 01)"; U_RACE_A="$(uid f 02)"; U_RACE_B="$(uid f 03)"; U_RACE_PRO="$(uid f 04)"
 U_NF1="$(uid f 05)"; U_NF2="$(uid f 06)"; U_NF3="$(uid f 07)"
 n=0
 for u in "$U_I" "$U_II" "$U_FIRMOWNER" "$U_C1" "$U_C2" "$U_C3" "$U_PRO" "$U_SVC" "$U_R1" "$U_R2" "$U_H1" "$U_H2" "$U_H3" "$U_H4" "$U_III" \
-         "$U_RACE_OPEN" "$U_RACE_A" "$U_RACE_B" "$U_RACE_PRO" "$U_NF1" "$U_NF2" "$U_NF3"; do
+         "$U_RACE_OPEN" "$U_RACE_A" "$U_RACE_B" "$U_RACE_PRO" "$U_NF1" "$U_NF2" "$U_NF3" "$U_H5" "$U_H6"; do
   n=$((n + 1)); new_user "$u" "h1-user-$n"
 done
 
@@ -190,6 +196,15 @@ races_closed() { # tag user-for-create user-for-restore
   race_restore "$ub" "$a" "$b"
   check "$tag (iv) restore ∥ restore on a 1-workspace plan: exactly 1 live workspace" "$(live "$ub")" "1"
   check_has "$tag (iv) … the second restore is refused with create_workspace's own message" "$RACE_SECOND" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
+  # The two kinds at once — a create against a restore, in both orders.
+  archive_all "$ub"
+  two_at_once "$ub" "select create_workspace('at once, beside a restore');" "select restore_workspace('$a');"
+  check "$tag (iv) create ∥ restore on a 1-workspace plan: exactly 1 live workspace" "$(live "$ub")" "1"
+  check_has "$tag (iv) … the restore, second, is refused with create_workspace's own message" "$RACE_SECOND" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
+  archive_all "$ub"
+  two_at_once "$ub" "select restore_workspace('$a');" "select create_workspace('at once, behind a restore');"
+  check "$tag (iv) restore ∥ create on a 1-workspace plan: exactly 1 live workspace" "$(live "$ub")" "1"
+  check_has "$tag (iv) … the create, second, is refused with create_workspace's own message" "$RACE_SECOND" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
   check "$tag (iv) the cap probe left no workspace behind" "$(q "select count(*) from organizations where name like 'workspace cap probe%';")" "0"
 }
 
@@ -386,6 +401,30 @@ report_says "H9 the report says hole_open: false" "false"
 out="$(sql_as authenticated "$U_H1" "update organizations set archived_at = now() where id = '$(first_org "$U_H1")';")"
 check_has "H10 a direct write of archived_at is refused again" "$out" "not writable directly"
 check "H11 the workspace functions are still byte-identical to the start" "$(fn_md5)" "$MD5_BEFORE"
+
+# ── EACH HALF OF THE VERDICT ALONE ───────────────────────────────────────
+# hole_open is direct_write_open OR restore_uncapped. A report that reads one
+# half says "false" over the other; each half is shown open with the other
+# closed by something that is not the guard.
+echo "── EACH HALF ALONE — the guard gone; first no API role may write the column, then nobody may call restore_workspace"
+q "drop trigger organizations_guard_write on public.organizations;
+   drop function public._organizations_guard_write();
+   revoke update on public.organizations from anon, authenticated;" >/dev/null
+report_says "V1 no API role holds UPDATE and the guard is gone: the report still says hole_open: true" "true"
+check "V1b … through restore_uncapped alone (direct_write_open false)" "$(jget "$REPORT" '{direct_write_open}')|$(jget "$REPORT" '{restore_uncapped}')" "false|true"
+attack_ii "$U_H5"
+check "V2 OPEN (ii) with no direct write at all: archive → create → restore = 2 live workspaces" "$(live "$U_H5")" "2"
+q "grant update on public.organizations to anon, authenticated;
+   revoke execute on function public.restore_workspace(uuid) from authenticated;" >/dev/null
+report_says "V3 nobody may call restore_workspace and the guard is gone: the report still says hole_open: true" "true"
+check "V3b … through direct_write_open alone (restore_uncapped false)" "$(jget "$REPORT" '{direct_write_open}')|$(jget "$REPORT" '{restore_uncapped}')" "true|false"
+attack_i "$U_H6"
+check "V4 OPEN (i) with restore_workspace out of reach: PATCH archived_at → create → PATCH back = 2 live workspaces" "$(live "$U_H6")" "2"
+q "grant execute on function public.restore_workspace(uuid) to authenticated;" >/dev/null
+apply_migration "$MIGRATION"
+check "V5 the migration applies (exit 0) and installs the guard again" "$MIG_RC|$(jget "$MIG_RESULT" '{changed_count}')" "0|2"
+report_says "V6 the report says hole_open: false" "false"
+check "V6b … both halves closed" "$(jget "$REPORT" '{direct_write_open}')|$(jget "$REPORT" '{restore_uncapped}')" "false|false"
 
 # ── path (iii): measured, NOT closed ─────────────────────────────────────
 # (measured BEFORE the firm schema is dropped below)

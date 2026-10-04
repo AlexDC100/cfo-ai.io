@@ -155,6 +155,7 @@ first_col() { q "select quote_ident(attname) from pg_attribute where attrelid = 
 echo "── OPEN — the schema this repository's other files build"
 report_says "O1 the report on the fresh schema says hole_open: true" "true"
 check "O1b … every listed table is open" "$(jget "$REPORT" '{listed_open_count}')" "$N_ALL"
+check "O1b2 … and every listed table exists here (listed_existing_count)" "$(jget "$REPORT" '{listed_existing_count}')" "$N_ALL"
 check "O1c … and nothing open is unknown to the repository" "$(jget "$REPORT" '{open_tables_not_known_to_this_repository}')" "[]"
 for t in $RLS_OFF; do
   check "O2 $t: row level security is OFF" "$(q "select relrowsecurity from pg_class where oid = 'public.$t'::regclass;")" "f"
@@ -223,6 +224,7 @@ check "A1 the migration applies with a listed table missing (exit 0)" "$MIG_RC" 
 check "A2 … and names it" "$(jget "$MIG_RESULT" '{tables_absent_here}')" '["sector_risk_models"]'
 report_says "A3 the report answers too: hole_open false" "false"
 check "A3b … and says the table does not exist here" "$(jsql "$REPORT" "select (x ->> 'exists') from jsonb_array_elements(:'j'::jsonb -> 'listed') x where x ->> 'table' = 'sector_risk_models';")" "false"
+check "A3c … one fewer listed table exists (listed_existing_count)" "$(jget "$REPORT" '{listed_existing_count}')" "$((N_ALL - 1))"
 q "create table public.sector_risk_models (sector text primary key, model jsonb);" >/dev/null   # default grants again: open
 ALL_BUT="$(printf '%s\n' $ALL_TABLES | grep -v '^sector_risk_models$' | tr '\n' ' ')"
 
@@ -279,6 +281,7 @@ q "drop view public.handmade_company_view; delete from public.public_companies w
 # ── AN EMPTY DATABASE ────────────────────────────────────────────────────
 echo "── AN EMPTY DATABASE — none of the listed tables"
 holes_on_an_empty_database "E1" "$REPORT_SQL" "$MIGRATION"
+check "E1 … the report said none of the listed tables exists there (listed_existing_count 0 — nothing to do)" "$(jget "$REPORT" '{listed_existing_count}')" "0"
 check_has "E1 … and its last row SAYS there was nothing to do (skipped — never an empty answer, never a failure)" "$(jget "$MIG_RESULT" '{skipped}')" "none of the 12 listed tables exists in this database — nothing to do"
 
 # ── OBJECTS ANOTHER ROLE OWNS ────────────────────────────────────────────
