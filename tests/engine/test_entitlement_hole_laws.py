@@ -758,6 +758,20 @@ def test_the_guard_asks_create_workspace_under_a_lock_and_replaces_no_workspace_
     assert 0 < lock < probe, "the per-user lock must be taken BEFORE create_workspace is asked — or two requests at once both pass"
     assert re.search(r"when\s+sqlstate\s+'ZC001'\s+then\s+null", body), "the probe's own exception is the only one swallowed"
     assert not re.search(r"\bthen\s+\d+\b|\belse\s+\d+\s+end\b", body), "a cap number in the guard: the numbers are create_workspace's"
+    # THE SIGNUP PATH CALLS NO FUNCTION OF SCHEMA auth: the guard fires on a
+    # signup's first workspace, inside GoTrue's own session. One call, to
+    # auth.uid(), and only inside the nest a restore or a create reaches —
+    # never in a flat AND (SQL does not promise to stop at the first false),
+    # and never auth.jwt() (the role is read from the request's own claims).
+    code = strip_sql_comments(body)
+    assert re.findall(r"\bauth\.\w+\s*\(", code) == ["auth.uid("], (
+        "the guard calls %s — exactly one call into schema auth is allowed, auth.uid()" % re.findall(r"\bauth\.\w+\s*\(", code))
+    asked, role, uid = code.find("if v_asked then"), code.find("if v_role <> 'service_role' then"), code.find("v_uid := auth.uid();")
+    assert 0 < asked < role < uid < code.find("pg_advisory_xact_lock("), (
+        "auth.uid() must be asked only inside `if v_asked then … if v_role <> 'service_role' then` — "
+        "a signup's first workspace, a rename and an archive must not reach it")
+    assert not re.search(r"\bif\s+v_asked\s+and\b", code), "a flat `if v_asked and …`: every operand may be evaluated on every write"
+    assert "current_setting('request.jwt.claims', true)" in code and "current_setting('request.jwt.claim.role', true)" in code
     assert "security definer" not in read(migration("schema_phase_workspace_cap_guard")).split("create or replace function public._organizations_guard_write()")[1].split("as $$")[0].lower(), \
         "the guard must be SECURITY INVOKER: current_user is how it tells a browser session from a workspace function"
     text = strip_sql_comments(read(migration("schema_phase_workspace_cap_guard")))

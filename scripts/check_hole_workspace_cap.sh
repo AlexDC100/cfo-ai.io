@@ -33,6 +33,8 @@
 #          "organizations_fingerprint" before and after, and the digest the
 #          migration takes inside its own transaction
 #          ("existing_organizations_unchanged": true); a rename changes it;
+#          a signup lands with auth.uid() and auth.jwt() RAISING (the
+#          guard calls no function of schema auth on that path);
 #          the cap probe leaves no workspace behind; TWO REQUESTS AT ONCE
 #          (create ∥ create, restore ∥ restore, create ∥ restore in both
 #          orders, in two real sessions) leave exactly one live workspace and
@@ -345,6 +347,29 @@ U_AFTER="$(uid f 08)"; new_user "$U_AFTER" h1-signup-after-the-guard
 check "C22 a signup AFTER the guard still gets its first workspace (the signup trigger's insert is not asked)" "$(live "$U_AFTER")" "1"
 out="$(sql_as authenticated "$U_AFTER" "select create_workspace('a second one');")"
 check_has "C22b … and that account's second workspace is refused at the cap" "$out" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
+# THE SIGNUP PATH CALLS NO FUNCTION OF SCHEMA auth. A signup's first workspace
+# is inserted inside GoTrue's own session; a guard that called auth.uid() or
+# auth.jwt() there would make every signup depend on what that session may
+# execute. Shown with both functions replaced by ones that RAISE: the signup
+# lands, and so do the table owner's writes; then the real ones are put back.
+q "alter function auth.uid() rename to uid_kept_by_the_gate;
+   alter function auth.jwt() rename to jwt_kept_by_the_gate;
+   create function auth.uid() returns uuid language plpgsql as \$f\$ begin raise exception 'auth.uid() was called'; end \$f\$;
+   create function auth.jwt() returns jsonb language plpgsql as \$f\$ begin raise exception 'auth.jwt() was called'; end \$f\$;" >/dev/null
+U_NOAUTH="$(uid f 09)"
+out="$(q "insert into auth.users (id, email, raw_user_meta_data) values ('$U_NOAUTH', 'h1-signup-no-auth-functions@holes-gate.invalid', '{}'::jsonb);")"
+check "C23 a signup lands with auth.uid() and auth.jwt() RAISING — the guard calls neither on that path" "$out|$(live "$U_NOAUTH")" "|1"
+out="$(q "update organizations set name = 'renamed by the owner', archived_at = now() where id = '$(first_org "$U_NOAUTH")' returning (archived_at is not null)::text;")"
+check "C23b … nor on the table owner's archive and rename" "$out" "true"
+out="$(q "update organizations set archived_at = null where id = '$(first_org "$U_NOAUTH")' returning (archived_at is null)::text;")"
+check_has "C23c the ONE place it asks: a workspace coming back from the archive — auth.uid(), never auth.jwt()" "$out" "auth.uid() was called"
+q "drop function auth.uid(); drop function auth.jwt();
+   alter function auth.uid_kept_by_the_gate() rename to uid;
+   alter function auth.jwt_kept_by_the_gate() rename to jwt;" >/dev/null
+out="$(q "update organizations set archived_at = null where id = '$(first_org "$U_NOAUTH")' returning (archived_at is null)::text;")"
+check "C23d the real functions are back: the owner's un-archive with no request claims passes (no JWT, not asked for a cap)" "$out" "true"
+out="$(sql_as authenticated "$U_NOAUTH" "select create_workspace('a second one');")"
+check_has "C23e … and that account's second workspace is refused at the cap" "$out" "workspace_cap_reached: your trial plan allows 1 workspace(s)"
 
 # ── RUN 2 ────────────────────────────────────────────────────────────────
 echo "── RUN 2 — the same file again (statement by statement)"

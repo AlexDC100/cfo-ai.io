@@ -20,7 +20,7 @@
 --                      ROW, enabled (origin), and runs
 --                      _organizations_guard_write() with exactly the body the
 --                      migration installs
---                      (md5 'b93ee1df602e2f6c2eebb425fa1b97e7' —
+--                      (md5 '0db0028f69e4dc30e3046be609fe49c9' —
 --                      tests/engine/test_entitlement_hole_laws.py holds the two
 --                      files to each other), as SECURITY INVOKER. A guard
 --                      altered to SECURITY DEFINER keeps its body and refuses
@@ -72,7 +72,7 @@ has_archive as (
 guard as (
   select coalesce((
     select t.tgenabled = 'O' and t.tgtype = 23
-           and md5(p.prosrc) = 'b93ee1df602e2f6c2eebb425fa1b97e7'
+           and md5(p.prosrc) = '0db0028f69e4dc30e3046be609fe49c9'
            and not p.prosecdef
       from org
       join pg_trigger t on t.tgrelid = org.oid and t.tgname = 'organizations_guard_write' and not t.tgisinternal

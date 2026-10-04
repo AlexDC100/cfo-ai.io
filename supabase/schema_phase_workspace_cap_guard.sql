@@ -56,7 +56,9 @@
 --        unchanged. One cap authority: whatever create_workspace is
 --        installed — this repository's, or feat/owner-plan's with its
 --        unlimited branch — is the cap on a restore too. The service role
---        and a session with no JWT (the SQL editor) are not asked.
+--        and a session with no JWT (the SQL editor) are not asked. Nothing
+--        else that writes the table — a rename, an archive, a signup's
+--        first workspace — calls a function of schema `auth` here.
 --     3. ONE AT A TIME PER USER. Before it asks, the trigger takes a
 --        transaction-scoped advisory lock keyed on the caller, and it asks
 --        the same question when a signed-in user's request INSERTS a live
@@ -204,6 +206,8 @@ declare
   v_old    jsonb;
   v_col    text;
   v_asked  boolean := false;
+  v_role   text;
+  v_uid    uuid;
 begin
   if tg_op = 'UPDATE' then
     v_old := to_jsonb(old);
@@ -235,18 +239,33 @@ begin
   -- create_workspace itself, one request at a time per user. The probe
   -- workspace never exists outside the sub-transaction; create_workspace's
   -- own refusal (workspace_cap_reached: …) passes through unchanged.
-  if v_asked
-     and auth.uid() is not null
-     and coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
-     and to_regprocedure('public.create_workspace(text,text,text)') is not null then
-    perform pg_advisory_xact_lock(hashtextextended('cfo-ai workspace cap ' || auth.uid()::text, 0));
-    begin
-      perform public.create_workspace('workspace cap probe (rolled back)');
-      raise exception 'workspace cap probe passed' using errcode = 'ZC001';
-    exception
-      when sqlstate 'ZC001' then
-        null;
-    end;
+  --
+  -- NESTED ON PURPOSE. Every other write of the table — a rename, an archive,
+  -- and the signup trigger's first workspace, which runs in GoTrue's own
+  -- session — leaves here without calling one function of schema `auth`: SQL
+  -- does not promise to stop at the first false of an AND. The role is read
+  -- from the request's own claims (the setting PostgREST makes; no function
+  -- needs to be executable for that), and auth.uid() is asked only where the
+  -- workspace function that got us here asks it too.
+  if v_asked then
+    if to_regprocedure('public.create_workspace(text,text,text)') is not null then
+      v_role := coalesce(nullif(current_setting('request.jwt.claim.role', true), ''),
+                         nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role',
+                         '');
+      if v_role <> 'service_role' then
+        v_uid := auth.uid();
+        if v_uid is not null then
+          perform pg_advisory_xact_lock(hashtextextended('cfo-ai workspace cap ' || v_uid::text, 0));
+          begin
+            perform public.create_workspace('workspace cap probe (rolled back)');
+            raise exception 'workspace cap probe passed' using errcode = 'ZC001';
+          exception
+            when sqlstate 'ZC001' then
+              null;
+          end;
+        end if;
+      end if;
+    end if;
   end if;
 
   return new;
