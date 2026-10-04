@@ -67,6 +67,9 @@ const CORPUS: Case[] = JSON.parse(readFileSync(resolve(REPO, "tests/engine/fixtu
 /** Explain hands the pass no figures: the cases whose expected string needs none. */
 const CASES = CORPUS.filter((c) => !c.anchors);
 const other = (lang: Lang): Lang => (lang === "ro" ? "en" : "ro");
+/** The case is a text returned whole because it holds a lone three-digit
+ *  group (never half a text): shown exactly as the model wrote it, counted. */
+const held = (c: Case) => c.kept.some((k) => k.reason === "text_held");
 
 const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function findings(text: string, lang: Lang, kept: readonly Kept[] = [], allowed: readonly { text: string }[] = []): string[] {
@@ -105,8 +108,9 @@ afterAll(async () => {
 
 describe("14 an AI explanation is shown in the reader's format — fresh, and from the cache", () => {
   it("POSITIVE CONTROL: the cases are a real share of the corpus and the wrong ones ARE flagged", () => {
-    expect(CASES.length).toBeGreaterThanOrEqual(100);
-    expect(CASES.filter((c) => c.wrong).length).toBeGreaterThanOrEqual(70);
+    expect(CASES.length).toBeGreaterThanOrEqual(135);
+    expect(CASES.filter((c) => c.wrong).length).toBeGreaterThanOrEqual(85);
+    expect(CASES.filter(held).length).toBeGreaterThanOrEqual(4);
     for (const c of CASES) if (c.wrong) expect(findings(c.input, c.lang).length, c.id).toBeGreaterThan(0);
   });
 
@@ -119,7 +123,8 @@ describe("14 an AI explanation is shown in the reader's format — fresh, and fr
     checked += 1;
     expect([fresh.source, fresh.degraded]).toEqual(["ai", null]);
     expect(plainSpaces(fresh.text)).toBe(c.expected);
-    expect(findings(fresh.text, c.lang, c.kept, c.allowed)).toEqual([]);
+    if (held(c)) expect(fresh.text).toBe(c.input); // never half a text: byte for byte what the model wrote
+    else expect(findings(fresh.text, c.lang, c.kept, c.allowed)).toEqual([]);
     expect(fresh.text.replace(/[^0-9]/g, "")).toBe(c.input.replace(/[^0-9]/g, ""));
     expect(chatLlmMock).toHaveBeenCalledTimes(1);
     // The cache holds what was shown — and the second read asks nobody.
@@ -140,8 +145,23 @@ describe("14 an AI explanation is shown in the reader's format — fresh, and fr
       expect(plainSpaces(out.text), c.id).toBe(c.expected);
       repaired += 1;
     }
-    expect(repaired).toBeGreaterThanOrEqual(70);
+    expect(repaired).toBeGreaterThanOrEqual(85);
     expect(chatLlmMock).not.toHaveBeenCalled();
+  });
+
+  it("a correct Romanian answer written as labels, with one English gloss, keeps its right figures — it is not read as English against the language that was asked for", async () => {
+    // (review 2026-10-05: two English function words and no Romanian one made
+    // the answer "English", and its right Romanian figures were re-spelt)
+    const labels = "- Marjă EBITDA: 12,4%\n- Marjă netă: 6,1%\n- Free cash flow from the operations: 2.345.678 RON";
+    answers(labels);
+    expect((await getExplanation({ ...REQ, lang: "ro", snapshotKey: "labels-ro" })).text).toBe(labels);
+    // POSITIVE CONTROL: where ENGLISH was asked for, the same words do read as English — the caller agrees with them.
+    expect(displayModelText(labels, { fallback: "en" }).lang).toBe("en");
+    expect(displayModelText(labels, { fallback: "en" }).text).not.toBe(labels);
+    // A few Romanian words in an answer to an ENGLISH request: thin evidence against the caller — not touched.
+    const thin = "EBITDA: 12.4% pentru anul în curs.";
+    answers(thin);
+    expect((await getExplanation({ ...REQ, lang: "en", snapshotKey: "thin-ro" })).text).toBe(thin);
   });
 
   it("the answer's OWN language wins over the one that was asked for: an English answer to a Romanian request keeps English figures", async () => {

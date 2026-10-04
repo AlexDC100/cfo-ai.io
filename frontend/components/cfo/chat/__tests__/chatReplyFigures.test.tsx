@@ -114,6 +114,10 @@ const CORPUS: Case[] = JSON.parse(readFileSync(resolve(REPO, "tests/engine/fixtu
 const CHAT_CASES = CORPUS.filter((c) => c.surface !== "briefing");
 const NBSP = String.fromCharCode(0xa0);
 const other = (lang: Lang): Lang => (lang === "ro" ? "en" : "ro");
+/** The case is a text returned whole because it holds a lone three-digit
+ *  group (never half a text): stored and shown exactly as the model wrote it,
+ *  counted — the detector is not run on what is not ours. */
+const held = (c: Case) => c.kept.some((k) => k.reason === "text_held");
 
 /** The question each reply answers — in the reply's language (each reads as
  *  that language on its function words; a control below holds it). */
@@ -133,10 +137,11 @@ function findings(text: string, lang: Lang, kept: readonly Kept[] = [], allowed:
 
 /** The TEXT a reader sees for a markdown reply — written here, not taken
  *  from the bubble: headings and bullets lose their marker, bold and code
- *  lose their marks, a paragraph keeps its line breaks, blocks follow each
- *  other. (A reply with none of these reads as itself.) */
+ *  lose their marks, a labelled link shows its label, a paragraph keeps its
+ *  line breaks, blocks follow each other. (A reply with none of these reads
+ *  as itself.) */
 function mdText(md: string): string {
-  const inline = (s: string) => s.replace(/`([^`]+)`|\*\*([^*]+)\*\*/g, (_m, code, bold) => code ?? bold);
+  const inline = (s: string) => s.replace(/`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]\n]+)\]\(\/[^)\n]*\)/g, (_m, code, bold, label) => code ?? bold ?? label);
   const blocks: string[] = [];
   let para: string[] = [];
   const flush = () => { if (para.length) { blocks.push(para.map(inline).join("\n")); para = []; } };
@@ -226,16 +231,20 @@ afterAll(async () => {
 
 describe("POSITIVE CONTROL — the cases, the questions, the reference text", () => {
   it("the chat cases are a real share of the corpus, in both languages, and the first is the incident's sentence in shape", () => {
-    expect(CHAT_CASES.length).toBeGreaterThanOrEqual(95);
-    expect(CHAT_CASES.filter((c) => c.wrong).length).toBeGreaterThanOrEqual(65);
-    expect(CHAT_CASES.filter((c) => c.lang === "en").length).toBeGreaterThanOrEqual(15);
+    expect(CHAT_CASES.length).toBeGreaterThanOrEqual(130);
+    expect(CHAT_CASES.filter((c) => c.wrong).length).toBeGreaterThanOrEqual(80);
+    expect(CHAT_CASES.filter((c) => c.lang === "en").length).toBeGreaterThanOrEqual(20);
+    expect(CHAT_CASES.filter(held).length).toBeGreaterThanOrEqual(3);
     expect(CHAT_CASES[0].id).toBe("incident-shape");
     expect(CHAT_CASES[0].input).toContain("~EUR 12.3M (convertit din RON 64,567,890 la cursul BNR 0.1905)");
     for (const c of CHAT_CASES) {
       expect(c.input.trim(), c.id).toBe(c.input); // the pipeline trims a reply
-      expect(c.input.includes("]("), c.id).toBe(false); // (no labelled link: mdText does not model one)
       if (c.wrong) expect(findings(c.input, c.lang).length, c.id).toBeGreaterThan(0);
     }
+    // The shapes the review of 2026-10-05 found no case for: a figure inside a
+    // labelled link (an app path — the bubble renders it), a reply with no letter.
+    expect(CHAT_CASES.filter((c) => /\]\(\//.test(c.input)).map((c) => c.id)).toEqual(["figure-in-a-link-label"]);
+    expect(CHAT_CASES.filter((c) => !/\p{L}/u.test(c.input)).map((c) => c.id)).toEqual(["reply-that-is-one-percentage", "reply-that-is-one-handed-amount"]);
   });
 
   it("each question reads as its language; no reply of the corpus reads as the OTHER language (some read as none: the question decides)", () => {
@@ -253,6 +262,7 @@ describe("POSITIVE CONTROL — the cases, the questions, the reference text", ()
   it("mdText: a reply without markdown reads as itself; a marked one loses its marks only", () => {
     expect(CHAT_CASES.filter((c) => mdText(c.expected) === c.expected).length).toBeGreaterThanOrEqual(85);
     expect(mdText("## Sinteză\n- **Cifra:** 1,5%\n- Zile: 45\n\nUn rând\nal doilea `cod`")).toBe("SintezăCifra: 1,5%Zile: 45Un rând\nal doilea cod");
+    expect(mdText("Vezi [EBITDA de 38,9 mil. RON](/dashboard?tab=pl) aici.")).toBe("Vezi EBITDA de 38,9 mil. RON aici.");
   });
 });
 
@@ -270,7 +280,8 @@ describe("10 a reply the model wrote in the wrong format is stored and shown in 
     expect(chatLlmMock).toHaveBeenCalledTimes(1);
     // STORED: the expected string, typed by hand; nothing foreign left but what the corpus names.
     expect(plainSpaces(reply.content)).toBe(c.expected);
-    expect(findings(reply.content, c.lang, c.kept, c.allowed)).toEqual([]);
+    if (held(c)) expect(reply.content).toBe(c.input); // never half a text: byte for byte what the model wrote
+    else expect(findings(reply.content, c.lang, c.kept, c.allowed)).toEqual([]);
     expect(reply.content.replace(/[^0-9]/g, "")).toBe(c.input.replace(/[^0-9]/g, ""));
     expect([reply.failed, reply.refused, reply.interrupted]).toEqual([undefined, undefined, undefined]);
     // SHOWN: the real list and bubble.
@@ -279,7 +290,7 @@ describe("10 a reply the model wrote in the wrong format is stored and shown in 
     expect(view.bubbles).toHaveLength(1);
     expect(plainSpaces(view.bubbles[0])).toBe(mdText(c.expected));
     // …a code span's own text is not prose; everything else the reader sees is read by the detector.
-    if (!c.input.includes("`")) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
+    if (!c.input.includes("`") && !held(c)) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
     // STORED = SHOWN, byte for byte (joiners included): the bubble's pass changes nothing of a stored reply.
     expect(view.bubbles[0]).toBe(mdText(reply.content));
     // The reader's own turn is shown as typed.
@@ -314,22 +325,66 @@ describe("10 a reply the model wrote in the wrong format is stored and shown in 
   });
 
   it("what the pipeline logs about a reply is its language and COUNTS by reason — never a token, never a figure", async () => {
-    const c = CHAT_CASES.find((x) => x.id === "single-group-with-code-before")!;
-    const text = `${CORPUS[0].input} ${c.input}`;
+    const text = `${CORPUS[0].input} Lichiditatea curentă este 2.87, iar bugetul de EUR 1.5-2.5M.`;
     await answeredTurn(QUESTION.ro, text);
-    const lines = debugLog.filter((a) => a[0] === "[figures] chat reply");
+    let lines = debugLog.filter((a) => a[0] === "[figures] chat reply");
     expect(lines).toHaveLength(1);
-    const payload = lines[0][1] as { lang: string; rewritten: number; left: Record<string, number> };
+    let payload = lines[0][1] as { lang: string; rewritten: number; left: Record<string, number> };
     expect(payload.lang).toBe("ro");
     expect(payload.rewritten).toBeGreaterThanOrEqual(3);
-    expect(payload.left).toEqual({ single_group: 1 });
-    const logged = JSON.stringify(lines[0]);
+    expect(payload.left).toEqual({ bare_decimal: 1, open_amount: 1 });
+    let logged = JSON.stringify(lines[0]);
     for (const token of text.match(/\d[\d.,]*\d/g) ?? []) expect(logged.includes(token), token).toBe(false);
+    // A reply HELD whole (it holds a lone three-digit group) says so — by count.
+    const c = CHAT_CASES.find((x) => x.id === "single-group-with-code-before")!;
+    const heldText = `${CORPUS[0].input} ${c.input}`;
+    debugLog = [];
+    resetChatLiveState(null);
+    expect((await answeredTurn(QUESTION.ro, heldText)).reply.content).toBe(heldText);
+    lines = debugLog.filter((a) => a[0] === "[figures] chat reply");
+    expect(lines).toHaveLength(1);
+    payload = lines[0][1] as { lang: string; rewritten: number; left: Record<string, number> };
+    expect([payload.rewritten, payload.left]).toEqual([0, { single_group: 1, text_held: 1 }]);
+    logged = JSON.stringify(lines[0]);
+    for (const token of heldText.match(/\d[\d.,]*\d/g) ?? []) expect(logged.includes(token), token).toBe(false);
     // A reply with nothing to format logs nothing.
     debugLog = [];
     resetChatLiveState(null);
     await answeredTurn(QUESTION.ro, "Da, firma este în creștere și este peste media sectorului.");
     expect(debugLog.filter((a) => a[0] === "[figures] chat reply")).toEqual([]);
+  });
+
+  it("a reply in a language the product defines no figure format for is stored and shown as the model wrote it — Spanish and Portuguese share words with Romanian, not its format", async () => {
+    // (review 2026-10-05: read as Romanian, "12,3M EUR" became "12,3 mil. EUR" — twelve THOUSAND in Spanish)
+    const replies = [
+      ["¿Cuál es la situación de la empresa y cómo se compara con el año anterior?", "Este ejercicio la empresa registró ingresos de 12,3M EUR y un EBITDA de 2,1M EUR, lo que puede dar lugar a una mejora del margen."],
+      ["Qual é a situação da empresa e como se compara com o ano anterior?", "Este exercício a empresa vai dar um resultado de 918K EUR, e este valor pode dar origem a 12,3M EUR de receitas."],
+    ] as const;
+    for (const ui of ["ro", "en"] as const) {
+      await i18n.changeLanguage(ui);
+      for (const [question, reply] of replies) {
+        resetChatLiveState(null);
+        const { conv, reply: stored } = await answeredTurn(question, reply);
+        expect(stored.content, `${ui}: ${reply}`).toBe(reply);
+        const view = shown(conv.messages);
+        expect(view.bubbles[view.bubbles.length - 1]).toBe(reply);
+        view.unmount();
+        // POSITIVE CONTROL: read as Romanian, the pass WOULD have re-spelt its magnitudes.
+        expect(normaliseFigures(reply, "ro").text).not.toBe(reply);
+      }
+    }
+  });
+
+  it("a correct Romanian reply written as labels with one English gloss keeps its right figures — it is not read as English", async () => {
+    const reply = "- Cifra de afaceri: 64.567.890 RON\n- EBITDA: 7.654.321 RON\n- Marjă: 11,85%\n- Free cash flow from the operations: 2.345.678 RON";
+    const { conv, reply: stored } = await answeredTurn(QUESTION.ro, reply);
+    expect(stored.content).toBe(reply);
+    const view = shown(conv.messages);
+    expect(plainSpaces(view.bubbles[0])).toBe(mdText(reply));
+    expect(findings(view.bubbles[0], "ro")).toEqual([]);
+    view.unmount();
+    // POSITIVE CONTROL: read as English, every figure of it WOULD be rewritten into English notation.
+    expect(findings(normaliseFigures(reply, "en").text, "ro").length).toBeGreaterThanOrEqual(4);
   });
 
   it("an upstream failure and an empty answer take their own paths: nothing is formatted", async () => {
@@ -354,7 +409,7 @@ describe("11 a wrong-format reply ALREADY in the store is shown right — and on
     const view = shown([user(QUESTION[c.lang]), assistant(c.input)]);
     WORK.rendered += 1;
     expect(plainSpaces(view.bubbles[0])).toBe(mdText(c.expected));
-    if (!c.input.includes("`")) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
+    if (!c.input.includes("`") && !held(c)) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
     view.unmount();
   });
 

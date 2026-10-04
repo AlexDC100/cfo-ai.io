@@ -2022,6 +2022,12 @@
      "token": "RON** 5.2",
      "reason": "code_before"
     }
+   ],
+   "allowed": [
+    {
+     "text": "RON 5,2",
+     "rule": "a code inside emphasis marks is not reached: it stays before the figure, counted code_before (the rendered text shows it without the marks)"
+    }
    ]
   },
   {

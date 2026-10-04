@@ -69,6 +69,9 @@ const CORPUS: Case[] = JSON.parse(readFileSync(resolve(REPO, "tests/engine/fixtu
  *  briefing is one paragraph: the card prints it as plain text. */
 const CASES = CORPUS.filter((c) => c.surface !== "chat" && !c.anchors);
 const other = (lang: Lang): Lang => (lang === "ro" ? "en" : "ro");
+/** The case is a text returned whole because it holds a lone three-digit
+ *  group (never half a text): shown exactly as stored, counted. */
+const held = (c: Case) => c.kept.some((k) => k.reason === "text_held");
 const PERIOD = "11111111-2222-4333-8444-555555555555";
 
 const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -126,9 +129,10 @@ const quiet = () => act(async () => { await new Promise((r) => setTimeout(r, 40)
 
 describe("POSITIVE CONTROL — the bodies", () => {
   it("the briefing cases are a real share of the corpus; the wrong ones ARE flagged; none reads as the other language", () => {
-    expect(CASES.length).toBeGreaterThanOrEqual(85);
-    expect(CASES.filter((c) => c.lang === "ro" && c.wrong).length).toBeGreaterThanOrEqual(50);
-    expect(CASES.filter((c) => c.lang === "en").length).toBeGreaterThanOrEqual(15);
+    expect(CASES.length).toBeGreaterThanOrEqual(120);
+    expect(CASES.filter((c) => c.lang === "ro" && c.wrong).length).toBeGreaterThanOrEqual(60);
+    expect(CASES.filter((c) => c.lang === "en").length).toBeGreaterThanOrEqual(20);
+    expect(CASES.filter(held).length).toBeGreaterThanOrEqual(4);
     for (const c of CASES) {
       if (c.wrong) expect(findings(c.input, c.lang).length, c.id).toBeGreaterThan(0);
       expect([c.lang, null], c.id).toContain(proseLanguageOf(c.input));
@@ -143,7 +147,8 @@ describe("15 a stored briefing is SHOWN in the reader's format", () => {
     await i18n.changeLanguage(other(c.lang));
     const text = shownBody(c.input, "ro");
     expect(plainSpaces(text)).toBe(c.expected);
-    if (!c.input.includes("`")) expect(findings(text, c.lang, c.kept, c.allowed)).toEqual([]);
+    if (held(c)) expect(text).toBe(c.input); // never half a text: the stored bytes
+    else if (!c.input.includes("`")) expect(findings(text, c.lang, c.kept, c.allowed)).toEqual([]);
     expect(text.replace(/[^0-9]/g, "")).toBe(c.input.replace(/[^0-9]/g, ""));
     // No request left on mount.
     expect(fetchMock).not.toHaveBeenCalled();
@@ -175,9 +180,11 @@ describe("15 a stored briefing is SHOWN in the reader's format", () => {
 
   it("with no stamp at all the text's own prose decides — the same as an `en` stamp", async () => {
     const c = CORPUS.find((x) => x.id === "briefing-wrong-format")!;
-    for (const stamp of [null, "", "en", "EN", "xx"]) expect(plainSpaces(shownBody(c.input, stamp)), String(stamp)).toBe(c.expected);
+    for (const stamp of [null, "", "en", "EN"]) expect(plainSpaces(shownBody(c.input, stamp)), String(stamp)).toBe(c.expected);
     const short = "EBITDA: 4.58M RON.";
     for (const stamp of [null, "", "en", "xx"]) expect(shownBody(short, stamp), String(stamp)).toBe(short);
+    // A stamp that NAMES another language (es, pt, de, any code that is not ro / en) is believed: the body is shown as served.
+    for (const stamp of ["xx", "es", "pt", "de", "ES", "pt-BR"]) expect(shownBody(c.input, stamp), stamp).toBe(c.input);
     for (const stamp of ["ro", "RO", "ro-RO"]) expect(plainSpaces(shownBody(short, stamp)), stamp).toBe("EBITDA: 4,58 mil. RON.");
   });
 
@@ -195,6 +202,11 @@ describe("15 a stored briefing is SHOWN in the reader's format", () => {
     ["pt", "O volume de negócios foi de RON 64,567,890 e a margem EBITDA de 11.85%. A empresa não está endividada (1.19x)."],
     ["nl", "De omzet bedroeg RON 64,567,890 en de EBITDA-marge was 11.85%. Het bedrijf heeft weinig schulden (1.19x)."],
     ["pl", "Przychody wyniosły RON 64,567,890, a marża EBITDA 11.85%. Firma nie jest zadłużona (1.19x)."],
+    // "este" and "dar" are everyday Spanish and Portuguese (review 2026-10-05):
+    // read as Romanian, the glued magnitude became "mil." / "mii" — a thousand there.
+    ["es", "Este ejercicio la empresa registró ingresos de 12,3M EUR y un EBITDA de 2,1M EUR, lo que puede dar lugar a una mejora del margen."],
+    ["es", "Este año el margen puede dar un resultado de 918K EUR, que este trimestre se suma a los RON 4.58M."],
+    ["pt", "Este exercício a empresa vai dar um resultado de 918K EUR, e este valor pode dar origem a 12,3M EUR de receitas."],
   ])("a %s narration — stamped en like every narration in a language the stamp cannot name — is not changed by a byte", async (code, body) => {
     for (const ui of ["ro", "en"] as const) {
       await i18n.changeLanguage(ui);
@@ -292,5 +304,12 @@ describe("the narration of an explicit regenerate", () => {
   it("a narration in a language the standard does not define is shown as answered", async () => {
     const german = "Der Umsatz betrug EUR 12.3M und die Marge lag bei 11.85%.";
     expect(await regenerated({ briefing: german, language: "de", currency: "EUR" }, "ro")).toBe(german);
+  });
+
+  it("…a Spanish one too, though it shares words with Romanian — the engine SAID which language it narrated in", async () => {
+    const spanish = "Este ejercicio la empresa registró ingresos de 12,3M EUR y un EBITDA de 2,1M EUR, lo que puede dar lugar a una mejora del margen.";
+    expect(await regenerated({ briefing: spanish, language: "es", currency: "EUR" }, "ro")).toBe(spanish);
+    // POSITIVE CONTROL: handed to the pass as Romanian (what the card did before it believed the stamp), it IS re-spelt.
+    expect(displayModelText(spanish, { fallback: "ro" }).text).not.toBe(spanish);
   });
 });

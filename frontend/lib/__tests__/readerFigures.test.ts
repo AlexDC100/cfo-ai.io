@@ -54,22 +54,47 @@
 //   9  THE SOURCE. No lookbehind (an old iOS WebView throws at parse time);
 //      no Intl, clock, storage or i18n; imported by exactly five files —
 //      never by the command bar, never by lib/cfoApi.
+//  10  NEVER HALF A TEXT (review 2026-10-05). A text that holds a lone
+//      three-digit group is returned whole, byte for byte, counted
+//      `text_held`: rewriting the figures around it would leave the one
+//      token with two readings alone in the other notation.
+//  11  THE COMPOSED SET. tests/engine/fixtures/ai_figures/compose.json —
+//      12,000 texts composed from parts by integer arithmetic: no digit
+//      moves, a second pass changes nothing, nothing is half rewritten, and
+//      the sha256 of every output equals the fixture's `digest` — the SAME
+//      digest the engine's twin must produce. (What each figure is BOUND to
+//      — amount, currency, sign, unit — is read by the engine gate's
+//      independent reader over the corpus's hand-typed strings, which this
+//      file holds the browser to byte for byte, and over that twin.)
+//  12  THE RUN-TIME PROOF BEYOND DIGITS. A magnitude read as another, a
+//      dropped sign, a code landed on another number: the text as written.
 //
-// REDS ON, with the repair in place (TC-11): a rule changed in the browser
-// only (the corpus / grid differ from the engine's twin); a value guessed; a
+// REDS ON, with the repair in place (TC-11): a code moved onto another number
+// (before a range, a list, a number that goes on, an unread magnitude, a
+// second currency); a text half rewritten around a lone group; a Spanish or
+// Portuguese text read as Romanian; a Romanian label list read as English for
+// one English gloss; thin evidence of a text's language followed against the
+// question it answers; a rule changed in the browser
+// only (the corpus / grid / digest differ from the engine's twin); a value guessed; a
 // digit dropped or the proof removed; a unit-less number re-printed without
 // evidence; a date, a reference, a tenor, a foreign dollar touched; a joiner
 // or a magnitude word drifting from lib/money's bytes; a language guessed
 // from one word, or taken from the UI; a lookbehind; the normaliser reaching
 // the command bar's answer.
 //
-// CANNOT SEE: what a model WRITES; a token left by design (a lone group
+// CANNOT SEE: what a model WRITES; a text HELD as written (counted; it still
+// holds the model's notation — the detector is not run on it); a non-figure
+// the pass re-spells because a currency or a unit stands beside it
+// ("Versiunea 2.1 RON"); a Romanian text with no diacritics and none of the
+// words only Romanian has (it is left as written unless the question reads);
+// a token left by design (a lone group
 // passes every law and the detector); a figure written in words; whether a
 // value is TRUE; "lei" (left as written); the report page and the exports; a
 // bundle older than the release.
 //
 // PLANT LOG: docs/engine_book/gates.md "ai-figures" (stage 2).
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
@@ -80,10 +105,12 @@ import type { Rates } from "@/lib/rates";
 import {
   EN_FUNCTION_WORDS,
   FIGURE_STANDARD,
+  RO_DISTINCTIVE_WORDS,
   RO_FUNCTION_WORDS,
   anchorsOfSnapshot,
   displayModelText,
   figureLanguageOf,
+  figureProof,
   figureSwap,
   languageHints,
   leftByReason,
@@ -108,7 +135,12 @@ const CORPUS: Case[] = JSON.parse(readFileSync(resolve(FIXTURES, "reply_corpus.j
 const GRID: { frames: Record<FigureLang, string>; rows: GridRow[] } = JSON.parse(readFileSync(resolve(FIXTURES, "grid.json"), "utf-8"));
 const STANDARD_JSON = JSON.parse(readFileSync(resolve(FIXTURES, "standard.json"), "utf-8"));
 
-const WORK = { corpus: 0, grid: 0, kept: 0 };
+interface ComposeSpec { count: number; nums: string[]; pre: string[]; post: string[]; words: string[]; seps: string[]; anchor_sets: number[][]; digest: string }
+const COMPOSE: ComposeSpec = JSON.parse(readFileSync(resolve(FIXTURES, "compose.json"), "utf-8"));
+
+const WORK = { corpus: 0, grid: 0, kept: 0, composed: 0 };
+/** The case is a text returned whole because it holds a lone group. */
+const held = (c: Case) => c.kept.some((k) => k.reason === "text_held");
 
 const digits = (s: string) => s.replace(/[^0-9]/g, "");
 const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -166,7 +198,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe("POSITIVE CONTROL — the corpus, the detector and the independent reader", () => {
   it("the corpus is not empty, its first case is the incident's sentence in shape, every wrong input IS flagged and every expected string passes", () => {
-    expect(CORPUS.length).toBeGreaterThanOrEqual(110);
+    expect(CORPUS.length).toBeGreaterThanOrEqual(150);
     expect(new Set(CORPUS.map((c) => c.id)).size).toBe(CORPUS.length);
     const first = CORPUS[0];
     expect([first.id, first.lang, first.wrong]).toEqual(["incident-shape", "ro", true]);
@@ -175,14 +207,21 @@ describe("POSITIVE CONTROL — the corpus, the detector and the independent read
     for (const c of CORPUS) {
       expect(c.wrong, c.id).toBe(c.expected !== c.input);
       expect(c.expected.includes(NBSP), c.id).toBe(false);
-      expect(findings(c.expected, c.lang, c.kept, c.allowed), c.id).toEqual([]);
+      if (held(c)) {
+        // A text returned whole: it IS what the model wrote — and the detector
+        // says so (the hold is counted, never a silent pass).
+        expect(c.expected, c.id).toBe(c.input);
+        expect(c.kept[c.kept.length - 1], c.id).toEqual({ token: "", reason: "text_held" });
+        expect(findings(c.input, c.lang).length, c.id).toBeGreaterThan(0);
+      } else expect(findings(c.expected, c.lang, c.kept, c.allowed), c.id).toEqual([]);
       // The detector reads the RAW input of a wrong case: it is what the reader saw before.
       if (c.wrong) expect(findings(c.input, c.lang).length, `not seen as wrong: ${c.id}`).toBeGreaterThan(0);
       for (const k of c.kept) expect(c.input, `${c.id}: ${k.token}`).toContain(k.token);
     }
-    expect(CORPUS.filter((c) => c.wrong).length).toBeGreaterThanOrEqual(75);
-    expect(CORPUS.filter((c) => c.lang === "en").length).toBeGreaterThanOrEqual(20);
-    expect(CORPUS.filter((c) => c.surface !== "briefing").length).toBeGreaterThanOrEqual(95);
+    expect(CORPUS.filter((c) => c.wrong).length).toBeGreaterThanOrEqual(95);
+    expect(CORPUS.filter((c) => c.lang === "en").length).toBeGreaterThanOrEqual(26);
+    expect(CORPUS.filter((c) => c.surface !== "briefing").length).toBeGreaterThanOrEqual(130);
+    expect(CORPUS.filter(held).length).toBeGreaterThanOrEqual(4);
   });
 
   it("the detector sees the incident's sentence and passes what the reader must see instead (both typed here)", () => {
@@ -227,8 +266,13 @@ describe("1–3 the corpus: the output is the expected string, every token left 
     // 1 — the expected string, typed by hand; the tokens left, with their reasons, in text order.
     expect(plainSpaces(out.text)).toBe(c.expected);
     expect(out.left).toEqual(c.kept);
-    // 2 — the independent detector, on what the reader sees.
-    expect(findings(out.text, c.lang, c.kept, c.allowed)).toEqual([]);
+    // 2 — the independent detector, on what the reader sees (a text HELD whole
+    // is the model's own, counted: there is nothing of ours to read in it).
+    if (!held(c)) expect(findings(out.text, c.lang, c.kept, c.allowed)).toEqual([]);
+    // 10 — never half a text: where anything was rewritten, no lone group is left.
+    const reasons = out.left.map((l) => l.reason);
+    expect(out.text !== c.input && reasons.includes("single_group")).toBe(false);
+    expect(reasons.includes("text_held")).toBe(held(c));
     // 3 — no digit added, dropped or reordered; every rewritten token keeps its value; a second pass changes nothing.
     expect(digits(out.text)).toBe(digits(c.input));
     expect(valuesHeld(c.input, out.text, c.lang)).toBeNull();
@@ -243,8 +287,8 @@ describe("1–3 the corpus: the output is the expected string, every token left 
   it("every reason a token can be left for is exercised by the corpus (but the proof's refusal, planted below)", () => {
     const reasons = new Set(CORPUS.flatMap((c) => c.kept.map((k) => k.reason)));
     expect([...reasons].sort()).toEqual([
-      "bare_decimal", "bare_groups", "bare_magnitude", "glued", "leading_zero", "outline", "possible_date",
-      "possible_year", "reference", "single_group", "tenor", "two_currencies",
+      "bare_decimal", "bare_groups", "bare_magnitude", "code_before", "glued", "leading_zero", "open_amount", "outline",
+      "possible_date", "possible_year", "reference", "single_group", "tenor", "text_held", "two_currencies",
     ]);
   });
 });
@@ -341,8 +385,11 @@ describe("4 a token with two readings is never guessed", () => {
       const out = normaliseFigures(c.input, c.lang, handed);
       expect(digits(out.text), c.id).toBe(digits(c.input));
       expect(valuesHeld(c.input, out.text, c.lang), c.id).toBeNull();
-      const repaired = [...bare.left];
-      for (const x of out.left) {
+      const repaired = bare.left.filter((l) => l.reason !== "text_held");
+      // The handed figure proved a token beside a lone group: nothing may then
+      // be rewritten at all — the text is returned whole.
+      if (out.left.some((l) => l.reason === "text_held")) expect(out.text, c.id).toBe(c.input);
+      for (const x of out.left.filter((l) => l.reason !== "text_held")) {
         const at = repaired.findIndex((y) => y.token === x.token && y.reason === x.reason);
         expect(at, `${c.id}: something NEW is left: ${JSON.stringify(x)}`).toBeGreaterThanOrEqual(0);
         repaired.splice(at, 1);
@@ -364,6 +411,135 @@ describe("4 a token with two readings is never guessed", () => {
       ["Vezi secțiunea 3.12 și art. 7.25 din contract.", [3.12, 7.25]],
       ["Conturile 401,404,408 sunt furnizori.", [401404408]],
     ] as const) expect(run(text, [...anchors]), text).toBe(text);
+  });
+});
+
+// ══ 10 — never half a text ════════════════════════════════════════════════
+
+describe("10 a text that holds a lone three-digit group is returned whole", () => {
+  const HELD = "Cifra de afaceri este RON 98,765,432.10, EBITDA este RON 9.8M (marjă 10.7%), iar dobânzile sunt RON 386,102 în această perioadă.";
+
+  it("every figure of it stays as the model wrote it, counted — and without the lone group every one IS rewritten", () => {
+    const out = normaliseFigures(HELD, "ro");
+    expect(out).toEqual({ text: HELD, rewritten: 0, left: [{ token: "386,102", reason: "single_group" }, { token: "", reason: "text_held" }] });
+    // POSITIVE CONTROL: the same sentence with a value-unique token in its place.
+    const converted = normaliseFigures(HELD.replace("RON 386,102", "RON 386,102.50"), "ro");
+    expect(plainSpaces(converted.text)).toBe("Cifra de afaceri este 98.765.432,10 RON, EBITDA este 9,8 mil. RON (marjă 10,7%), iar dobânzile sunt 386.102,50 RON în această perioadă.");
+    expect([converted.rewritten, converted.left]).toEqual([4, []]);
+    // A handed figure equal to either reading changes nothing: never guessed.
+    for (const anchors of [[386102], [386.102], [386101.85], [386102, 386.102]]) expect(normaliseFigures(HELD, "ro", anchors).text).toBe(HELD);
+    // Through the one entry point of every surface.
+    expect(displayModelText(HELD).text).toBe(HELD);
+    expect(leftByReason(displayModelText(HELD).left)).toEqual({ single_group: 1, text_held: 1 });
+  });
+
+  it("a lone group with nothing to rewrite beside it holds nothing; one inside an expression left as written holds the text too", () => {
+    const alone = "Dobânzile sunt de 386.102 RON, iar marja este 10,7%.";
+    expect(normaliseFigures(alone, "ro")).toEqual({ text: alone, rewritten: 0, left: [{ token: "386.102", reason: "single_group" }] });
+    const english = "Cash: 1.234 RON; debt 12.345,67 RON; margin 11,25% for the year.";
+    expect(normaliseFigures(english, "en").text).toBe(english);
+    const ranged = "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 11.25%.";
+    const out = normaliseFigures(ranged, "ro");
+    expect(out.text).toBe(ranged);
+    expect(out.left.map((l) => l.reason)).toEqual(["open_amount", "single_group", "single_group", "text_held"]);
+  });
+});
+
+// ══ 11 — the composed set, and the twin's digest ══════════════════════════
+
+/** Text `i` of the composed set — the same integer arithmetic as
+ *  tests/engine/_figure_compose.py (every product stays under 2**53). */
+function compose(spec: ComposeSpec, i: number): { text: string; lang: FigureLang; anchors: number[] } {
+  let state = ((i + 1) * 7919) % 2147483647;
+  const step = () => (state = (state * 48271) % 2147483647);
+  const pick = <T,>(items: readonly T[]): T => items[step() % items.length];
+  const parts: string[] = [];
+  const blocks = 1 + (step() % 4);
+  for (let b = 0; b < blocks; b++) {
+    if (step() % 4 === 0) { parts.push(pick(spec.words)); parts.push(pick(["", " "])); }
+    const pre = pick(spec.pre), num = pick(spec.nums), post = pick(spec.post);
+    parts.push(pre + num + post);
+    if (step() % 5 < 3) { const n2 = pick(spec.nums), p2 = pick(spec.post); parts.push(n2 + p2); }
+    parts.push(pick(spec.seps));
+  }
+  const lang: FigureLang = step() % 2 === 0 ? "ro" : "en";
+  return { text: parts.join(""), lang, anchors: [...pick(spec.anchor_sets)] };
+}
+
+describe("11 the composed set: 12,000 texts neither twin was written against", () => {
+  it("no digit moves, a second pass changes nothing, nothing is half rewritten — and the digest is the one the engine's twin produces", () => {
+    expect(COMPOSE.count).toBe(12000);
+    const hash = createHash("sha256");
+    let changed = 0, heldTexts = 0, open = 0;
+    for (let i = 0; i < COMPOSE.count; i++) {
+      const { text, lang, anchors } = compose(COMPOSE, i);
+      const out = normaliseFigures(text, lang, anchors);
+      const reasons = out.left.map((l) => l.reason);
+      if (digits(out.text) !== digits(text)) throw new Error(`a digit moved: ${JSON.stringify(text)}`);
+      if (reasons.includes("text_held")) {
+        if (out.text !== text || out.rewritten !== 0 || !reasons.includes("single_group")) throw new Error(`held, and changed: ${JSON.stringify(text)}`);
+        heldTexts += 1;
+      }
+      if (out.text !== text && reasons.includes("single_group")) throw new Error(`half a text: ${JSON.stringify(text)}`);
+      if (normaliseFigures(out.text, lang, anchors).text !== out.text) throw new Error(`a second pass changes it: ${JSON.stringify(text)}`);
+      if (!figureProof.structureHeld(text, out.text)) throw new Error(`the proof does not hold on what was returned: ${JSON.stringify(text)}`);
+      if (out.text !== text) changed += 1;
+      if (reasons.includes("open_amount")) open += 1;
+      hash.update(`${lang}\x1f${out.text}\x1f${out.rewritten}\x1f${out.left.map((l) => `${l.token}\x1d${l.reason}`).join("\x1e")}\n`, "utf8");
+    }
+    expect([changed >= 4000, heldTexts >= 500, open >= 1500], JSON.stringify({ changed, heldTexts, open })).toEqual([true, true, true]);
+    // THE TWIN. tests/engine/test_ai_figure_format.py holds src/engine/ai/figure_format.py to this same string.
+    expect(hash.digest("hex")).toBe(COMPOSE.digest);
+    WORK.composed = COMPOSE.count;
+  });
+
+  it("POSITIVE CONTROL: the composition is deterministic and varied, and holds the review's shapes", () => {
+    expect(compose(COMPOSE, 0)).toEqual(compose(COMPOSE, 0));
+    const texts = Array.from({ length: 2000 }, (_, i) => compose(COMPOSE, i).text);
+    expect(new Set(texts).size).toBeGreaterThanOrEqual(1990);
+    const all = texts.join("\n");
+    for (const shape of ["RON ", "$", " mil", " milion", " CAD", NBSP, String.fromCharCode(0x202f), "-", " la ", "386,102", "28,281,291"]) expect(all.includes(shape), JSON.stringify(shape)).toBe(true);
+  });
+});
+
+// ══ 12 — the run-time proof beyond the digits ═════════════════════════════
+
+describe("12 the run-time proof holds what the digits cannot", () => {
+  it("the structure reader sees a magnitude read as another, a dropped sign, a per-mille made a percentage and a code on another number — each with every digit in place", () => {
+    const held = (a: string, b: string) => figureProof.structureHeld(a, b);
+    // What the pass writes holds …
+    expect(held("de ~EUR 12.3M (din RON 64,567,890)", `de ~12,3${NBSP}mil.${NBSP}EUR (din 64.567.890${NBSP}RON)`)).toBe(true);
+    expect(held("este RON -4.58M sau -RON 2.5K", `este -4,58${NBSP}mil.${NBSP}RON sau -2,5${NBSP}mii${NBSP}RON`)).toBe(true);
+    expect(held("în 2025 RON 64.5M", `în 2025 64,5${NBSP}mil.${NBSP}RON`)).toBe(true);
+    // … and each of these does not (all keep the digit sequence).
+    for (const [a, b] of [
+      ["de USD 4.58Bn în", "de 4,58 mil. USD în"],
+      ["de RON +4.58M față", "de 4,58 mil. RON față"],
+      ["este 2.5‰ din", "este 2,5% din"],
+      ["de RON 64 567 890 în", "de 64 RON 567 890 în"],
+      ["de RON 4.58M în", "de 4,58 mil. EUR în"],
+      ["de EUR 1.5-2.5M, în", "de 1,5 EUR-2,5 mil., în"],
+    ] as const) {
+      expect(digits(a)).toBe(digits(b));
+      expect(held(a, b), `${a} → ${b}`).toBe(false);
+    }
+    // WHAT IT CANNOT SEE: a non-figure re-spelt with nothing moved ("la 3M RON
+    // 5.2M" → "la 3 mil. RON 5,2 mil."): the structure is the same. The rule
+    // that leaves a code between two numbers alone, and the corpus, hold that.
+    expect(held("la 3M RON 5.2M este", "la 3 mil. RON 5,2 mil. este")).toBe(true);
+    expect(normaliseFigures("Depozitul la 3M RON 5.2M este stabil.", "ro").text).toBe("Depozitul la 3M RON 5.2M este stabil.");
+  });
+
+  it("PLANTED HERE, not in the source: with the proof blinded a rule that loses a sign changes what is shown; with the proof, the text comes back as written", () => {
+    const text = "Variația este de RON +2.5M față de buget.";
+    expect(plainSpaces(normaliseFigures(text, "ro").text)).toBe("Variația este de +2,5 mil. RON față de buget.");
+    // The proof is what refuses a result whose structure differs: blind it and
+    // hand it a wrong pair — it is the only thing between a slip and the reader.
+    const real = figureProof.structureHeld;
+    const spy = vi.spyOn(figureProof, "structureHeld").mockImplementation((a, b) => real(a.replace("+", ""), b.replace("+", "")) && false);
+    const refused = normaliseFigures(text, "ro");
+    expect(refused).toEqual({ text, rewritten: 0, left: [{ token: text.slice(0, 40), reason: "proof_failed" }] });
+    expect(spy).toHaveBeenCalled();
   });
 });
 
@@ -444,6 +620,10 @@ const OTHER_LANGUAGE_TEXTS: Record<string, string[]> = {
   es: [
     "La cifra de negocios fue de 64.567.890 RON y el margen EBITDA del 11,85 %. La empresa no está endeudada.",
     "Si la empresa mantiene el margen, con una deuda de 1.19x, no hay riesgo para este año.",
+    // "este" and "dar" are everyday Spanish (review 2026-10-05): read as
+    // Romanian, "12,3M" became "12,3 mil." — twelve THOUSAND in Spanish.
+    "Este ejercicio la empresa registró ingresos de 12,3M EUR y un EBITDA de 2,1M EUR, lo que puede dar lugar a una mejora del margen.",
+    "Este año el margen puede dar un resultado de 918K EUR, que este trimestre se suma a los 4.58M RON.",
   ],
   it: [
     "Il fatturato è stato di 64.567.890 RON e il margine EBITDA dell'11,85%. La società non si è indebitata, ma si è rafforzata.",
@@ -452,6 +632,7 @@ const OTHER_LANGUAGE_TEXTS: Record<string, string[]> = {
   pt: [
     "O volume de negócios foi de 64.567.890 RON e a margem EBITDA de 11,85%. A empresa não está endividada.",
     "A empresa tem dívida de 1.19x e, com este nível, não há risco para o ano.",
+    "Este exercício a empresa vai dar um resultado de 918K EUR, e este valor pode dar origem a 12,3M EUR de receitas.",
   ],
   nl: ["De omzet bedroeg 64.567.890 RON en de EBITDA-marge was 11,85%. Het bedrijf heeft weinig schulden, EUR 12.3M."],
   pl: ["Przychody wyniosły 64 567 890 RON, a marża EBITDA 11,85%. Firma nie jest zadłużona; dług to EUR 12.3M."],
@@ -482,17 +663,81 @@ describe("7 the language is the TEXT's — on positive evidence, never the UI's"
     expect(figureLanguageOf(short, ["EBITDA?", enQuestion, roQuestion])).toBe("en");
     expect(figureLanguageOf(short, [roQuestion, enQuestion])).toBe("ro");
     expect(figureLanguageOf(short, ["EBITDA?"], "ro")).toBe("ro");
-    // the text's OWN prose beats everything a caller says
+    // the text's OWN prose, when it is strong evidence, beats everything a caller says
     expect(figureLanguageOf("The EBITDA for the year is 4.58M RON and the margin is 11.25%.", [roQuestion], "ro")).toBe("en");
     // a context entry that says "ro" is a TEXT, not a language: it reads as nothing
     expect(figureLanguageOf(short, ["ro"])).toBeNull();
     expect(figureLanguageOf(short, ["en"])).toBeNull();
   });
 
-  it("an English answer that quotes Romanian terms is English; a Romanian one that quotes English terms is Romanian; a mixed one is nothing", () => {
+  it("no word Spanish, Portuguese or Italian shares makes a text Romanian — in any number", () => {
+    for (const w of ["este", "dar", "care", "cu", "sau", "din"]) {
+      expect(RO_FUNCTION_WORDS.has(w), w).toBe(true);
+      expect(RO_DISTINCTIVE_WORDS.has(w), w).toBe(false);
+    }
+    for (const w of RO_DISTINCTIVE_WORDS) expect(RO_FUNCTION_WORDS.has(w), w).toBe(true);
+    expect(proseLanguageOf("Este este este dar dar care care cu sau din 12,3M EUR")).toBeNull();
+    // …and ONE word of Romanian's own beside them does.
+    expect(proseLanguageOf("Marja este bună, dar datoria este mare pentru 12.3M EUR")).toBe("ro");
+    // Romanian without diacritics and without such a word: not read on its own — the question decides.
+    const bare = "Marja este buna dar datoria este mare, 12.3M EUR";
+    expect(proseLanguageOf(bare)).toBeNull();
+    expect(displayModelText(bare).text).toBe(bare);
+    expect(plainSpaces(displayModelText(bare, { context: ["Care este marja și cum se compară cu anul trecut?"] }).text)).toBe("Marja este buna dar datoria este mare, 12,3 mil. EUR");
+  });
+
+  it("a correct Romanian reply written as labels, with one English gloss, is NOT read as English: its right figures stay right", () => {
+    const roQuestion = "Care este situația firmei și cum se compară cu anul trecut?";
+    const enQuestion = "What is the position of the company and how does it compare with the prior year?";
+    for (const reply of [
+      "- Cifra de afaceri: 64.567.890 RON\n- EBITDA: 7.654.321 RON\n- Marjă: 11,85%\n- Free cash flow from the operations: 2.345.678 RON",
+      "- Marjă: 11,85%\n- EBITDA (earnings before interest, taxes, depreciation and amortization for the year): 7.654.321 RON",
+      "Sursă: \"The company has reported revenue for the year with this definition and that is the total\".\n- Cifră de afaceri: 64.567.890 RON\n- Marjă: 11,85%",
+    ]) {
+      // POSITIVE CONTROL: read as English, every figure of it WOULD be rewritten.
+      expect(normaliseFigures(reply, "en").rewritten, reply).toBeGreaterThanOrEqual(2);
+      expect(proseLanguageOf(reply), reply).toBeNull();
+      // The question it answers is Romanian: untouched (the words lean English, the letters and the question say Romanian).
+      expect(displayModelText(reply, { context: [roQuestion] }).text, reply).toBe(reply);
+      // No context at all, and a caller that KNOWS Romanian: untouched.
+      expect(displayModelText(reply).text, reply).toBe(reply);
+      expect(displayModelText(reply, { fallback: "ro" }).text, reply).toBe(reply);
+      // Only where the question itself is English is such a text read as English.
+      expect(displayModelText(reply, { context: [enQuestion] }).lang, reply).toBe("en");
+    }
+  });
+
+  it("thin evidence of a text's own language is followed only where the caller does not say otherwise; strong evidence wins", () => {
+    const roQuestion = "Care este situația firmei și cum se compară cu anul trecut?";
+    const enQuestion = "What is the position of the company and how does it compare with the prior year?";
+    // Two function words: thin.
+    const thinRo = "EBITDA: 4.58M RON pentru anul în curs.";
+    expect(proseLanguageOf(thinRo)).toBe("ro");
+    expect(figureLanguageOf(thinRo)).toBe("ro");
+    expect(figureLanguageOf(thinRo, [roQuestion])).toBe("ro");
+    expect(figureLanguageOf(thinRo, [enQuestion])).toBeNull();
+    expect(figureLanguageOf(thinRo, [], "en")).toBeNull();
+    const thinEn = "EBITDA: 4,58 mil. RON for the year.";
+    expect(proseLanguageOf(thinEn)).toBe("en");
+    expect(figureLanguageOf(thinEn, [enQuestion])).toBe("en");
+    expect(figureLanguageOf(thinEn, [roQuestion])).toBeNull();
+    expect(displayModelText(thinEn, { context: [roQuestion] }).text).toBe(thinEn);
+    // Four or more: the text's own prose beats what any caller says.
+    const strongEn = "The EBITDA for the year is 4,58 mil. RON and the margin is 11,25% with this definition.";
+    expect(figureLanguageOf(strongEn, [roQuestion], "ro")).toBe("en");
+    const strongRo = "EBITDA pentru anul acesta este 4.58M RON, iar marja este 11.25% și este în creștere.";
+    expect(figureLanguageOf(strongRo, [enQuestion], "en")).toBe("ro");
+  });
+
+  it("an English answer that quotes Romanian terms is English where the question is; a Romanian one that quotes English terms is Romanian; a mixed one is nothing", () => {
     const english = "The cifra de afaceri netă for the year is RON 64,567,890, and the variația stocurilor is inside EBITDA with this definition.";
-    expect(proseLanguageOf(english)).toBe("en");
-    expect(plainSpaces(displayModelText(english).text)).toBe("The cifra de afaceri netă for the year is 64,567,890 RON, and the variația stocurilor is inside EBITDA with this definition.");
+    const enQuestion = "What is the position of the company and how does it compare with the prior year?";
+    // Its words are English, its letters hold ă and ț: undecided on its own, English with an English question.
+    expect(proseLanguageOf(english)).toBeNull();
+    expect(displayModelText(english).text).toBe(english);
+    expect(plainSpaces(displayModelText(english, { context: [enQuestion] }).text)).toBe("The cifra de afaceri netă for the year is 64,567,890 RON, and the variația stocurilor is inside EBITDA with this definition.");
+    // The same answer without the Romanian letters reads English by itself.
+    expect(proseLanguageOf("The cifra de afaceri for the year is RON 64,567,890, and the stock variation is inside EBITDA with this definition.")).toBe("en");
     // One Romanian word is not evidence ("este" and "care" exist in other languages too).
     expect(proseLanguageOf("The cifra de afaceri netă (net turnover) is RON 64,567,890; Variația stocurilor is inside EBITDA.")).not.toBe("ro");
     const romanian = "Indicatorul net debt / EBITDA este 1.19x, iar working capital este în creștere față de anul trecut.";
@@ -532,6 +777,7 @@ describe("7 the language is the TEXT's — on positive evidence, never the UI's"
     const out = normaliseFigures("Numerar RON 162,365, raport 1.42, vezi art. 7.25 și 1.5 aici.", "ro");
     const counts = leftByReason(out.left);
     expect(counts).toEqual({ single_group: 1, bare_decimal: 2, reference: 1 });
+    expect(out.text.startsWith("Numerar RON 162,365")).toBe(true); // (a single group and nothing rewritten: no hold)
     expect(JSON.stringify(counts)).not.toMatch(/\d{2}/);
   });
 });
@@ -690,7 +936,8 @@ describe("the canary", () => {
     expect(WORK.corpus).toBe(CORPUS.length);
     expect(WORK.grid).toBe(984);
     expect(WORK.kept).toBe(CORPUS.reduce((n, c) => n + c.kept.length, 0));
+    expect(WORK.composed).toBe(12000);
     // eslint-disable-next-line no-console
-    console.log(`GATE-WORK ai-figures corpus=${WORK.corpus} grid=${WORK.grid} kept=${WORK.kept}`);
+    console.log(`GATE-WORK ai-figures corpus=${WORK.corpus} grid=${WORK.grid} kept=${WORK.kept} composed=${WORK.composed}`);
   });
 });

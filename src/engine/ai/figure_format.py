@@ -54,14 +54,42 @@ Everything else is left exactly as written and COUNTED (the report's
   tenor           "ROBOR 3M".
   bare_magnitude  "5M" with no currency and an unchanged number.
   two_currencies  a code on both sides of one number.
-  glued           "v2.1", "1.5T" — part of a word.
+  glued           "v2.1", "1.5T" — part of a word; a number that touches a
+                  date or a clock time ("1,234:99").
+  open_amount     a code-first amount that is NOT READ TO ITS END, left as one
+                  expression exactly as written: a range or a list ("EUR
+                  1.5-2.5M", "EUR 40 și 55 milioane"), a number that goes on
+                  ("RON 64 567 890"), a magnitude the standard does not print
+                  ("RON 4.58 mil", "EUR 1 milion"), another currency named
+                  beside it ("$7.5M CAD"), a code between two numbers
+                  ("31.12 RON 5.2M").
+  code_before     a code that stays before its figure, counted so the report
+                  says what the reader still sees: after a rate word, before a
+                  percentage, behind two spaces / a bracket / emphasis marks,
+                  a "$" the reply names another dollar for.
+  text_held       the text holds a lone three-digit group AND figures the pass
+                  would rewrite: it is returned WHOLE, as written (see below).
   proof_failed    the run-time proof below refused the result.
 
 A handed figure is EVIDENCE that a value-unique token is a figure — it
 never chooses between two readings.
 
+A CODE MOVES ONLY BEHIND AN AMOUNT READ TO ITS END (review 2026-10-05). "EUR
+1.5-2.5M" is not "1,5 EUR-2,5 mil.", "RON 4.58 mil" is not "4,58 RON mil",
+"EUR 12 300 000" is not "12 EUR 300 000": every digit was kept and the figure
+was bound to something else. Whatever the pass cannot read to its end it
+leaves exactly as written — the code, the number, what follows — and counts.
+
+NEVER HALF A TEXT. A lone three-digit group is read by the notation of the
+figures around it. Rewriting those and leaving it would make "RON 386,102"
+read as 386 lei among Romanian figures. A text that holds one is returned
+whole: every figure in it still reads the way it did.
+
 RUN-TIME PROOF (every call): the digit sequence of the output equals the
-input's, or the text is returned exactly as it came.
+input's; every sign and ratio mark is the same character in the same place in
+the order; every number keeps its magnitude and the currency bound to it
+(read with tables of the proof's own) — or the text is returned exactly as it
+came.
 
 THE TWIN
 --------
