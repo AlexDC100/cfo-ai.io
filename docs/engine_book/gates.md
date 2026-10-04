@@ -30555,7 +30555,7 @@ review's experiment). That is the gate's defect, and the first thing repaired.
   The briefing card shows a narration whose stamp names another language as served.
 - Found by the independent reader on a 30,000-composition fuzz and repaired too: a number that
   touches a date or a clock time is a piece of it (`1,234:99`); a token that is a number in neither
-  notation is never touched (`77,4,2025`); a symbol against a symbol is nobody's code; a sentence
+  notation is never touched (`83,6,2025`); a symbol against a symbol is nobody's code; a sentence
   stop is not invented before an acronym (`4,58 mil. CAD`); `2.3pp` and `82.4/100` are units; a
   per-unit slash closes an amount (`RON 5.2M/an` → `5,2 mil. RON/an`), a hyphen against a word does
   not (`EUR 5-year`), a slash before a digit or another currency's code does not (`RON 5M/6M`, `EUR
@@ -30604,7 +30604,7 @@ ai-figures-chat turns=142 rendered=227 requests=2`, `GATE-WORK ai-figures-explai
 | **V19** a text is half rewritten around a lone three-digit group (the hold is gone) | `12 failed, 345 passed` (exit 1) |
 | **V20** a lone group is rewritten when a handed figure equals ONE of its readings (the review's option a) | `19 failed, 338 passed` (exit 1) |
 | **V21** a number that touches a date or a clock time is read on its own ("1,234:99") | `2 failed, 355 passed` (exit 1) |
-| **V22** a token that is a number in neither notation takes a code ("$77,4,2025" -> "77,4,2025 USD") | `2 failed, 355 passed` (exit 1) |
+| **V22** a token that is a number in neither notation takes a code ("$83,6,2025" -> "83,6,2025 USD") | `2 failed, 355 passed` (exit 1) |
 | **V23** anything may follow an amount ("RON 1.5$3" -> "1,5 RON$3") | `3 failed, 354 passed` (exit 1) |
 | **V24** "la" never joins, even before a number that carries the magnitude ("RON 5 la 7 milioane") | `2 failed, 355 passed` (exit 1) |
 | **V25** a unit written against the number is not read ("2.3pp", "82.4/100" stay) | `4 failed, 353 passed` (exit 1) |

@@ -266,7 +266,7 @@ function shapeOf(tok: string, lang: FigureLang): Shape {
   }
   // The text's own notation (the marks change places), or a plain integer.
   if (new RegExp(`^(?:\\d+|\\d{1,3}(?:${D}\\d{3})+(?:${G}\\d+)?|\\d+${G}\\d+)$`).test(tok)) return "native_or_plain";
-  // "77,4,2025", "12.5.999,99": a number in NEITHER notation — never touched.
+  // "83,6,2025", "12.5.999,99": a number in NEITHER notation — never touched.
   return "not_a_number";
 }
 
@@ -693,7 +693,7 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     if (shape === "not_a_number") ok = false;
     // A CODE BETWEEN TWO NUMBERS ("31.12 RON 5.2M", "3M RON 5.2M") has two
     // possible owners. After a plain year it is the next figure's ("În 2025
-    // RON 413.7M"); otherwise neither number may take it as evidence and
+    // RON 64.5M"); otherwise neither number may take it as evidence and
     // neither is touched.
     let contested = false;
     if (tail.currency && figureFollows(s, en + tail.magLen + tail.currencyLen)) {

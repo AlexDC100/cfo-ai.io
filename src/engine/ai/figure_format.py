@@ -302,7 +302,7 @@ def _shape(tok: str, lang: str) -> str:
     # The text's own notation (the marks change places), or a plain integer.
     if re.fullmatch(r"[0-9]+|[0-9]{1,3}(?:%s[0-9]{3})+(?:%s[0-9]+)?|[0-9]+%s[0-9]+" % (d, g, g), tok):
         return "native_or_plain"
-    # "77,4,2025", "12.5.999,99": a number in NEITHER notation — never touched.
+    # "83,6,2025", "12.5.999,99": a number in NEITHER notation — never touched.
     return "not_a_number"
 
 
@@ -812,7 +812,7 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
             ok = False
         # A CODE BETWEEN TWO NUMBERS ("31.12 RON 5.2M", "3M RON 5.2M") has two
         # possible owners. After a plain year it is the next figure's ("În
-        # 2025 RON 413.7M"); otherwise neither number may take it as evidence
+        # 2025 RON 64.5M"); otherwise neither number may take it as evidence
         # and neither is touched.
         contested = False
         if tail["currency"] and _figure_follows(s, en + tail["mag_len"] + tail["currency_len"]):
