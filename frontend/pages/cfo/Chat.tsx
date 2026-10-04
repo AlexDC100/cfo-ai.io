@@ -112,6 +112,24 @@ export default function Chat() {
 // Read-only: this function does NOT recompute, derive, or transform
 // any engine value; it formats values the engine already emitted.
 
+/** The period as a reader names it: the statements' own label and the
+ *  closing date. NEVER the period's row id — the line used to be
+ *  `p.label ?? p.id`, and `label` is the COMPANY's name, so the assistant
+ *  was handed the company as its period, or (no name) the raw id, which it
+ *  then printed to the reader as "the period is <uuid> (an internal
+ *  identifier)" (production, 2026-10-04). With neither a label nor a date
+ *  the line says so, and the assistant can ask. */
+export function snapshotPeriodLine(
+  p: Pick<ReturnType<typeof useActivePeriod>, "periodEnd" | "statements">,
+): string {
+  const stated = p.statements?.periodLabel?.trim() ?? "";
+  const end = /^\d{4}-\d{2}-\d{2}/.test(p.periodEnd ?? "") ? (p.periodEnd as string).slice(0, 10) : "";
+  if (stated && end) return `${stated} (period ending ${end})`;
+  if (stated) return stated;
+  if (end) return `period ending ${end}`;
+  return "not stated in the workspace";
+}
+
 export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string | undefined {
   if (!p.id) return undefined;
 
@@ -128,8 +146,11 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
         Object.fromEntries(((p.metrics ?? []) as PeriodMetric[]).map((m) => [m.name, m.value ?? null])),
       )
     : null;
-  lines.push(`Period: ${p.label ?? p.id}`);
-  if (p.statements?.companyName) lines.push(`Company: ${p.statements.companyName}`);
+  lines.push(`Period: ${snapshotPeriodLine(p)}`);
+  // `label` is the company's name as the header prints it (the statements'
+  // name, else the workspace's) — the fallback when the statements carry none.
+  const company = p.statements?.companyName?.trim() || p.label?.trim() || "";
+  if (company) lines.push(`Company: ${company}`);
   if (p.industry) lines.push(`Industry: ${p.industry}`);
 
   if (p.metrics && p.metrics.length > 0) {

@@ -85,6 +85,7 @@ import {
 import type { DecisionRulesState } from "@/lib/decisionRules";
 import { lastWorkspaceCreateHitLimit, updateActiveOrg } from "@/lib/org";
 import { usePlanState, workspaceCapReached } from "@/lib/planState";
+import { workspaceRestoreLimitNotice } from "@/lib/workspaceRestoreNotice";
 import { readWorkspaceName, writeWorkspaceName } from "@/lib/workspaceName";
 import { setPref, usePrefSync } from "@/lib/prefs";
 import { useWorkspaces, type Workspace } from "@/lib/workspaces";
@@ -1062,6 +1063,18 @@ function WorkspaceHub({
 
   async function restoreWorkspace(id: string, name: string) {
     const ok = await restore(id);
+    if (!ok) {
+      // The plan's workspace limit refused it: say so, and where to upgrade —
+      // not a bare "couldn't restore".
+      const limit = workspaceRestoreLimitNotice(t);
+      if (limit) {
+        toast.error(limit.title, {
+          description: limit.description,
+          action: { label: limit.cta, onClick: () => navigate(limit.href) },
+        });
+        return;
+      }
+    }
     toast[ok ? "success" : "error"](
       ok
         ? t("ws.workspaceRestored", { name: name || t("ws.workspaceFallback") })

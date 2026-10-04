@@ -2541,6 +2541,82 @@ def _engine_gates() -> List[Gate]:
                        "a label that is not a served date is never read as one",
                        "ro: the stepper's month, and the label it hands the period-switch overlay, are Romanian")),
         # ── end of lane compare-followups ───────────────────────────────
+        # ── workspace-restore-limit (owner, 2026-10-04) ──────────────────
+        # Since the database's workspace-cap guard, an owner at the plan's
+        # workspace limit who restores an archived workspace is refused —
+        # and both screens that restore answered "couldn't restore", with
+        # no reason and no next step. The gate: the refusal is read where
+        # the RPC answered (lib/org), with the number THE REFUSAL names;
+        # the reader is told the limit is reached and offered the plans,
+        # in English and Romanian; any other failure keeps the plain
+        # sentence; a success or a later failure never repeats the limit.
+        # Blind to: the database guard (gate hole-workspace-cap); the
+        # legacy page rendered (its handler is read from the source).
+        # Plant log: docs/engine_book/gates.md.
+        Gate("workspace-restore-limit",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/workspaceRestoreLimit.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=10,
+             units="restore-refusal tests",
+             canaries=("GATE-WORK workspace-restore-limit checks=",
+                       "the database's sentence is the one the parser reads",
+                       "a limit refusal is recorded with its number; another failure, and a success, record none",
+                       "each limit, sentence for sentence; title and action name the limit and the plans",
+                       "en: a restore the plan's limit refuses says the limit and offers the plans",
+                       "ro: a restore the plan's limit refuses says the limit and offers the plans",
+                       "a failure that is not the limit keeps the plain sentence",
+                       "its restore handler asks for the limit notice before the plain sentence, and opens the plans from it")),
+        # ── chat-period-and-scroll (production, 2026-10-04) ──────────────
+        # One real question on the live chat showed two display defects:
+        # the workspace snapshot's "Period:" line was the COMPANY's name,
+        # else the period's row id (which the assistant printed to the
+        # reader); and the full /chat page scrolled the window to the end
+        # of the DOCUMENT after every message, pushing a short
+        # conversation under the header. The gate: the line is the
+        # statements' period label and the closing date, the row id is
+        # nowhere in the snapshot; the window goes to the end of the chat
+        # column, a short conversation is not scrolled, a reader who
+        # scrolled up is left alone. Blind to: what the model answers;
+        # real layout (the column's box is stated by the test).
+        # Plant log: docs/engine_book/gates.md.
+        Gate("chat-period-and-scroll",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/chatPeriodAndScroll.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=10,
+             units="chat display tests",
+             canaries=("GATE-WORK chat-period-and-scroll checks=",
+                       "is the statements' label and the closing date",
+                       "the id is nowhere in the snapshot",
+                       "the company is never printed as the period, and is still named on its own line",
+                       "a short conversation is not scrolled",
+                       "a long conversation lands on the column's end",
+                       "a reader who scrolled up is left where they are; back at the end, the next message follows",
+                       "the /chat page marks its column")),
+        # ── profile-save-own-row (2026-10-04) ───────────────────────────
+        # Settings saved the profile with an UPSERT. `profiles` has an
+        # own-row select and an own-row update policy and NO insert
+        # policy, and row level security refuses the INSERT half of an
+        # upsert even when the row exists: every save answered
+        # "Couldn't save profile". The gate: the save is one update of
+        # `full_name` filtered to the user's own id, read back; nothing
+        # in the frontend's source inserts or upserts into profiles; the
+        # repository's schema still gives the table no insert policy.
+        # Blind to: the database's own answer (proved once on the
+        # isolated stack — the record is in gates.md).
+        Gate("profile-save-own-row",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/profileSave.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=8,
+             units="profile-save tests",
+             canaries=("GATE-WORK profile-save-own-row checks=",
+                       "nothing else is sent",
+                       "a save that matched no row is not called a saved row",
+                       "every write to profiles in the frontend's source is an update",
+                       "the scan itself: an upsert, an insert and a multi-line chain are seen",
+                       "the repository's schema gives profiles a select and an update policy, and no insert policy")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,

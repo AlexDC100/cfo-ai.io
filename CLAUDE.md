@@ -4885,5 +4885,71 @@ with a before / after fingerprint showing no existing row changed; the record
 is `specs-durable/ops_log.md`): the subscriptions write lockdown (§29), the
 workspace-cap guard and the signup tier for NEW signups (§31), the `fx-rates`
 function (§30) and `chat-llm` with the cap always enforced (§32). The two
-unruled revokes of §31 (the derived tables, the calibration queue) are NOT
-applied.
+revokes §31 lists as "the owner's rulings" — the calibration queue (H3c) and
+the derived tables (H3b) — WERE applied the same day, 09:53Z (8 and 48
+privileges; SELECT untouched; row counts and content hashes identical before
+and after), and the owner approved them afterwards. Still open, with no
+migration that creates them in this repository: `valuations` and `sku_lines`.
+
+---
+
+## 34. A refused restore says why; the assistant is told its period (2026-10-04)
+
+Branch `fix/workspace-cap-restore-message` (frontend only; no engine, no
+schema, no function). Four frontend defects, each with a gate. Per the
+owner's rule (§33) none went to an independent review: gates, the full
+frontend suite and the build.
+
+**A restore the plan's limit refuses.** The workspace-cap guard (§31, H1)
+refuses `restore_workspace` when the restore would put its owner over the
+plan's workspace limit. Both screens that restore — `WorkspaceHomeV2`'s
+"Recently deleted" shelf and the legacy `Workspace` page's — answered every
+refusal "Couldn't restore", while the archived workspace's 30-day purge date
+kept counting down. Owner: "replace the generic failure with a clear message
+(Romanian and English) saying the workspace limit is reached and how to
+upgrade". Now `lib/org` `restoreWorkspaceOrg` records the database's refusal
+where the RPC answered (`lastWorkspaceRestoreRefusal()`: the limit, and the
+number THE REFUSAL names — never the plan card's), and
+`lib/workspaceRestoreNotice` is the one notice both screens show: "Workspace
+limit reached" / "Ai atins limita de spații de lucru", one sentence with the
+plan's limit and that upgrading restores it, one action — "View plans" /
+"Vezi planurile" → `/pricing`. Any other failure keeps the plain sentence.
+**The account that is over its cap was not touched; restores for it are the
+owner's.** Gate `workspace-restore-limit` (10 tests, twenty plants).
+
+**The assistant's period.** One real question on the live chat (the owner's
+word, 2026-10-04) was answered "the period is `<a uuid>` (an internal
+identifier)". `buildWorkspaceSnapshot`'s first line was
+`Period: ${p.label ?? p.id}` — and `label` is the COMPANY's name
+(`lib/activePeriod`). It is `snapshotPeriodLine` now: the statements' period
+label and the closing date, one of the two when the other is absent, "not
+stated in the workspace" when neither; **the row id is nowhere in the
+snapshot**. The edge function is unchanged (the snapshot is what it is
+handed as `dataset_summary`).
+
+**The chat page's scroll.** `CFOMessageList` in document-scroll mode sent the
+window to `document.documentElement.scrollHeight` after every message — the
+end of the DOCUMENT, which also holds what the app shell renders below the
+chat: a two-message conversation ended up under the header with the footer
+on screen. The target is the end of the CHAT COLUMN (`data-chat-column` on
+the page: the messages and the in-flow composer) through `chatEndScrollTop`,
+never above the top; "pinned to the end" is measured against the same end.
+Gate `chat-period-and-scroll` (10 tests, sixteen plants).
+
+**The profile save.** Settings saved the name with an UPSERT into
+`profiles`, a table with own-row SELECT and UPDATE policies and no INSERT
+policy (the repository's schema and production's catalog agree): row level
+security refuses the INSERT half of an upsert even when the row exists, so
+every save answered "Couldn't save profile". It is one own-row UPDATE now
+(`lib/profileSave`), read back; nothing in the frontend inserts into
+`profiles` — the row is the signup trigger's. Proved on the isolated local
+stack (update: 1 row; upsert: refused). Gate `profile-save-own-row` (8
+tests, eleven plants). **An upsert needs an INSERT policy, whatever the
+conflict target says.**
+
+**When a label is a name, name it.** `ActivePeriod.label` reads like "the
+period's label" and is the company's. Two call sites in the chat shell still
+pass it as `periodLabel` (the grounding chip prints it only when it differs
+from the company name — i.e. never as a period). Rename before the next
+reader takes it for a date.
+

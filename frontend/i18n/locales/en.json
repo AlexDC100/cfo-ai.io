@@ -186,6 +186,8 @@
   },
   "settings": {
     "language": "Language",
+    "profile_saved": "Profile saved",
+    "profile_save_failed": "Couldn't save your profile",
     "language_description": "Choose the language for the interface and AI-generated analysis.",
     "title": "Account",
     "subtitle": "Your profile, language, industry and plan — all in one place. Changes save to your account and apply across every tab instantly.",
@@ -982,6 +984,9 @@
     "workspaceLimitTitle": "Workspace limit reached",
     "workspaceLimitDesc": "Your plan includes {{max}} workspace(s). Upgrade to add another company.",
     "workspaceLimitCta": "View plans",
+    "workspaceRestoreLimitDesc_one": "Your plan includes {{count}} workspace, so this one can't be restored yet. Upgrade your plan to restore it.",
+    "workspaceRestoreLimitDesc_other": "Your plan includes {{count}} workspaces, so this one can't be restored yet. Upgrade your plan to restore it.",
+    "workspaceRestoreLimitDescNoCount": "Your plan's workspace limit is reached, so this one can't be restored yet. Upgrade your plan to restore it.",
     "usageDocs": "Documents",
     "usageChat": "Ask CFO AI",
     "usageNonRo": "Non-RO documents",

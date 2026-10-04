@@ -26,12 +26,14 @@ import { toast } from "@/components/ui/sonner";
 import { UploadDrop } from "@/components/cfo/upload/UploadDrop";
 import { AnalysingChip } from "@/pages/cfo/CompanyPage";
 import { daysUntilPurge, useActiveOrg, type Organization } from "@/lib/org";
+import { workspaceRestoreLimitNotice } from "@/lib/workspaceRestoreNotice";
 import { isJobDone, useAnalysisJobs } from "@/lib/uploadFlow";
 import { fetchCompanyDirectory, fetchCompanyYears } from "@/lib/uploadsApi";
 import type { Currency } from "@/lib/rates";
 
 export default function WorkspaceHomeV2() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { org: active, orgs, archived, loading, loadError, refresh, restoreWorkspace } = useActiveOrg();
 
   const ids = orgs.map((o) => o.id);
@@ -100,7 +102,18 @@ export default function WorkspaceHomeV2() {
                   type="button"
                   onClick={() =>
                     void restoreWorkspace(o.id).then((ok) => {
-                      if (!ok) toast.error(t("wsV2.home.cantRestore"));
+                      if (ok) return;
+                      // The plan's workspace limit refused it: say so, and
+                      // where to upgrade — not a bare "couldn't restore".
+                      const limit = workspaceRestoreLimitNotice(t);
+                      if (limit) {
+                        toast.error(limit.title, {
+                          description: limit.description,
+                          action: { label: limit.cta, onClick: () => navigate(limit.href) },
+                        });
+                        return;
+                      }
+                      toast.error(t("wsV2.home.cantRestore"));
                     })
                   }
                   data-testid={`workspace-home-restore-${o.id}`}

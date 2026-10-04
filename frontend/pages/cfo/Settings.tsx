@@ -29,6 +29,7 @@ import { useActiveOrg } from "@/lib/org";
 // owns that surface internally. Re-import here if/when the standalone
 // Subscription section is restored.
 import { getSupabase } from "@/lib/supabase";
+import { saveProfileName } from "@/lib/profileSave";
 import { cn } from "@/lib/utils";
 import {
   cancelAtPeriodEnd,
@@ -437,30 +438,23 @@ function ProfileCard() {
     const sb = getSupabase();
     if (!sb || !user) return;
     setBusy(true);
-    // UPSERT, not UPDATE — first-time users won't have a profile row yet
-    // because the auth-trigger that seeds it can lag behind signUp by a few
-    // seconds. UPDATE with no matching row silently succeeds with 0 affected
-    // rows, the user clicks Save, sees the toast, but nothing persists.
-    // The upsert with `id` as the conflict target fixes both cases.
-    // Company + role were removed from the profile per the operator's
-    // directive — the account no longer collects them.
-    const { error: pErr } = await sb
-      .from("profiles")
-      .upsert(
-        { id: user.id, full_name: name, email: user.email },
-        { onConflict: "id" },
-      );
+    // UPDATE on the user's own row — never an upsert, which row level
+    // security refuses on this table (lib/profileSave says why). Company +
+    // role were removed from the profile per the operator's directive — the
+    // account no longer collects them.
+    const { error: pErr } = await saveProfileName(sb, user.id, name);
     // Also mirror into user_metadata so `useAuth().displayName` reflects the
-    // change without a full session refresh.
+    // change without a full session refresh — and so the name is kept for an
+    // account with no profile row.
     const { error: aErr } = await sb.auth.updateUser({
       data: { display_name: name },
     });
     setBusy(false);
     const error = pErr ?? aErr;
-    if (error) toast({ title: "Couldn't save profile", description: error.message, variant: "destructive" });
+    if (error) toast({ title: t("settings.profile_save_failed"), description: error.message, variant: "destructive" });
     else {
       savedNameRef.current = name;
-      toast({ title: "Profile saved" });
+      toast({ title: t("settings.profile_saved") });
     }
   }
 

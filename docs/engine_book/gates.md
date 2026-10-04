@@ -28096,3 +28096,244 @@ removes the first's users (as built) and its scratch database. The old bundle: t
 sentinel look the same THERE is read, not gated — no gate runs production's
 bundle. The cap message re-read from SERVER history carries no marker (it is
 written there, as it always was) and rides in a later request, as on main.
+
+
+## workspace-restore-limit
+
+**The order (owner, 2026-10-04).** The workspace-cap guard applied to
+production that morning (`hole-workspace-cap`) refuses a restore that would
+put an owner over their plan's workspace limit. Both screens that restore —
+the redesigned home's "Recently deleted" shelf and the legacy workspace
+page's — answered every refusal "Couldn't restore": no reason, no next step,
+while the archived workspace's purge date kept counting down. The owner:
+"replace the generic failure with a clear message (Romanian and English)
+saying the workspace limit is reached and how to upgrade".
+
+**The rule.** The database's refusal is read where the RPC answered
+(`lib/org` `restoreWorkspaceOrg` → `lastWorkspaceRestoreRefusal()`), with the
+number the REFUSAL names (`workspaceCapOfMessage`), never the plan card's.
+`lib/workspaceRestoreNotice` turns it into one notice both screens show:
+title "Workspace limit reached" / "Ai atins limita de spații de lucru", one
+sentence saying the plan's limit and that upgrading restores it, and one
+action, "View plans" / "Vezi planurile", that opens `/pricing`. A failure
+that is not the limit keeps the plain sentence; a success, or a later
+failure of another kind, never repeats the limit.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/pages/cfo/__tests__/workspaceRestoreLimit.test.tsx --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **10** (measured 10; `GATE-WORK workspace-restore-limit checks=42`) |
+| canary | `GATE-WORK workspace-restore-limit checks=` and the titles named in `scripts/run_battery.py` |
+
+The laws: the parser reads the format string that is in the repository's SQL
+(`supabase/schema_phase_plan_caps.sql`), over five plans and seven
+non-refusals; a limit refusal is recorded with its number, a failure of
+another kind and a success record none, a refusal naming no number is still
+the limit; the sentence for limits 1, 5, 20 and "no number", in both
+languages, sentence for sentence (Romanian's three plural forms: "un singur
+spațiu", "5 spații", "20 de spații"); no raw key or placeholder on screen;
+the upgrade path is a route of the app; the home screen rendered with the
+REAL `restoreWorkspaceOrg` over a stubbed database — the limit refusal shows
+the title, the sentence and the action, and the action lands on `/pricing`,
+in each language; another failure shows the plain sentence and no action; a
+restore that works shows no error; the legacy page's handler asks for the
+limit notice before the plain sentence and returns after it.
+
+**What it cannot see.** The database guard (gate `hole-workspace-cap`). The
+legacy page rendered — its handler is read from the source, because the page
+needs the whole workspace store. Whether `/pricing` offers a plan with more
+workspaces than the reader has.
+
+### workspace-restore-limit — PLANT / RED / REVERT (2026-10-04, branch `fix/workspace-cap-restore-message`)
+
+Runner: `specs-durable/workspace_restore_limit/plants.py` — one PLANT at a
+time, the file restored from memory after each; record `plants.json` beside
+it.
+
+**BASELINE** — exit `0`: `10 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the home screen answers a limit refusal with the plain 'couldn't restore' | `2 failed, 8 passed` |
+| P2 the legacy page answers a limit refusal with the plain 'couldn't restore' | `1 failed, 9 passed` |
+| P3 the refusal is not recorded where the RPC answered | `3 failed, 7 passed` |
+| P4 a later failure of another kind repeats the limit sentence (no reset) | `2 failed, 8 passed` |
+| P5 the number is not the refusal's (always 1) | `2 failed, 8 passed` |
+| P6 a refusal naming 0 workspaces is printed as a limit of 0 | `1 failed, 9 passed` |
+| P7 every failure is called the limit | `2 failed, 8 passed` |
+| P8 the action opens Settings, not the plans | `4 failed, 6 passed` |
+| P9 the action opens a path with no route | `4 failed, 6 passed` |
+| P10 the home screen's action does nothing when clicked | `2 failed, 8 passed` |
+| P11 the home screen's toast has no action at all | `2 failed, 8 passed` |
+| P12 the home screen's toast drops the sentence (title only) | `2 failed, 8 passed` |
+| P13 the Romanian sentence is missing (a raw key on screen) | `3 failed, 7 passed` |
+| P14 Romanian has no 'few' form (5 spații → '5 de spații') | `2 failed, 8 passed` |
+| P15 the English sentence is missing | `2 failed, 8 passed` |
+| P16 the sentence with no number is missing in Romanian | `2 failed, 8 passed` |
+| P17 the sentence stops saying how to upgrade (English) | `2 failed, 8 passed` |
+| P18 the legacy page's action does nothing | `1 failed, 9 passed` |
+| P19 the legacy page shows the limit AND then the plain sentence (no return) | `1 failed, 9 passed` |
+| P20 the limit is not recognised when the refusal names no number | `1 failed, 9 passed` |
+
+Every PLANT is RED. **REVERT** — exit `0`: `10 passed`; `git status` shows
+only the change itself.
+
+After the repair this gate fails on: either screen answering a limit refusal
+with the plain sentence; a limit sentence for a failure that is not the
+limit, or repeated after a success; a number other than the refusal's; a
+missing English or Romanian sentence or plural form; an action that does not
+open the plans.
+
+
+## chat-period-and-scroll
+
+**What production showed (2026-10-04).** After the chat function was
+redeployed behind sign-in and its cap, the owner authorised one real
+question from their signed-in session. The answer arrived, the meter counted
+it — and two display defects were on screen:
+
+1. The assistant wrote that the period "is `<a uuid>` (an internal
+   identifier)" and that the snapshot "carries no readable label". The
+   workspace snapshot's first line was `Period: ${p.label ?? p.id}` — and
+   `label` is the COMPANY's name (`lib/activePeriod`), so the assistant was
+   handed the company as its period, or, with no name, the period's row id.
+2. After sending, the window was at the end of the DOCUMENT: the footer on
+   screen, the two-message conversation pushed up under the header.
+   `CFOMessageList` scrolled to `document.documentElement.scrollHeight`,
+   and the document also holds what the app shell renders below the chat.
+
+**The rule.** `snapshotPeriodLine` (`pages/cfo/Chat`): the statements' own
+period label and the closing date — "FY 2025 (period ending 2025-12-31)";
+one of the two when the other is absent; "not stated in the workspace" when
+neither. The row id is nowhere in the snapshot. The company keeps its own
+line (the statements' name, else the header's). `chatEndScrollTop`
+(`CFOMessageList`): the window goes to the end of the CHAT COLUMN — the
+element the page marks `data-chat-column`, holding the messages and the
+in-flow composer — never above the top, so a conversation shorter than the
+viewport is not scrolled; "pinned" is measured against that same end.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/pages/cfo/__tests__/chatPeriodAndScroll.test.tsx --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **10** (measured 10; `GATE-WORK chat-period-and-scroll checks=39`) |
+| canary | `GATE-WORK chat-period-and-scroll checks=` and the titles named in `scripts/run_battery.py` |
+
+The laws: seven shapes of (label, closing date) → the line, through the
+helper AND as the snapshot's first line; three header names × three
+statements shapes — the row id (and its first block) nowhere in the
+snapshot, the period line never empty; the company never on the period line
+and still on its own line, from the statements or from the header, and no
+empty company line; no period, no snapshot. The scroll arithmetic over five
+positions; a short conversation receiving its answer — every `scrollTo` is
+top 0 and none is the document's height; a long one lands on the column's
+end; a reader who scrolled up gets no `scrollTo` on the next message, and
+back at the conversation's end the following message scrolls once; with no
+column marked the list's own end is used; the page marks exactly one column,
+the one holding the list and then the composer, and the list holds no
+`scrollTo` to the document's height.
+
+**What it cannot see.** What the model answers. Real layout — jsdom has
+none; the column's box is stated by the test. The compact slide-over panel,
+whose inner scroller is unchanged.
+
+### chat-period-and-scroll — PLANT / RED / REVERT (2026-10-04, branch `fix/workspace-cap-restore-message`)
+
+Runner: `specs-durable/chat_period_and_scroll/plants.py` — one PLANT at a
+time, the file restored from memory after each; record `plants.json` beside
+it.
+
+**BASELINE** — exit `0`: `10 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the period line is the company's name, else the row id | `3 failed, 7 passed` |
+| P2 with nothing to name the period by, the row id is printed | `1 failed, 9 passed` |
+| P3 the closing date is dropped when the statements carry a label | `1 failed, 9 passed` |
+| P4 a date that is not ISO is printed as the period's end | `1 failed, 9 passed` |
+| P5 the timestamp's time rides into the line | `1 failed, 9 passed` |
+| P6 a blank label prints an empty period | `1 failed, 9 passed` |
+| P7 the company line is lost when the statements carry no name | `1 failed, 9 passed` |
+| P8 an empty company line is printed | `1 failed, 9 passed` |
+| P9 THE DEFECT — a new message scrolls the window to the document's end | `5 failed, 5 passed` |
+| P10 a conversation shorter than the viewport is scrolled (a negative top) | `3 failed, 7 passed` |
+| P11 the window's own position is left out (the target drifts as the page scrolls) | `2 failed, 8 passed` |
+| P12 the column is not looked for — the list's own end is the target | `2 failed, 8 passed` |
+| P13 pinned is measured against the document's end again | `1 failed, 9 passed` |
+| P14 a reader who scrolled up is yanked back on every message | `1 failed, 9 passed` |
+| P15 the /chat page no longer marks its column | `1 failed, 9 passed` |
+| P16 the list's root is not attached (nothing is ever scrolled) | `4 failed, 6 passed` |
+
+Every PLANT is RED. **REVERT** — exit `0`: `10 passed`.
+
+After the repair this gate fails on: the row id or the company printed as
+the period; a snapshot whose first line names no period; the window sent to
+the document's end; a short conversation scrolled; a reader who scrolled up
+pulled back; the page's column unmarked.
+
+
+## profile-save-own-row
+
+**The defect.** Settings saved the profile with
+`from("profiles").upsert({ id, full_name, email }, { onConflict: "id" })`.
+`profiles` has row level security with two policies — own-row SELECT and
+own-row UPDATE — and no INSERT policy (`supabase/schema.sql`; production's
+catalog, read 2026-10-04, shows the same two). An upsert is INSERT … ON
+CONFLICT DO UPDATE; row level security checks the INSERT half first and
+refuses it even when the row exists. Every save answered "Couldn't save
+profile", with the database's sentence under it, while the name went only to
+the auth metadata. First seen by the subscriptions-lockdown builder on a
+repository-built database (2026-10-03); listed, not fixed, until now.
+
+**Proved once on the isolated local stack** (`supabase_db_cfo-ai-subs`, one
+transaction, rolled back, nothing left behind): a new `auth.users` row → the
+signup trigger made its `profiles` row; as `authenticated` with that user's
+`sub`, `update profiles set full_name = … where id = …` touched 1 row; the
+same user's `insert … on conflict (id) do update` answered `new row violates
+row-level security policy for table "profiles"`.
+
+**The rule.** `lib/profileSave` `saveProfileName`: one
+`update({ full_name }).eq("id", userId).select("id")`. The select returns
+the rows touched, so a save that matched no row is told from one that
+landed. Settings calls the helper and prints its two sentences in the
+reader's language. No browser code inserts or upserts into `profiles`: the
+row is the signup trigger's.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/profileSave.test.ts --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **8** (measured 8; `GATE-WORK profile-save-own-row checks=17`) |
+| canary | `GATE-WORK profile-save-own-row checks=` and the titles named in `scripts/run_battery.py` |
+
+**What it cannot see.** The database's answer — there is no database in this
+suite; the policies are read from the schema files, and the proof above is a
+record, not a gate. Whether the signup trigger made the row. If an insert
+policy is ever added to `profiles` the schema law goes red on purpose: the
+rule is to be re-read then, not the test deleted.
+
+### profile-save-own-row — PLANT / RED / REVERT (2026-10-04, branch `fix/workspace-cap-restore-message`)
+
+Runner: `specs-durable/profile_save_own_row/plants.py`; record `plants.json`
+beside it.
+
+**BASELINE** — exit `0`: `8 passed`.
+
+| PLANT | result |
+|---|---|
+| P1 THE DEFECT — the save is an upsert again | `2 failed, 6 passed` |
+| P2 the update has no id filter | `1 failed, 7 passed` |
+| P3 the update filters on another column | `1 failed, 7 passed` |
+| P4 a save that matched no row is reported as a saved row | `1 failed, 7 passed` |
+| P5 the database's refusal is swallowed | `1 failed, 7 passed` |
+| P6 the update writes the id column too (an upsert's payload) | `1 failed, 7 passed` |
+| P7 Settings writes profiles itself, with an upsert | `2 failed, 6 passed` |
+| P8 another frontend file inserts into profiles (the language mirror) | `1 failed, 7 passed` |
+| P9 the Romanian sentence is missing | `1 failed, 7 passed` |
+| P10 Settings prints the English sentence in every language | `1 failed, 7 passed` |
+| P11 the schema gains an insert policy on profiles (the law must be re-read) | `1 failed, 7 passed` |
+
+Every PLANT is RED. **REVERT** — exit `0`: `8 passed`.
+
+After the repair this gate fails on: an upsert or insert into `profiles`
+anywhere in the frontend's source; a save with no id filter or a payload
+beyond `full_name`; a zero-row save reported as saved; a swallowed refusal;
+Settings writing the table itself or printing English in every language.
