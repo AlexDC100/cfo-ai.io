@@ -38,7 +38,9 @@ THE LAW.
       and the flag is never stored. Through the REAL lane (its model
       scripted): the cache is live (control), the re-run calls the model
       again, the non-Romanian meter is not touched, the generated briefing
-      is kept.
+      is kept. And with the lane's model REFUSING — production's state on
+      2026-10-04 — the re-run changes nothing: before, its reset had already
+      deleted the month.
   A3  A staged re-run that now reads as a public-records summary is refused
       before any write (`rerun_failed: rerun_not_a_trial_balance`); the
       month is exactly what it was. A first upload of such a file — and a
@@ -126,6 +128,7 @@ import test_rerun_staged as S
 import test_workspace_v2_gates as V
 from test_workspace_v2_gates import app, gw  # noqa: F401 — pytest fixtures
 from engine import ai_lane as AL
+from engine.ai_lane import config as lane_config
 from engine.api import _usage_gate
 from engine.api import pipeline as P
 
@@ -591,6 +594,61 @@ def test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_an
     assert (served["body"], served["unavailable"]) == (GENERATED_BODY, False), served
     assert served["stale"] == {"since": briefing["stale_since"], "reason": NOT_RENARRATED}
     assert "force_reextract" not in json.dumps(gw.db.tables, default=str)
+
+
+class _RefusingModel(object):
+    """The lane's model as production has it on 2026-10-04: every request
+    refused. Nothing leaves the process."""
+
+    calls = []  # type: List[Any]
+
+    def __init__(self) -> None:
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        _RefusingModel.calls.append(kwargs.get("model"))
+        raise RuntimeError("Your credit balance is too low to access the Anthropic API.")
+
+
+def test_a_rerun_of_a_non_romanian_document_whose_model_refuses_leaves_the_month_exactly_as_it_was(
+        app, gw, monkeypatch):
+    """A2's other half, on THE REAL LANE. "Re-run analysis" re-extracts — and
+    the lane's model refuses (production's state when this was written: every
+    model call fails). The run fails in its extract stage. Staged, that costs
+    the reader nothing: the month's row, every row under it, the generated
+    briefing (unmarked — nothing replaced the statements it was written for)
+    and what is served are exactly what they were; the document stays
+    `analyzed` over its month and its row says the re-run did not finish.
+    (On production's code the re-run's reset had already deleted the period
+    when the model refused: the month was gone and the document `failed`.)"""
+    from engine.workspaces.migration_plan import empty_live_periods
+
+    w = _a_non_romanian_month(app, gw, monkeypatch)
+    served_before = R.reader_view(app, gw, w["org"], w["month"])
+    rows_before = V._rows_under(gw, w["month"])
+    (period_before,) = copy.deepcopy(gw.db.rows("financial_periods"))
+    monkeypatch.setattr(_RefusingModel, "calls", [])
+    monkeypatch.setattr(lane_config, "default_client_factory", _RefusingModel)
+    statuses = S._watch_statuses(monkeypatch)
+
+    assert O._retry(app, w["org"], w["doc1"]).status_code == 202
+    failed = V.run_analysis(gw, w["doc1"])
+
+    assert _RefusingModel.calls, "the scenario never happened: the lane's model was not called (the cache answered)"
+    assert (failed["status"], failed["period_id"]) == ("analyzed", w["month"]), (
+        "the failed re-run left %r" % ((failed["status"], failed["period_id"]),))
+    assert str(failed["error"]).startswith("rerun_failed: AiLaneError") and failed["error"] != INTERRUPTED, (
+        failed["error"])
+    assert statuses == [], "the failed re-run wrote statuses %r" % statuses
+    assert gw.db.rows("financial_periods") == [period_before], "the month's row changed, or a staged row was left"
+    assert V._rows_under(gw, w["month"]) == rows_before, "rows under the month changed"
+    served = R.reader_view(app, gw, w["org"], w["month"])
+    # (The Docs panel's feed carries the row's own text — the one thing that changed.)
+    assert dict(served, panel=None) == dict(served_before, panel=None), "the month is not served as before"
+    assert served["briefing"]["body"] == GENERATED_BODY and served["briefing"]["stale"] is None
+    assert [[doc[1] for doc in p["documents"]] for p in served["panel"]] == [["analyzed"]], served["panel"]
+    assert empty_live_periods(gw.db.tables) == [] and P._STAGED_RERUNS == {}
+    assert w["meter"] == [("reserve", V.USER), ("commit", V.USER)], w["meter"]
 
 
 # ══════════════════════════════════════════════════════════════════════

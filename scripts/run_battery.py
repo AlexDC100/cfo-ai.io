@@ -559,15 +559,16 @@ def _engine_gates() -> List[Gate]:
         # alerts are the same rows; only a staged re-run re-extracts and
         # the flag is never stored; the public-records re-run is refused
         # before any write; the plan refusal leaves the month as it was; the
-        # lane's takeover killed after every write, and a REAL restart
-        # healed by the next re-run or by another document's run. Measured
-        # 170 (38 + 96 + 22 + 14). Plant log: gates.md "rerun-data-loss",
-        # stage 3.
+        # lane's takeover killed after every write, a re-run whose model
+        # refuses (production's state) leaving the month exactly as it was,
+        # and a REAL restart healed by the next re-run or by another
+        # document's run. Measured 171 (38 + 96 + 22 + 15). Plant log:
+        # gates.md "rerun-data-loss", stage 3.
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
               "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
               "tests/engine/test_rerun_ai_lane.py", "-q"],
-             work_junit=True, floor=170, units="tests",
+             work_junit=True, floor=171, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_the_refusal_is_one_answer_whatever_the_pin_names",
                        "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
