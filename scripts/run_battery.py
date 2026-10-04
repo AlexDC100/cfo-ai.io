@@ -316,12 +316,16 @@ def _engine_gates() -> List[Gate]:
         # route is no longer mounted (the pipeline calls the handler
         # in-process) and the handler fetches only the project's own document
         # storage, bounded. THE LAW, over EVERY route of the real
-        # create_app() in two flag states (the public markets surface closed,
-        # and open with the filings layer, the cockpit and the AI lanes on):
+        # create_app() — the route TREE: a mounted sub-application is walked
+        # into — in two flag states (the public markets surface closed, and
+        # open with the filings layer, the cockpit and the AI lanes on):
         # every method, path parameters filled, a JSON {}, the bodies that
         # matter (pdf_b64 / pdf_url / messages / document_id / run), every
         # body the route's own schema accepts (incl. one where every free
-        # string is a caller-named URL) and a multipart file — sent with no
+        # string is a caller-named URL), a multipart file, a RAW PDF body
+        # under two media types, and every query / header parameter the route
+        # or a dependency DECLARES filled three ways (by schema; every
+        # boolean and free string as "1"; as "true") — sent with no
         # Authorization header, with a forged bearer, and with the project's
         # public anon key as the bearer; a planted model key in the
         # environment, the anthropic and openai SDKs replaced by recorders,
@@ -330,21 +334,38 @@ def _engine_gates() -> List[Gate]:
         # the four DECLARED public market reads (each bounded by the daily
         # completion ceiling, measured: 3 a day -> exactly 3 sent over 20
         # cold reads), ZERO outbound requests to a host or URL the caller
-        # supplied, and every handler ENTERED or refused by a wall / an auth
-        # dependency (a 404 or 422 before the handler is not evidence).
-        # Measured: 388 routes, 4,619 requests, 56 tests. Plants and what it
+        # supplied, EVERY host contacted declared per state (a model bought
+        # over plain HTTP at another address is a host nobody declared),
+        # every route an APIRoute the sweep ENTERED or one refused by a wall
+        # / an auth dependency (a 404 or 422 before the handler is not
+        # evidence; a plain Starlette route, a websocket route or a mount
+        # with no route list reds by name). And two SOURCE laws for what two
+        # flag states cannot show: no module but the pipeline refers to the
+        # PDF lane's module at all, and no route is registered under a
+        # condition that is not one of the three declared route flags (each
+        # on in the open state, off in the closed one).
+        # THE REVIEW OF 2026-10-04 found the first version green with the
+        # lane mounted through a sub-application, behind a new flag, as a
+        # plain route, and with a model call behind ?ai=true, an optional
+        # header, a raw PDF body, or another host: all seven are plants now.
+        # Measured: 388 routes, 6,356 requests, 83 tests. Plants and what it
         # cannot see: docs/engine_book/gates.md § no-anonymous-model-call.
         Gate("no-anonymous-model-call",
              [PY, "-m", "pytest", "tests/engine/test_no_anonymous_model_call.py", "-q"],
-             work_junit=True, floor=50, units="tests",
+             work_junit=True, floor=75, units="tests",
              canaries=("test_no_anonymous_request_constructs_or_calls_a_model_client",
                        "test_no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named",
+                       "test_the_backend_contacts_only_declared_hosts_for_an_anonymous_caller",
+                       "test_every_route_a_request_can_reach_is_an_api_route_the_sweep_swept",
                        "test_the_sweep_enters_every_handler_or_meets_a_wall",
                        "test_the_sweep_covered_the_whole_route_table_in_both_states",
                        "test_the_declared_public_reads_stop_at_their_daily_ceiling",
                        "test_the_legacy_sku_routes_reach_a_model_the_moment_their_wall_is_lifted",
                        "test_the_pdf_model_lane_is_mounted_on_no_app",
+                       "test_nothing_but_the_pipeline_refers_to_the_pdf_model_lane",
+                       "test_no_route_exists_behind_a_flag_the_sweep_does_not_set",
                        "test_a_url_that_is_not_this_projects_storage_is_refused_before_any_request",
+                       "test_a_signed_url_of_the_projects_storage_is_fetched_as_written",
                        "test_the_size_cap_is_enforced_while_reading",
                        "test_bytes_that_are_not_a_pdf_never_reach_the_model",
                        "test_the_pipelines_in_process_contract_holds",
