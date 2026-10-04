@@ -37,8 +37,10 @@ the host (and port) of the Supabase project the engine is configured for
 is unset or unreadable the fetch is refused), the path prefix the pipeline's
 signed URLs carry (``/storage/v1/object/sign/documents/``). Anything else is
 refused BEFORE any request is made. No redirect is followed, the 25 MB cap is
-enforced WHILE the body is read, and the download has a per-read timeout and
-a whole-download deadline.
+enforced WHILE the body is read, every phase has a 30 s timeout, and the BODY
+has a 120 s deadline. (The deadline is read between body chunks: the status
+line and the headers are bounded per read only. Only the project's own
+storage host could make use of that.)
 
 WHAT REACHES THE MODEL. Bytes the .pdf branch reads as a PDF
 (``_upload_type.reads_as_pdf`` — the pipeline guard's own rule) and nothing
@@ -218,8 +220,11 @@ STORAGE_PROJECT_ENV = "VITE_SUPABASE_URL"
 #: Per-phase timeout (connect / read / write / pool), seconds.
 STORAGE_FETCH_TIMEOUT_S = 30.0
 
-#: The whole download, seconds. A body that keeps trickling inside the
-#: per-read timeout is still cut off here.
+#: The whole BODY, seconds. A body that keeps trickling inside the per-read
+#: timeout is still cut off here. It is read between body chunks, so it does
+#: NOT cover the status line and the headers — those are bounded per read
+#: (`STORAGE_FETCH_TIMEOUT_S` each) and only this project's storage host
+#: could drip them.
 STORAGE_FETCH_DEADLINE_S = 120.0
 
 #: The clock the deadline reads — a module name so a test can drive it.
@@ -245,11 +250,12 @@ def _configured_storage_origin() -> Optional[Tuple[str, int]]:
         return None
     try:
         base = httpx.URL(raw)
+        host = (base.host or "").lower()     # an undecodable `xn--` label raises here
     except Exception:  # noqa: BLE001 — an unreadable setting is "unknown"
         return None
-    if base.scheme != "https" or not base.host or base.userinfo:
+    if base.scheme != "https" or not host or base.userinfo:
         return None
-    return (base.host.lower(), base.port or 443)
+    return (host, base.port if base.port is not None else 443)
 
 
 def own_storage_url(pdf_url: str) -> httpx.URL:
@@ -267,25 +273,49 @@ def own_storage_url(pdf_url: str) -> httpx.URL:
             status=503)
     if not isinstance(pdf_url, str) or not pdf_url or len(pdf_url) > 4096:
         raise PdfUrlRefused("not a URL")
+    # A storage key may hold a SPACE: the storage API allows one, the browser
+    # builds the key's ending from the uploaded file's own name, and the sign
+    # response hands the key back as it is. It is sent percent-encoded —
+    # exactly as httpx itself would send it — rather than refused (until
+    # 2026-10-04 this lane refused it, and the document with it). Nothing
+    # else is rewritten: a control character, a backslash or a non-ASCII
+    # character is still not a plain URL, and a space anywhere but the path
+    # or the query fails the checks below.
+    pdf_url = pdf_url.replace(" ", "%20")
     if "\\" in pdf_url or any(ord(c) <= 32 or ord(c) >= 127 for c in pdf_url):
         raise PdfUrlRefused("not a plain ASCII URL")
     try:
         url = httpx.URL(pdf_url)
+        # Read INSIDE the try: `url.host` decodes an `xn--` label and raises
+        # (idna.IDNAError) on one that does not decode — a refusal, not a 500.
+        host = (url.host or "").lower()
+        port = url.port if url.port is not None else 443   # `or` read port 0 as 443
+        path = url.path                  # percent-decoded, dot-segments resolved
+        sent_path = url.raw_path.split(b"?", 1)[0].decode("ascii")   # what goes on the wire
     except Exception:  # noqa: BLE001 — unparseable is refused, never guessed
         raise PdfUrlRefused("not a URL")
     if url.scheme != "https":
         raise PdfUrlRefused("only https is fetched")
     if url.userinfo:
         raise PdfUrlRefused("a URL carrying credentials is not fetched")
-    if (url.host.lower(), url.port or 443) != origin:
+    if (host, port) != origin:
         raise PdfUrlRefused(
             "only this project's own document storage is fetched")
-    path = url.path                      # percent-decoded, dot-segments resolved
-    if not path.startswith(STORAGE_SIGNED_PATH_PREFIX):
+    # The fixed prefix is checked on the path AS IT IS SENT and on its decoded
+    # reading: `/storage%2fv1/…` and `/object/sign/%64ocuments/…` decode to the
+    # prefix but are another request on the wire.
+    if not (sent_path.startswith(STORAGE_SIGNED_PATH_PREFIX)
+            and path.startswith(STORAGE_SIGNED_PATH_PREFIX)):
         raise PdfUrlRefused(
             "only a signed URL of the documents bucket is fetched")
     segments = path[len(STORAGE_SIGNED_PATH_PREFIX):].split("/")
     if any(seg in ("", ".", "..") for seg in segments) or "\\" in path:
+        raise PdfUrlRefused("the object path is not a plain storage path")
+    # No escape may stand for a separator, a dot or a percent sign: one
+    # decoding here and a second one downstream would read a different path
+    # (`%252e%252e` is `%2e%2e` after ours and `..` after the next).
+    escapes = sent_path.lower()
+    if "%" in path or any(esc in escapes for esc in ("%2f", "%2e", "%5c", "%25")):
         raise PdfUrlRefused("the object path is not a plain storage path")
     return url
 

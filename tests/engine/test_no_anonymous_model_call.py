@@ -15,27 +15,51 @@ ever called it. The upload pipeline calls the handler IN-PROCESS.
 THE LAW. No request a stranger can send makes this backend construct or call
 a model client, or fetch a host the stranger named.
 
-  Over EVERY route of the real ``create_app()`` — every method it lists,
-  path parameters filled, for a body-carrying method a JSON ``{}``, the
-  bodies that matter (``pdf_b64``, ``pdf_url``, ``messages``,
-  ``document_id``, ``run``…), every body its own schema accepts, and a
-  multipart file — sent as (a) no Authorization header, (b) a forged bearer
-  (a three-part token signed by a key the JWKS does not hold), (c) the
-  project's PUBLIC anon key as the bearer; with a planted non-empty model
-  key in the environment, the model SDKs (``anthropic``, and ``openai`` for
-  the orchestrator's GPT adapter) replaced by recorders, and every outbound
-  transport replaced by an answering recorder:
+  Over EVERY route of the real ``create_app()`` — the route TREE: a
+  sub-application mounted with ``app.mount`` is walked into and its routes
+  swept under their prefix — every method it lists, path parameters filled,
+  for a body-carrying method a JSON ``{}``, the bodies that matter
+  (``pdf_b64``, ``pdf_url``, ``messages``, ``document_id``, ``run``…), every
+  body its own schema accepts, a multipart file, a RAW PDF as the request
+  body (``application/pdf`` and ``application/octet-stream``), and every
+  query / header / cookie parameter the route or a dependency of it
+  DECLARES filled three ways (by its schema; every boolean and free string
+  as ``1``; as ``true``) — sent as (a) no Authorization header, (b) a
+  forged bearer (a three-part token signed by a key the JWKS does not
+  hold), (c) the project's PUBLIC anon key as the bearer; with a planted
+  non-empty model key in the environment, the model SDKs (``anthropic``,
+  and ``openai`` for the orchestrator's GPT adapter) replaced by recorders,
+  and every outbound transport replaced by an answering recorder:
 
     * ZERO model clients constructed and ZERO model calls, except on the
       routes DECLARED in ``DECLARED`` below, each with the bound that makes
       it acceptable — and a declared route that no longer reaches a model is
       a red too (the list is exact, it only shrinks deliberately);
-    * ZERO outbound requests to a host the caller named, on any route.
+    * ZERO outbound requests to a host the caller named, on any route;
+    * every host the backend contacts at all is in ``OUTBOUND_HOSTS`` for
+      the state — a model bought over plain HTTP at an address that is
+      neither SDK's is a model call the first rule cannot name;
+    * every route a request can reach is a FastAPI ``APIRoute`` the sweep
+      entered: a plain Starlette route, a websocket route or a mount with no
+      route list reds by name.
 
   In two flag states: ``closed`` (no surface flag — the public markets
   surface is a 404) and ``open`` (PUBLIC_MARKETS_ENABLED and
   SEC_EDGAR_ENABLED set, with the cockpit and the AI lanes on, so the
-  widest route table is swept).
+  widest route table is swept). THE TWO STATES ARE THE WHOLE FLAG SPACE, and
+  that is a law too: a route registered under any condition other than the
+  flags in ``ROUTE_FLAGS`` (each on in ``open``, off in ``closed``) exists
+  in neither state, so it reds in the source census instead.
+
+WHAT THE REVIEW OF 2026-10-04 FOUND GREEN (each planted alone, each proven a
+real model call by a direct anonymous request, the gate 56 passed every
+time): the PDF lane mounted back through a sub-application; mounted on the
+main app behind a new flag; a plain ``app.add_route`` calling the model; a
+model call behind ``?ai=true``, behind ``X-Use-Ai: 1``, behind a raw
+``application/pdf`` body; a completion bought at another host over httpx.
+The sweep sent one bare GET to anything that was not an ``APIRoute``, never
+looked inside a mount, filled required parameters only, and counted two
+hosts as "a model". Each is a law here now, and a plant in gates.md.
 
 WHY A 404 OR A 422 IS NOT EVIDENCE. A route answered before its handler ran
 proves nothing about the handler. Every route's endpoint is instrumented
@@ -60,11 +84,14 @@ of them records and refuses. The MODEL recorder raises after recording, so no
 handler consumes or caches a made-up answer.
 
 THE PDF LANE'S OWN LAWS are here too, on the handler itself: a URL that
-is not this project's document storage is refused before any request; with no
-project configured nothing is fetched; no redirect is followed; the 25 MB cap
-is enforced while reading; the download has a timeout and a deadline; bytes
-that are not a PDF never reach the model; and the pipeline's in-process
-contract (``build_router()`` → the route named ``parse_document``) holds.
+is not this project's document storage is refused before any request; the
+request carries exactly the path the check read (a key with a space is sent
+percent-encoded, not refused); with no project configured nothing is
+fetched; no redirect is followed; the 25 MB cap is enforced while reading;
+every phase has a timeout and the body a deadline (the status line and the
+headers are bounded per read only); bytes that are not a PDF never reach the
+model; and the pipeline's in-process contract (``build_router()`` → the
+route named ``parse_document``) holds.
 
 WHAT THIS GATE CANNOT SEE
   * SIGNED-IN spend: a member's re-runs, failed runs, ``/reconcile``,
@@ -82,17 +109,42 @@ WHAT THIS GATE CANNOT SEE
     request plus its grace period, or from an executor worker.
   * A provider reached through a transport none of the four recorders
     replace AND with no socket (there is none in this tree today).
+  * A model reached at a host ``OUTBOUND_HOSTS`` already declares for
+    something else (a completion endpoint on the project's own Supabase
+    host, say): the census is by host, not by path.
+  * A switch a handler reads WITHOUT declaring it — ``request.query_params
+    .get("ai")``, ``request.headers.get("x-use-ai")`` — other than the keys
+    every request carries (``QUERY_EXTRAS``, ``SPOOF_HEADERS``); a declared
+    string that must hold a particular word other than ``1`` / ``true`` or
+    what its schema names; a switch inside a JSON body the route's schema
+    does not describe; a raw body that is not PDF bytes under one of the two
+    media types sent.
+  * A model call inside an existing handler behind an ENVIRONMENT flag
+    neither state sets. (A ROUTE behind such a flag is the source census's
+    red; behaviour inside a handler is not.)
+  * A route registered by a helper that is itself called under a condition
+    OUTSIDE ``create_app`` (inside it, any condition that touches the app
+    reds), or by a router factory that builds its route list from a setting.
   * The Edge Function (``supabase/functions/chat-llm``): not this app.
   * What the front proxy routes: this is the app's own route table.
 
-AFTER THE REPAIR this gate reds on: the PDF lane mounted on any app again;
-any new route that reaches a model client for a caller with no verified
-identity; a declared public read that stops reaching the model (the census is
-stale) or whose completions are no longer reserved against the daily
-ceiling; the legacy SKU wall removed; a route that fetches a URL its caller
-named; a route the sweep can no longer enter; the handler fetching outside
-the project's storage, following a redirect, reading past the cap, losing its
-timeout, or sending non-PDF bytes to the model.
+AFTER THE REPAIR this gate reds on: the PDF lane's handler served by any
+route of the tree in either state (mounts walked into), and ANY reference to
+the lane's module under src/ outside the pipeline's in-process call — which
+is what a mount behind a flag this gate never sets starts with; a route
+registered under a condition that is not a declared route flag, or after an
+early exit; a route that is not an ``APIRoute``, or a mount the sweep cannot
+enumerate; any new route — in the app or in a mounted sub-application — that
+reaches a model client for a caller with no verified identity, an optional
+declared parameter or a raw PDF body included; a host contacted that
+``OUTBOUND_HOSTS`` does not declare; a declared public read that stops
+reaching the model (the census is stale) or whose completions are no longer
+reserved against the daily ceiling; the legacy SKU wall removed; a route that
+fetches a URL its caller named; a route the sweep can no longer enter; the
+handler fetching outside the project's storage (port 0, an escape inside the
+fixed prefix or standing for a separator, a host label that does not decode),
+refusing a storage key that holds a space, following a redirect, reading past
+the cap, losing its timeout, or sending non-PDF bytes to the model.
 
 NOTE ON INVARIANT IDS. This file claims NO bare invariant marker (a capital
 letter and digits): scripts/generate_engine_book.py would credit it with
@@ -126,6 +178,7 @@ import httpx
 import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from starlette.routing import Mount, Route
 
 import firm_postgrest_double as D
 
@@ -174,6 +227,31 @@ DECLARED_IN = {"closed": set(), "open": set(DECLARED)}  # type: Dict[str, Set[Tu
 #: The most completions ONE anonymous request to a declared route may cost
 #: (the narrative plus the filings extraction it shares).
 MAX_COMPLETIONS_PER_DECLARED_REQUEST = 2
+
+#: EVERY host the backend may contact for a caller with no verified identity,
+#: per flag state, each with what is asked of it. A model is a model at any
+#: host: the two SDK modules and ``MODEL_API_HOSTS`` are how this tree reaches
+#: one TODAY, and a provider reached over plain HTTP at another address (an
+#: aggregator, a self-hosted endpoint, a new vendor) would be none of them —
+#: so a host that is not here reds, whatever it is. An UPPER bound, not an
+#: exact list: a provider's own cache (the FX feed's five-minute memo) decides
+#: whether a declared host is contacted in a given run.
+_SUPABASE_WHY = (
+    "the project's own Supabase: the signature keys, and PostgREST reads / writes made with "
+    "the service role for a caller who named rows (answered here as empty)")
+OUTBOUND_HOSTS = {
+    "closed": {
+        "test.supabase.co": _SUPABASE_WHY,
+        "www.bnr.ro": "GET /api/fx-rates: the central bank's daily reference rates (public, no key)",
+    },
+    "open": {
+        "test.supabase.co": _SUPABASE_WHY,
+        "www.bnr.ro": "GET /api/fx-rates: the central bank's daily reference rates (public, no key)",
+        "query1.finance.yahoo.com": "the public markets surface: quotes (no key), behind the egress guard",
+        "www.sec.gov": "the public markets surface: EDGAR filing index and documents (no key)",
+        "data.sec.gov": "the public markets surface: EDGAR company facts and submissions (no key)",
+    },
+}  # type: Dict[str, Dict[str, str]]
 
 #: Routes the sweep cannot ENTER and that are refused by neither a wall nor
 #: an auth dependency, each with why that is still evidence. Empty on
@@ -588,15 +666,93 @@ def _install_recorders(mp, ledger):  # type: (Any, Ledger) -> None
     mp.setattr(threading.Thread, "start", _start)
 
 
-def _instrument(app, ledger):  # type: (Any, Ledger) -> None
-    """Record every endpoint the sweep ENTERS. ``run_endpoint_function``
-    calls ``dependant.call`` at request time; whether it awaits it was decided
-    when the route was built, so the wrapper keeps the endpoint's kind."""
+#: The framework's own four routes (FastAPI.setup): the schema and its two
+#: viewers. Recognised by path AND by where the endpoint was defined.
+FRAMEWORK_PATHS = ("/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc")
 
-    def _wrap(route):  # type: (APIRoute) -> None
+#: Every method a route that lists none answers.
+ALL_METHODS = ("DELETE", "GET", "PATCH", "POST", "PUT")
+
+#: Routes that are NOT FastAPI ``APIRoute``s — a plain Starlette route
+#: (``app.add_route``), a websocket route, a mounted application the sweep
+#: cannot enumerate — by path template, each with why it may exist. EMPTY on
+#: purpose: on such a route the framework validates nothing, no dependency
+#: runs before the handler and the schema does not list it, so it is swept
+#: (when it can be) AND reds by name until someone argues for it here.
+NOT_API_ROUTES_DECLARED = {}  # type: Dict[str, str]
+
+
+class Entry(object):
+    """One route of the TREE a request can reach: the app's own, or one
+    inside a mounted sub-application (``app.mount``), at any depth."""
+
+    __slots__ = ("kind", "route", "template", "owner")
+
+    def __init__(self, kind, route, template, owner):  # type: (str, Any, str, Any) -> None
+        self.kind = kind            # api | plain | framework | mount | opaque
+        self.route = route
+        self.template = template    # the full path template, mount prefixes included
+        self.owner = owner          # the application whose router holds the route
+
+
+def _is_framework_route(route, owner):  # type: (Any, Any) -> bool
+    urls = [getattr(owner, attr, None) for attr in (
+        "openapi_url", "docs_url", "swagger_ui_oauth2_redirect_url", "redoc_url")]
+    return (getattr(route, "path", None) in [u for u in urls if u]
+            and getattr(getattr(route, "endpoint", None), "__module__", "") == "fastapi.applications")
+
+
+def _route_tree(app):  # type: (Any) -> List[Entry]
+    """Every route a request to ``app`` can reach, depth first. A ``Mount``
+    is walked into with its prefix (a sub-application's routes are as public
+    as the app's own — the sweep used to send one bare GET to the mount and
+    never look inside); a mount with no route list to read is ``opaque``."""
+    out = []  # type: List[Entry]
+
+    def _walk(routes, owner, prefix, depth):  # type: (Any, Any, str, int) -> None
+        for route in routes:
+            template = prefix + (getattr(route, "path", None) or "")
+            if isinstance(route, APIRoute):
+                out.append(Entry("api", route, template, owner))
+            elif isinstance(route, Mount):
+                inner = getattr(route, "_base_app", None) or getattr(route, "app", None)
+                sub = list(getattr(route, "routes", None) or [])
+                if sub and depth < 8:
+                    out.append(Entry("mount", route, template, owner))
+                    _walk(sub, inner, template, depth + 1)
+                else:
+                    out.append(Entry("opaque", route, template, owner))
+            elif isinstance(route, Route) and _is_framework_route(route, owner):
+                out.append(Entry("framework", route, template, owner))
+            elif isinstance(route, Route):
+                out.append(Entry("plain", route, template, owner))
+            else:
+                out.append(Entry("opaque", route, template, owner))
+
+    _walk(app.routes, app, "", 0)
+    return out
+
+
+def _instrument(app, ledger):  # type: (Any, Ledger) -> None
+    """Record every endpoint the sweep ENTERS, across the whole route tree.
+    ``run_endpoint_function`` calls ``dependant.call`` at request time;
+    whether it awaits it was decided when the route was built, so the wrapper
+    keeps the endpoint's kind. A plain Starlette route has no dependant: its
+    ASGI app is wrapped instead."""
+
+    def _wrap_plain(route, path):  # type: (Any, str) -> None
+        inner = route.app
+
+        async def _entered_plain(scope, receive, send):  # type: (Any, Any, Any) -> None
+            cur = ledger.current
+            ledger.enter(cur["method"] if cur else "?", path)
+            await inner(scope, receive, send)
+
+        route.app = _entered_plain
+
+    def _wrap(route, path):  # type: (APIRoute, str) -> None
         dependant = route.dependant
         call = dependant.call
-        path = route.path
         if dependant.is_coroutine_callable:
             async def _entered(*a, **kw):  # type: (*Any, **Any) -> Any
                 cur = ledger.current
@@ -612,9 +768,11 @@ def _instrument(app, ledger):  # type: (Any, Ledger) -> None
         except Exception:  # noqa: BLE001 — a frozen dataclass
             object.__setattr__(dependant, "call", _entered)
 
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            _wrap(route)
+    for entry in _route_tree(app):
+        if entry.kind == "api":
+            _wrap(entry.route, entry.template)
+        elif entry.kind == "plain":
+            _wrap_plain(entry.route, entry.template)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -805,7 +963,10 @@ def _annotation_value(field, name):  # type: (Any, str) -> str
     return UUID
 
 
-def _concrete_path(route):  # type: (Any) -> str
+def _concrete_path(route, template=None):  # type: (Any, Optional[str]) -> str
+    """The route's path with its parameters filled. ``template`` is the full
+    template when the route sits under a mount (the prefix may carry
+    parameters of its own)."""
     fields = dict((getattr(f, "alias", None) or f.name, f)
                   for f in getattr(getattr(route, "dependant", None), "path_params", []) or [])
 
@@ -815,7 +976,7 @@ def _concrete_path(route):  # type: (Any) -> str
             return _annotation_value(fields[name], name)
         return PATH_VALUES.get(name, UUID)
 
-    return re.sub(r"\{([^}]+)\}", _fill, route.path)
+    return re.sub(r"\{([^}]+)\}", _fill, template if template is not None else route.path)
 
 
 def _is_required(field):  # type: (Any) -> bool
@@ -834,6 +995,100 @@ def _required_query(route):  # type: (Any) -> Dict[str, str]
             out[name] = QUERY_EXTRAS.get(name) or _annotation_value(field, name)
     return out
 
+
+#: Headers that carry — or would carry — who the caller is. The sweep's three
+#: identities own them; a declared-parameter variant never fills them. The
+#: second set is what every request already sends (``SPOOF_HEADERS``).
+_IDENTITY_HEADERS = frozenset({"authorization", "apikey", "cookie", "proxy-authorization"})
+
+#: The words an opt-in switch is usually compared with.
+SWITCH_WORDS = ("1", "true")
+
+
+def _flat_dependant(route):  # type: (Any) -> Any
+    """The route's parameters WITH those of every dependency under it."""
+    dependant = getattr(route, "dependant", None)
+    if dependant is None:
+        return None
+    from fastapi.dependencies.utils import get_flat_dependant
+
+    return get_flat_dependant(dependant, skip_repeats=True)
+
+
+def _param_value(field, name, schema, components, word):
+    # type: (Any, str, Optional[Dict[str, Any]], Dict[str, Any], Optional[str]) -> str
+    if schema:
+        flat = _top_schema(schema, components)
+        for key in ("anyOf", "oneOf"):
+            if key in flat:
+                options = [o for o in flat[key] if o.get("type") != "null"] or flat[key]
+                flat = _top_schema(options[0], components)
+        kind = flat.get("type")
+        free = kind == "string" and not (
+            flat.get("enum") or flat.get("pattern") or flat.get("format") or "const" in flat)
+        if word is not None and (kind == "boolean" or free):
+            return word
+        if word is None and free and name in QUERY_EXTRAS:
+            return QUERY_EXTRAS[name]
+        value = _synth(flat, components, name)
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, list):
+            value = value[0] if value else ""
+        return value if isinstance(value, str) else json.dumps(value)
+    # A route the schema does not list (include_in_schema=False): by annotation.
+    annotation = str(getattr(getattr(field, "field_info", None), "annotation", ""))
+    if word is not None and ("bool" in annotation or "str" in annotation):
+        return word
+    return QUERY_EXTRAS.get(name) or _annotation_value(field, name)
+
+
+def _declared(route, operation, components, word=None):
+    # type: (Any, Dict[str, Any], Dict[str, Any], Optional[str]) -> Tuple[Dict[str, str], Dict[str, str]]
+    """(query, headers) filling EVERY query, header and cookie parameter the
+    route — or a dependency of it — DECLARES, required or not, so a switch a
+    handler reads from an OPTIONAL parameter (``?ai=true``, ``X-Use-Ai: 1``)
+    is on. ``word`` None: each by its own schema / type and name. A ``word``
+    ("1", "true"): written into every boolean and every unconstrained
+    string, the rest by schema. Identity headers are never filled."""
+    schemas = {}  # type: Dict[Tuple[str, str], Dict[str, Any]]
+    for param in operation.get("parameters") or []:
+        schemas[(str(param.get("in")), str(param.get("name")).lower())] = param.get("schema") or {}
+    query, headers, cookies = {}, {}, []  # type: Dict[str, str], Dict[str, str], List[str]
+    flat = _flat_dependant(route)
+    if flat is None:
+        return query, headers
+    spoofed = set(k.lower() for k in SPOOF_HEADERS)
+    for where, fields in (("query", flat.query_params), ("header", flat.header_params),
+                          ("cookie", flat.cookie_params)):
+        for field in fields or []:
+            name = getattr(field, "alias", None) or field.name
+            if where == "header" and (name.lower() in _IDENTITY_HEADERS or name.lower() in spoofed):
+                continue
+            value = _param_value(field, name, schemas.get((where, name.lower())), components, word)
+            if where == "query":
+                query[name] = value
+            elif where == "header":
+                headers[name] = value
+            else:
+                cookies.append("%s=%s" % (name, value))
+    if cookies:
+        headers["Cookie"] = "; ".join(cookies)
+    return query, headers
+
+
+#: The least each added variant must have been sent, per state (measured
+#: 2026-10-04 — see the GATE-WORK ``variants`` line).
+VARIANT_FLOORS = {
+    # measured: raw 207 each, declared 204 / 75 / 66
+    "closed": {"raw-pdf": 180, "raw-octet-stream": 180, "declared": 180, "declared-1": 60, "declared-true": 50},
+    # measured: raw 288 each, declared 303 / 123 / 114
+    "open": {"raw-pdf": 250, "raw-octet-stream": 250, "declared": 270, "declared-1": 100, "declared-true": 90},
+}  # type: Dict[str, Dict[str, int]]
+
+#: The raw request bodies sent to every body-carrying method: PDF bytes
+#: under the two media types an upload door reads them as.
+RAW_BODIES = (("raw-pdf", "application/pdf"), ("raw-octet-stream", "application/octet-stream"))
 
 IDENTITIES = ("anonymous", "forged", "anon-key")
 
@@ -857,9 +1112,19 @@ def _variants(route, method, openapi):  # type: (Any, str, Dict[str, Any]) -> It
     required = _required_query(route)
     query = dict(QUERY_EXTRAS)
     query.update(required)
+    # Every parameter the route DECLARES, three ways: by its own schema, and
+    # with each switch word in every boolean / free string.
+    declared = []  # type: List[Tuple[str, Dict[str, str], Dict[str, str]]]
+    for label, word in (("declared", None),) + tuple(("declared-%s" % w, w) for w in SWITCH_WORDS):
+        declared_query, declared_headers = _declared(route, operation, components, word)
+        params = dict(query)
+        params.update(declared_query)
+        declared.append((label, params, declared_headers))
     if method in ("GET", "HEAD", "OPTIONS", "DELETE"):
         yield "query", {"params": query}
         yield "bare", {"params": required}
+        for label, params, headers in declared:
+            yield label, {"params": params, "headers": headers}
         if method == "DELETE":
             yield "json-rich", {"params": required, "json": RICH_BODY}
         return
@@ -867,10 +1132,21 @@ def _variants(route, method, openapi):  # type: (Any, str, Dict[str, Any]) -> It
     yield "json-rich", {"params": query, "json": RICH_BODY}
     yield "json-urls", {"params": required, "json": URL_BODY_JSON}
     yield "json-own-storage", {"params": required, "json": OWN_STORAGE_BODY}
-    for i, body in enumerate(_schema_bodies(operation, components)):
+    schema_bodies = _schema_bodies(operation, components)
+    for i, body in enumerate(schema_bodies):
         yield "schema-%d" % i, {"params": required, "json": body}
     files, data = _multipart(operation, components)
     yield "multipart", {"params": required, "files": files, "data": data}
+    # … beside the fullest body the route's own schema accepts.
+    fullest = schema_bodies[0] if schema_bodies else RICH_BODY
+    for label, params, headers in declared:
+        yield label, {"params": params, "headers": headers, "json": fullest}
+    # A RAW document as the request body — what a handler that reads
+    # ``await request.body()`` receives; no JSON, no multipart envelope.
+    for label, media in RAW_BODIES:
+        headers = dict(declared[0][2])
+        headers["Content-Type"] = media
+        yield label, {"params": declared[0][1], "headers": headers, "content": TINY_PDF}
 
 
 def _cold():  # type: () -> None
@@ -890,8 +1166,12 @@ class Sweep(object):
     def __init__(self, state):  # type: (str) -> None
         self.state = state
         self.ledger = Ledger()
-        self.routes = []  # type: List[Tuple[str, str]]
-        self.other_routes = []  # type: List[str]
+        self.routes = []  # type: List[Tuple[str, str]]          # APIRoutes, mounts walked into
+        self.other_routes = []  # type: List[str]               # the framework's own
+        self.plain_routes = []  # type: List[Tuple[str, str]]    # swept, but not APIRoutes
+        self.opaque = []  # type: List[str]                     # could not be enumerated / swept
+        self.mounts = []  # type: List[str]
+        self.handlers = {}  # type: Dict[Tuple[str, str], Any]   # key -> the route's endpoint
         self.requests = 0
         self.answers = {}  # type: Dict[Tuple[str, str], List[Tuple[str, str, int, str]]]
         self.seconds = 0.0
@@ -989,27 +1269,56 @@ def run_sweep(state, tmp):  # type: (str, Path) -> Sweep
         app = _build(mp, state, tmp, sweep.ledger)
         openapi = app.openapi()
         client = TestClient(app, raise_server_exceptions=False, follow_redirects=False)
-        for route in app.routes:
-            methods = sorted(getattr(route, "methods", None) or [])
-            if not isinstance(route, APIRoute):
-                # The framework's own routes (/openapi.json, /docs, /redoc):
-                # swept, with no endpoint of ours to enter.
-                path = getattr(route, "path", None)
-                if path:
-                    sweep.other_routes.append(path)
-                    _send(client, sweep, None, "GET %s" % path, "GET", path, {})
+        schemas = {id(app): openapi}  # type: Dict[int, Dict[str, Any]]
+
+        def _schema_of(owner):  # type: (Any) -> Dict[str, Any]
+            if id(owner) not in schemas:
+                maker = getattr(owner, "openapi", None)
+                try:
+                    schemas[id(owner)] = maker() if callable(maker) else {}
+                except Exception:  # noqa: BLE001 — a mounted app with no readable schema
+                    schemas[id(owner)] = {}
+            return schemas[id(owner)]
+
+        for entry in _route_tree(app):
+            route, template = entry.route, entry.template
+            if entry.kind == "mount":
+                sweep.mounts.append(template)
                 continue
-            url = _concrete_path(route)
-            for method in methods:
-                key = (method, route.path)
-                sweep.routes.append(key)
+            if entry.kind == "framework":
+                # /openapi.json, /docs, /docs/oauth2-redirect, /redoc: swept,
+                # with no endpoint of ours to enter.
+                sweep.other_routes.append(template)
+                _send(client, sweep, None, "GET %s" % template, "GET", template, {})
+                continue
+            if entry.kind == "opaque":
+                # A websocket route, a host route, a mounted application with
+                # no route list: nothing the sweep can send proves anything.
+                sweep.opaque.append("%s %s" % (type(route).__name__, template or "/"))
+                continue
+            listed = sweep.routes if entry.kind == "api" else sweep.plain_routes
+            schema = _schema_of(entry.owner) if entry.kind == "api" else {}
+            url = _concrete_path(route, template)
+            for method in sorted(getattr(route, "methods", None) or ALL_METHODS):
+                key = (method, template)
+                listed.append(key)
+                sweep.handlers[key] = getattr(route, "endpoint", None)
+                sent = set()  # type: Set[str]
                 for identity in IDENTITIES:
-                    headers = _identity_headers(identity)
-                    for variant, kwargs in _variants(route, method, openapi):
+                    for variant, kwargs in _variants(route, method, schema):
+                        # Two variants that came out the same request are sent once.
+                        shape = identity + json.dumps(
+                            dict((k, v) for k, v in kwargs.items() if v or k != "headers"),
+                            sort_keys=True, default=repr)
+                        if shape in sent:
+                            continue
+                        sent.add(shape)
                         _cold()
                         kw = dict(kwargs)
+                        headers = _identity_headers(identity)
+                        headers.update(kw.get("headers") or {})
                         kw["headers"] = headers
-                        label = "%s %s [%s, %s]" % (method, route.path, identity, variant)
+                        label = "%s %s [%s, %s]" % (method, template, identity, variant)
                         _send(client, sweep, key, label, method, url, kw)
         # Threads a request started: give them a bounded time to finish, so
         # what they do is in the ledger before anyone reads it.
@@ -1099,6 +1408,66 @@ def test_no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named(sw
 
 
 @pytest.mark.parametrize("state", sorted(STATES))
+def test_the_backend_contacts_only_declared_hosts_for_an_anonymous_caller(sweeps, state):
+    """A MODEL IS A MODEL AT ANY HOST. The SDK recorders and the two model
+    API hosts are how this tree reaches one today; a completion bought over
+    plain HTTP at another address would be neither. So every host the backend
+    contacts while serving the sweep — over httpx, urllib, requests or a bare
+    socket — is in ``OUTBOUND_HOSTS`` for the state, or the law is red."""
+    sweep = sweeps[state]
+    declared = OUTBOUND_HOSTS[state]
+    assert SUPABASE_HOST in declared and not (set(declared) & MODEL_API_HOSTS), sorted(declared)
+    contacted = {}  # type: Dict[str, List[Dict[str, Any]]]
+    for event in sweep.ledger.outbound:
+        if not event["caller_named"]:               # those are the law above
+            contacted.setdefault(event["host"], []).append(event)
+    undeclared = dict((h, v) for h, v in contacted.items() if h not in declared)
+    assert not undeclared, (
+        "NO-ANONYMOUS-MODEL-CALL VIOLATED [%s] — for a caller with NO verified identity the "
+        "backend contacted %d host(s) that are not in OUTBOUND_HOSTS (a model provider reached "
+        "over plain HTTP looks exactly like this — declare the host with what is asked of it, "
+        "or remove the call):\n  %s"
+        % (state, len(undeclared), "\n  ".join(
+            "%s:\n    %s" % (h, _describe(v, 6)) for h, v in sorted(undeclared.items()))))
+    # Not vacuous: the recorders saw the hosts the sweep is known to reach.
+    assert SUPABASE_HOST in contacted, (
+        "the sweep reached the project's own Supabase host zero times [%s] — the outbound "
+        "recorder is not recording" % state)
+    if state == "open":
+        assert "www.sec.gov" in contacted and "data.sec.gov" in contacted, sorted(contacted)
+    print("GATE-WORK %s state=%s outbound_hosts=%d declared_hosts=%d (%s)"
+          % (GATE, state, len(contacted), len(declared), ", ".join(sorted(contacted))))
+
+
+@pytest.mark.parametrize("state", sorted(STATES))
+def test_every_route_a_request_can_reach_is_an_api_route_the_sweep_swept(sweeps, state):
+    """THE TREE, not the top level. A sub-application mounted with
+    ``app.mount`` is walked into and its routes swept under their prefix; a
+    route that is not a FastAPI ``APIRoute`` (``app.add_route``, a websocket
+    route) or a mount with no route list reds by name — the framework
+    validated nothing there and no dependency ran before the handler."""
+    sweep = sweeps[state]
+    plain = sorted(set("%s %s" % k for k in sweep.plain_routes if k[1] not in NOT_API_ROUTES_DECLARED))
+    assert not plain, (
+        "NO-ANONYMOUS-MODEL-CALL UNPROVEN [%s] — %d route(s) are not FastAPI APIRoutes "
+        "(app.add_route / a plain Starlette route): no schema, no dependency, no validation "
+        "before the handler. Register them as APIRoutes, or declare each in "
+        "NOT_API_ROUTES_DECLARED with why it may exist:\n  %s" % (state, len(plain), "\n  ".join(plain)))
+    opaque = sorted(o for o in sweep.opaque if o.split(" ", 1)[-1] not in NOT_API_ROUTES_DECLARED)
+    assert not opaque, (
+        "NO-ANONYMOUS-MODEL-CALL UNPROVEN [%s] — %d route(s) the sweep cannot enumerate or "
+        "send to (a websocket route, a host route, a mounted application with no route "
+        "list). A green says nothing about them:\n  %s" % (state, len(opaque), "\n  ".join(opaque)))
+    # The framework's own: the root's four exactly, and four more per mounted
+    # FastAPI application — nothing else is waved through as "the framework's".
+    roots = sorted(p for p in sweep.other_routes if p in FRAMEWORK_PATHS)
+    assert roots == sorted(FRAMEWORK_PATHS), (
+        "the app's own framework routes are not the four expected: %s" % sweep.other_routes)
+    assert all(p.endswith(FRAMEWORK_PATHS) for p in sweep.other_routes), sweep.other_routes
+    assert len(sweep.other_routes) <= 4 * (1 + len(sweep.mounts)), (sweep.other_routes, sweep.mounts)
+
+
+@pytest.mark.parametrize("state", sorted(STATES))
 def test_the_sweep_enters_every_handler_or_meets_a_wall(sweeps, state):
     """A 404 or a 422 answered before the handler ran is not evidence. Every
     route's endpoint is ENTERED by at least one request, or every answer was
@@ -1121,9 +1490,11 @@ def test_the_sweep_covered_the_whole_route_table_in_both_states(sweeps):
     closed, opened = sweeps["closed"], sweeps["open"]
     for sweep in (closed, opened):
         entered = len(sweep.ledger.reached & set(sweep.routes))
-        print("GATE-WORK %s state=%s routes=%d framework_routes=%d requests=%d entered=%d "
-              "walled=%d auth_refused=%d outbound=%d model_events=%d seconds=%.1f"
-              % (GATE, sweep.state, len(sweep.routes), len(sweep.other_routes), sweep.requests,
+        print("GATE-WORK %s state=%s routes=%d framework_routes=%d mounts=%d not_api_routes=%d "
+              "requests=%d entered=%d walled=%d auth_refused=%d outbound=%d model_events=%d "
+              "seconds=%.1f"
+              % (GATE, sweep.state, len(sweep.routes), len(sweep.other_routes), len(sweep.mounts),
+                 len(sweep.plain_routes) + len(sweep.opaque), sweep.requests,
                  entered, len(sweep.walled()),
                  len(sweep.routes) - entered - len(sweep.walled()) - len(sweep.unproven()),
                  len(sweep.ledger.outbound), len(sweep.ledger.model), sweep.seconds))
@@ -1133,9 +1504,25 @@ def test_the_sweep_covered_the_whole_route_table_in_both_states(sweeps):
     assert len(opened.routes) > len(closed.routes), (
         "the open state mounts no more routes than the closed one (%d vs %d): the flags did "
         "not take" % (len(opened.routes), len(closed.routes)))
-    # Measured 2026-10-04: closed 159 routes / 1,915 requests / 155 entered;
-    # open 229 routes / 2,704 requests / 225 entered. Collapse detectors.
-    assert closed.requests >= 1800 and opened.requests >= 2500, (closed.requests, opened.requests)
+    # Measured 2026-10-04: closed 159 routes / 2,611 requests / 155 entered;
+    # open 229 routes / 3,745 requests / 225 entered. Collapse detectors.
+    assert closed.requests >= 2400 and opened.requests >= 3400, (closed.requests, opened.requests)
+    # The variants the review of 2026-10-04 asked for were SENT, not merely
+    # written: a raw PDF body to every body-carrying route under both media
+    # types, and the declared parameters filled each way wherever a route
+    # declares one the plain variants do not already send.
+    for sweep, floors in ((closed, VARIANT_FLOORS["closed"]), (opened, VARIANT_FLOORS["open"])):
+        sent = {}  # type: Dict[str, int]
+        for answers in sweep.answers.values():
+            for label, _method, _status, _kind in answers:
+                variant = label.rsplit(", ", 1)[-1].rstrip("]")
+                sent[variant] = sent.get(variant, 0) + 1
+        print("GATE-WORK %s state=%s variants %s" % (GATE, sweep.state, " ".join(
+            "%s=%d" % (k, v) for k, v in sorted(sent.items()) if not k.startswith("schema-"))))
+        for variant, floor in sorted(floors.items()):
+            assert sent.get(variant, 0) >= floor, (
+                "VACUOUS — only %d %r request(s) were sent in the %s state (floor %d): %s"
+                % (sent.get(variant, 0), variant, sweep.state, floor, sent))
     for sweep, floor in ((closed, 145), (opened, 210)):
         entered = len(sweep.ledger.reached & set(sweep.routes))
         assert entered >= floor, "VACUOUS — the sweep entered only %d handlers (%s)" % (entered, sweep.state)
@@ -1247,38 +1634,395 @@ def test_the_legacy_sku_routes_reach_a_model_the_moment_their_wall_is_lifted(tmp
 # ══════════════════════════════════════════════════════════════════════
 
 
+#: The module that IS the PDF model lane, and the only module that may refer
+#: to it — with the names it may take from it. Exact: a second importer reds,
+#: and so does this entry going stale.
+PDF_LANE = "financial_statements"
+PDF_LANE_FILE = "src/engine/api/financial_statements.py"
+PDF_LANE_IMPORTERS = {
+    "src/engine/api/pipeline.py": (
+        frozenset({"ParseRequest", "build_router", "parse_document", "ParseResponse"}),
+        "stage_extract builds the router object, finds the route named parse_document and "
+        "calls its handler IN-PROCESS with a URL the engine signed itself"),
+}  # type: Dict[str, Tuple[Any, str]]
+
+#: How a router, an app or a handler becomes reachable over HTTP.
+_MOUNT_VERBS = frozenset({"include_router", "mount", "add_api_route", "add_route",
+                          "add_websocket_route", "add_api_websocket_route", "host"})
+_ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete", "options", "head", "trace",
+                               "api_route", "route", "websocket", "websocket_route"})
+_DYNAMIC_IMPORTS = frozenset({"import_module", "__import__"})
+
+
+def _unparse(node):  # type: (Any) -> str
+    return ast.unparse(node) if hasattr(ast, "unparse") else ast.dump(node)
+
+
+def _is_module_path(value, component):  # type: (Any, str) -> bool
+    """A string that NAMES a module (``"engine.api.financial_statements"``) —
+    what a dynamic import, or a list of routers to mount, would hold. Prose
+    that merely mentions the word is not one."""
+    return (isinstance(value, str) and re.match(r"^[A-Za-z_][\w.]*$", value) is not None
+            and component in value.split("."))
+
+
+def _pdf_lane_references(tree):  # type: (Any) -> Tuple[List[str], Set[str], Set[str], List[Any]]
+    """(how the module is referred to, the names bound from it, the names
+    taken from it, the scopes the references were made in) — every way a
+    module can get hold of the PDF lane: an import in any spelling, a dynamic
+    import, the module's dotted path as a string (a list of routers to
+    mount), or a bare attribute reach. A scope is the function the reference
+    stands in, or the whole module for one made at module level."""
+    how, bound, taken = [], set(), set()  # type: List[str], Set[str], Set[str]
+    parents = {}  # type: Dict[Any, Any]
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parents[child] = node
+    scopes = []  # type: List[Any]
+
+    def _scope_of(node):  # type: (Any) -> None
+        cursor = node
+        while cursor in parents:
+            cursor = parents[cursor]
+            if isinstance(cursor, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                break
+        if cursor not in scopes:
+            scopes.append(cursor)
+
+    for node in ast.walk(tree):
+        before = (len(how), len(bound))
+        if isinstance(node, ast.ImportFrom):
+            if (node.module or "").split(".")[-1] == PDF_LANE:
+                how.append("line %d: from %s%s import …" % (node.lineno, "." * node.level, node.module))
+                for alias in node.names:
+                    bound.add(alias.asname or alias.name)
+                    taken.add(alias.name)
+            for alias in node.names:
+                if alias.name == PDF_LANE:
+                    how.append("line %d: from %s%s import %s" % (
+                        node.lineno, "." * node.level, node.module or "", PDF_LANE))
+                    bound.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if PDF_LANE in alias.name.split("."):
+                    how.append("line %d: import %s" % (node.lineno, alias.name))
+                    bound.add(alias.asname or alias.name.split(".")[0])
+        elif isinstance(node, ast.Constant) and _is_module_path(node.value, PDF_LANE):
+            how.append("line %d: the module path %r as a string" % (node.lineno, node.value))
+        elif isinstance(node, ast.Attribute) and node.attr == PDF_LANE:
+            how.append("line %d: %s" % (node.lineno, _unparse(node)))
+            bound.add(_unparse(node))
+        elif isinstance(node, ast.Name) and node.id == PDF_LANE:
+            bound.add(PDF_LANE)
+        if (len(how), len(bound)) != before:
+            _scope_of(node)
+    return how, bound, taken, scopes
+
+
+def _tainted_names(tree, bound):  # type: (Any, Set[str]) -> Set[str]
+    """``bound`` plus every name assigned, looped or bound from an expression
+    that mentions one — to a fixpoint (``fs_router = _build()``; ``for route
+    in fs_router.routes``; ``handler = route.endpoint``)."""
+    tainted = set(bound)
+
+    def _mentions(expr):  # type: (Any) -> bool
+        if expr is None:
+            return False
+        text = _unparse(expr)
+        return any(re.search(r"(?<![\w.])%s(?![\w])" % re.escape(name), text) for name in tainted)
+
+    def _names(target):  # type: (Any) -> List[str]
+        return [n.id for n in ast.walk(target) if isinstance(n, ast.Name)]
+
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            pairs = []  # type: List[Tuple[Any, Any]]
+            if isinstance(node, ast.Assign):
+                pairs = [(t, node.value) for t in node.targets]
+            elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+                pairs = [(node.target, node.value)]
+            elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+                pairs = [(node.target, node.iter)]
+            elif isinstance(node, (ast.With, ast.AsyncWith)):
+                pairs = [(item.optional_vars, item.context_expr) for item in node.items if item.optional_vars]
+            elif hasattr(ast, "NamedExpr") and isinstance(node, ast.NamedExpr):
+                pairs = [(node.target, node.value)]
+            for target, value in pairs:
+                if _mentions(value):
+                    for name in _names(target):
+                        if name not in tainted:
+                            tainted.add(name)
+                            changed = True
+    return tainted
+
+
+def _mounts_of(tree, tainted):  # type: (Any, Set[str]) -> List[str]
+    """Every call that would put something tainted on the wire: a mount verb
+    taking it, or a route decorator applied to it."""
+
+    def _mentions(expr):  # type: (Any) -> bool
+        text = _unparse(expr)
+        return any(re.search(r"(?<![\w.])%s(?![\w])" % re.escape(name), text) for name in tainted)
+
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        handed = list(node.args) + [kw.value for kw in node.keywords]
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr in _MOUNT_VERBS and any(_mentions(a) for a in handed):
+            out.append("line %d: %s" % (node.lineno, _unparse(node)[:120]))
+        elif (isinstance(func, ast.Call) and isinstance(func.func, ast.Attribute)
+              and func.func.attr in _ROUTE_DECORATORS and any(_mentions(a) for a in handed)):
+            out.append("line %d: %s" % (node.lineno, _unparse(node)[:120]))
+    return out
+
+
+def _source_modules():  # type: () -> List[Tuple[str, str]]
+    return [(str(path.relative_to(REPO)), path.read_text(encoding="utf-8"))
+            for path in sorted(SRC.rglob("*.py"))]
+
+
 def test_the_pdf_model_lane_is_mounted_on_no_app(sweeps):
+    """THE ROUTE TREE, both swept states, mounts walked into: no path carries
+    the lane's name, and no route's endpoint IS the lane's handler at any
+    path. (The first version of this law read the top-level route table and
+    followed one import spelling: it was green with the lane mounted through
+    a sub-application. What the two states cannot show — a mount behind a
+    flag neither sets — is the source law below.)"""
+    from engine.api import financial_statements as lane
+
     for state, sweep in sorted(sweeps.items()):
-        mounted = [k for k in sweep.routes if "financial-statements" in k[1]]
+        mounted = sorted(set("%s %s" % k for k in sweep.routes + sweep.plain_routes
+                             if "financial-statements" in k[1]))
         assert not mounted, (
             "NO-ANONYMOUS-MODEL-CALL VIOLATED [%s] — the PDF model lane is a route again: %s. "
             "It takes no bearer, no meter and no limiter; the pipeline calls it in-process."
             % (state, mounted))
-    # No app factory mounts the module's router: nothing under src/ may pass
-    # it to include_router.
-    offenders = []
-    scanned = 0
-    for path in sorted((SRC / "engine").rglob("*.py")):
-        text = path.read_text(encoding="utf-8")
-        if "financial_statements" not in text:
-            continue
+        served = sorted(set("%s %s" % k for k, endpoint in sweep.handlers.items()
+                            if endpoint is lane.parse_document))
+        assert not served, (
+            "NO-ANONYMOUS-MODEL-CALL VIOLATED [%s] — the PDF model lane's handler is served "
+            "over HTTP under another path: %s" % (state, served))
+        assert len(sweep.handlers) >= len(sweep.routes) >= 150, (len(sweep.handlers), len(sweep.routes))
+
+
+def test_nothing_but_the_pipeline_refers_to_the_pdf_model_lane():
+    """THE SOURCE — what holds in EVERY flag state, the ones this gate never
+    sets included. No module under src/ refers to the lane's module AT ALL —
+    an import in any spelling, a dynamic import, its dotted path as a string
+    (a list of routers to mount), a bare attribute reach — except the
+    pipeline, which may take only the names its in-process call needs; and
+    there, nothing taken from the lane (nor anything assigned from it) is
+    handed to a mount verb or a route decorator. A mount behind any flag
+    starts with a reference: with the lane mounted on the main app under
+    ``if os.environ.get("PDF_LANE_HTTP") == "1"`` the first version of this
+    gate was 56 passed."""
+    scanned, importers, offenders = 0, {}, []
+    for rel, text in _source_modules():
         scanned += 1
+        if rel == PDF_LANE_FILE or PDF_LANE not in text:
+            continue
         tree = ast.parse(text)
-        aliases = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("financial_statements"):
-                for alias in node.names:
-                    if alias.name == "build_router":
-                        aliases.add(alias.asname or alias.name)
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "include_router" and node.args):
-                arg = ast.unparse(node.args[0]) if hasattr(ast, "unparse") else ast.dump(node.args[0])
-                if "financial_statements" in arg or any(
-                        re.search(r"\b%s\b" % re.escape(a), arg) for a in aliases):
-                    offenders.append("%s:%d include_router(%s)" % (path.relative_to(REPO), node.lineno, arg))
-    assert scanned >= 2, "scanned only %d modules that name financial_statements" % scanned
-    assert not offenders, "the PDF model lane's router is mounted: %s" % offenders
+        how, bound, taken, scopes = _pdf_lane_references(tree)
+        if not how and not bound:
+            continue                                  # a comment or a docstring
+        importers[rel] = how or sorted(bound)
+        allowed = PDF_LANE_IMPORTERS.get(rel)
+        if allowed is None:
+            offenders.append("%s refers to the PDF lane's module (%s)" % (rel, "; ".join(how or sorted(bound))))
+            continue
+        extra = sorted(taken - allowed[0])
+        if extra:
+            offenders.append("%s takes %s from the PDF lane (allowed: %s)" % (rel, extra, sorted(allowed[0])))
+        # Followed inside the function that made the reference (the whole
+        # module for a module-level one): what it bound, and what is assigned
+        # or looped from that.
+        for scope in scopes:
+            for call in _mounts_of(scope, _tainted_names(scope, bound)):
+                offenders.append("%s puts the PDF lane on the wire — %s" % (rel, call))
+    assert scanned >= 200, "VACUOUS — only %d modules under src/ were read" % scanned
+    assert (REPO / PDF_LANE_FILE).is_file(), "the PDF lane's module moved: %s" % PDF_LANE_FILE
+    assert not offenders, (
+        "NO-ANONYMOUS-MODEL-CALL VIOLATED — the PDF model lane is reachable from an app "
+        "factory. Nothing but the pipeline's in-process call may refer to it (a mount behind "
+        "a flag this gate never sets starts with a reference):\n  %s" % "\n  ".join(offenders))
+    stale = sorted(k for k in PDF_LANE_IMPORTERS if k not in importers)
+    assert not stale, (
+        "PDF_LANE_IMPORTERS names modules that no longer refer to the lane: %s (found: %s)"
+        % (stale, sorted(importers)))
+    print("GATE-WORK %s pdf_lane modules_read=%d importers=%d" % (GATE, scanned, len(importers)))
+
+
+#: The flags a route's EXISTENCE may depend on: the predicate as it is written
+#: in an ``if``, the variable it reads, and what it mounts. Each is ON in the
+#: ``open`` state and OFF in ``closed`` (asserted), so both sides of every
+#: one are swept. A route registered under any other condition is one neither
+#: state can see — it reds until its flag is declared here AND set in
+#: ``STATES["open"]``.
+ROUTE_FLAGS = {
+    "_public_markets_enabled()": ("PUBLIC_MARKETS_ENABLED", "the public markets surface and its intelligence layer"),
+    "_anomaly_radar_enabled()": ("ANOMALY_RADAR_ENABLED", "the anomaly radar"),
+    "_firm_cockpit_enabled()": ("FIRM_COCKPIT_ENABLED", "the firm cockpit"),
+}  # type: Dict[str, Tuple[str, str]]
+
+#: An early exit that stands before a route registration and is NOT a flag:
+#: (file, the ``if`` test) -> why.
+EARLY_EXITS_DECLARED = {
+    ("src/engine/public_market/router.py", "factory is None"):
+        "a sibling lane's module that carries no router factory is skipped — the module "
+        "list is a constant, no setting is read",
+}  # type: Dict[Tuple[str, str], str]
+
+_REGISTRATION_VERBS = frozenset({"include_router", "add_api_route", "add_route",
+                                 "add_websocket_route", "add_api_websocket_route"})
+_CONDITIONS = (ast.If, ast.IfExp, ast.BoolOp, ast.While) + ((ast.Match,) if hasattr(ast, "Match") else ())
+_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
+
+
+def _is_registration(node):  # type: (Any) -> bool
+    """A statement that puts a route on a router or an app: a mount verb
+    (``mount`` only when it is given a path), or a function carrying a route
+    decorator (``@router.post("/x")``)."""
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        verb = node.func.attr
+        if verb in _REGISTRATION_VERBS:
+            return True
+        if verb == "mount":
+            # ``app.mount("/prefix", sub)`` — not ``session.mount("https://", adapter)``.
+            first = node.args[0] if node.args else None
+            literal = getattr(first, "value", None) if isinstance(first, ast.Constant) else None
+            return not isinstance(first, ast.Constant) or literal == "" or (
+                isinstance(literal, str) and literal.startswith("/"))
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        for deco in node.decorator_list:
+            if (isinstance(deco, ast.Call) and isinstance(deco.func, ast.Attribute)
+                    and deco.func.attr in _ROUTE_DECORATORS and deco.args
+                    and isinstance(deco.args[0], ast.Constant) and isinstance(deco.args[0].value, str)
+                    and (deco.args[0].value == "" or deco.args[0].value.startswith("/"))):
+                return True
+    return False
+
+
+def _own_nodes(node):  # type: (Any) -> Iterator[Any]
+    """The nodes under ``node`` that run in ITS scope — nested functions,
+    lambdas and classes (the handlers themselves) are not entered."""
+    stack = list(ast.iter_child_nodes(node))
+    while stack:
+        inner = stack.pop()
+        if isinstance(inner, _SCOPES):
+            continue
+        yield inner
+        stack.extend(ast.iter_child_nodes(inner))
+
+
+def _conditional_registrations(rel, tree):
+    # type: (str, Any) -> Tuple[int, List[Tuple[str, str]], List[str]]
+    """(registrations found, [(flag predicate, where)] for those under a
+    declared flag, offenders)."""
+    parents = {}  # type: Dict[Any, Any]
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parents[child] = node
+    found, flagged, offenders = 0, [], []  # type: int, List[Tuple[str, str]], List[str]
+    for node in ast.walk(tree):
+        if not _is_registration(node):
+            continue
+        found += 1
+        where = "%s:%d" % (rel, node.lineno)
+        # (a) every condition the registration sits under, out to its function.
+        cursor = node
+        while cursor in parents:
+            cursor = parents[cursor]
+            if isinstance(cursor, _SCOPES):
+                break
+            if isinstance(cursor, ast.If) and _unparse(cursor.test) in ROUTE_FLAGS:
+                flagged.append((_unparse(cursor.test), where))
+            elif isinstance(cursor, _CONDITIONS):
+                test = getattr(cursor, "test", None) or getattr(cursor, "subject", None) or cursor
+                offenders.append("%s — registered under `%s`, which is not a declared route flag"
+                                 % (where, _unparse(test)[:90]))
+        # (b) an early exit standing before it in the same function.
+        scope = node
+        while scope in parents and not isinstance(parents[scope], _SCOPES + (ast.Module,)):
+            scope = parents[scope]
+        scope = parents.get(scope)
+        if scope is None:
+            continue
+        for inner in _own_nodes(scope):
+            if not isinstance(inner, ast.If) or inner.lineno >= node.lineno:
+                continue
+            exits = [n for n in _own_nodes(inner)
+                     if isinstance(n, (ast.Return, ast.Raise, ast.Continue, ast.Break))]
+            test = _unparse(inner.test)
+            if exits and test not in ROUTE_FLAGS and (rel, test) not in EARLY_EXITS_DECLARED:
+                offenders.append("%s — `if %s:` (line %d) exits before this registration and is "
+                                 "not a declared route flag" % (where, test[:90], inner.lineno))
+    return found, flagged, sorted(set(offenders))
+
+
+def test_no_route_exists_behind_a_flag_the_sweep_does_not_set(monkeypatch, tmp_path):
+    """THE TWO STATES ARE THE WHOLE FLAG SPACE — or the law is red. A route
+    mounted under ``if os.environ.get("SOME_NEW_FLAG")`` exists in neither
+    swept state, so the sweep cannot see what it reaches. Every route
+    registration under src/ that sits under a condition (or after an early
+    exit) is under one of ``ROUTE_FLAGS`` exactly as written, each of those is
+    on in ``open`` and off in ``closed``, and inside ``create_app`` no other
+    ``if`` touches the app at all (a helper that mounts, called under a
+    condition, is a conditional mount too)."""
+    total, flagged, offenders = 0, [], []
+    for rel, text in _source_modules():
+        if not any(word in text for word in _REGISTRATION_VERBS | {"mount", "APIRouter", "FastAPI"}):
+            continue
+        found, under, bad = _conditional_registrations(rel, ast.parse(text))
+        total += found
+        flagged.extend(under)
+        offenders.extend(bad)
+
+    # Inside the app factory, a condition that is not a declared flag may not
+    # mention the app.
+    server = ast.parse((SRC / "engine" / "api" / "server.py").read_text(encoding="utf-8"))
+    factory = [n for n in ast.walk(server) if isinstance(n, ast.FunctionDef) and n.name == "create_app"]
+    assert len(factory) == 1, "create_app() is not where this law looks for it"
+    conditions = 0
+    for node in _own_nodes(factory[0]):
+        if not isinstance(node, _CONDITIONS):
+            continue
+        conditions += 1
+        test = getattr(node, "test", None) or getattr(node, "subject", None) or node
+        if isinstance(node, ast.If) and _unparse(node.test) in ROUTE_FLAGS:
+            continue
+        if any(isinstance(n, ast.Name) and n.id == "app" for n in ast.walk(node)):
+            offenders.append("src/engine/api/server.py:%d — create_app() touches the app under "
+                             "`%s`, which is not a declared route flag" % (node.lineno, _unparse(test)[:90]))
+
+    assert not offenders, (
+        "NO-ANONYMOUS-MODEL-CALL UNPROVEN — %d route registration(s) depend on a condition "
+        "neither swept state sets, so the sweep cannot see what they reach. Declare the flag "
+        "in ROUTE_FLAGS and set it in STATES['open'], or register unconditionally:\n  %s"
+        % (len(offenders), "\n  ".join(sorted(set(offenders)))))
+
+    # The census is not vacuous, and not stale.
+    print("GATE-WORK %s route_flags registrations=%d under_a_flag=%d create_app_conditions=%d"
+          % (GATE, total, len(flagged), conditions))
+    assert total >= 200, "VACUOUS — only %d route registrations found under src/ (measured 237)" % total
+    assert conditions >= 4, "VACUOUS — create_app() was not read (%d conditions)" % conditions
+    used = set(flag for flag, _where in flagged)
+    assert used == set(ROUTE_FLAGS), (
+        "ROUTE_FLAGS is stale: declared %s, found gating a registration %s" % (sorted(ROUTE_FLAGS), sorted(used)))
+
+    # Each flag is ON in ``open`` and OFF in ``closed`` — by the predicate itself.
+    from engine.api import server as server_module
+
+    for state, expected in (("closed", False), ("open", True)):
+        _apply_env(monkeypatch, state, tmp_path)
+        for predicate, (variable, _what) in sorted(ROUTE_FLAGS.items()):
+            assert variable in STATES["open"], "%s is not set in the open state" % variable
+            got = getattr(server_module, predicate[:-2])()
+            assert bool(got) is expected, (
+                "%s is %r in the %s state — one side of this flag is never swept" % (predicate, got, state))
 
 
 def test_the_unrouted_path_answers_404_and_reaches_nothing(tmp_path):
@@ -1333,6 +2077,28 @@ REFUSED_URLS = [
     ("a non-ASCII host", _OWN.replace(SUPABASE_HOST, "tést.supabase.co")),
     ("not a URL", "balanta.pdf"),
     ("a URL of 5,000 characters", _OWN + "&x=" + "a" * 5000),
+    # The check and the request must read the SAME URL (review of 2026-10-04).
+    ("port 0 on the project's host", _OWN.replace(SUPABASE_HOST, SUPABASE_HOST + ":0")),
+    ("an encoded slash inside the fixed prefix",
+     "https://%s/storage%%2fv1/object/sign/documents/a/b.pdf?token=t" % SUPABASE_HOST),
+    ("an encoded letter inside the fixed prefix",
+     "https://%s/storage/v1/object/sign/%%64ocuments/a/b.pdf?token=t" % SUPABASE_HOST),
+    ("twice-encoded dot segments",
+     "https://%s/storage/v1/object/sign/documents/%%252e%%252e/%%252e%%252e/secrets?token=t" % SUPABASE_HOST),
+    ("an encoded slash inside the object key",
+     "https://%s/storage/v1/object/sign/documents/a%%2fb.pdf?token=t" % SUPABASE_HOST),
+    ("an encoded backslash inside the object key",
+     "https://%s/storage/v1/object/sign/documents/a%%5cb.pdf?token=t" % SUPABASE_HOST),
+    ("an encoded dot inside the object key",
+     "https://%s/storage/v1/object/sign/documents/a/b%%2Epdf?token=t" % SUPABASE_HOST),
+    ("an encoded percent sign inside the object key",
+     "https://%s/storage/v1/object/sign/documents/a/b%%2520c.pdf?token=t" % SUPABASE_HOST),
+    ("a host label that does not decode", _OWN.replace(SUPABASE_HOST, "xn--." + SUPABASE_HOST)),
+    ("another host label that does not decode", _OWN.replace(SUPABASE_HOST, "xn--a.supabase.co")),
+    ("a space after the host", _OWN.replace(SUPABASE_HOST, SUPABASE_HOST + " ")),
+    ("a space before the host", _OWN.replace(SUPABASE_HOST, " " + SUPABASE_HOST)),
+    ("a tab inside the object key", _OWN.replace(".pdf", ".a\tb")),
+    ("a non-ASCII character inside the object key", _OWN.replace(".pdf", ".d\u00e9cembrie")),
 ]
 
 
@@ -1372,6 +2138,49 @@ def test_with_no_project_storage_configured_nothing_is_fetched(harness, monkeypa
         assert refusal.value.status_code == 503, (configured, url, refusal.value.status_code)
         assert "pdf_url refused" in str(refusal.value.detail)
     assert harness.outbound == [] and harness.model == []
+
+
+#: Signed URLs of the documents bucket this lane must go on fetching, with
+#: the path the request carries. The browser builds a key's ending from the
+#: uploaded file's own name (``{org}/uploads/{document}.{ext}``, ``ext`` the
+#: text after the last dot, unsanitised), the storage API allows a space in a
+#: key, and the sign response hands the key back as it is.
+_KEY = "/storage/v1/object/sign/documents/%s/uploads/%s" % (UUID, UUID)
+ACCEPTED_URLS = [
+    ("a plain signed URL", _OWN, _KEY + ".pdf?token=t"),
+    ("a key with a space, as the sign response returns it",
+     "https://%s%s.balanta dec 2025?token=t" % (SUPABASE_HOST, _KEY), _KEY + ".balanta%20dec%202025?token=t"),
+    ("the same key already percent-encoded",
+     "https://%s%s.balanta%%20dec%%202025?token=t" % (SUPABASE_HOST, _KEY), _KEY + ".balanta%20dec%202025?token=t"),
+    ("a key ending in ' (1)'",
+     "https://%s%s.pdf (1)?token=t" % (SUPABASE_HOST, _KEY), _KEY + ".pdf%20(1)?token=t"),
+    ("the default port written out", _OWN.replace(SUPABASE_HOST, SUPABASE_HOST + ":443"), _KEY + ".pdf?token=t"),
+    ("the host in capitals", _OWN.replace(SUPABASE_HOST, SUPABASE_HOST.upper()), _KEY + ".pdf?token=t"),
+    ("escapes inside the token only", _OWN.replace("token=t", "token=a%2Fb%25c"), _KEY + ".pdf?token=a%2Fb%25c"),
+]
+
+
+@pytest.mark.parametrize("label,url,sent", ACCEPTED_URLS, ids=[a[0] for a in ACCEPTED_URLS])
+def test_a_signed_url_of_the_projects_storage_is_fetched_as_written(harness, monkeypatch, label, url, sent):
+    """What the pipeline hands over is still read — a space in the key
+    included (main read it; the first version of this lane refused it and the
+    document with it) — and the request carries exactly the path the check
+    read: one GET, to the project's host on the default port, the space sent
+    percent-encoded once."""
+    from engine.api import financial_statements as FS
+
+    script = _Script(monkeypatch)
+    script.respond = lambda request: httpx.Response(
+        200, headers={"content-type": "application/pdf"}, content=TINY_PDF)
+    harness.respond_with = _model_json()
+    out = FS.parse_document(FS.ParseRequest(pdf_url=url, original_filename="balanta.pdf"))
+    assert [a.code for a in out.accounts] == ["5121"], label
+    assert len(script.requests) == 1, (label, [str(r.url) for r in script.requests])
+    request = script.requests[0]
+    assert request.url.raw_path.decode("ascii") == sent, (label, request.url.raw_path)
+    assert request.url.host == SUPABASE_HOST and request.url.port is None and request.url.scheme == "https"
+    assert request.headers.get("host") == SUPABASE_HOST, (label, request.headers.get("host"))
+    assert [e["what"] for e in harness.model] == ["construct", "call"], (label, harness.model)
 
 
 class _Script(object):
