@@ -29,12 +29,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 import traceback
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -1003,52 +1004,71 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
     exact seam where the jurisdiction resolver routes a document into
     the AI lane (jurisdiction != RO).
 
-    · USAGE_LIMITS_ENABLED off (prod today) → strictly inert: returns
-      before any plan/state read.
-    · Plan without non-RO entitlement (trial/intro/solo/pro) → raises
-      NonRoNotIncludedError whose message is the TYPED refusal JSON
-      ({"error": "non_ro_not_included", "upgrade_to": "multi", ...}).
-      The generic failure handler persists it into `documents.error`,
-      the generic release path frees the doc-slot reservation, and the
-      FE matches `non_ro_not_included` to render an upgrade prompt
-      instead of a failure card.
-    · multi → reserves the non-RO meter and stamps the documents row
-      (`nonro_doc`, `nonro_metered_extra`) so `_commit_pipeline_quota`
-      can commit/release the meter from the daemon thread.
+    · USAGE_LIMITS_ENABLED off → strictly inert: returns before any
+      plan/state read. (It is ON in production — measured 2026-09-10,
+      `_usage_gate.reserve_nonro_document`.)
+    · REFUSED → raises NonRoNotIncludedError whose message is a NEUTRAL
+      CODE and nothing else (`_usage_gate.stored_nonro_refusal`):
+          {"error": "non_ro_not_included"}    the plan does not include them
+          {"error": "nonro_quota_exhausted"}  the month's non-RO allowance is used
+          {"error": "metering_unavailable"}   the plan / meter could not be read
+      The generic failure handler persists it into `documents.error`
+      (`NonRoNotIncludedError: {"error": "<code>"}`), the generic release
+      path frees the doc-slot reservation, and each viewer's browser
+      renders the sentence from the code. NEVER `plan_key`, a plan's
+      name, `message` or `upgrade_to` (owner ruling 2026-10-02):
+      `documents.error` is a shared row — every member of the workspace
+      and every firm viewer reads it — and those fields published one
+      person's plan to their colleagues, from BOTH branches below.
+    · ALLOWED on a run that reserves → reserves the non-RO meter and
+      stamps the documents row (`nonro_doc`, `nonro_metered_extra`); the
+      meter is settled by `_commit_pipeline_quota` from the run's ledger
+      entry.
 
-    ONLY THE FIRST, METERED RUN RESERVES (2026-09-21, verifier P-E). The
-    non-RO meter is reserved — and so committed and billed — only when THIS
-    run holds a document-slot reservation in the ledger (a first analysis
-    through /run, a recovery, the firm landing), and under that verified
-    reserver. A run that holds none — /retry, the ai-lane force-reextract,
-    a period-move re-run — re-analyses a document already counted: the plan
-    still gates it (the typed refusal), but nothing is reserved or counted.
-    It used to reserve and register on every run: a retry of an analysed
-    non-RO document on Multi at the included cap moved nonro uploads 8→9 and
-    metered `extra_nonro` again.
+    WHOSE PLAN — two branches, and neither reads `documents.uploaded_by`
+    (a column the browser writes: any member can PATCH it to any user id,
+    or to NULL):
+
+    1. THE RUN HOLDS A DOCUMENT SLOT (a first analysis through /run, a
+       recovery, the firm landing): the verified RESERVER's own plan and
+       meter (`_doc_slot_holder` — the in-process ledger, never the row).
+       Only this run reserves the non-RO meter (verifier P-E, 2026-09-21):
+       it used to reserve on every run, and a retry of an analysed non-RO
+       document on Multi at the included cap moved nonro uploads 8→9 and
+       metered `extra_nonro` again.
+
+    2. THE RUN HOLDS NONE (/retry or a correction of a counted book, the
+       ai-lane force-reextract, /run of a counted book, an operator
+       script): it re-analyses a document already counted, so nothing is
+       reserved or counted — and the WORKSPACE's plan gates it
+       (`_usage_gate.workspace_nonro_refusal`): the plan of the owner of
+       `doc["org_id"]`. The caller's membership in that workspace is the
+       re-run route's own wall (`_verify_user_may_write_document`,
+       `_org.require_org_member`); this thread carries no caller. FAILS
+       CLOSED: a document with no `org_id`, or a workspace with no owner
+       row, is refused.
+
+       Until 2026-10-02 this branch read the subscription of whoever
+       `uploaded_by` named — a non-member's Multi plan entitled the run, a
+       colleague's Solo plan refused the Multi owner's own workspace, and
+       a NULL `uploaded_by` (the uploader's account deleted: `on delete
+       set null`) passed with no plan check at all.
     """
     from . import _usage_gate as _ug
     if not _ug.enforcement_enabled():
         return
     holder = _doc_slot_holder(str(doc.get("id") or ""))
     if holder is None:
-        user_id = doc.get("uploaded_by")
-        if not user_id:
+        code = _ug.workspace_nonro_refusal(doc.get("org_id"))
+        if code is None:
             return
-        refusal = _ug.nonro_entitlement_refusal(str(user_id))
-        if refusal is None:
-            return
-        payload = dict(refusal.refusal or {"error": "non_ro_not_included"})
-        payload["plan_key"] = refusal.plan_key
-        payload["message"] = refusal.message
-        raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
-    user_id = holder
-    decision = _ug.reserve_nonro_document(str(user_id))
+        raise _ug.NonRoNotIncludedError(_ug.stored_nonro_refusal(code))
+    decision = _ug.reserve_nonro_document(str(holder))
     if decision.kind in ("allowed", "disabled"):
         if decision.kind == "allowed":
             # Settled with THIS run by `_commit_pipeline_quota` (the ledger),
             # never from the row stamp a later re-run would still carry.
-            _register_nonro_reservation(str(doc.get("id")), user_id=str(user_id),
+            _register_nonro_reservation(str(doc.get("id")), user_id=str(holder),
                                         was_extra=bool(decision.was_extra))
             try:
                 with _supabase.admin() as ac:
@@ -1064,11 +1084,14 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
                     "commit will be skipped)", doc.get("id"),
                 )
         return
-    # refused (typed upgrade prompt) or blocked (monthly non-RO cap).
-    payload = dict(decision.refusal or {"error": "nonro_quota_exhausted"})
-    payload["plan_key"] = decision.plan_key
-    payload["message"] = decision.message
-    raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
+    # Refused (the reserver's plan does not include non-RO documents, or
+    # the meter could not be reached) or blocked (the monthly non-RO cap).
+    # The decision's `plan_key` and `message` are the RESERVER's own plan:
+    # they are never stored. `decision.refusal` is a dict or a bare string
+    # (`metering_unavailable`) — `nonro_refusal_code` reads both; a
+    # `dict(decision.refusal)` here stored a ValueError's text.
+    raise _ug.NonRoNotIncludedError(
+        _ug.stored_nonro_refusal(_ug.nonro_refusal_code(decision)))
 
 
 def _maybe_route_ai_lane(
@@ -1097,7 +1120,8 @@ def _maybe_route_ai_lane(
         return None
     # 2026-08 tiers — non-RO documents are a plan entitlement (multi
     # only). Inert when USAGE_LIMITS_ENABLED is off; raises the typed
-    # refusal (→ documents.error) when the plan doesn't include non-RO.
+    # refusal (→ documents.error, a neutral code) when the reserver's plan
+    # — or, on a re-run, the WORKSPACE's — doesn't include non-RO.
     _enforce_nonro_plan_gate(doc)
     logger.info(
         "[stage_extract] AI lane engaged: jurisdiction=%s source=%s "
@@ -2498,6 +2522,12 @@ class SameMonthTakeoverRefused(PlainRefusal):
     """The file's own CUI is not the company's — its month is not replaced."""
 
 
+class StagedPeriodGone(PlainRefusal):
+    """The period a same-month re-upload was staged under was deleted while
+    the run was going — there is nothing to replace the month with, and the
+    month is not touched."""
+
+
 def superseded_marker(replacing_document_id: str) -> str:
     return "%s%s" % (SUPERSEDED_MARKER_PREFIX, replacing_document_id)
 
@@ -2606,7 +2636,10 @@ def _refuse_cross_company_takeover(admin_client: Any, doc: Dict[str, Any], perio
     )
 
 
-def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
+def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
+                                  narration_unavailable: Optional[str] = None,
+                                  keep_recommendations: bool = False,
+                                  keep_alerts: bool = False) -> str:
     """The run has SUCCEEDED: if it was staged beside an existing month,
     make it that month. Returns the period id the document is pinned to —
     the served row after a takeover, `period_id` itself otherwise.
@@ -2614,7 +2647,35 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
     Order, so that a crash between two steps leaves a state a reader can
     tell apart (the provenance stamp names the document an envelope was
     built from) and never an empty month:
-      1. the run's rows move from the staged row onto the served row;
+      1. the run's rows move from the staged row onto the served row —
+         EXCEPT what a failed narration would cost the month (owner rulings
+         2026-10-02 and 2026-10-03: "A takeover must not delete anything
+         that was good"). The staged run narrated nothing usable when its
+         briefing row holds a failure text OR when it left NO briefing row
+         at all (its narrative write raised — the orchestrator logs that as
+         non-fatal — or the lane never narrates). Then:
+           · the month's usable briefing is KEPT and marked stale
+             (`narration_unavailable` is the run's own code, when the
+             caller has it) — an absent staged row is not a replacement;
+           · the month's recommendations are KEPT with it, whatever the
+             month's briefing row holds — a failed narration brings none;
+           · whatever the staged run left in those two tables is deleted
+             explicitly, the tenant in the filter, so nothing is left under
+             the staged id — EXCEPT recommendations under the staged id when
+             the month holds none: those are a re-run's carried ones and
+             they move onto the month.
+         `keep_recommendations`: the caller knows the run stored no
+         recommendations to replace the month's with — the narration was
+         usable but its `recommendations` could not be read
+         (`_recommendation_rows`), or the narrative write raised before
+         they were stored. The month's are kept; a usable staged briefing
+         still moves.
+         `keep_alerts`: the run's alerts were not written (the write
+         raised). The month's alerts are kept rather than replaced by
+         none — an empty alert list would read as "nothing to flag".
+         THE STAGED-ONLY WORK COMES FIRST: what is deleted under the
+         staged id is deleted before the first statement that touches the
+         served month, so a failure there leaves the month untouched;
       2. the served row takes the staged row's columns (envelope, currency,
          confidence, detection) — its identity columns untouched;
       3. the staged row gives up the (org, month, document) tuple, the
@@ -2629,6 +2690,23 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
     org_id = doc.get("org_id")
     superseded = record.get("superseded_document")
     with _supabase.admin() as admin_client:
+        # THE STAGED ROW MUST STILL BE THERE. A delete of it during the run
+        # (DELETE /api/period, a purge) left nothing to move — and the steps
+        # below would still have deleted the month's rows, archived its
+        # document and re-pointed the row: an EMPTY month, reported analysed.
+        # The month is not touched; the run fails and says so. Checked
+        # BEFORE "the month's row is gone": with both rows gone the run
+        # would otherwise be reported analysed, pinned to a period that
+        # does not exist.
+        staged_present = admin_client.select(
+            "financial_periods",
+            filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"},
+            columns="id", limit=1,
+        ) or []
+        if not staged_present:
+            raise StagedPeriodGone(
+                "The period this run was staged under no longer exists — the month "
+                "was not replaced; the analysis already there is unchanged.")
         served_rows = admin_client.select(
             "financial_periods",
             filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
@@ -2641,9 +2719,78 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
                         doc.get("id"), served, staged)
             return period_id
         # 1. the run's rows
+        staged_briefing = _stored_briefing_row(admin_client, staged, org_id)
+        served_briefing_row = _stored_briefing_row(admin_client, served, org_id)
+        # No staged row is the least usable briefing there is: the keep
+        # decision must never require one to exist (it did — and a staged
+        # run whose narrative write raised cost the month its briefing).
+        # A run whose narration FAILED brought no briefing either, whatever
+        # row sits under the staged id (a re-run's carried briefing can).
+        staged_narration_unusable = (narration_unavailable is not None
+                                     or not _is_usable_stored_briefing(staged_briefing))
+        keep_served_briefing = (staged_narration_unusable
+                                and _is_usable_stored_briefing(served_briefing_row))
+        # Nothing usable to put in its place — or nothing at all: the
+        # month's briefing row stays where it is.
+        briefing_row_stays = keep_served_briefing or staged_briefing is None
+        # A failed narration brings no recommendations; neither does a run
+        # the caller says stored none that may replace the month's. The
+        # month's are kept — WHEN IT HOLDS ANY. A month that holds none has
+        # nothing to keep, and what sits under the staged id is then not
+        # deleted but moved: a Docs-panel re-run staged beside another
+        # document's month has its CARRIED recommendations there (statuses,
+        # owners, due dates), and deleting them "because the month keeps its
+        # own" cost the reader all of them (review 2026-10-04, measured).
+        month_holds_recommendations = bool(admin_client.select(
+            "recommendations",
+            filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+            columns="id", limit=1,
+        ))
+        recommendations_stay = ((staged_narration_unusable or keep_recommendations)
+                                and month_holds_recommendations)
+        alerts_stay = bool(keep_alerts)
+        # The month keeps its own rows in these cases. Whatever the staged
+        # run left goes with the staged id — explicitly, the tenant in the
+        # filter (the deletes run under the service role; the table names
+        # are literals so the tenant censuses read them) — and FIRST: these
+        # touch nothing of the month, so a failure here leaves it whole.
+        stays = set()
+        if briefing_row_stays:
+            stays.add("briefings")
+            admin_client.delete(
+                "briefings",
+                filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+        if recommendations_stay:
+            stays.add("recommendations")
+            admin_client.delete(
+                "recommendations",
+                filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+        if alerts_stay:
+            stays.add("alerts")
+            admin_client.delete(
+                "alerts",
+                filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
         for table in TAKEOVER_TABLES:
+            if table in stays:
+                continue
             admin_client.delete(table, filters={"period_id": f"eq.{served}"})
             admin_client.update(table, {"period_id": served}, filters={"period_id": f"eq.{staged}"})
+        if "recommendations" not in stays:
+            # A recommendation about the period points at the period it is
+            # on now — the staged id it named no longer exists after step 3.
+            admin_client.update(
+                "recommendations", {"target_id": served},
+                filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}",
+                         "target_id": f"eq.{staged}"})
+        if keep_served_briefing:
+            _reason = (narration_unavailable
+                       or stored_briefing_failure_code((staged_briefing or {}).get("body"))
+                       or "provider_error")
+            logger.warning("[stage_persist] %s: the staged run's narration is unavailable (%s) — "
+                           "the month's briefing and recommendations on period %s are kept; "
+                           "briefing marked stale",
+                           doc.get("id"), _reason, served)
+            _mark_briefing_stale(admin_client, served_briefing_row, served, org_id, str(_reason))
         # 2. the row's own columns
         staged_rows = admin_client.select("financial_periods", filters={"id": f"eq.{staged}"}, limit=1) or []
         patch = dict((k, v) for k, v in (staged_rows[0] if staged_rows else {}).items()
@@ -2670,6 +2817,202 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
     logger.info("[stage_persist] %s replaced the month's period %s (staged %s; superseded document %s)",
                 doc.get("id"), served, staged, superseded)
     return served
+
+
+# ── The Docs panel's "Re-run analysis" carries the last good briefing across its reset ──
+#
+# POST /api/pipeline/retry RESETS before it re-runs: it deletes the period
+# the document is pinned to (the original phase-3 design, 2026-05-10 — the
+# foreign keys cascade the line items, the metrics, the briefing and the
+# recommendations away) and the run then files the document afresh. With the
+# provider refusing (production, 2026-09/10) that re-run's narration fails,
+# `stage_persist_narrative` finds nothing to keep on the fresh period, and
+# the reader was served "unavailable" where the last good briefing stood —
+# keep-last-good never engaged on the one re-run a user can start; the
+# recommendations (their statuses, owners and due dates) went the same way
+# (owner rulings 2026-10-03).
+#
+# THE RULE. The reset stays exactly as it was — it is the path with the
+# mileage, and everything downstream relies on it (a re-run that fails
+# leaves NO period, never a failed document over a served month; a document
+# has one period; the AI lane's cache is cleared). What a user would lose is
+# CARRIED ACROSS it instead: before the reset the period's usable briefing
+# and its recommendations are read (the tenant in every filter) and held
+# for the document; `stage_persist_narrative` puts them back on the period
+# the re-run files the document under when — and only when — the run's own
+# narration brings nothing to replace them with. A usable narration is
+# written as always and the carry is dropped.
+#
+# A first try made the re-run go IN PLACE (no reset when the period held a
+# usable briefing). Independent review, 2026-10-03, measured three wrong
+# states of it — a re-run that fails left a FAILED document over a served
+# period (the year tile vanished; `empty_live_periods` called the month
+# empty), a failure after `stage_persist` served the new statements beside
+# the old metrics and an unmarked briefing, and a re-filed document kept two
+# periods — so it was withdrawn.
+#
+# THE CARRY IS LET GO ONLY ONCE THE RUN IS DURABLE. `stage_persist_narrative`
+# reports that it settled the carry (`stored["carry_settled"]`); the
+# orchestrator drops it after the document is marked analysed. A run that
+# fails AFTER the narrative stage (the period touch, the takeover, the last
+# status write) is rolled back with its period — the one the carry had just
+# been restored on — and the carry must still be there for the next run
+# (review 2026-10-04, measured: one timeout on the last status write lost
+# the briefing and the worked recommendations for good).
+#
+# WHAT THE CARRY CANNOT DO (stated, not hidden): it lives in this process.
+# A re-run whose RUN fails leaves no period, as it always did — the carry
+# then waits for the document's next run; a restart in between loses it,
+# and with it the briefing. The durable form is a re-run that stages beside
+# the month and takes it over on success, like a same-month re-upload
+# (ticket). And a lane that pins the document WITHOUT narrating (the AI
+# lane) never consults the carry: nothing is put back there (ticket).
+
+_RERUN_CARRY: Dict[str, Dict[str, Any]] = {}
+_RERUN_CARRY_LOCK = threading.Lock()
+
+#: Columns of a carried `recommendations` row that are re-keyed when it is put
+#: back on the document's new period. Everything else travels as it was — its
+#: id too (the reset cascaded the old row away; the recommendation a user
+#: worked is the same recommendation).
+_RECOMMENDATION_REKEYED_COLUMNS = ("period_id", "target_id", "org_id")
+
+
+def _carry_before_rerun_reset(doc: Dict[str, Any]) -> None:
+    """Hold what the reset is about to cascade away and a failed narration
+    could not bring back: the period's USABLE briefing row and its
+    recommendations — read under the service role with the DOCUMENT's own
+    organization in every filter (`documents.period_id` is browser-written:
+    a row carrying another workspace's period id finds nothing there).
+
+    Raises when they cannot be read: the reset must not run blind (the
+    caller's claim and reservation are given back by `_start_rerun`).
+    A period that holds neither leaves an earlier carry of this document
+    untouched — a previous re-run that failed before it could narrate."""
+    document_id = str(doc.get("id") or "").strip()
+    period_id = doc.get("period_id")
+    org_id = str(doc.get("org_id") or "").strip()
+    if not document_id or not period_id or not org_id:
+        return
+    with _supabase.admin() as admin_client:
+        briefing_row = _stored_briefing_row(admin_client, str(period_id), org_id)
+        recommendations = admin_client.select(
+            "recommendations",
+            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        ) or []
+    recommendations = [dict(r) for r in recommendations if str(r.get("org_id")) == org_id]
+    usable = dict(briefing_row) if _is_usable_stored_briefing(briefing_row) else None
+    if usable is None and not recommendations:
+        return
+    with _RERUN_CARRY_LOCK:
+        earlier = _RERUN_CARRY.get(document_id) or {}
+        _RERUN_CARRY[document_id] = {
+            "org_id": org_id,
+            # A period holding recommendations but no usable briefing keeps
+            # the briefing an earlier failed re-run was already carrying.
+            "briefing": usable if usable is not None else (
+                earlier.get("briefing") if earlier.get("org_id") == org_id else None),
+            "recommendations": recommendations or (
+                earlier.get("recommendations") if earlier.get("org_id") == org_id else []) or [],
+        }
+
+
+def _rerun_carry_of(document_id: Any, org_id: Any) -> Optional[Dict[str, Any]]:
+    """The carry held for `document_id` — only for the organization it was
+    read in."""
+    with _RERUN_CARRY_LOCK:
+        carry = _RERUN_CARRY.get(str(document_id or ""))
+    if not carry or str(carry.get("org_id")) != str(org_id):
+        return None
+    return carry
+
+
+def _drop_rerun_carry(document_id: Any) -> None:
+    with _RERUN_CARRY_LOCK:
+        _RERUN_CARRY.pop(str(document_id or ""), None)
+
+
+def _restore_carried_recommendations(admin_client: Any, carry: Optional[Dict[str, Any]],
+                                     org_id: Any, period_id: str) -> int:
+    """Put the carried recommendations back on `period_id` — only when the
+    period holds none (the run brought none: its narration failed, or its
+    list could not be read). Statuses, owners and due dates travel with
+    them; the rows are re-keyed to the period the document is filed under
+    now. Returns how many were written."""
+    rows = [r for r in ((carry or {}).get("recommendations") or []) if isinstance(r, dict)]
+    if not rows:
+        return 0
+    present = admin_client.select(
+        "recommendations",
+        filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        columns="id", limit=1,
+    )
+    if present:
+        return 0
+    restored = []
+    for r in rows:
+        row = {k: v for k, v in r.items() if k not in _RECOMMENDATION_REKEYED_COLUMNS}
+        row.update({"org_id": org_id, "period_id": period_id})
+        # A recommendation about the period points at the period it is on now;
+        # one about anything else (a SKU, a category) keeps its target.
+        row["target_id"] = str(period_id) if str(r.get("target_id")) == str(r.get("period_id")) \
+            else r.get("target_id")
+        restored.append(row)
+    admin_client.insert("recommendations", restored, returning=False)
+    return len(restored)
+
+
+def _write_carried_briefing(admin_client: Any, carried: Dict[str, Any], org_id: Any,
+                            period_id: str, reason: str) -> None:
+    """The briefing a re-run's reset carried, written on `period_id` as it
+    was — its own body, language, model and definition stamp — and marked
+    stale with `reason`."""
+    admin_client.upsert(
+        "briefings",
+        {
+            "period_id": period_id,
+            "org_id": org_id,
+            "body": carried["body"],
+            "language": carried.get("language") or "en",
+            "model": carried.get("model"),
+            "ebitda_definition": carried.get("ebitda_definition"),
+        },
+        on_conflict="period_id",
+        returning=False,
+    )
+    _mark_briefing_stale(admin_client, carried, period_id, org_id, reason, restored=True)
+
+
+def _restore_rerun_carry(admin_client: Any, carry: Optional[Dict[str, Any]], org_id: Any,
+                         period_id: str, reason: str) -> bool:
+    """BEST EFFORT, never raises: put back on `period_id` whatever a
+    Docs-panel re-run's carry holds that the period LACKS — the carried
+    briefing (marked stale with `reason`) when the period holds no usable
+    one, the carried recommendations when it holds none. What the period
+    already holds is newer and is never written over.
+
+    Returns whether the period now holds everything the carry did — the
+    carry may then be let go. False when a read or a write was refused: the
+    carry waits for the document's next run."""
+    if not carry:
+        return True
+    whole = True
+    carried_briefing = carry.get("briefing")
+    if carried_briefing is not None:
+        try:
+            if not _is_usable_stored_briefing(_stored_briefing_row(admin_client, period_id, org_id)):
+                _write_carried_briefing(admin_client, carried_briefing, org_id, period_id, reason)
+        except Exception:  # noqa: BLE001 — best effort; the carry is kept
+            whole = False
+            logger.exception("[rerun carry] the carried briefing could not be put back on period %s",
+                             period_id)
+    try:
+        _restore_carried_recommendations(admin_client, carry, org_id, period_id)
+    except Exception:  # noqa: BLE001 — best effort; the carry is kept
+        whole = False
+        logger.exception("[rerun carry] the carried recommendations could not be put back on period %s",
+                         period_id)
+    return whole
 
 
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
@@ -3109,6 +3452,251 @@ def briefing_definition_status(briefing: Optional[Dict[str, Any]]) -> Optional[D
         "current_definition": _EBITDA_DEFINITION_REVISION,
         "written_under_previous_definition": not current,
         "note": None if current else dict(BRIEFING_PREVIOUS_DEFINITION_NOTE),
+    }
+
+
+# ─── A briefing a model failure cannot destroy (owner ruling 2026-10-02) ────
+#
+# "A failed regenerate must NEVER overwrite a stored briefing with
+# [NARRATIVE_UNAVAILABLE] — keep the last good one, mark it stale."
+#
+# MEASURED before the repair (real route, real `stage_narrate`, a provider
+# client that raises): POST …/briefing/regenerate answered 200 `ok: true` and
+# the stored briefing BECAME `[NARRATIVE_UNAVAILABLE]`; with no API key it
+# became the operator sentence "Set ANTHROPIC_API_KEY on the backend…"; a
+# re-run of an analysed document whose narration failed did the same AND
+# deleted the period's recommendations; the same-month takeover replaced the
+# served month's briefing with the staged run's sentinel. `briefings` holds
+# ONE row per period and no history: an overwritten briefing is gone.
+#
+# TWO PREDICATES, one module, every writer and the one reader:
+#   · `narration_unavailable_code(narrate)` — is THIS narration usable? Read
+#     from the structured code `stage_narrate` returns beside its `briefing`
+#     in every failure branch, never from the body text (an unparseable reply
+#     is a fragment of anything).
+#   · `stored_briefing_failure_code(body)` — does a row ALREADY stored hold a
+#     failure text? The texts the failure branches have written over time.
+# No writer replaces a usable row with an unusable narration.
+
+#: The neutral body a failed narration stores when there is nothing to
+#: protect (a first analysis) — the one failure text the product ever
+#: writes from here on. Never provider text, never an operator sentence.
+NARRATIVE_UNAVAILABLE_SENTINEL = "[NARRATIVE_UNAVAILABLE]"
+
+#: Why a narration is unusable — neutral codes: stored in
+#: `briefings.stale_reason`, served as `briefing.unavailable_reason` and as
+#: the regenerate route's `reason`. Never a provider message.
+NARRATION_UNAVAILABLE_CODES = ("no_api_key", "sdk_missing", "provider_error",
+                               "unparseable_reply", "empty_reply", "withheld_numerals")
+
+#: Why a KEPT briefing is stale when no narration failed — `stale_reason`
+#: only, beside the codes above: a Docs-panel re-run's carried briefing put
+#: back because the run's own usable narration could not be STORED (the
+#: database refused the write).
+BRIEFING_STALE_WRITE_REFUSED = "write_refused"
+
+#: Provider error text as a stored body BEGINS with it: the SDK's own
+#: `str(e)` of a status error ("Error code: 400 - {…}"). Applied with
+#: `.match` — ANCHORED at the start of the body, never searched inside it.
+#:
+#: Until 2026-10-03 this was `invalid_request_error | authentication_error |
+#: credit balance is too low | Error code: \d` SEARCHED anywhere in the
+#: body. "Credit balance" (sold creditor) is this product's own vocabulary:
+#: a good briefing saying a supplier's "credit balance is too low" was
+#: served `body: null`, left unprotected against the next failed narration,
+#: and — because `narration_unavailable_code` falls back to the text
+#: predicate — a FRESH good narration saying it was refused. No failure
+#: text a writer ever stored needs the bare phrases: the provider branch
+#: before 2026-08-04 stored `f"Narrative unavailable: {e}"` (caught by that
+#: prefix) and the sentinel since. frontend/lib/briefingDefinition.ts holds
+#: the same predicate for the browser — change both together.
+_PROVIDER_ERROR_TEXT_RX = re.compile(r"Error code: \d", re.IGNORECASE)
+
+#: The languages `stage_narrate` has an instruction for. The regenerate route
+#: refuses any other (422 `unsupported_language`, before the meter); a
+#: document whose detected language is another is narrated in English.
+NARRATION_LANGUAGES = ("en", "ro", "de", "fr", "es", "it", "pt", "nl", "pl")
+
+
+def stored_briefing_failure_code(body: Any) -> Optional[str]:
+    """The TEXT predicate, for a row already stored: the neutral code of the
+    failure text `body` is, or None when it is prose.
+
+    Recognised — every one by the SHAPE of the body, never by a phrase
+    somewhere inside it: an empty body; the sentinel; a body that begins
+    "Narrative unavailable…" (the empty-reply fallback, and the
+    pre-2026-08-04 provider branch, which appended the raw provider error);
+    a body that begins with the SDK's own error text ("Error code: NNN");
+    the two operator sentences; the numeral-guard sentence; the head of a
+    raw model reply stored as the body (it begins with `{` or a backtick).
+
+    NOT recognised (it is arbitrary text no predicate can name): a reply
+    fragment that begins with prose ("Here is the briefing: {…").
+
+    A FALSE POSITIVE IS NOT A HARMLESS REFUSAL: the row is served `body:
+    null`, a failed narration may then overwrite it, and a fresh good
+    narration saying the same words is refused (`narration_unavailable_code`
+    falls back to this predicate). Prose that merely SAYS "credit balance is
+    too low", "unavailable" or "error" is prose."""
+    if not isinstance(body, str) or not body.strip():
+        return "empty_reply"
+    text = body.strip()
+    if text.startswith("Set ANTHROPIC_API_KEY"):
+        return "no_api_key"
+    if text.startswith("anthropic SDK not installed"):
+        return "sdk_missing"
+    if text.startswith("The briefing was withheld:"):
+        return "withheld_numerals"
+    if NARRATIVE_UNAVAILABLE_SENTINEL in text or _PROVIDER_ERROR_TEXT_RX.match(text):
+        return "provider_error"
+    if text.lower().startswith("narrative unavailable"):
+        return "provider_error" if ":" in text else "empty_reply"
+    # The head of a raw model REPLY, not prose: until 2026-10-02 the not-JSON
+    # branch of `stage_narrate` returned `text[:500]` and every writer stored
+    # it as the briefing (a JSON reply that was cut off, carried trailing
+    # text, or came in backticks). No briefing begins with `{` or a backtick.
+    if text.startswith(("{", "`")):
+        return "unparseable_reply"
+    return None
+
+
+def narration_unavailable_code(narrate: Any) -> Optional[str]:
+    """THE predicate for "is this narration usable?": the neutral code when
+    it is not, None when it is.
+
+    Decided on the structured `unavailable` code `stage_narrate` returns in
+    every failure branch. A result that carries no code is usable only if
+    its body is prose — a body the reader side would serve as unavailable
+    (`stored_briefing_failure_code`) is never written as a briefing."""
+    if not isinstance(narrate, dict):
+        return "empty_reply"
+    code = narrate.get("unavailable")
+    if code:
+        return code if code in NARRATION_UNAVAILABLE_CODES else "provider_error"
+    return stored_briefing_failure_code(narrate.get("briefing"))
+
+
+def narration_language(doc: Optional[Dict[str, Any]]) -> str:
+    """The language `stage_narrate` narrates `doc` in."""
+    code = str((doc or {}).get("detected_language") or "en").lower()[:2]
+    return code if code in NARRATION_LANGUAGES else "en"
+
+
+def briefing_language_stamp(doc: Optional[Dict[str, Any]]) -> str:
+    """`briefings.language` for a narration of `doc`: the TRUE language,
+    clamped to what the column's check constraint allows ('en' / 'ro' —
+    schema_phase3.sql). Every write stamped the constant 'en' until
+    2026-10-02, whatever the prose was in."""
+    return "ro" if narration_language(doc) == "ro" else "en"
+
+
+def _stored_briefing_row(admin_client: Any, period_id: str, org_id: Any) -> Optional[Dict[str, Any]]:
+    """The period's briefing row, read under the service role with the
+    TENANT in the filter (and re-checked on the row), or None."""
+    rows = admin_client.select(
+        "briefings",
+        filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        limit=1,
+    ) or []
+    own = [r for r in rows if str(r.get("org_id")) == str(org_id)]
+    return own[0] if own else None
+
+
+def _is_usable_stored_briefing(row: Optional[Dict[str, Any]]) -> bool:
+    return bool(row) and stored_briefing_failure_code(row.get("body")) is None
+
+
+def _kept_briefing_body(row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """The stored body the regenerate route may hand back as "the briefing
+    that was kept": prose, written under TODAY's EBITDA definition. A row
+    written under an earlier definition is hidden by the page behind its
+    note (design A9) and this response carries no definition block, so it
+    is answered null, never as prose beside corrected numbers."""
+    if not _is_usable_stored_briefing(row):
+        return None
+    status = briefing_definition_status(row) or {}
+    if status.get("written_under_previous_definition"):
+        return None
+    return row.get("body")
+
+
+def _mark_briefing_stale(admin_client: Any, row: Optional[Dict[str, Any]],
+                         period_id: str, org_id: Any, reason: str, *,
+                         restored: bool = False) -> bool:
+    """The kept row is marked stale: a SEPARATE, best-effort service-role
+    update filtered by period AND tenant — never part of a briefing upsert
+    (an upsert naming a column PostgREST does not know is rejected whole,
+    and every briefing write would then depend on
+    supabase/schema_phase_briefing_stale.sql having been applied).
+    `stale_since` is the FIRST failure since the last good write.
+
+    `restored`: `row` is a briefing a re-run's reset carried and the caller
+    has just written back on `period_id` — the fresh row holds no marker, so
+    the first-failure time `row` carried is written again (now, when it
+    carried none).
+
+    Returns whether the marker was STORED (the update was accepted): a
+    caller that reports `stale` reports what the row holds, never what it
+    asked for (owner ruling 2026-10-03: "never report a state that isn't
+    stored")."""
+    patch: Dict[str, Any] = {"stale_reason": reason}
+    if restored:
+        patch["stale_since"] = (row or {}).get("stale_since") or _now_iso()
+    elif not (row or {}).get("stale_since"):
+        patch["stale_since"] = _now_iso()
+    try:
+        admin_client.update(
+            "briefings", patch,
+            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        )
+    except Exception as exc:  # noqa: BLE001 — the column may not exist yet
+        logger.warning("[briefing] stale marker not written for period %s (%s) — "
+                       "is supabase/schema_phase_briefing_stale.sql applied?",
+                       period_id, type(exc).__name__)
+        return False
+    return True
+
+
+def _clear_briefing_stale(admin_client: Any, period_id: str, org_id: Any) -> bool:
+    """A successful write clears the marker — the same separate, best-effort
+    update (see `_mark_briefing_stale`). Returns whether the clear was
+    STORED (the update was accepted)."""
+    try:
+        admin_client.update(
+            "briefings", {"stale_since": None, "stale_reason": None},
+            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        )
+    except Exception as exc:  # noqa: BLE001 — the column may not exist yet
+        logger.info("[briefing] stale marker not cleared for period %s (%s) — "
+                    "is supabase/schema_phase_briefing_stale.sql applied?",
+                    period_id, type(exc).__name__)
+        return False
+    return True
+
+
+def served_briefing(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """GET /api/period's `briefing` for a stored row (None when there is
+    none). Additive over the earlier shape: a row holding a failure text is
+    served `body: null, unavailable: true` with its neutral reason — an
+    older bundle then simply does not mount the card — and `stale` carries
+    the marker when the row has one."""
+    if not row:
+        return None
+    reason = stored_briefing_failure_code(row.get("body"))
+    stale = None
+    if row.get("stale_since"):
+        stale = {"since": row.get("stale_since"), "reason": row.get("stale_reason")}
+    return {
+        "body": None if reason else row["body"],
+        "language": row.get("language", "en"),
+        "model": row.get("model"),
+        # Which EBITDA definition the prose was written under; the page
+        # hides one written under an earlier definition with the note
+        # (owner ruling 2026-09-26, design A9).
+        "definition": briefing_definition_status(row),
+        "unavailable": reason is not None,
+        "unavailable_reason": reason,
+        "stale": stale,
     }
 
 
@@ -4037,18 +4625,35 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     catalog) the prompt switches modes: instead of ratio-based CFO commentary,
     Claude describes what's in the document and surfaces the headline
     findings from `parsed.summary`.
+
+    A FAILED narration never raises: every failure branch returns its
+    `briefing` text as before PLUS `unavailable: <code>` (one of
+    `NARRATION_UNAVAILABLE_CODES`). The code — not the text — is what every
+    writer decides on (`narration_unavailable_code`): no writer stores a
+    failed narration over a usable briefing (owner ruling 2026-10-02).
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        return {"briefing": "Set ANTHROPIC_API_KEY on the backend to enable AI narrative.", "recommendations": [], "alerts": []}
+        return {"briefing": "Set ANTHROPIC_API_KEY on the backend to enable AI narrative.", "recommendations": [], "alerts": [],
+                "unavailable": "no_api_key"}
 
     try:
         from anthropic import Anthropic  # type: ignore
-    except ImportError:
-        return {"briefing": "anthropic SDK not installed on backend.", "recommendations": [], "alerts": []}
+    except Exception as exc:  # noqa: BLE001 — an SDK that cannot be imported, for any reason
+        # ImportError is the SDK not being installed. A half-installed or
+        # version-broken SDK raises something else at import; either way
+        # there is no SDK to narrate with, and "never raises" holds.
+        if not isinstance(exc, ImportError):
+            logger.warning("anthropic SDK could not be imported (%s)", type(exc).__name__)
+        return {"briefing": "anthropic SDK not installed on backend.", "recommendations": [], "alerts": [],
+                "unavailable": "sdk_missing"}
 
-    # max_retries=5 covers transient Opus 529 overloads on the narrate stage.
-    client = Anthropic(api_key=api_key, max_retries=5, timeout=180.0)
+    # The provider client is CONSTRUCTED inside the same `try` as the call
+    # (below): `Anthropic(...)` itself raises — an httpx whose `proxies`
+    # keyword is gone, a SOCKS proxy without its extra — and out here that
+    # exception left `stage_narrate`, failing a run whose statements and
+    # metrics were already replaced (and answering 500 on the regenerate
+    # route).
 
     industry_key = org.get("industry_key") or "generic"
     industry_display = org.get("industry_display_name") or industry_key
@@ -4363,6 +4968,8 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     }
 
     try:
+        # max_retries=5 covers transient Opus 529 overloads on the narrate stage.
+        client = Anthropic(api_key=api_key, max_retries=5, timeout=180.0)
         resp = client.messages.create(
             model=_narrative_model(),
             max_tokens=4096,
@@ -4382,9 +4989,24 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "recommendations": [],
             "alerts": [],
             "narrate_error": str(e)[:200],
+            "unavailable": "provider_error",
         }
 
-    text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
+    # THE PROVIDER ANSWERED — whether there is anything to READ in the answer
+    # is not something the call returning guarantees. A response whose
+    # `content` is null, or whose text block carries a null `text`, raised
+    # TypeError from the join that stood here, outside any try. Read only
+    # what is text; whatever cannot be read is an EMPTY reply, never an
+    # exception.
+    try:
+        text = "".join(
+            block.text for block in (getattr(resp, "content", None) or [])
+            if getattr(block, "type", None) == "text" and isinstance(getattr(block, "text", None), str)
+        ).strip()
+    except Exception:  # noqa: BLE001 — content that cannot even be walked
+        logger.warning("Opus narrate returned a response with no readable content (%s)",
+                       type(getattr(resp, "content", None)).__name__)
+        text = ""
     if text.startswith("```"):
         text = text.strip("`")
         if text.startswith("json"):
@@ -4392,14 +5014,40 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         text = text.strip()
     try:
         data = json.loads(text)
-    except json.JSONDecodeError:
-        return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": []}
+    except (ValueError, RecursionError):
+        # Not JSON (JSONDecodeError is a ValueError) — or JSON nested deeper
+        # than the parser will follow, which is not the object asked for
+        # either and must not leave this function as an exception.
+        return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": [],
+                "unavailable": "unparseable_reply" if text else "empty_reply"}
+    if not isinstance(data, dict):
+        # Valid JSON that is not the object asked for (a list, a string, a
+        # number): `data.get` below raised AttributeError and failed the run.
+        return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": [],
+                "unavailable": "unparseable_reply"}
 
     narrated = {
         "briefing": data.get("briefing", "Narrative unavailable."),
-        "recommendations": data.get("recommendations", []) or [],
+        # A LIST, or not at all (review 2026-10-03). Only a real list — an
+        # empty one included — is the narration's word on what to recommend;
+        # a missing key, a null, a string or an object used to be coerced to
+        # [] here, which the writer reads as "recommends nothing — replace":
+        # a usable reply that merely omitted the key deleted the period's
+        # worked recommendations. None = unreadable; the writer replaces
+        # nothing (`_recommendation_rows`).
+        "recommendations": (data.get("recommendations")
+                            if isinstance(data.get("recommendations"), list) else None),
         "alerts": data.get("alerts", []) or [],
     }
+    _narrated_body = narrated["briefing"]
+    if "briefing" not in data or not isinstance(_narrated_body, str) or not _narrated_body.strip():
+        # No `briefing` key, a JSON null (it reached the `body text not
+        # null` column as None), an empty string, a non-string.
+        narrated["briefing"] = "Narrative unavailable."
+        narrated["unavailable"] = "empty_reply"
+        # A failure result always carries a LIST (every failure branch
+        # does): it replaces nothing, whatever the reply held there.
+        narrated["recommendations"] = []
 
     # ── THE AI BOUNDARY (engine.ai.numerals) ──────────────────────────
     # This is where model output becomes narrative the product ships:
@@ -4433,6 +5081,13 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
                 _numeral_report["fields_checked"],
                 _numeral_report["rejected_fields"], doc.get("id"),
             )
+        if (_numeral_report.get("mode") == _numerals.MODE_ENFORCE
+                and "briefing" in (_numeral_report.get("rejected_fields") or [])):
+            # Enforce mode replaced the briefing with the guard's fixed
+            # sentence: that is a withheld narration, not a briefing.
+            narrated.setdefault("unavailable", "withheld_numerals")
+            if not isinstance(narrated.get("recommendations"), list):
+                narrated["recommendations"] = []
     except Exception:  # noqa: BLE001 — the boundary must never break narration
         logger.exception("[pipeline] numeral guard failed (non-fatal)")
     return narrated
@@ -4503,14 +5158,155 @@ def _persist_period_alerts(admin_client: Any, org_id: str, document_id: Any,
         admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
 
 
+_RECOMMENDATION_URGENCY = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
+
+
+def _recommendation_text(value: Any) -> str:
+    """A model-written field as the text column it lands in: a JSON null is
+    the empty string, a number or a nested value is its text."""
+    if value is None:
+        return ""
+    return value if isinstance(value, str) else str(value)
+
+
+def _recommendation_rows(narrate: Any, org_id: Any, period_id: str) -> Optional[List[Dict[str, Any]]]:
+    """The narration's recommendations as rows of `recommendations` —
+    VALIDATED HERE, before any write: the writer deletes the period's
+    recommendations to replace them, and a row that raised while it was
+    being built used to land AFTER that delete (a JSON null rationale, a
+    list of numbers for the actions, a string where the list was asked for:
+    recommendations gone, none inserted, the run's alerts never written).
+
+      · a list of objects      → one row per object; every field is coerced
+                                  to what its column holds (text; a number
+                                  or null for the cash impact). An item that
+                                  is not an object is dropped.
+      · an empty list          → [] — the narration recommends nothing, and
+                                  that replaces what is stored.
+      · anything else          → None: UNREADABLE (a string, an object, no
+                                  `recommendations` at all, a non-empty list
+                                  holding no object). Nothing is replaced —
+                                  an unreadable reply is not "no
+                                  recommendations".
+    Well-formed input yields byte-for-byte the rows the writer built before.
+    """
+    raw = narrate.get("recommendations") if isinstance(narrate, dict) else None
+    if not isinstance(raw, list):
+        return None
+    rows: List[Dict[str, Any]] = []
+    for r in raw:
+        if not isinstance(r, dict):
+            continue
+        actions_raw = r.get("actions")
+        if isinstance(actions_raw, str):
+            actions_raw = [actions_raw]
+        elif not isinstance(actions_raw, (list, tuple)):
+            actions_raw = []
+        actions = [_recommendation_text(a) for a in actions_raw if a is not None]
+        explanation = _recommendation_text(r.get("rationale")) + (
+            "\n\nActions:\n• " + "\n• ".join(actions) if actions else "")
+        severity = _recommendation_text(r.get("severity") or "medium").lower()
+        title = _recommendation_text(r.get("title", "Untitled recommendation"))
+        impact = r.get("estimated_ron_impact")
+        if isinstance(impact, str):
+            # A plain numeric string only. "12,500" / "1.234,56" are never
+            # guessed at — absent, not approximated.
+            try:
+                impact = float(impact.strip())
+            except ValueError:
+                impact = None
+        if isinstance(impact, bool) or not isinstance(impact, (int, float)) \
+                or impact != impact or impact in (float("inf"), float("-inf")):
+            impact = None
+        rows.append({
+            "org_id": org_id,
+            "period_id": period_id,
+            "target_type": "dataset",
+            "target_id": str(period_id),
+            "title": title if title.strip() else "Untitled recommendation",
+            "explanation": explanation,
+            "expected_cash_impact_kron": impact,
+            "urgency": _RECOMMENDATION_URGENCY.get(severity, "medium"),
+            "status": "new",
+        })
+    if raw and not rows:
+        return None
+    return rows
+
+
+def narration_recommendations_unreadable(narrate: Any) -> bool:
+    """A USABLE narration whose `recommendations` cannot be read — the
+    writer then stores none of them and keeps what the period holds
+    (`stage_persist_narrative`); the same-month takeover must keep the
+    month's for the same reason."""
+    return (narration_unavailable_code(narrate) is None
+            and _recommendation_rows(narrate, None, "") is None)
+
+
 def stage_persist_narrative(
     doc: Dict[str, Any],
     period_id: str,
     narrate: Dict[str, Any],
     validation_alerts: List[Dict[str, Any]],
+    *,
+    stored: Optional[Dict[str, bool]] = None,
 ) -> None:
+    """Persist the run's briefing, recommendations and alerts.
+
+    NO RUN REPLACES A USABLE BRIEFING WITH A FAILED NARRATION (owner ruling
+    2026-10-02). Every re-run of an analysed document reaches this stage on
+    the SAME period row; a narration that failed used to upsert its failure
+    text over the stored briefing and delete the period's recommendations.
+      · usable narration            → written, as before; the marker cleared;
+      · unusable + a usable row     → the row and the recommendations are
+                                      KEPT; the row is marked stale;
+      · unusable + nothing to keep  → the neutral sentinel is written (a
+                                      first analysis), never provider text
+                                      or an operator sentence.
+
+    A FAILED NARRATION NEVER DELETES THE PERIOD'S RECOMMENDATIONS, whatever
+    the stored briefing row holds (owner ruling 2026-10-03). The state the
+    pre-repair regenerate left in production — the sentinel over the
+    briefing, the recommendations untouched — lost the statuses, owners and
+    due dates a user had set on them at the first re-run whose narration
+    failed. Recommendations are replaced only by a USABLE narration whose
+    list can be read, and they are validated BEFORE the delete
+    (`_recommendation_rows`): nothing raises between the delete and the
+    insert because of what a model wrote.
+
+    Alerts are deterministic and are written in EVERY case — also when a
+    briefing or recommendation write raises (a transient database error, a
+    schema drift): the raise still reaches the caller, after the alerts.
+
+    A DOCS-PANEL RE-RUN'S CARRY (`_carry_before_rerun_reset`): the re-run's
+    reset took the document's previous period — and with it the last good
+    briefing and the recommendations — before this run. When the run's
+    narration brings nothing to replace them with, they are put back here,
+    on the period the document is filed under now: the briefing as it was,
+    marked stale; the recommendations with their statuses, owners and due
+    dates. A usable narration is written as always. A narrative write the
+    DATABASE REFUSED on such a re-run puts back whatever the period then
+    lacks (best effort, before the raise reaches the caller): a refused
+    write of a usable narration used to leave the reader with no briefing,
+    or no recommendations, while the carry sat unused in memory.
+    THE STAGE NEVER DROPS THE CARRY: it reports `carry_settled` and the
+    orchestrator drops it once the run is durable (a run that fails later
+    is rolled back with this period — the carry must outlive it). A restore
+    the database refused leaves the carry unsettled: the document's next
+    run puts it back.
+
+    `stored` (optional, filled in as the stage goes, readable after a
+    raise): `recommendations` — the run's own recommendations replaced the
+    period's; `alerts` — the run's alerts were written (the same-month
+    takeover is told from these two what may replace the month's);
+    `carry_settled` — the period holds everything a re-run's carry did, or
+    the run's own narration replaced it.
+    """
+    if stored is None:
+        stored = {}
     org_id = doc["org_id"]
     document_id = doc["id"]
+    unavailable = narration_unavailable_code(narrate)
     with _supabase.admin() as admin_client:
         # Defensive: if a concurrent DELETE /api/period/{id} removed the
         # period between stage_persist and now, every FK-bound write below
@@ -4531,83 +5327,199 @@ def stage_persist_narrative(
             )
             return
 
-        # Briefing — upsert one row per period
-        admin_client.upsert(
-            "briefings",
-            {
-                "period_id": period_id,
-                "org_id": org_id,
-                "body": narrate["briefing"],
-                "language": "en",
-                "model": _narrative_model(),
-                # The EBITDA definition the prose was written under (owner
-                # ruling 2026-09-26). Served beside the body so a briefing
-                # written under an earlier definition is recognised and
-                # hidden, never shown beside corrected numbers. Column added
-                # by supabase/schema_phase_briefing_ebitda_definition.sql.
-                "ebitda_definition": _EBITDA_DEFINITION_REVISION,
-            },
-            on_conflict="period_id",
-            returning=False,
-        )
+        # What a Docs-panel re-run's reset carried for this document.
+        carry = _rerun_carry_of(document_id, org_id)
+        try:
+            # The last good briefing, when this run's narration failed. Read
+            # only then (a usable narration is written whatever is stored),
+            # with the tenant in the filter.
+            kept_row: Optional[Dict[str, Any]] = None
+            if unavailable is not None:
+                stored_row = _stored_briefing_row(admin_client, period_id, org_id)
+                if _is_usable_stored_briefing(stored_row):
+                    kept_row = stored_row
 
-        # Recommendations — wipe per-PERIOD, re-insert with period_id.
-        #
-        # Phase D-backend: the prior `delete WHERE org_id = ?` wiped EVERY
-        # period's recommendations on every re-run, then re-inserted only
-        # the current period's. Result: only the most-recently-analysed
-        # period had recs; every other period's were silently wiped on
-        # the next upload. The new scope is `WHERE period_id = ?` so a
-        # re-run only replaces THIS period's recs; sibling periods are
-        # untouched. The schema migration at
-        # supabase/schema_phase_notes_period_scope.sql adds the period_id
-        # column + index this query depends on.
-        admin_client.delete("recommendations", filters={"period_id": f"eq.{period_id}"})
-        recs = []
-        for r in narrate["recommendations"]:
-            actions = r.get("actions") or []
-            explanation = r.get("rationale", "") + ("\n\nActions:\n• " + "\n• ".join(actions) if actions else "")
-            urgency_map = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
-            severity = (r.get("severity") or "medium").lower()
-            recs.append({
-                "org_id": org_id,
-                "period_id": period_id,
-                "target_type": "dataset",
-                "target_id": str(period_id),
-                "title": r.get("title", "Untitled recommendation"),
-                "explanation": explanation,
-                "expected_cash_impact_kron": r.get("estimated_ron_impact"),
-                "urgency": urgency_map.get(severity, "medium"),
-                "status": "new",
-            })
-        if recs:
-            admin_client.insert("recommendations", recs, returning=False)
+            if kept_row is not None:
+                logger.warning(
+                    "[stage_persist_narrative] narration unavailable (%s) for period %s — "
+                    "the stored briefing and recommendations are kept; briefing marked stale",
+                    unavailable, period_id,
+                )
+                _mark_briefing_stale(admin_client, kept_row, period_id, org_id, str(unavailable))
+                # What the period holds is newer than the briefing a re-run
+                # carried. Recommendations still waiting in the carry are
+                # put back when the period holds none.
+                _restore_carried_recommendations(admin_client, carry, org_id, period_id)
+                stored["carry_settled"] = True
+                return
 
-        # ── Alerts — DETERMINISTIC rules only (read from canonical views) ──
-        # LLM-generated alerts are NO LONGER persisted. The "15 duplicate
-        # critical alerts" problem came from the LLM emitting many slight
-        # variations of the same concern, each landing as a fresh row.
-        # `stage_validate` is now the single source — each rule has a
-        # unique rule_key, structurally deduped before this step.
-        #
-        # Phase D-backend: dedup scope is now (period_id, alert_key), not
-        # (org_id, alert_key). The pre-D-backend setup had alerts as
-        # org-scoped rows — `/api/period/:id` then returned the union of
-        # every period's alerts on every period view, producing the
-        # "80 on file" duplicate pile the user reported. Now:
-        #
-        #   1. DELETE every alert for THIS period_id before inserting
-        #      (covers re-runs and old document_ids that previously
-        #      attached to this period via documents.period_id).
-        #   2. INSERT the deduped set with period_id stamped on each
-        #      row, with a (period_id, alert_key) unique constraint
-        #      enforcing idempotency at the DB level.
-        #
-        # The schema migration that adds `period_id` + the new unique
-        # is at supabase/schema_phase_notes_period_scope.sql — both
-        # must ship together.
-        _persist_period_alerts(admin_client, org_id, document_id, period_id,
-                               validation_alerts)
+            carried_briefing = (carry or {}).get("briefing") if unavailable is not None else None
+            if carried_briefing is not None:
+                # The re-run's narration failed and its reset had taken the
+                # last good briefing with the old period: it is written back
+                # as it was — its own body, language, model and definition
+                # stamp — and marked stale; the recommendations with it.
+                _write_carried_briefing(admin_client, carried_briefing, org_id, period_id,
+                                        str(unavailable))
+                restored_recs = _restore_carried_recommendations(admin_client, carry, org_id, period_id)
+                stored["carry_settled"] = True
+                logger.warning(
+                    "[stage_persist_narrative] narration unavailable (%s) for period %s — the "
+                    "briefing the re-run's reset carried is restored and marked stale "
+                    "(%d recommendation(s) with it)", unavailable, period_id, restored_recs,
+                )
+                return
+
+            # Briefing — upsert one row per period
+            admin_client.upsert(
+                "briefings",
+                {
+                    "period_id": period_id,
+                    "org_id": org_id,
+                    # Nothing to protect and the narration failed: the neutral
+                    # sentinel, whatever text the failure branch returned.
+                    "body": narrate["briefing"] if unavailable is None else NARRATIVE_UNAVAILABLE_SENTINEL,
+                    "language": briefing_language_stamp(doc),
+                    "model": _narrative_model(),
+                    # The EBITDA definition the prose was written under (owner
+                    # ruling 2026-09-26). Served beside the body so a briefing
+                    # written under an earlier definition is recognised and
+                    # hidden, never shown beside corrected numbers. Column added
+                    # by supabase/schema_phase_briefing_ebitda_definition.sql.
+                    "ebitda_definition": _EBITDA_DEFINITION_REVISION,
+                },
+                on_conflict="period_id",
+                returning=False,
+            )
+            if unavailable is not None:
+                # The narration failed and there was no usable briefing to
+                # keep: the sentinel is stored — and that is ALL a failed
+                # narration writes. It brings no recommendations, so the
+                # period's stored ones are not touched.
+                logger.warning(
+                    "[stage_persist_narrative] narration unavailable (%s) for period %s — "
+                    "the sentinel is stored; the period's recommendations are kept",
+                    unavailable, period_id,
+                )
+                # … and a re-run's carried ones are put back (the reset took
+                # them with a period whose briefing was not usable).
+                _restore_carried_recommendations(admin_client, carry, org_id, period_id)
+                stored["carry_settled"] = True
+                return
+
+            # A good write: the row is current again. NEVER inside the
+            # upsert payload above (see `_mark_briefing_stale`).
+            _clear_briefing_stale(admin_client, period_id, org_id)
+
+            # Recommendations — wipe per-PERIOD, re-insert with period_id.
+            #
+            # Phase D-backend: the prior `delete WHERE org_id = ?` wiped EVERY
+            # period's recommendations on every re-run, then re-inserted only
+            # the current period's. Result: only the most-recently-analysed
+            # period had recs; every other period's were silently wiped on
+            # the next upload. The new scope is `WHERE period_id = ?` so a
+            # re-run only replaces THIS period's recs; sibling periods are
+            # untouched. The schema migration at
+            # supabase/schema_phase_notes_period_scope.sql adds the period_id
+            # column + index this query depends on.
+            #
+            # The rows are built and validated FIRST: the delete below is
+            # destructive, and nothing a model wrote may raise after it.
+            recs = _recommendation_rows(narrate, org_id, period_id)
+            if recs is None:
+                logger.warning(
+                    "[stage_persist_narrative] the narration's recommendations cannot be read "
+                    "for period %s — the stored recommendations are kept",
+                    period_id,
+                )
+                # The briefing is new; the recommendations a re-run's reset
+                # carried are still the period's (nothing replaced them).
+                _restore_carried_recommendations(admin_client, carry, org_id, period_id)
+                stored["carry_settled"] = True
+                return
+            # What the period holds, read BEFORE the delete: the replacement
+            # is a delete then an insert, and an insert the database refused
+            # (a timeout) used to leave the period with none — its worked
+            # recommendations gone although the narration had not failed
+            # (review 2026-10-03, measured 2 -> 0). They are put back.
+            previous_recs = admin_client.select(
+                "recommendations",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+            ) or []
+            admin_client.delete(
+                "recommendations",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"})
+            try:
+                if recs:
+                    admin_client.insert("recommendations", recs, returning=False)
+            except Exception:
+                # Put back — onto a period that HOLDS NONE only: a timeout
+                # is ambiguous (the insert may have landed and only its
+                # reply been lost), and the previous rows beside the run's
+                # own would be both lists at once.
+                try:
+                    landed = admin_client.select(
+                        "recommendations",
+                        filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+                        columns="id", limit=1,
+                    )
+                    if previous_recs and not landed:
+                        admin_client.insert("recommendations", previous_recs, returning=False)
+                except Exception:  # noqa: BLE001 — the original failure is what is raised
+                    logger.exception(
+                        "[stage_persist_narrative] the period's previous recommendations "
+                        "could not be put back for period %s", period_id)
+                raise
+            stored["recommendations"] = True
+            # The run's own narration replaced everything a re-run carried.
+            stored["carry_settled"] = True
+        except Exception:
+            # A NARRATIVE WRITE THE DATABASE REFUSED. On a Docs-panel re-run
+            # the period is new and the reset took what the old one held:
+            # whatever this period now lacks is put back from the carry —
+            # the briefing when the period holds no usable one, the
+            # recommendations when it holds none (best effort; a refused
+            # restore leaves the carry for the next run). The raise still
+            # reaches the caller.
+            if carry is not None and not stored.get("carry_settled"):
+                if _restore_rerun_carry(admin_client, carry, org_id, period_id,
+                                        str(unavailable or BRIEFING_STALE_WRITE_REFUSED)):
+                    stored["carry_settled"] = True
+            raise
+        finally:
+            # ── Alerts — DETERMINISTIC rules only (read from canonical views) ──
+            # LLM-generated alerts are NO LONGER persisted. The "15 duplicate
+            # critical alerts" problem came from the LLM emitting many slight
+            # variations of the same concern, each landing as a fresh row.
+            # `stage_validate` is now the single source — each rule has a
+            # unique rule_key, structurally deduped before this step.
+            #
+            # Phase D-backend: dedup scope is now (period_id, alert_key), not
+            # (org_id, alert_key). The pre-D-backend setup had alerts as
+            # org-scoped rows — `/api/period/:id` then returned the union of
+            # every period's alerts on every period view, producing the
+            # "80 on file" duplicate pile the user reported. Now:
+            #
+            #   1. DELETE every alert for THIS period_id before inserting
+            #      (covers re-runs and old document_ids that previously
+            #      attached to this period via documents.period_id).
+            #   2. INSERT the deduped set with period_id stamped on each
+            #      row, with a (period_id, alert_key) unique constraint
+            #      enforcing idempotency at the DB level.
+            #
+            # The schema migration that adds `period_id` + the new unique
+            # is at supabase/schema_phase_notes_period_scope.sql — both
+            # must ship together.
+            #
+            # IN EVERY CASE (`finally`): the briefing kept, the sentinel
+            # stored, the recommendations unreadable — and a briefing or
+            # recommendation write that RAISED. The alerts belong to the
+            # statements, not to the narration; a same-month takeover moves
+            # them onto the month, and a run whose narrative write raised
+            # used to leave the month with none.
+            _persist_period_alerts(admin_client, org_id, document_id, period_id,
+                                   validation_alerts)
+            stored["alerts"] = True
 
 
 # ─── Orchestrator ───────────────────────────────────────────────────────────
@@ -4865,25 +5777,91 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
     Two writes per upload:
       1. sku_analyses (one row per document) — briefing + recommendations
       2. sku_aggregates (N rows) — engine-classified per-SKU rollups
+
+    NO RUN REPLACES A USABLE BRIEFING WITH A FAILED NARRATION — the same
+    rule as `stage_persist_narrative`, for the fourth writer of a briefing
+    (owner ruling 2026-10-03: the SKU briefing is in scope). `sku_analyses`
+    holds ONE row per document and no history; a re-run of a sales document
+    whose narration failed used to store the operator sentence, the
+    sentinel, or the first 500 characters of an unparseable reply over the
+    briefing and replace its recommendations with [].
+      · usable narration            → written, as before;
+      · unusable + a usable row     → the row's briefing, recommendations,
+                                      language and model are KEPT (the
+                                      upsert names none of them); the run's
+                                      deterministic `summary` is written;
+      · unusable + nothing to keep  → the neutral sentinel, never provider
+                                      text or an operator sentence — and a
+                                      failed narration never writes over
+                                      recommendations a stored row holds.
     """
     from ._sku_classify import classify_portfolio
 
     raw_skus = parsed.get("skus") or []
     classified = classify_portfolio(raw_skus)
     period_label = parsed.get("period_label") or "Imported period"
+    unavailable = narration_unavailable_code(narrative)
 
     with _supabase.admin() as client:
-        client.upsert(
-            "sku_analyses",
-            {
-                "org_id": doc["org_id"],
-                "document_id": doc["id"],
+        # The run's deterministic part: always written.
+        row: Dict[str, Any] = {
+            "org_id": doc["org_id"],
+            "document_id": doc["id"],
+            "summary": parsed.get("summary") or {},
+        }
+        run_recs = narrative.get("recommendations")
+        stored: Optional[Dict[str, Any]] = None
+        if unavailable is not None or not isinstance(run_recs, list):
+            # The narration failed — or its recommendations cannot be read:
+            # read what the document already holds, with the TENANT in the
+            # filter (the read runs under the service role) and re-checked
+            # on the row.
+            stored_rows = client.select(
+                "sku_analyses",
+                filters={"document_id": f"eq.{doc['id']}", "org_id": f"eq.{doc['org_id']}"},
+                columns="document_id,org_id,briefing",
+                limit=1,
+            ) or []
+            stored = next((r for r in stored_rows
+                           if str(r.get("org_id")) == str(doc["org_id"])), None)
+        if unavailable is None:
+            row.update({
                 "briefing": narrative.get("briefing", ""),
-                "summary": parsed.get("summary") or {},
-                "recommendations": narrative.get("recommendations") or [],
                 "language": "en",
                 "model": _narrative_model(),
-            },
+            })
+            # A reply whose recommendations cannot be read (`stage_narrate`
+            # hands on a list or None) is not a reply that recommends
+            # nothing: the stored ones are kept (the upsert names no such
+            # column) — an empty list only where there is no row to keep.
+            if isinstance(run_recs, list):
+                row["recommendations"] = run_recs
+            elif stored is None:
+                row["recommendations"] = []
+        else:
+            if stored is not None and stored_briefing_failure_code(stored.get("briefing")) is None:
+                logger.warning(
+                    "[sku] narration unavailable (%s) for document %s — the stored SKU "
+                    "briefing and recommendations are kept",
+                    unavailable, doc["id"],
+                )
+            else:
+                # Nothing usable to keep: the neutral sentinel, whatever
+                # text the failure branch returned. Recommendations are
+                # written only where there is no row to merge into.
+                row.update({
+                    "briefing": NARRATIVE_UNAVAILABLE_SENTINEL,
+                    "language": "en",
+                    "model": _narrative_model(),
+                })
+                if stored is None:
+                    row["recommendations"] = []
+        # An upsert MERGES on conflict: a column the payload does not name
+        # keeps its stored value — which is how the kept briefing and
+        # recommendations survive a failed narration.
+        client.upsert(
+            "sku_analyses",
+            row,
             on_conflict="document_id",
             returning=False,
         )
@@ -5303,8 +6281,9 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         # Non-RO meter — reserved mid-run by `_enforce_nonro_plan_gate`,
         # settled with the run under the same success-only discipline.
         if run.nonro_reserved and run.nonro_user:
-            # The non-RO reservation was made under `documents.uploaded_by`,
-            # which the BROWSER writes: it settles only against a member of
+            # The non-RO reservation is the verified reserver's
+            # (`_doc_slot_holder`, never `documents.uploaded_by`, which the
+            # BROWSER writes); it still settles only against a member of
             # the document's own organization (P0 family, 2026-09-09).
             nonro_success = settle_as_success
             if nonro_success:
@@ -5314,8 +6293,8 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 doc_org = str((found[0] if found else {}).get("org_id") or "").strip()
                 if not doc_org or not _org.user_is_member(run.nonro_user, doc_org):
                     logger.error(
-                        "[security] REFUSED non-RO commit: document=%s names "
-                        "uploaded_by=%r who is not a member of its org=%r",
+                        "[security] REFUSED non-RO commit: document=%s was reserved "
+                        "by user=%r, who is not a member of its org=%r",
                         document_id, run.nonro_user, doc_org,
                     )
                     nonro_success = False
@@ -6185,8 +7164,12 @@ def _run_pipeline_stages(document_id: str) -> str:
         # being deleted mid-run — must NOT fail the whole scan. This mirrors
         # the "period vanished" skip inside stage_persist_narrative and the
         # non-fatal handling every other side-effect in this pipeline uses.
+        # What the narrative stage actually stored, filled in as it goes —
+        # it is read after a raise too (the takeover below must know).
+        narrative_stored: Dict[str, bool] = {}
         try:
-            stage_persist_narrative(doc, period_id, narrative, validation_alerts)
+            stage_persist_narrative(doc, period_id, narrative, validation_alerts,
+                                    stored=narrative_stored)
         except Exception:  # noqa: BLE001
             logger.exception(
                 "[pipeline] narrative/alerts persistence failed (non-fatal) — "
@@ -6244,7 +7227,17 @@ def _run_pipeline_stages(document_id: str) -> str:
 
         # G4 — every stage has succeeded: a same-month re-upload becomes
         # the month only now (the served row was untouched until here).
-        period_id = _finalize_same_month_takeover(doc, period_id)
+        # The takeover is told what the run STORED (owner ruling 2026-10-03,
+        # "a takeover must not delete anything that was good"): the run's
+        # own narration code when it failed, and whether it wrote
+        # recommendations and alerts that may replace the month's — read
+        # from what `stage_persist_narrative` reports it stored, not from
+        # whether it raised (a raise in the alerts write comes AFTER the
+        # run's good recommendations were stored).
+        period_id = _finalize_same_month_takeover(
+            doc, period_id, narration_unavailable=narration_unavailable_code(narrative),
+            keep_recommendations=not narrative_stored.get("recommendations"),
+            keep_alerts=not narrative_stored.get("alerts"))
         _admin_set_status(
             document_id,
             "analyzed",
@@ -6254,6 +7247,11 @@ def _run_pipeline_stages(document_id: str) -> str:
         # The period is now backed by an analysed document — nothing to
         # roll back from here on.
         _pop_period_minted(document_id)
+        # … and what a Docs-panel re-run carried across its reset may be let
+        # go — only now (a failure up to the status write above rolls the
+        # period back, and the carry with what it was restored on).
+        if narrative_stored.get("carry_settled"):
+            _drop_rerun_carry(document_id)
         # Pricing V3 (gap D) — analysis SUCCEEDED. `_run_pipeline_sync`
         # settles this run's reservation on the returned outcome.
         logger.info("[pipeline] %s complete in %dms", document_id, int((time.time() - t0) * 1000))
@@ -7977,6 +8975,43 @@ class DuplicateCheckRequest(BaseModel):
     # "financial" (the dashboard) or "sku" (Products) — the SCOPE clause.
     # Absent (an older bundle) → financial, the column's default.
     scope: Optional[str] = None
+
+
+class _Strict(BaseModel):
+    """Extra fields refused, no coercion — for bodies whose every field
+    is a decision (module scope, CLAUDE.md §22)."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+
+class RegenerateBriefingBody(_Strict):
+    """POST body for `/api/period/{id}/briefing/regenerate` — the EXPLICIT
+    regeneration (owner ruling 2026-10-02: "the frontend must not auto-fire
+    regenerate … explicit, metered action instead").
+
+    `intent: "user"` is what makes the request a model call at all. The
+    bodiless shape (query params only) is what every bundle deployed before
+    the ruling fires from an effect, with no click: it is answered with the
+    stored briefing and narrates, meters and writes nothing.
+
+    MODULE SCOPE on purpose: a model nested in `build_router` degrades to a
+    required query parameter and the route answers 422 to every body
+    (CLAUDE.md §22; gate route-binding)."""
+
+    intent: Literal["user"]
+    # The language to narrate in — the reader's UI language.
+    # Absent (null), or a language the narrator has an instruction for
+    # (`NARRATION_LANGUAGES`, first two letters, any case). Anything else
+    # is refused by the route AFTER the walls and BEFORE the meter: 422
+    # `unsupported_language` (owner ruling 2026-10-03: "never charge for a
+    # request that can't be served"). Checked in the handler, not here: a
+    # validator on this model would answer before the 401 / 403 / 404.
+    language: Optional[str] = None
+    # The display currency to narrate in; only RON is persisted.
+    # Absent (null) / RON, or a currency the engine has a rate for — else
+    # 422 `unsupported_currency`; 503 `fx_unavailable` when no usable rate
+    # payload is to be had. Same seam, same order.
+    currency: Optional[str] = None
 
 
 class ReviewReanalyzeRequest(BaseModel):
@@ -9739,8 +10774,21 @@ def build_router() -> APIRouter:
         return RunResponse(document_id=req.document_id, status="queued")
 
     def _retry_rerun(document_id: str, doc: Dict[str, Any]) -> None:
-        """The body of a claimed retry: wipe the prior derivatives, queue,
-        hand the run to its thread."""
+        """The body of a claimed retry: carry what the reset would cost the
+        reader, wipe the prior derivatives, queue, hand the run to its
+        thread."""
+        # THE LAST GOOD BRIEFING AND THE RECOMMENDATIONS ARE CARRIED across
+        # the reset below (owner rulings 2026-10-03): `briefings` keeps no
+        # history, and a re-run whose narration fails used to leave the
+        # reader "unavailable" where they stood. `stage_persist_narrative`
+        # puts them back when the run's narration brings nothing. An
+        # unreadable period refuses the re-run — nothing is reset blind.
+        try:
+            _carry_before_rerun_reset(doc)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[pipeline] retry of %s: the period's briefing and recommendations "
+                             "could not be read — the re-run is not started", document_id)
+            raise HTTPException(503, {"code": "rerun_unavailable"}) from exc
         # Wipe prior derivatives via cascade — deleting the financial_periods
         # row removes statement_line_items, calculated_metrics, briefings,
         # AND alerts (alerts.document_id has on delete set null, we explicitly
@@ -9798,8 +10846,24 @@ def build_router() -> APIRouter:
                 "calculated_metrics",
                 filters={"period_id": f"eq.{period_id}"},
             )
-            briefings = client.select("briefings", filters={"period_id": f"eq.{period_id}"})
-            briefing = briefings[0] if briefings else None
+            # THE TENANT IS IN THE FILTER (owner ruling 2026-10-03: "the period
+            # read without workspace is a tenant boundary bug"). `period_id`
+            # alone is not a tenant filter: `briefings.period_id` is
+            # browser-writable on a row of the WRITER's own workspace (the
+            # insert policy checks the row's own org; the foreign key only
+            # asks that the period exists), so a member of another workspace
+            # who can see this period can put a row on it — and a reader whose
+            # RLS admits both workspaces (two companies, firm staff) was
+            # served that row as THIS period's briefing. The period's briefing
+            # is the row of the period's own org — the same row the
+            # regenerate route reads (`_stored_briefing_row`) — re-checked on
+            # the row itself, never `rows[0]`.
+            _period_org = str(period["org_id"])
+            briefings = client.select(
+                "briefings",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{_period_org}"},
+            ) or []
+            briefing = next((b for b in briefings if str(b.get("org_id")) == _period_org), None)
 
             doc_rows = client.select(
                 "documents",
@@ -10425,15 +11489,10 @@ def build_router() -> APIRouter:
                 }
                 for m in credit_metrics_as_filed
             ],
-            "briefing": briefing and {
-                "body": briefing["body"],
-                "language": briefing.get("language", "en"),
-                "model": briefing.get("model"),
-                # Which EBITDA definition the prose was written under; the
-                # page hides one written under an earlier definition with
-                # the note (owner ruling 2026-09-26, design A9).
-                "definition": briefing_definition_status(briefing),
-            },
+            # {body, language, model, definition} + (2026-10-02, additive)
+            # `unavailable` / `unavailable_reason` — a stored failure text is
+            # served `body: null`, never as prose — and `stale`.
+            "briefing": served_briefing(briefing),
             "recommendations": [
                 {
                     "id": r["id"],
@@ -10991,182 +12050,407 @@ def build_router() -> APIRouter:
     @router.post("/api/period/{period_id}/briefing/regenerate")
     def regenerate_briefing(
         period_id: str,
-        currency: Optional[str] = None,
-        language: Optional[str] = None,
+        body: Optional[RegenerateBriefingBody] = None,
         authorization: Optional[str] = Header(None),
     ) -> Dict[str, Any]:
-        """F2.8 — Regenerate the LLM CFO Briefing for an existing period
-        against the current canonical statements + metrics. Used after the
-        F1.e basis decisions (cash vs statutory EBITDA, statutory ct.121
-        net profit, Z″ Altman) shifted the canonical numbers — cached
-        briefings still cite the pre-F1.e values until regenerated.
+        """Regenerate the CFO briefing of an existing period against its
+        current statements and metrics — EXPLICITLY, metered, and never at
+        the cost of the briefing already stored (owner ruling 2026-10-02).
 
-        `currency` (optional query param): RON/EUR/USD. When provided,
-        every monetary number in `briefing_facts` is FX-converted to that
-        currency before the LLM sees them, and the prompt asks the LLM
-        to cite the converted currency. Defaults to the period's source
-        currency (typically RON). Wired from the FE TopHeader currency
-        toggle so the briefing prose follows RON ↔ EUR ↔ USD switches.
+        NO BODY — the legacy shape. Every bundle deployed before the ruling
+        POSTs `?currency=…&language=…` from an effect, 600 ms after a
+        language mismatch or a currency toggle, with no click. That shape is
+        INERT: 200 `{ok: true, regenerated: false, legacy: true, briefing:
+        <the stored usable body or null>}` — no model call, no meter, no
+        write; the query parameters are ignored.
 
-        Calls `stage_narrate` against the rebuilt assembled statements +
-        the period's `calculated_metrics` rows, then upserts the resulting
-        briefing body on the `briefings` table. Recommendations + alerts
-        are NOT touched (those have their own deterministic generation
-        path via `stage_validate`).
+        WITH `RegenerateBriefingBody` ({intent: "user", language?,
+        currency?}) — in this order:
+          1. the walls, exactly as before (401; 404 not visible; 403 not a
+             member of the period's org);
+          2. the inputs (owner ruling 2026-10-03: "refuse unsupported
+             language or unknown currency before the meter. Never charge
+             for a request that can't be served"): a `language` the
+             narrator has no instruction for is 422 `unsupported_language`;
+             a `currency` the engine has no rate for is 422
+             `unsupported_currency`; a conversion with no usable rate
+             payload is 503 `fx_unavailable` — each with no meter call, no
+             model call and no write;
+          3. the meter: one Ask-CFO-AI message of the verified CALLER
+             (`_usage_gate.reserve_chat`); a spent allowance is 429
+             `briefing_regen_cap_reached` with the caller's own counts; a
+             meter that gave no usable answer is 503 `metering_unavailable`
+             (never a cap claim), and whatever it may have reserved is
+             given back;
+          4. the model (`stage_narrate`).
+        A usable narration is committed against the meter, written when the
+        display currency is RON (a converted briefing is returned, never
+        stored) with its TRUE language, and clears the stale marker right
+        after the upsert. An unusable one writes NOTHING — no upsert, no
+        `updated_at` touch — releases the meter, marks the kept row stale
+        and answers 200 `{ok: false, regenerated: false, reason: <code>,
+        stale: <bool>, briefing: <the stored usable body or null>}`.
+
+        `stale`, IN EVERY ANSWER, IS WHAT IS STORED (owner ruling
+        2026-10-03: "never report a state that isn't stored"): true if and
+        only if the stored briefing row carries the stale marker when the
+        call returns — what GET /api/period serves next. A failed converted
+        regenerate marks nothing and answers the row's own state; a marker
+        the database rejected (the stale migration not applied) answers
+        false; a failure with no row stored answers false.
+
+        Recommendations and alerts are not touched (they have their own
+        generation paths).
         """
         jwt = _require_jwt(authorization)
         # The WRITE wall (FC1x, D4): visible under RLS AND a member of the
         # period's org — the briefing is upserted through the service role.
+        # BOTH shapes pass it: the legacy answer carries the stored body.
         period = _verify_user_may_write_period(jwt, period_id)
+        org_id = period["org_id"]
 
         with _supabase.admin() as admin_client:
-            org_rows = admin_client.select(
-                "organizations",
-                filters={"id": f"eq.{period['org_id']}"},
-                single=True,
-            )
-            org = org_rows[0] if org_rows else {}
-            line_items = admin_client.select(
-                "statement_line_items",
-                filters={"period_id": f"eq.{period_id}"},
-            )
-            # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02) on every
-            # period-keyed read below whose table carries `org_id`:
-            # `period_id` on those tables is a column a member of ANOTHER
-            # workspace can write on their own rows (the insert policies
-            # check the row's own org only), so "by period" alone could
-            # return a foreign row to the narrator of this workspace's
-            # shared briefing.
-            _org_filter = f"eq.{period['org_id']}"
-            metric_rows = admin_client.select(
-                "calculated_metrics",
-                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
-            )
-            # calculated_metrics columns are name/value/unit/direction
-            # (NOT metric_name/metric_value — the earlier shape was an F2.8
-            # transcription error against the live schema, caught by the
-            # post-deploy KeyError on the first regenerate call).
-            metrics = [
-                {
-                    "name": m["name"],
-                    "value": m["value"],
-                    "unit": m.get("unit"),
-                    "direction": m.get("direction"),
-                }
-                for m in metric_rows
-            ]
-            valuation_rows = admin_client.select(
-                "valuations",
-                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
-            )
-            valuation = valuation_rows[0] if valuation_rows else None
-            doc = _period_source_document(admin_client, period)
-            # `language` (optional query param, 2026-08-04): the FE passes
-            # the ACTIVE UI language so a user who switched EN↔RO can pull
-            # the briefing into the language they're reading the app in —
-            # stage_narrate reads doc["detected_language"], so override it
-            # here rather than threading a new parameter through.
-            if language and language.lower()[:2] in ("en", "ro", "de", "fr", "es", "it", "pt", "nl", "pl"):
-                doc = {**doc, "detected_language": language.lower()[:2]}
-            # F2.8 fix: stage_narrate reads from `assembled["statements"]
-            # .assembled_pl` etc., not the bucket-only shape that
-            # `_rebuild_assembled` returns. Use the canonical-shaped
-            # rebuilder so the regenerated briefing cites
-            # operating-view EBITDA, statutory net income, and the
-            # rest of the briefing_facts envelope.
-            assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)
-            # THE STORED valuations ROW IS NOT THE VALUATION the narrator
-            # cites (the one-EBITDA law, critic 2026-09-27): the same
-            # choice GET /api/period makes — a fresh recompute on these
-            # statements, else the row only as far as `lawful_stored_row`
-            # allows it. The row the engine wrote under the previous
-            # definition carried an EV/EBITDA equity on the old EBITDA,
-            # which a regenerated briefing (stamped with TODAY's
-            # definition) would cite.
-            #
-            # NO USER OVERRIDE (hotfix 2026-10-02, owner ruling "the engine's
-            # result is shared, overrides are per user only"): the briefing
-            # is ONE row every member of the workspace reads. This route
-            # read `user_valuation_assumptions` with the admin client by
-            # period only and handed the FIRST row — whichever member's —
-            # to the narrator, so one member's typed EBITDA / multiple /
-            # debt / cash was written into the shared briefing.
-            if valuation:
-                _fresh_val, valuation = _fresh_or_lawful_valuation(
-                    valuation, None,
-                    assembled.get("statements"), org=org,
-                    line_items=assembled.get("lineItems") or line_items)
+            stored_row = _stored_briefing_row(admin_client, period_id, org_id)
+        kept_body = _kept_briefing_body(stored_row)
+        # Whether the stored row is served as stale — read through the ONE
+        # reader (`served_briefing`, what GET /api/period answers), so this
+        # route never holds a second definition of "stale". Every answer
+        # below reports the row's state AFTER the call, starting from this.
+        row_is_stale = (served_briefing(stored_row) or {}).get("stale") is not None
 
-            # FX rates for currency conversion. Skip the fetch when the
-            # caller wants the period's native currency (the no-op case).
-            display_currency = (currency or "").upper() or None
-            fx_payload: Optional[Dict[str, Any]] = None
-            if display_currency and display_currency not in ("", "RON"):
-                try:
-                    from .fx_rates import get_fx_rates as _get_fx_rates
-                    fx_payload = _get_fx_rates()
-                except Exception:  # noqa: BLE001
-                    logger.warning(
-                        "[/api/period/{id}/briefing/regenerate] fx_rates fetch failed; "
-                        "falling back to source currency"
-                    )
-            fx_rates_map = (fx_payload or {}).get("rates") if fx_payload else None
+        if body is None:
+            # THE LEGACY SHAPE IS INERT. Once the route is metered, a tab
+            # holding an old bundle would otherwise spend its reader's
+            # allowance on every page load.
+            return {
+                "ok": True,
+                "regenerated": False,
+                "legacy": True,
+                "period_id": period_id,
+                "briefing": kept_body,
+                "briefing_length": len(kept_body or ""),
+                "currency": "RON",
+                "stale": row_is_stale,
+            }
 
+        # ── the inputs: refused BEFORE the meter (ruling 2026-10-03) ─────
+        # A request that cannot be served is never charged: no meter call,
+        # no model call, no write. Neutral codes; the page renders its own
+        # sentence.
+        language = body.language
+        if language is not None and language.lower()[:2] not in NARRATION_LANGUAGES:
+            # MEASURED before the repair: `language: "zh"` was narrated in
+            # the document's language, written over the workspace's shared
+            # briefing and charged.
+            raise HTTPException(422, {"code": "unsupported_language"})
+
+        # `null` is "the stored currency"; a string is taken as typed
+        # (upper-cased, not trimmed): "" and " RON" name no currency.
+        display_currency = None if body.currency is None else body.currency.upper()
+        fx_rates_map: Optional[Dict[str, float]] = None
+        if display_currency is not None and display_currency != "RON":
+            # A CONVERTED briefing is narrated on converted figures or not
+            # at all. MEASURED before the repair: with no usable rates —
+            # or a currency the payload does not carry ("ZZZ") — the
+            # narrator was handed the RON figures under a prompt calling
+            # them "pre-converted to EUR", and the caller was charged.
+            fx_payload: Any = None
             try:
-                narrative = stage_narrate(
-                    doc, assembled, metrics, org, period_id,
-                    parsed=None, valuation=valuation,
-                    display_currency=display_currency,
-                    fx_rates=fx_rates_map,
+                from .fx_rates import get_fx_rates as _get_fx_rates
+                fx_payload = _get_fx_rates()
+            except Exception:  # noqa: BLE001 — no rates: refuse below
+                logger.warning(
+                    "[/api/period/{id}/briefing/regenerate] fx_rates fetch failed"
                 )
-            except Exception as exc:  # noqa: BLE001
+            raw_rates = fx_payload.get("rates") if isinstance(fx_payload, dict) else None
+            # Only a positive, finite number is a rate (0 / NaN / a string
+            # would convert to garbage or not at all).
+            usable_rates = {
+                str(code): float(rate)
+                for code, rate in (raw_rates.items() if isinstance(raw_rates, dict) else ())
+                if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                and 0 < rate < float("inf")
+            }
+            if not usable_rates:
+                raise HTTPException(503, {"code": "fx_unavailable"})
+            if display_currency not in usable_rates:
+                raise HTTPException(422, {"code": "unsupported_currency"})
+            # The figures are converted FROM the period's own currency (the
+            # one `stage_narrate` reads off the statements): without a rate
+            # for it the conversion cannot be served either.
+            source_currency = str(period.get("currency") or "RON").upper()
+            if source_currency not in usable_rates:
+                raise HTTPException(503, {"code": "fx_unavailable"})
+            fx_rates_map = usable_rates
+
+        # ── the meter: the verified caller's chat unit ───────────────────
+        from . import _usage_gate as _ug
+        caller_id = _user_id_from_jwt(jwt)
+
+        def _give_back_what_the_meter_may_hold() -> None:
+            # The gate could not hand over a usable answer. A reservation
+            # can still have LANDED (the RPC granted it and the reply was
+            # lost, or was unreadable), nothing reaps chat reservations and
+            # a held one counts against both caps — so it is given back,
+            # best-effort. When nothing was held the release RPC floors at
+            # zero; at worst it frees, for the length of that call, the
+            # hold of another message of the SAME caller that is in flight
+            # (whose commit still counts it) — against a unit lost for the
+            # day and the month.
+            try:
+                _ug.release_chat(caller_id)
+            except Exception:  # noqa: BLE001 — the refusal below stands
                 logger.exception(
-                    "[/api/period/{id}/briefing/regenerate] stage_narrate failed"
-                )
-                raise HTTPException(
-                    500, f"Briefing regeneration failed: {type(exc).__name__}"
-                ) from exc
+                    "[/api/period/{id}/briefing/regenerate] release after an unreadable meter failed")
 
-            # Upsert briefing only; do NOT touch recommendations/alerts
-            # (deterministic rules own those — regen would create
-            # duplicates and disagree with the validation pipeline).
-            #
-            # Currency-conversion regenerations (display_currency != source)
-            # are NOT persisted — the DB row stays the canonical
-            # source-currency briefing. If a user toggles RON → EUR, the
-            # EUR briefing is returned in the response only; on next
-            # session load they'd see RON again until they toggle. This
-            # avoids the alternative-currency briefing becoming "sticky"
-            # and confusing users who later toggle back.
-            should_persist = not display_currency or display_currency.upper() == "RON"
-            if should_persist:
-                admin_client.upsert(
-                    "briefings",
+        try:
+            decision = _ug.reserve_chat(caller_id)
+        except Exception as exc:  # noqa: BLE001 — unreachable meter: fail closed
+            logger.exception("[/api/period/{id}/briefing/regenerate] meter unreachable")
+            _give_back_what_the_meter_may_hold()
+            raise HTTPException(
+                503, {"code": "metering_unavailable"}) from exc
+        if decision.kind in ("daily_cap_reached", "monthly_cap_reached"):
+            # The caller's own plan, in the caller's own response — never
+            # stored. No server sentence: the page renders it from the code.
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "briefing_regen_cap_reached",
+                    "kind": decision.kind,
+                    "plan_key": decision.plan_key,
+                    "daily_used": decision.daily_used,
+                    "daily_cap": decision.daily_cap,
+                    "monthly_used": decision.monthly_used,
+                    "monthly_cap": decision.monthly_cap,
+                    "upgrade_url": "/pricing",
+                },
+            )
+        if decision.kind not in ("allowed", "disabled"):
+            # `metering_unavailable` — the meter answered nothing usable —
+            # or a kind this route does not know: FAIL CLOSED, and never as
+            # an allowance the caller has spent (no counts, no plan name,
+            # no /pricing link: the caller has spent nothing).
+            logger.error(
+                "[/api/period/{id}/briefing/regenerate] meter unavailable (%s) — refused",
+                decision.kind)
+            _give_back_what_the_meter_may_hold()
+            raise HTTPException(503, {"code": "metering_unavailable"})
+        # `allowed` holds one reserved message; `disabled` (enforcement off,
+        # or an operator-exempt caller) holds nothing to settle.
+        reserved = decision.kind == "allowed"
+        settled = False
+
+        try:
+            with _supabase.admin() as admin_client:
+                org_rows = admin_client.select(
+                    "organizations",
+                    filters={"id": f"eq.{org_id}"},
+                    single=True,
+                )
+                org = org_rows[0] if org_rows else {}
+                line_items = admin_client.select(
+                    "statement_line_items",
+                    filters={"period_id": f"eq.{period_id}"},
+                )
+                # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02) on every
+                # period-keyed read below whose table carries `org_id`:
+                # `period_id` on those tables is a column a member of ANOTHER
+                # workspace can write on their own rows (the insert policies
+                # check the row's own org only), so "by period" alone could
+                # return a foreign row to the narrator of this workspace's
+                # shared briefing.
+                _org_filter = f"eq.{org_id}"
+                metric_rows = admin_client.select(
+                    "calculated_metrics",
+                    filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
+                )
+                # calculated_metrics columns are name/value/unit/direction
+                # (NOT metric_name/metric_value — the earlier shape was an F2.8
+                # transcription error against the live schema, caught by the
+                # post-deploy KeyError on the first regenerate call).
+                metrics = [
                     {
-                        "period_id": period_id,
-                        "org_id": period["org_id"],
-                        "body": narrative.get("briefing", ""),
-                        "language": "en",
-                        "model": _narrative_model(),
-                        # see stage_persist_narrative (ruling 2026-09-26)
-                        "ebitda_definition": _EBITDA_DEFINITION_REVISION,
-                    },
-                    on_conflict="period_id",
-                    returning=False,
+                        "name": m["name"],
+                        "value": m["value"],
+                        "unit": m.get("unit"),
+                        "direction": m.get("direction"),
+                    }
+                    for m in metric_rows
+                ]
+                valuation_rows = admin_client.select(
+                    "valuations",
+                    filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
                 )
-                admin_client.update(
-                    "financial_periods",
-                    {"updated_at": _now_iso()},
-                    filters={"id": f"eq.{period_id}"},
-                )
+                valuation = valuation_rows[0] if valuation_rows else None
+                doc = _period_source_document(admin_client, period)
+                # `language`: the reader's UI language, so a user who
+                # switched EN↔RO can pull the briefing into the language
+                # they read the app in — stage_narrate reads
+                # doc["detected_language"], so override it here rather than
+                # threading a new parameter through. (An unsupported
+                # code was refused above, before the meter.)
+                if language is not None:
+                    doc = {**doc, "detected_language": language.lower()[:2]}
+                # F2.8 fix: stage_narrate reads from `assembled["statements"]
+                # .assembled_pl` etc., not the bucket-only shape that
+                # `_rebuild_assembled` returns. Use the canonical-shaped
+                # rebuilder so the regenerated briefing cites
+                # operating-view EBITDA, statutory net income, and the
+                # rest of the briefing_facts envelope.
+                assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)
+                # THE STORED valuations ROW IS NOT THE VALUATION the narrator
+                # cites (the one-EBITDA law, critic 2026-09-27): the same
+                # choice GET /api/period makes — a fresh recompute on these
+                # statements, else the row only as far as `lawful_stored_row`
+                # allows it. The row the engine wrote under the previous
+                # definition carried an EV/EBITDA equity on the old EBITDA,
+                # which a regenerated briefing (stamped with TODAY's
+                # definition) would cite.
+                #
+                # NO USER OVERRIDE (hotfix 2026-10-02, owner ruling "the engine's
+                # result is shared, overrides are per user only"): the briefing
+                # is ONE row every member of the workspace reads. This route
+                # read `user_valuation_assumptions` with the admin client by
+                # period only and handed the FIRST row — whichever member's —
+                # to the narrator, so one member's typed EBITDA / multiple /
+                # debt / cash was written into the shared briefing.
+                if valuation:
+                    _fresh_val, valuation = _fresh_or_lawful_valuation(
+                        valuation, None,
+                        assembled.get("statements"), org=org,
+                        line_items=assembled.get("lineItems") or line_items)
 
-        return {
-            "ok": True,
-            "period_id": period_id,
-            "briefing_length": len(narrative.get("briefing", "")),
-            "briefing": narrative.get("briefing", ""),
-            "currency": display_currency or "RON",
-        }
+                # FX rates for currency conversion: `fx_rates_map` was
+                # fetched and CHECKED before the meter (a rate for the
+                # display currency and for the period's own), and is None
+                # when the caller wants RON (the no-op case). There is no
+                # "falling back to source currency" any more: that fallback
+                # narrated RON figures under another currency's name.
+                try:
+                    narrative = stage_narrate(
+                        doc, assembled, metrics, org, period_id,
+                        parsed=None, valuation=valuation,
+                        display_currency=display_currency,
+                        fx_rates=fx_rates_map,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception(
+                        "[/api/period/{id}/briefing/regenerate] stage_narrate failed"
+                    )
+                    raise HTTPException(
+                        500, f"Briefing regeneration failed: {type(exc).__name__}"
+                    ) from exc
+
+                # Currency-conversion regenerations (display_currency != source)
+                # are NOT persisted — the DB row stays the canonical
+                # source-currency briefing. If a user asks for EUR, the
+                # EUR briefing is returned in the response only; on next
+                # session load they'd see RON again. This avoids the
+                # alternative-currency briefing becoming "sticky".
+                should_persist = not display_currency or display_currency.upper() == "RON"
+                unavailable = narration_unavailable_code(narrative)
+
+                if unavailable is not None:
+                    # THE NARRATION FAILED: NOTHING IS WRITTEN. No upsert, no
+                    # `financial_periods.updated_at` touch — the stored
+                    # briefing stays byte-identical. The meter is released
+                    # (the `finally` below), and the kept row is marked
+                    # stale — only when this call would have replaced it (a
+                    # converted briefing is never stored, so its failure
+                    # says nothing about the stored one).
+                    logger.warning(
+                        "[/api/period/{id}/briefing/regenerate] narration unavailable (%s) "
+                        "for period %s — the stored briefing is kept", unavailable, period_id)
+                    if should_persist and _is_usable_stored_briefing(stored_row):
+                        # `stale` below is what the row HOLDS: true once the
+                        # marker is stored; when the database rejected it
+                        # (the stale migration not applied) the row is as it
+                        # was.
+                        if _mark_briefing_stale(admin_client, stored_row, period_id, org_id,
+                                                str(unavailable)):
+                            row_is_stale = True
+                    return {
+                        "ok": False,
+                        "regenerated": False,
+                        "reason": unavailable,
+                        "stale": row_is_stale,
+                        "period_id": period_id,
+                        "briefing": kept_body,
+                        "briefing_length": len(kept_body or ""),
+                        "currency": display_currency or "RON",
+                    }
+
+                # Upsert briefing only; do NOT touch recommendations/alerts
+                # (deterministic rules own those — regen would create
+                # duplicates and disagree with the validation pipeline).
+                narrated_body = narrative["briefing"]
+                if should_persist:
+                    admin_client.upsert(
+                        "briefings",
+                        {
+                            "period_id": period_id,
+                            "org_id": org_id,
+                            "body": narrated_body,
+                            # The language it was narrated in, clamped to the
+                            # column's check constraint.
+                            "language": briefing_language_stamp(doc),
+                            "model": _narrative_model(),
+                            # see stage_persist_narrative (ruling 2026-09-26)
+                            "ebitda_definition": _EBITDA_DEFINITION_REVISION,
+                        },
+                        on_conflict="period_id",
+                        returning=False,
+                    )
+                    # A good write: the row is current again. A separate
+                    # best-effort update — never in the upsert payload —
+                    # and IMMEDIATELY after the upsert, before anything
+                    # else can raise: the period touch used to sit between
+                    # the two, and when it failed the NEW prose stayed
+                    # served as stale (the upsert merges; it does not reset
+                    # the marker columns).
+                    if _clear_briefing_stale(admin_client, period_id, org_id):
+                        row_is_stale = False
+                    # The period touch is a cache-bust, not part of the
+                    # write: when it fails the briefing IS stored — the
+                    # answer says so and the caller's unit is committed. It
+                    # used to raise: a bare 500 for a briefing that had been
+                    # replaced, the unit released, and a card telling the
+                    # reader "the previous briefing was kept" (review
+                    # 2026-10-03).
+                    try:
+                        admin_client.update(
+                            "financial_periods",
+                            {"updated_at": _now_iso()},
+                            filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+                        )
+                    except Exception:  # noqa: BLE001
+                        logger.exception(
+                            "[/api/period/{id}/briefing/regenerate] the period touch failed "
+                            "(non-fatal) — the briefing of period %s is stored", period_id)
+
+            if reserved:
+                _ug.commit_chat(caller_id)
+            settled = True
+            return {
+                "ok": True,
+                "regenerated": True,
+                "persisted": should_persist,
+                "period_id": period_id,
+                "briefing_length": len(narrated_body),
+                "briefing": narrated_body,
+                "language": narration_language(doc),
+                "currency": display_currency or "RON",
+                # What the stored row holds now: false after a persisted
+                # write cleared the marker; a converted (never stored)
+                # narration leaves the row — and its marker — as it was.
+                "stale": row_is_stale,
+            }
+        finally:
+            # An unusable narration, a refused read, any exception: the
+            # reserved message goes back. Nothing was delivered.
+            if reserved and not settled:
+                _ug.release_chat(caller_id)
 
     # ── F3.4 — Review Mode ─────────────────────────────────────────
     # `ReviewReanalyzeRequest` lives at module level (see above);

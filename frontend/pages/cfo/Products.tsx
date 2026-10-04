@@ -16,6 +16,7 @@ import { openStagedFile, openUploadedFilePreview } from "@/lib/stagedFilePreview
 import { clearStagedFiles, readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import type { Currency } from "@/lib/rates";
 import { categoryHint } from "@/lib/categoryHints";
+import { friendlyDocumentError } from "@/lib/uploadRefusals";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -281,7 +282,9 @@ async function fetchInflight(): Promise<InflightDoc | null> {
   const r = await fetch(`${apiBase()}/api/sku-analysis/inflight`, { headers: h });
   if (!r.ok) return null;
   const j = await r.json() as { document: { id: string; original_filename: string; status: DocumentStatus; error: string | null } | null };
-  return j.document ? { id: j.document.id, filename: j.document.original_filename, status: j.document.status, error: j.document.error } : null;
+  // The engine serves documents.error raw; a plan refusal is stored as a
+  // neutral code and rendered here, for this viewer (lib/uploadRefusals).
+  return j.document ? { id: j.document.id, filename: j.document.original_filename, status: j.document.status, error: friendlyDocumentError(j.document.error) ?? null } : null;
 }
 
 // ─── Bucket meta ────────────────────────────────────────────────────────────

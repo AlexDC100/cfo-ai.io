@@ -45,7 +45,9 @@ export type UploadOutcome =
   | { kind: "quota_blocked"; message: string; upgradeUrl: string }
   // 2026-08 — non-RO document on a plan without the Multi-Country
   // entitlement. The hook shows NonRoUpgradeDialog itself; this outcome
-  // just tells the caller the upload did not queue.
+  // just tells the caller the upload did not queue. `message` is the
+  // refusal CODE's sentence in the reader's language (lib/uploadRefusals),
+  // never the server's plan-named message.
   | { kind: "non_ro_blocked"; message: string }
   // 2026-09-21 — the server archived the document as a duplicate of a live
   // copy (same file, account, company, period). The hook has already shown
@@ -73,7 +75,8 @@ interface PendingExtra {
 }
 
 interface PendingNonRo {
-  serverMessage: string;
+  /** The refusal code's sentence (lib/uploadRefusals) — not server text. */
+  message: string;
   /** Settled once the user closes the upgrade prompt. */
   resolve: (outcome: UploadOutcome) => void;
 }
@@ -183,7 +186,7 @@ export function useUploadEnqueue() {
         // Friendly upgrade prompt, not an error toast — the plan simply
         // doesn't include non-RO documents. Resolves when dismissed.
         return new Promise<UploadOutcome>((resolve) => {
-          setPendingNonRo({ serverMessage: result.message, resolve });
+          setPendingNonRo({ message: result.message, resolve });
         });
       }
       // 402 extra_doc_required → modal
@@ -234,7 +237,7 @@ export function useUploadEnqueue() {
     if (!pendingNonRo) return;
     pendingNonRo.resolve({
       kind: "non_ro_blocked",
-      message: pendingNonRo.serverMessage,
+      message: pendingNonRo.message,
     });
     setPendingNonRo(null);
   }, [pendingNonRo]);
@@ -256,7 +259,6 @@ export function useUploadEnqueue() {
     <NonRoUpgradeDialog
       open
       onClose={handleNonRoClose}
-      serverMessage={pendingNonRo.serverMessage}
     />
   ) : null;
 

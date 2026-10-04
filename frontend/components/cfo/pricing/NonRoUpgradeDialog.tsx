@@ -11,8 +11,12 @@
 //
 // The component and file keep their names: the typed refusal
 // (`non_ro_not_included`, lib/uploadRefusals.ts) and its callers are
-// unchanged. The backend's own `message` for that refusal still names the
-// plan; it is deliberately NOT rendered.
+// unchanged.
+//
+// It prints the refusal CODE's own copy and nothing else (owner ruling
+// 2026-10-02: the message is rendered per viewer from the code). The
+// server's message named a plan in English whatever the reader's language;
+// the dialog takes no such prop, so there is nothing of the server's to show.
 
 import { useState } from "react";
 import { Globe2 } from "lucide-react";
@@ -31,9 +35,6 @@ import { CoverageTable } from "@/components/cfo/CoverageTable";
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** The server's detail line. Accepted for the callers' sake and NOT
-   *  shown: it says the document "is included on the Multi-Country plan". */
-  serverMessage?: string | null;
 }
 
 export function NonRoUpgradeDialog({ open, onClose }: Props) {

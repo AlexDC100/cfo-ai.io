@@ -62,15 +62,16 @@ code does not block any existing user; flip the env to enforce.
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
 import dataclasses
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Union
 
-from . import _plan_state, _pricing_config, _quota_ledger, _supabase, _unmetered
+from . import _org, _plan_state, _pricing_config, _quota_ledger, _supabase, _unmetered
 
 
 logger = logging.getLogger(__name__)
@@ -136,18 +137,47 @@ NonRoReserveKind = Literal["allowed", "refused", "blocked", "disabled"]
 
 # The typed refusal contract (2026-08 tiers): the FE matches
 # `non_ro_not_included` and renders an upgrade-to-Multi-Country prompt.
+# This dict is the UNIT's decision (`NonRoReserveDecision.refusal`); what
+# the pipeline STORES is `stored_nonro_refusal` below — the code alone.
 NON_RO_REFUSAL: Dict[str, str] = {
     "error": "non_ro_not_included",
     "upgrade_to": "multi",
 }
 
+# ── What a non-RO refusal STORES (owner ruling 2026-10-02) ────────────
+#
+# `documents.error` is a SHARED row: every member of the workspace reads it
+# (`documents member select`), and a firm viewer does too. It used to carry
+# `plan_key` and a sentence naming a plan ("…aren't included in the RO Solo
+# plan", "…included in the Multi-Country plan this month") — one PERSON's
+# billing fact published to their colleagues. It now carries a neutral
+# code and nothing else; each viewer's browser renders the sentence from
+# the code, in that viewer's language (frontend/lib/uploadRefusals.ts).
+NONRO_NOT_INCLUDED = "non_ro_not_included"
+NONRO_QUOTA_EXHAUSTED = "nonro_quota_exhausted"
+METERING_UNAVAILABLE = "metering_unavailable"
+
+#: The ONLY codes a non-RO refusal may store.
+STORED_NONRO_CODES = (NONRO_NOT_INCLUDED, NONRO_QUOTA_EXHAUSTED, METERING_UNAVAILABLE)
+
+
+def stored_nonro_refusal(code: str) -> str:
+    """The exact text a non-RO refusal raises with — and so the exact text
+    after `NonRoNotIncludedError: ` in `documents.error`: `{"error":
+    "<code>"}`. No `plan_key`, no `message`, no `upgrade_to`; an unknown
+    code is a programming error, never stored."""
+    if code not in STORED_NONRO_CODES:
+        raise ValueError("not a storable non-RO refusal code: %r" % (code,))
+    return json.dumps({"error": code}, ensure_ascii=False)
+
 
 class NonRoNotIncludedError(RuntimeError):
-    """Raised by the pipeline's non-RO gate hook when the uploader's plan
-    doesn't include non-Romanian documents. The message is a compact JSON
-    payload that lands verbatim in `documents.error` (via the pipeline's
-    generic failure handler), so the FE can match `non_ro_not_included`
-    and render the upgrade prompt instead of a generic failure."""
+    """Raised by the pipeline's non-RO gate hook when a non-Romanian
+    document is refused: the plan does not include them, the monthly
+    non-RO allowance is used, or the meter could not be reached. The
+    message is `stored_nonro_refusal(<code>)` — a neutral code that lands
+    in `documents.error` (via the pipeline's generic failure handler), so
+    the FE can match it and render the sentence per viewer."""
 
 
 @dataclass(frozen=True)
@@ -160,13 +190,24 @@ class NonRoReserveDecision:
     # True when the reservation landed ABOVE included_nonro_docs — the
     # terminal commit then bills one unit on the non-RO overage meter.
     was_extra: bool
-    # The typed refusal payload (kind == "refused"), else None.
-    refusal: Optional[Dict[str, str]]
+    # The typed refusal (kind == "refused"), else None: the payload dict
+    # (`NON_RO_REFUSAL`) for an entitlement refusal, or the bare code
+    # string `"metering_unavailable"` when the meter could not be reached
+    # (tests pin the string on the unit). Read it through
+    # `nonro_refusal_code`, never with `dict(...)` — `dict("metering_…")`
+    # raises ValueError, and that text is what `documents.error` stored.
+    refusal: Optional[Union[Dict[str, str], str]]
+    # For the CALLER's own HTTP response only. It names the reserver's plan:
+    # never store it on a shared row.
     message: str
 
 
 ChatReserveKind = Literal[
-    "allowed", "daily_cap_reached", "monthly_cap_reached", "disabled"
+    "allowed", "daily_cap_reached", "monthly_cap_reached", "disabled",
+    # The meter gave no answer the gate can act on (unreachable, an HTTP
+    # error, a body with no `kind`). NOT a cap: the caller has spent
+    # nothing. Still a refusal — only `allowed` / `disabled` may proceed.
+    "metering_unavailable",
 ]
 
 
@@ -644,19 +685,71 @@ def _nonro_not_included(state: Any) -> NonRoReserveDecision:
     )
 
 
-def nonro_entitlement_refusal(user_id: str) -> Optional[NonRoReserveDecision]:
-    """The non-RO ENTITLEMENT alone — no RPC, no reservation, no count: the
-    typed refusal when the plan does not include non-Romanian documents,
-    else None. For a run that holds no document slot (a retry, the
-    ai-lane force-reextract, a period-move re-run): the plan still gates
-    it, but it re-analyses a document already counted, so it reserves and
-    counts nothing (verifier P-E, 2026-09-21)."""
-    if not enforced_for(user_id):
+def nonro_refusal_code(decision: NonRoReserveDecision) -> str:
+    """The neutral code of a refused / blocked non-RO decision — the one
+    reader of `NonRoReserveDecision.refusal`, which is a dict for the
+    entitlement refusal and a bare string for an unreachable meter. Never
+    the decision's `plan_key` or `message` (the reserver's own plan)."""
+    refusal = decision.refusal
+    if isinstance(refusal, str):
+        code = refusal
+    elif isinstance(refusal, dict):
+        code = str(refusal.get("error") or "")
+    else:
+        code = ""
+    if code in STORED_NONRO_CODES:
+        return code
+    return NONRO_NOT_INCLUDED if decision.kind == "refused" else NONRO_QUOTA_EXHAUSTED
+
+
+def workspace_nonro_refusal(org_id: Optional[str]) -> Optional[str]:
+    """The non-RO ENTITLEMENT of a WORKSPACE — no RPC, no reservation, no
+    count: None when the workspace may analyse non-Romanian documents, else
+    the neutral code that refuses it.
+
+    For a run that holds no document slot (a retry, the ai-lane
+    force-reextract, a period-move re-run, an operator script): it
+    re-analyses a document already counted, so it reserves and counts
+    nothing (verifier P-E, 2026-09-21) — but the plan still gates it.
+
+    WHOSE PLAN (owner ruling 2026-10-02): the workspace's, never whoever
+    `documents.uploaded_by` names. Billing is per user and no workspace
+    carries a plan row, so the workspace's plan is its OWNER's — the user
+    who created it under their own plan's caps (`_org.workspace_owner_ids`,
+    resolved from the document's own `org_id` under the service role).
+
+    · any owner operator-exempt (`enforced_for` false)      → entitled
+    · any owner whose plan `allows_non_ro`                  → entitled
+    · owners, none entitled                                 → non_ro_not_included
+    · NO owner row, or no `org_id` on the document          → non_ro_not_included
+      (FAIL CLOSED — a run nobody can be named as paying for is not free)
+    · the owner lookup itself failed                        → metering_unavailable
+      (we could not check; `get_plan_state` degrades its own read failures
+      to the trial plan, which refuses as well)
+
+    Never reads `documents.uploaded_by`; never returns a plan name.
+    """
+    if not enforcement_enabled():
         return None
-    state = _plan_state.get_plan_state(user_id)
-    if state.plan.allows_non_ro:
-        return None
-    return _nonro_not_included(state)
+    org = str(org_id or "").strip()
+    if not org:
+        logger.error("[usage-gate] non-RO re-run refused: the document names no workspace")
+        return NONRO_NOT_INCLUDED
+    try:
+        owners = _org.workspace_owner_ids(org)
+    except Exception:  # noqa: BLE001 — unreadable is refused, never waved through
+        logger.exception("[usage-gate] non-RO re-run refused: the owner of workspace %s "
+                         "could not be read", org)
+        return METERING_UNAVAILABLE
+    if not owners:
+        logger.error("[usage-gate] non-RO re-run refused: workspace %s has no owner row", org)
+        return NONRO_NOT_INCLUDED
+    for owner in owners:
+        if not enforced_for(owner):
+            return None
+        if _plan_state.get_plan_state(owner).plan.allows_non_ro:
+            return None
+    return NONRO_NOT_INCLUDED
 
 
 def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
@@ -669,9 +762,10 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
       reserve against `included_nonro_docs`; above the cap the
       reservation still lands but `was_extra=True` so the terminal
       commit meters one unit at `extra_nonro_doc_eur`.
-    · RPC missing/unreachable (migration not applied yet) → degrade OPEN
-      to allowed-unmetered with a loud log: better to under-bill a
-      paying multi user than to block their upload.
+    · RPC missing/unreachable (migration not applied yet) → REFUSED,
+      `refusal="metering_unavailable"` (fail closed since 2026-09-10 — it
+      used to degrade open; see the branch below). The pipeline stores
+      that code through `nonro_refusal_code`.
 
     NOTE: this reserve happens mid-pipeline (the jurisdiction is only
     known after the resolver runs), IN ADDITION to the generic document
@@ -727,7 +821,10 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
         # The refusal is TYPED so the FE can render it: the generic
         # failure handler persists `documents.error`, the generic release
         # path frees the doc-slot reservation, and `metering_unavailable`
-        # is matched the same way `non_ro_not_included` is.
+        # is matched the same way `non_ro_not_included` is. It is a bare
+        # STRING here (tests pin it); `nonro_refusal_code` is its reader —
+        # until 2026-10-02 the pipeline did `dict(decision.refusal)` and
+        # stored the resulting ValueError text instead of the code.
         logger.error(
             "[usage-gate][billing] reserve_user_nonro_upload UNAVAILABLE — "
             "refusing the document rather than analysing it unmetered. "
@@ -810,6 +907,19 @@ def reserve_chat(user_id: str) -> ChatReserveDecision:
     The RPC `reserve_user_chat` locks both the monthly and daily rows
     (FOR UPDATE) before deciding, so concurrent calls serialize on the
     lock — gap C atomicity holds across the two-counter dual-cap check.
+
+    AN OUTAGE IS NOT A CAP (2026-10-03). `_rpc` answers None for every
+    failure of the wire — a refused connection, a timeout, an HTTP 4xx /
+    5xx, a body that is not JSON — and until this date `_rpc(...) or {}`
+    then `body.get("kind", "monthly_cap_reached")` read all of them as a
+    reached monthly cap: a caller who had spent NOTHING was told the
+    allowance was gone ("0 of 200"), sent to /pricing, and named the TRIAL
+    plan when the plan reads were down too. An answer that is absent, or
+    carries no `kind` this gate knows, is now `metering_unavailable`:
+    still a REFUSAL (fail closed — only `allowed` and `disabled` may
+    proceed to the model), never a cap claim. A reservation can have
+    landed while its reply was lost, so the caller gives the unit back
+    best-effort (`release_chat`) before refusing.
     """
     if not enforced_for(user_id):
         return ChatReserveDecision(
@@ -828,9 +938,29 @@ def reserve_chat(user_id: str) -> ChatReserveDecision:
         "p_day":         _today().isoformat(),
         "p_daily_cap":   plan.chat.daily,
         "p_monthly_cap": plan.chat.monthly,
-    }) or {}
+    })
 
-    kind = body.get("kind", "monthly_cap_reached")
+    kind = body.get("kind") if isinstance(body, dict) else None
+
+    if kind not in ("allowed", "daily_cap_reached", "monthly_cap_reached"):
+        # FAIL CLOSED, and say what happened — not what did not.
+        logger.error(
+            "[usage-gate] reserve_user_chat gave no usable answer (%s) — "
+            "refusing the message rather than serving it unmetered. user=%s",
+            "no response" if body is None else "kind=%r" % (kind,), user_id,
+        )
+        return ChatReserveDecision(
+            kind="metering_unavailable",
+            plan_key=plan.key,
+            daily_used=0,
+            daily_cap=plan.chat.daily,
+            monthly_used=0,
+            monthly_cap=plan.chat.monthly,
+            message=(
+                "We couldn't check your Ask CFO AI allowance just now. "
+                "Nothing was charged — try again in a few minutes."
+            ),
+        )
 
     if kind == "allowed":
         return ChatReserveDecision(

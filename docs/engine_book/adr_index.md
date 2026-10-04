@@ -10,3 +10,6 @@
 | [`ADR-corpus-history-sibiu.md`](../decisions/ADR-corpus-history-sibiu.md) | ADR — Non-anonymized Sibiu trial-balance PDF in git history |
 | [`DESIGN-2026-10-01-dcf-engine.md`](../decisions/DESIGN-2026-10-01-dcf-engine.md) | Design 2026-10-01 — Phase 2.3: the client-side valuation moves into the engine (`dcf/1`) |
 | [`TICKET-2026-10-01-nav-cascade-engine.md`](../decisions/TICKET-2026-10-01-nav-cascade-engine.md) | Ticket 2026-10-01 — the CRE NAV cascade moves into the engine |
+| [`TICKET-2026-10-02-firm-digest-and-renewal-recipient.md`](../decisions/TICKET-2026-10-02-firm-digest-and-renewal-recipient.md) | Ticket 2026-10-02 — the firm digest cron and the renewal-reminder recipient are audited before the Firm Cockpit flag flips |
+| [`TICKET-2026-10-02-journal-asof-org-key.md`](../decisions/TICKET-2026-10-02-journal-asof-org-key.md) | Ticket 2026-10-02 — journal chains are keyed by (org, content hash) before `ENGINE_JOURNAL_DIR` is ever set |
+| [`TICKET-2026-10-02-public-demo-decision-store.md`](../decisions/TICKET-2026-10-02-public-demo-decision-store.md) | Ticket 2026-10-02 — the public demo routes' shared decision store holds no real user data: confirm, then close the write path |

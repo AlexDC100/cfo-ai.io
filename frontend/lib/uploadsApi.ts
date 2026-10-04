@@ -364,7 +364,9 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
     throw new UploadApiError("malformed_commit", 502);
   }
 
-  // Typed refusals first — a non-RO document on a plan without it.
+  // Typed refusals first — a non-RO document on a plan without it. The
+  // message is the refusal CODE's sentence in the reader's language
+  // (lib/uploadRefusals), never the server's plan-named one.
   const nonRo = parseUploadRefusal(body);
   if (nonRo) return { status: "refused", message: nonRo.message, httpStatus: res.status };
 

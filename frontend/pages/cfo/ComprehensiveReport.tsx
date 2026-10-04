@@ -226,7 +226,14 @@ interface PeriodResponse {
   }>;
   /** `GET /api/period` serves `body` (+ its EBITDA `definition`); `summary`
    *  is the older report shape, read when present. */
-  briefing?: { summary?: string; verdict?: string; body?: string; definition?: unknown } | null;
+  briefing?: {
+    summary?: string;
+    verdict?: string;
+    body?: string | null;
+    definition?: unknown;
+    unavailable?: boolean;
+    stale?: unknown;
+  } | null;
   /** Per-account line items — surfaced by the engine so the canonical
    *  EBITDA reconciliation can subtract 758 / 781 from Reported EBITDA
    *  to reach Core EBITDA. Same shape `useActivePeriod` already
@@ -402,7 +409,9 @@ export default function ComprehensiveReport() {
   // engine's `ebitda_statutory`). The KPI grid + reconciliation
   // panel + (downstream) PnlTable all read from this object.
   // The executive briefing, hidden with the engine's note when it was
-  // written under an earlier EBITDA definition (lib/briefingDefinition).
+  // written under an earlier EBITDA definition, and replaced by a one-line
+  // note when the stored row is a failure text (lib/briefingDefinition) —
+  // "[NARRATIVE_UNAVAILABLE]" was once printed here as the briefing.
   const briefingShown = briefingVisibility(
     report.briefing ? { ...report.briefing, body: report.briefing.body ?? report.briefing.summary } : null,
   );
@@ -532,10 +541,21 @@ export default function ComprehensiveReport() {
               <Panel inset className="mt-5 border-l-[3px] border-l-caution px-4 py-3" data-testid="report-briefing-hidden-definition">
                 <p className="text-[12.5px] text-ink-soft leading-relaxed">{briefingShown.hiddenNote.en}</p>
               </Panel>
+            ) : briefingShown.unavailable && briefingShown.unavailableNote ? (
+              // The stored row holds no usable narration: the note, never
+              // the failure text (ruling 2026-10-02).
+              <Panel inset className="mt-5 border-l-[3px] border-l-caution px-4 py-3" data-testid="report-briefing-unavailable">
+                <p className="text-[12.5px] text-ink-soft leading-relaxed">{briefingShown.unavailableNote.en}</p>
+              </Panel>
             ) : briefingShown.body ? (
               <Panel inset className="mt-5 border-l-[3px] border-l-brand px-4 py-3">
                 <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
                   Executive briefing
+                  {/* The last good briefing, kept after a later narration
+                      failed (ruling 2026-10-02) — said, never silent. */}
+                  {briefingShown.stale && (
+                    <span data-testid="report-briefing-stale"> · previous version, kept after a later narration failed</span>
+                  )}
                 </div>
                 <p className="text-[13px] text-ink-soft leading-relaxed whitespace-pre-line">
                   {briefingShown.body}

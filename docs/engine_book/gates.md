@@ -20131,12 +20131,167 @@ member's override before the fix (production held none); figures a browser
 computes from the served payload; the other reads the sweep of 2026-10-02
 confirmed and did not repair here
 (`specs-durable/hotfix_overrides_tenancy/sweep_2026-10-02.json`): the non-RO
-plan gate reading the subscription of whoever `documents.uploaded_by` names,
+plan gate reading the subscription of whoever `documents.uploaded_by` names
+(repaired since — gate `entitlement-workspace-plan` below),
 the journal `asof` chain keyed by content hash alone (unreachable while
 `ENGINE_JOURNAL_DIR` is unset), the firm digest cron and the founder
 renewal-reminder recipient (both behind flags / an operator bearer), and the
 unauthenticated `/api/cfo/decisions` demo store (closed by `public-demo-store`,
 below).
+
+## entitlement-workspace-plan
+
+The WORKSPACE's plan gates a re-run, never whoever `documents.uploaded_by`
+names — and what the refusal stores on the shared row names nobody's plan.
+Owner ruling 2026-10-02: "the WORKSPACE's plan gates a re-run, never whoever
+uploaded_by names; the caller must be a member. Never write plan names into
+the shared documents.error — store a neutral code, render the message per
+viewer."
+
+THE DEFECT (tenancy sweep 2026-10-02; measured offline on the release head by
+running the real gate). Non-Romanian documents are a plan entitlement
+(Multi-Country only). The gate — `pipeline._enforce_nonro_plan_gate` — runs on
+the daemon thread, which carries only the document id. A run that holds a
+document slot (a first analysis) was, and is, gated by its verified reserver.
+A run that holds none — `/retry` or a correction of a counted book, the
+ai-lane force-reextract, `/run` of a counted book, an operator script — read
+the subscription of whoever `documents.uploaded_by` named. The browser writes
+that column: the `documents member update` policy has no column restriction.
+
+- `uploaded_by` = a Multi user who is not a member → the run was entitled by
+  a stranger's plan; the only read was `subscriptions user_id=eq.<that id>`,
+  zero `memberships` reads;
+- `uploaded_by` = a colleague on Solo → the Multi owner's own workspace was
+  refused;
+- `uploaded_by` NULL (the uploader's account deleted — `on delete set null` —
+  or one PATCH) → the gate RETURNED before any plan read;
+- the refusal stored, in `documents.error` — a row every member of the
+  workspace and every firm viewer reads —
+  `NonRoNotIncludedError: {"error": "non_ro_not_included", "upgrade_to":
+  "multi", "plan_key": "solo", "message": "Non-Romanian documents aren't
+  included in the RO Solo plan. …"}`, and from the reserving branch
+  `{"error": "nonro_quota_exhausted", "plan_key": "multi", "message": "You've
+  used all 8 non-Romanian documents included in the Multi-Country plan this
+  month."}`;
+- an unreachable meter (`reserve_nonro_document` answers the bare STRING
+  `metering_unavailable`) stored `ValueError: dictionary update sequence
+  element #0 has length 1; 2 is required` — the pipeline did
+  `dict(decision.refusal)`.
+
+Two tests pinned the defect as the law and were REWRITTEN, not deleted:
+`test_pricing_tiers.py::test_pipeline_nonro_gate_no_user_is_noop` (it asserted
+that a NULL `uploaded_by` passes with enforcement on — now
+`…_no_workspace_is_refused`) and
+`…::test_pipeline_nonro_gate_a_rerun_reserves_nothing_but_is_still_gated` (it
+answered the plan of whatever id the gate asked about).
+
+THE REPAIR. "The workspace's plan" is the plan of the workspace's OWNER:
+billing is per user and no workspace carries a plan row, and the owner is the
+account that created the workspace under its own plan's caps.
+
+- `_org.workspace_owner_ids(org)` — `memberships {org_id: eq.<org>, role:
+  eq.owner}` under the service role, `created_at.asc`, the role and the org
+  re-checked on the returned rows; a blank org reads nothing. Never
+  `order=role.asc, limit=1`: 'admin' sorts before 'owner'.
+- `_usage_gate.workspace_nonro_refusal(org)` — entitled when ANY owner is
+  operator-exempt (`enforced_for` false) or on a plan that `allows_non_ro`
+  (through `_plan_state.get_plan_state`); no owner row, or no `org_id` →
+  `non_ro_not_included` (fail closed); the owner lookup itself failing →
+  `metering_unavailable`.
+- `_enforce_nonro_plan_gate` — the holder-less branch reads `doc["org_id"]`,
+  never `doc["uploaded_by"]`. BOTH branches raise
+  `_usage_gate.stored_nonro_refusal(<code>)`, so `documents.error` is exactly
+  `NonRoNotIncludedError: {"error": "<code>"}` with `<code>` one of
+  `non_ro_not_included` · `nonro_quota_exhausted` · `metering_unavailable` —
+  no `plan_key`, no `message`, no `upgrade_to`. Each viewer's browser renders
+  the sentence from the code (`frontend/lib/uploadRefusals.ts`).
+- The first, metered run is unchanged in WHO is gated (the verified reserver's
+  own plan and meter); the caller's own HTTP 402 / 429 bodies keep their shape.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_entitlement_workspace_plan.py -q` |
+| work count | junit-xml, floor **35** tests (measured 35) |
+| canary | `test_the_workspace_owners_plan_decides_whoever_uploaded_by_names`, `test_a_null_uploader_is_gated_by_the_workspace_not_waved_through`, `test_a_workspace_with_no_owner_row_is_refused`, `test_a_document_with_no_workspace_is_refused`, `test_the_owner_is_resolved_by_role_never_by_sort_order`, `test_a_refused_rerun_stores_the_code_and_no_plan`, `test_a_refused_first_run_stores_the_code_and_no_plan`, `test_an_unreachable_meter_stores_its_code_not_a_value_error`, `test_the_gate_never_reads_uploaded_by`, `test_a_rerun_is_refused_to_a_caller_who_is_not_a_member` |
+
+**SCOPE.** Nothing of the gate is stubbed. `_run_pipeline_sync` →
+`_run_pipeline_stages` → the real `stage_extract` over a Hungarian ledger
+(the real jurisdiction resolver routes it by its language; no
+`jurisdiction_hint`) → `_maybe_route_ai_lane` → `_enforce_nonro_plan_gate` →
+`workspace_nonro_refusal` → `workspace_owner_ids` and the real
+`get_plan_state`, over `dedupe_fakes.FakeDB` extended to RECORD every select →
+the real failure handler → the real `_admin_set_status` → `documents.error`.
+Two seams are replaced: the storage download, and `ai_lane.run_ai_lane`,
+which raises `_ReachedTheAiLane` — "the gate let the run through" is the
+stored class name, not an inference. The expected stored strings are literals
+in the test, never taken from the function that prints them; the words
+forbidden on the shared row (`plan_key`, `message`, `upgrade_to`, every plan's
+display name and quoted key) are derived from the pricing config. The
+"asked nothing" law is floored on its subject: each matrix row asserts the
+owner's subscription WAS read (exactly `[OWNER]`) before asserting the id on
+the row appears in no filter of any table.
+
+**GREEN** — exit `0`: `35 passed`.
+
+**PLANT** — fourteen, each applied ALONE by
+`specs-durable/hotfix2/entitlement_plants.py` (which runs the gate's command),
+the file restored byte-exact after each (sha256 asserted). P1–P4 are the four
+the hotfix spec names; the rest are the neighbours a repair could slide into.
+
+| plant | file | RED |
+|---|---|---|
+| P0 the three pre-fix files verbatim (`pipeline.py`, `_usage_gate.py`, `_org.py` at d265e0b1) | — | `33 failed, 2 passed` |
+| P1 the re-run branch reads the plan of whoever `uploaded_by` names again (NULL returns) | `pipeline.py` | `22 failed, 13 passed` — the whole matrix, `…null_uploader…`, `…never_reads_uploaded_by`, `…no_owner_row…`, `…no_workspace…` |
+| P2 `plan_key` and the plan-named `message` back in the stored payload (reserving branch) | `pipeline.py` | `4 failed, 31 passed` — `…refused_first_run_stores_the_code_and_no_plan` ×2, `…unreachable_meter…`, `…first_metered_run…` |
+| P2b `upgrade_to` back in every stored refusal | `_usage_gate.py` | `20 failed, 15 passed` |
+| P3 the owner picked by sort order: `memberships` by org, `order=role.asc`, `limit=1`, no role check (the `_billing.py` renewal-recipient shape) | `_org.py` | `17 failed, 18 passed` — `…resolved_by_role_never_by_sort_order` ×2 among them |
+| P3b the same read with the role still re-checked on the rows | `_org.py` | `16 failed, 19 passed` |
+| P4 a workspace with no owner row passes | `_usage_gate.py` | `1 failed, 34 passed` — `test_a_workspace_with_no_owner_row_is_refused` |
+| P5 a document with no `org_id` passes | `_usage_gate.py` | `1 failed, 34 passed` — `test_a_document_with_no_workspace_is_refused` |
+| P6 the seam does `dict(decision.refusal)` again | `pipeline.py` | `1 failed, 34 passed` — `test_an_unreachable_meter_stores_its_code_not_a_value_error` |
+| P7 an unreadable owner lookup waves the run through | `_usage_gate.py` | `1 failed, 34 passed` — `test_an_unreadable_owner_lookup_is_refused_with_its_code` |
+| P8 ANY member's plan entitles the workspace (role neither filtered nor re-checked) | `_org.py` | `15 failed, 20 passed` |
+| P9 only the oldest owner is asked (`limit=1`) | `_org.py` | `2 failed, 33 passed` — `…any_owner_entitles…[solo-multi-True]`, `…owner_resolver_trusts_no_row…` |
+| P10 the operator exemption taken from `uploaded_by`'s account | `pipeline.py` | `2 failed, 33 passed` — `…exempt_uploader_does_not`, `…never_reads_uploaded_by` |
+| P11 a blank workspace read unfiltered (every workspace's owner answers) | `_org.py` | `1 failed, 34 passed` — `test_the_owner_resolver_trusts_no_row_it_did_not_ask_for` |
+| P12 the first, metered run gated by the workspace owner instead of its reserver | `pipeline.py` | `1 failed, 34 passed` — `test_the_first_metered_run_is_gated_by_its_reserver_not_the_owner` |
+
+**RED** — every plant exits `1` (full output with every failing test name:
+`specs-durable/hotfix2/entitlement_plants.out`).
+
+**REVERT** — the three files restored byte-exact (sha256 compared before and
+after the whole run); exit `0`: `35 passed`; no `# PLANT` marker left in
+`src`. Verdict: proven RED, fourteen of fourteen.
+
+**After the repair it reds on:** a read of `documents.uploaded_by` at the gate
+(a row that traps the key, in both branches); any subscription read other than
+the workspace owner's on a holder-less run; a non-member's or a non-owner
+member's plan deciding; a NULL `uploaded_by`, a workspace with no owner row, a
+document with no `org_id`, or an unreadable owner lookup passing; the owner
+found by sort order, by `limit=1`, or without the role; the stored string
+being anything but `NonRoNotIncludedError: {"error": "<one of three codes>"}`
+from either branch; the reserving branch gated by anyone but its verified
+reserver; a non-member's `/api/pipeline/retry` answering anything but 403.
+
+**CANNOT SEE:** production — whether `USAGE_LIMITS_ENABLED` is on today,
+whether any workspace has zero or several owners, whether any document has
+ever reached this gate; the real `memberships` / `documents` row-level
+policies (the double applies none — it serves `admin()` and `per_user()`
+alike, so the route test proves the membership READ is the wall, not the 404
+visibility read before it); what `get_plan_state` itself decides — a
+subscription whose `status` is `canceled` still entitles, a row with `tier`
+NULL and `plan='professional'` (what the signup trigger writes) resolves to
+Multi-Country, and a failed subscriptions read degrades to the trial plan and
+REFUSES a Multi owner's workspace (all three pre-existing, now inherited at
+workspace level); the other entries that reach the gate holder-less (the
+ai-lane reextract route, move-period / make-active, the two operator scripts)
+— they share the daemon-thread seam this drives, but only `/retry` is driven
+as a route; the firm landing, whose reserver is `requested_by`; rows ALREADY
+stored with a plan name (production is believed to hold none — not measured);
+the browser, which can still WRITE `documents.error`; how the code is
+rendered (gate `briefing-explicit-regenerate` owns `friendlyDocumentError`);
+the caller's own HTTP 402 / 429 bodies, which carry the caller's own plan by
+design.
 
 ## public-demo-store
 
@@ -23957,6 +24112,222 @@ Multi allowance a row with `tier` NULL resolves to, and the chat function's cap
 for a caller with no bearer.
 
 ---
+
+## briefing-keep-last-good
+
+A briefing a model failure cannot destroy. Owner ruling 2026-10-02: "a failed
+regenerate must NEVER overwrite a stored briefing with [NARRATIVE_UNAVAILABLE]
+— keep the last good one, mark it stale." Rulings 2026-10-03: everything this
+gate tests is in the hotfix (the re-run route, the SKU briefing, the period
+read); a takeover keeps the month's recommendations too; an unsupported
+language or an unknown currency is refused BEFORE the meter; a failed
+regenerate answers the `stale` the row holds, never a state that is not stored.
+
+THE DEFECT (measured on 91fc4e24 and on the hotfix's own first build,
+d3c955a7). `briefings` holds ONE row per period and no history.
+
+- `POST /api/period/{id}/briefing/regenerate` with the provider refusing
+  answered 200 `ok: true` and the stored briefing BECAME
+  `[NARRATIVE_UNAVAILABLE]`; the route was unmetered and every deployed bundle
+  fired it from an effect (a language mismatch, a currency toggle);
+- a re-run whose narration failed upserted the failure text over the briefing
+  and deleted the period's recommendations — statuses, owners and due dates;
+- the same-month takeover moved the staged run's failure text over the
+  month's briefing; the Docs panel's "Re-run analysis" reset the period first,
+  so nothing was left to keep;
+- THIS GATE WAS SPECIFIED WITH THE HOTFIX AND NOT WRITTEN. When it was
+  (2026-10-03) it was RED on the hotfix's own code in a dozen places: the
+  takeover with no staged briefing row, the Docs-panel re-run, recommendations
+  deleted by a failed narration over a stored failure text, a meter outage
+  answered as a spent allowance, an unsupported language charged, a failed
+  converted regenerate answering `stale: true` for a row it had not marked,
+  prose containing "credit balance" read as a provider error, a reply fragment
+  served as the briefing, `GET /api/period` reading `briefings` by period
+  alone (no tenant in the filter), the SKU writer storing the failure over a
+  usable SKU briefing. Two independent reviews (2026-10-03, 2026-10-04) then
+  found: an in-place re-run design that left a FAILED document over a served
+  period (withdrawn — the reset is production's again and what it takes is
+  CARRIED across it); the carry dropped before the run was durable; a refused
+  narrative write on a re-run leaving the reader with nothing; carried
+  recommendations deleted by a takeover onto a month that held none.
+
+THE REPAIR (all in `src/engine/api/pipeline.py`, plus the meter's
+`metering_unavailable` kind in `_usage_gate.py`):
+
+- one predicate pair — `narration_unavailable_code(narrate)` (the run's own
+  code) and `stored_briefing_failure_code(body)` (a stored text, anchored) —
+  and one reader, `_stored_briefing_row` (period AND tenant in the filter, the
+  row's own `org_id` re-checked);
+- the regenerate route: the legacy body-less shape is inert (answers the
+  stored briefing, calls nothing); then walls → inputs (422
+  `unsupported_language` / `unsupported_currency`, 503 `fx_unavailable`) →
+  meter (`reserve_chat`; unreachable → 503 `metering_unavailable`) → model. A
+  failure writes nothing, releases the unit, marks the row stale by a SEPARATE
+  update and answers `stale` as stored (`_mark_briefing_stale` returns whether
+  the marker landed); only a RON narration is persisted;
+- `stage_persist_narrative`: usable → written, marker cleared, recommendations
+  replaced only by a readable list (validated before the delete; the previous
+  rows put back when the insert is refused and did not land); unusable over a
+  usable row → row and recommendations kept, row marked stale; unusable with
+  nothing to keep → the neutral sentinel, the recommendations untouched;
+  alerts in `finally`;
+- the Docs-panel re-run's CARRY: `_carry_before_rerun_reset` reads the
+  period's usable briefing and recommendations (tenant in every filter; 503
+  `rerun_unavailable` when they cannot be read) before the unchanged reset;
+  the writer puts them back on the new period when the run's narration brings
+  nothing — or when a narrative write is refused (`_restore_rerun_carry`,
+  marker `write_refused`); the stage only REPORTS `carry_settled`, the
+  orchestrator drops the carry after the document is marked analysed;
+- `_finalize_same_month_takeover`: told the run's narration code and what it
+  stored (`keep_recommendations`, `keep_alerts`); the staged-only deletes come
+  first; a staged period that is gone raises `StagedPeriodGone` before any
+  write; recommendations under the staged id move (target re-pointed) when the
+  month holds none;
+- `_persist_sku_analysis`: the same three cases for the SKU briefing;
+- `GET /api/period`: `briefings` read with the period's own tenant, served
+  through `served_briefing` (`body: null, unavailable: true` for a failure
+  text; `stale` when marked).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_briefing_keep_last_good_route.py tests/engine/test_briefing_keep_last_good_served.py tests/engine/test_briefing_keep_last_good_writers.py -q` |
+| work count | junit-xml, floor **640** tests (measured 640: route 217, served 211, writers 212) |
+| canary | `test_a_failed_regenerate_leaves_the_stored_briefing_byte_identical`, `test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing`, `test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_spent_allowance`, `test_a_language_the_narrator_has_no_instruction_for_is_422_before_the_meter`, `test_stale_in_every_answer_is_what_the_stored_row_holds`, `test_the_body_the_frontend_card_sends_is_accepted_by_the_real_route_on_the_real_app`, `test_prose_is_never_mistaken_for_a_failure_text`, `test_the_tenant_of_the_briefing_read_is_the_periods_own_never_the_requests`, `test_census_no_briefings_upsert_payload_names_a_stale_column`, `test_a_failed_narration_never_deletes_the_periods_recommendations_whatever_the_briefing_row_holds`, `test_a_takeover_whose_staged_run_left_no_briefing_row_keeps_the_months_briefing`, `test_a_docs_panel_rerun_whose_narration_fails_still_serves_the_last_good_briefing`, `test_a_docs_panel_rerun_whose_narrative_write_is_refused_still_serves_what_the_reset_took`, `test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_keeps_the_carry_for_the_next_run`, `test_a_failed_narration_never_replaces_a_usable_sku_briefing`, `test_the_runs_alerts_are_written_even_when_a_narrative_write_raises` |
+
+**SCOPE.** Nothing of the engine is stubbed but the provider client. Route
+file: the real router on the real app, the real `stage_narrate`, the real
+`_usage_gate` with its RPC wire recorded, a projection-faithful PostgREST
+double (it refuses a column no migration declares — both states of
+`schema_phase_briefing_stale.sql`). Writers file: the real
+`stage_persist_narrative`, `_finalize_same_month_takeover`,
+`_persist_sku_analysis` at their seams, and the real orchestrator
+(`_run_pipeline_sync`) for a re-run, a same-month re-upload, a sales document
+and the Docs-panel re-run through the real `POST /api/pipeline/retry`, with
+production's period cascade modelled. Served file: the real `GET /api/period`,
+the predicates over a corpus of real prose and real failure texts, and static
+censuses of every `briefings` write in the engine.
+
+**PLANT** — four lists, 140 plants, each applied ALONE to
+`src/engine/api/pipeline.py` / `_usage_gate.py`, the gate run, the file
+restored byte-exact (sha256 asserted) — `specs-durable/hotfix2/
+briefing_plants.py`:
+
+| list | plants | what they revert |
+|---|---|---|
+| served (`plants_derived_served.json`) | 72 | the period read without its tenant or without the row re-check; a failure text served as prose; prose read as a failure; the stale marker served unconditionally or never; a marker column inside an upsert; the predicates' anchors and codes |
+| route (`plants_derived_route.json`) | 22 | a failed regenerate writing the row; the legacy shape reaching the model; the meter after the model, never released, never committed; a dead meter answered as a cap; inputs refused after the meter; `stale` answered as asked for; a converted narration persisted |
+| writers (`plants_derived_writers.json`, `plants_restated_P05.json`) | 25 | the failure text upserted; recommendations deleted on a failure; the takeover requiring a staged row; the carry not taken, read without the tenant, never restored; the SKU writer storing the failure; alerts skipped after a raise |
+| review 2026-10-04 (`plants_review_2026-10-04.json`) | 21 | the carry dropped inside the stage or never; a refused write putting nothing back; the previous recommendations not put back, or put back beside a landed insert; the takeover ignoring the run's failure code; staged recommendations deleted onto an empty month; the restored briefing stamped as this run's; the earlier carry forgotten or merged across tenants |
+
+**RED** — all 140, judged at the gate (a plant's own seam file first, then
+the two sibling files): served 72 of 72 (run on 7d58f184; the served seam has
+not changed since, but for the withheld-numerals hand-off, which is plant N17
+of the review list); route 22 of 22; writers 25 of 25 — of the 26 derived at
+0340f736 two no longer applied to the final code: P05 ("the takeover never
+keeps the month's recommendations") was restated on it as P05b and is RED, P18
+("the previous recommendations are not put back") IS the review list's N04;
+review 21 of 21. Two plants of the writers list were NOT RED when derived
+(P18, P26 — no test drove them); the laws
+`test_a_refused_recommendations_insert_puts_the_periods_previous_recommendations_back`
+and `test_a_docs_panel_rerun_whose_usable_reply_brings_no_readable_list` were
+written for them and both are RED now. Transcripts:
+`specs-durable/hotfix2/plants_replay_served.out`, `plants_final_run.out`.
+
+**REVERT** — every file restored byte-exact; the gate green again: `640
+passed`. No plant marker left in `src/`.
+
+**After the repair it reds on:** any write of a failure text, a provider
+message or an operator sentence into `briefings.body` or
+`sku_analyses.briefing` over a usable one; a failed narration deleting or
+replacing recommendations; a regenerate that reaches the model without the
+explicit-intent body, before its walls, its input checks or the meter, or
+that keeps the unit after a failure; a meter outage answered as a spent
+allowance; an answer whose `stale` is not what the row holds; a `briefings`
+read under the service role without the tenant; a marker column inside a
+briefing upsert; the Docs-panel re-run no longer resetting (the in-place
+design), resetting without the carry, serving less than before the click
+after a failed narration or a refused write, or letting the carry go before
+the run is durable; a takeover replacing the month's usable briefing with
+nothing, deleting the month's recommendations or alerts for a run that stored
+none, or deleting recommendations left under the staged id when the month
+holds none; alerts skipped because a narrative write raised.
+
+**CANNOT SEE:** PostgREST itself (the real merge-duplicates upsert, the
+`language in ('en','ro')` check, the foreign keys — W6 models the period
+cascade by hand); whether `schema_phase_briefing_stale.sql` is applied in
+production (both states are gated; applied and verified 2026-10-04); a stored
+reply FRAGMENT that reads as prose; two runs racing; a restart between a
+re-run's reset and its narrative stage — the carry lives in the process
+(ticket: the durable form is a re-run staged beside the month); the AI lane,
+which pins a document without narrating and never consults the carry
+(ticket); `make-active` / `move-period`, which delete the briefing before
+their own re-run (ticket); the takeover as a transaction (it is a sequence);
+`GET /api/period`'s other period-only reads (metrics, recommendations,
+alerts, valuations — ticket); the chat-llm edge function's own meter.
+
+
+## briefing-explicit-regenerate
+
+The briefing card makes no model call without a click, and a plan refusal is
+rendered from its code. Hotfix 2026-10-02 (SPEC D4, D10), rulings 2026-10-03.
+
+THE DEFECT. `CFOBriefingCard` fired `POST …/briefing/regenerate` from an
+effect — on mount when the briefing's language differed from the interface's,
+and on every display-currency toggle — against a route that was unmetered and
+overwrote the stored briefing when the provider refused. And
+`lib/uploadRefusals` printed the server's own `message`, which named a plan:
+one member's plan was shown to another on the shared document row. Found by
+review afterwards: every action sent the DISPLAY currency, so with EUR on
+display "Generate the briefing" and the language action paid for a narration
+that was never stored; and once they asked for RON, the card showed a session
+narration only when its currency was the display currency — the paid, stored
+answer never appeared and the same paid button stayed enabled.
+
+THE REPAIR. No effect calls the route; ONE call site, the click handler, with
+`regenerateRequestBody(language, currency)` = `{intent: "user", language,
+currency}` (the fixture `tests/engine/fixtures/hotfix2/
+regenerate_request_body.json`, which the engine gate posts to the real route).
+"Generate" and the language action ask for RON; only the currency action asks
+for the display currency. A session narration in RON is shown under every
+display currency. A failure keeps the prose and is shown stale only when the
+engine answers `stale` not false. 422 / 429 / 503 print the card's own
+sentence. `uploadRefusalSentence(code, lng)` renders a refusal from its code.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/__tests__/briefingExplicitRegenerate.test.tsx frontend/lib/__tests__/uploadRefusalCodes.test.ts --reporter=verbose` |
+| work count | `Tests N passed`, floor **77** (measured 77: 45 + 32) |
+| canary | "on mount: no request, and no action offered when language and currency already match", "on a currency toggle: no request", "a click sends ONE POST: no query string, the explicit-intent body", "with the display currency EUR, 'Generate the briefing' asks for RON", "a stored 'Generate the briefing' is SHOWN at once", "the same failure with stale:true IS presented as kept" and the refusal-code titles named in `scripts/run_battery.py` |
+
+**PLANT** — eight, each alone, the two files run, the source restored
+byte-exact (`specs-durable/hotfix2/frontend_plants.py`): F1 an effect that
+regenerates on a language or currency mismatch, with no click; F2 the
+humanizer printing the server's words for a known refusal code; F3 a failed
+regenerate always shown as kept, whatever the engine's `stale` says; F4 the
+click's body without `intent`; F5 the one chokepoint letting a stored failure
+text through as the briefing; F6 a failure answer carrying the sentinel shown
+as a fresh narration; F7 every action sending the DISPLAY currency; F8 a
+stored RON narration hidden while the display currency is not RON.
+
+**RED** — eight of eight exit `1` (transcript with the failing titles:
+`specs-durable/hotfix2/frontend_plants.out`).
+
+**REVERT** — both source files restored byte-exact; `77 passed`.
+
+**After the repair it reds on:** any request to the regenerate route that no
+click caused; a click that sends more than one request, a query string, or a
+body other than the fixture's shape; an action that creates or replaces the
+stored briefing asking for a currency other than RON; a stored regeneration
+not shown at once, or the same paid action still on offer after it; a failed
+regeneration that hides the prose, or calls it kept when the engine says the
+row is not marked; a cap or meter refusal printed in the server's words; a
+refusal sentence that names a plan the viewer does not hold.
+
+**CANNOT SEE:** a deployed bundle older than this one (it still fires the
+effect — the engine's inert legacy shape is what makes that harmless, gate
+`briefing-keep-last-good`); the period query's own re-read after a persisted
+regeneration; the diacritics probe offering "Regenerate in English" on
+English prose that names a Romanian company (ticket); the real network.
 
 ## compare-no-prior
 

@@ -293,7 +293,7 @@ async function harvest(lang: SurfaceLang): Promise<Line[]> {
   const cov = render(<MemoryRouter><CoverageTable showHeading /></MemoryRouter>);
   out.push({ where: `coverage-table[${lang}]`, text: textOf(cov.container) });
   cleanup();
-  render(<MemoryRouter><NonRoUpgradeDialog open onClose={() => {}} serverMessage="Non-RO documents are included on the Multi-Country plan." /></MemoryRouter>);
+  render(<MemoryRouter><NonRoUpgradeDialog open onClose={() => {}} /></MemoryRouter>);
   out.push({ where: `non-ro-dialog[${lang}]`, text: textOf(screen.getByTestId("non-ro-upgrade-dialog")) });
   cleanup();
   // 3b. the pages a visitor reaches with no session, as rendered: /pricing
@@ -1255,7 +1255,7 @@ describe.each(LANGS)("public-claims · the non-Romanian refusal (%s)", (lang) =>
     await setLanguage(lang);
     render(
       <MemoryRouter>
-        <NonRoUpgradeDialog open onClose={() => {}} serverMessage="Non-RO documents are included on the Multi-Country plan." />
+        <NonRoUpgradeDialog open onClose={() => {}} />
       </MemoryRouter>,
     );
     const dialog = screen.getByTestId("non-ro-upgrade-dialog");
