@@ -57,6 +57,12 @@ export interface ChatMessage {
    *  "CFO AI is unavailable" panel with Retry. Same persistence rule as
    *  `interrupted`: localStorage cache only, never the server. */
   failed?: import("@/lib/aiDegraded").AiFailureKind;
+  /** Set when this assistant turn is the chat function's REFUSAL — sign in
+   *  again, the plan's cap, "could not check your plan" — rendered from its
+   *  code (lib/chatRefusal.ts). It is the app's notice, not something the
+   *  assistant said: it is never sent back to the model as conversation
+   *  history (chatTurns.ts). localStorage cache only. */
+  refused?: boolean;
 }
 
 export interface ChatConversation {

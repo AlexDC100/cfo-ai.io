@@ -124,8 +124,11 @@ export function startChatTurn(ctx: ChatTurnContext): void {
   //    so the conversation already contains the just-appended user turn —
   //    no React-flush race to defend against anymore.
   const conv = getChatConversation(ctx.orgId, conversationId);
+  //    A REFUSED turn (sign in again / the cap / "could not check your plan")
+  //    is the app's own notice, not something the assistant said: it is left
+  //    out, as a failed turn always was (those carry no content).
   const payloadMessages = (conv?.messages ?? [])
-    .filter((m) => !m.pending && m.content && !m.interrupted)
+    .filter((m) => !m.pending && m.content && !m.interrupted && !m.refused)
     .map((m) => ({ role: m.role, content: m.content }));
 
   // 3. Register the in-flight turn. `beginChatReply` keeps the nav rail's
@@ -224,6 +227,8 @@ export function startChatTurn(ctx: ChatTurnContext): void {
           // always was). "Sign in" and "could not check your plan" describe
           // this moment only: shown, never written to server history.
           error: refusal.code !== "chat_cap_reached",
+          // …and none of the three is ever sent to the model as a turn.
+          refused: true,
         });
         if (refusal.code === "chat_cap_reached") {
           // Lock the composer for the rest of the session (spec §14

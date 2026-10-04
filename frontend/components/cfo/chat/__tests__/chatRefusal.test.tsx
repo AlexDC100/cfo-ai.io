@@ -14,7 +14,8 @@
 // a refusal in the wrong language; a refusal shown as the generic "CFO AI is
 // unavailable" panel (or as a raw status); the cap's number missing; a "see
 // plans" link that leaves the site; the cap no longer locking the composer;
-// "sign in" or "could not check your plan" being written to chat history.
+// "sign in" or "could not check your plan" being written to chat history; a
+// refusal sentence sent to the MODEL as an assistant turn of the next request.
 //
 // WHAT THEY CANNOT SEE: the function's bodies themselves — the shapes here
 // are held to guard.ts by chatLlmGuard.test.ts (same codes, same fields) and
@@ -189,6 +190,61 @@ describe("what each refusal does besides its sentence", () => {
     expect(assistantWrites()).toHaveLength(0);
     await refusedTurn("daily", "en");
     await waitFor(() => expect(assistantWrites()).toHaveLength(1));
+  });
+});
+
+// MEASURED on the branch as reviewed (2026-10-04), through this pipeline:
+// after a 503 metering_unavailable turn (and after a 401) the next request's
+// messages were [user "first question"] [assistant "**Ask CFO AI could not
+// check your plan's message allowance** …"] [user "second question"]. Before
+// the refusals had sentences an errored turn had no content and was left out;
+// the sentence the branch gave them went to the model as if the assistant had
+// said it.
+describe("a refusal is the app's notice, not the assistant's words: it is never sent to the model", () => {
+  type Sent = { role: string; content: string }[];
+  /** One more turn in the open conversation, answered; returns the messages that request carried. */
+  async function nextTurn(text: string): Promise<Sent> {
+    const calls = chatLlmMock.mock.calls.length;
+    chatLlmMock.mockResolvedValueOnce({ answer: "The answer.", model: null, usage: null });
+    startChatTurn({ ...turnCtx(), text });
+    await waitFor(() => expect(chatLlmMock.mock.calls.length).toBe(calls + 1));
+    const id = visibleConversations(null)[0].id;
+    await waitFor(() => {
+      const c = getChatConversation(null, id)!;
+      expect(c.messages[c.messages.length - 1].pending).toBeFalsy();
+    });
+    return (chatLlmMock.mock.calls[calls] as unknown as [{ messages: Sent }])[0].messages;
+  }
+
+  it("POSITIVE CONTROL: an ANSWERED turn is part of the next request — question, answer, question", async () => {
+    expect(await nextTurn("First question")).toEqual([{ role: "user", content: "First question" }]);
+    expect(await nextTurn("Second question")).toEqual([
+      { role: "user", content: "First question" },
+      { role: "assistant", content: "The answer." },
+      { role: "user", content: "Second question" },
+    ]);
+  });
+
+  it.each(["sign_in", "metering", "daily", "monthly"] as const)("after a %s refusal the next request carries the reader's two questions and NOT the refusal", async (kind) => {
+    const { last } = await refusedTurn(kind, "en");
+    expect(last.content).toContain(WANT[kind].en.headline); // it IS in the conversation the reader sees
+    expect(last.refused).toBe(true);
+    const sent = await nextTurn("Second question");
+    expect(sent).toEqual([
+      { role: "user", content: "What is our EBITDA?" },
+      { role: "user", content: "Second question" },
+    ]);
+  });
+
+  it("…and it stays out after a reload: the conversation re-read from the cache still knows the turn was a refusal", async () => {
+    await refusedTurn("metering", "en");
+    resetChatLiveState(null); // what a reload does: the live state is seeded again from the localStorage cache
+    const reread = visibleConversations(null)[0];
+    expect(reread.messages.map((m) => [m.role, Boolean(m.content), m.refused ?? false])).toEqual([["user", true, false], ["assistant", true, true]]);
+    expect(await nextTurn("Second question")).toEqual([
+      { role: "user", content: "What is our EBITDA?" },
+      { role: "user", content: "Second question" },
+    ]);
   });
 });
 
