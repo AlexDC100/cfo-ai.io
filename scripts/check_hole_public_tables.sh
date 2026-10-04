@@ -46,7 +46,9 @@
 #   ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:postgres@127.0.0.1:<port>/<db> \
 #   [ENTITLEMENT_HOLES_DB_CONTAINER=<container>] scripts/check_hole_public_tables.sh
 #   HOLE_MIGRATION=<a planted copy>   apply that file instead (plants)
-# Exit: 0 every case passed (or VACUOUS) · 1 a case failed · 2 refused.
+#   HOLE_REPORT=<a planted copy>      read that report instead (plants)
+# Exit: 0 every case passed (or VACUOUS) · 1 a case failed · 2 refused ·
+#       3 a PLANTED file passed every case (never a pass: the gate did not see it).
 
 set -u
 set -o pipefail
@@ -56,7 +58,7 @@ GATE="hole-public-tables"
 
 MIGRATION="${HOLE_MIGRATION:-$HOLES_SQL_DIR/schema_phase_public_tables_write_revoke.sql}"
 REPO_MIGRATION="$HOLES_SQL_DIR/schema_phase_public_tables_write_revoke.sql"
-REPORT_SQL="$HOLES_SQL_DIR/preflight/schema_phase_public_tables_write_revoke_preflight_report.sql"
+REPORT_SQL="${HOLE_REPORT:-$HOLES_SQL_DIR/preflight/schema_phase_public_tables_write_revoke_preflight_report.sql}"
 DERIVED_MIGRATION="$HOLES_SQL_DIR/schema_phase_derived_tables_write_revoke.sql"
 DASHBOARD_MIGRATION="$HOLES_SQL_DIR/schema_phase_dashboard_config_caller.sql"
 

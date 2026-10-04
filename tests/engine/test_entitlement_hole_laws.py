@@ -1034,7 +1034,8 @@ def test_the_engine_gives_a_new_signup_the_trial_and_gave_the_shipped_row_multi_
 
 def run_gate(script: str, url: str | None) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items()
-           if not k.startswith("ENTITLEMENT_HOLES_") and not k.startswith("PG") and k != "HOLE_MIGRATION"}
+           if not k.startswith("ENTITLEMENT_HOLES_") and not k.startswith("PG")
+           and k not in ("HOLE_MIGRATION", "HOLE_REPORT")}
     if url is not None:
         env["ENTITLEMENT_HOLES_DB_URL"] = url
     return subprocess.run(["bash", str(SCRIPTS / script)], cwd=REPO, env=env,
@@ -1075,6 +1076,29 @@ def test_each_gate_refuses_a_database_that_is_not_plainly_local(script, gate):
             "the gate did not refuse %r with exit 2 before opening anything (it builds a database "
             "and shows a hole open — never on a hosted one):\nexit %s\n%s" % (url, r.returncode, out))
         assert "x@" not in out, "the refusal printed the URL (its password)"
+
+
+def test_a_plant_run_is_never_a_pass():
+    """HOLE_MIGRATION / HOLE_REPORT point a gate at a planted copy. A run that
+    passes every case over one is `the gate did not see the plant` — exit 3,
+    never 0: a battery that inherited the variable must not report green
+    over a file that is not the repository's."""
+    lib = read(LIB)
+    finish = re.search(r"(?s)\nholes_finish\(\) \{.*?\n\}", lib)
+    assert finish, "holes_finish not found"
+    body = finish.group(0)
+    plant = body.find('if [ -n "${HOLES_PLANT:-}" ]; then')
+    passed = body.find('echo "PASS $GATE')
+    assert 0 < plant < passed and "exit 3" in body[plant:passed], (
+        "holes_finish must refuse to PASS a plant run (exit 3) before it prints the pass line")
+    assert 'HOLES_PLANT="HOLE_MIGRATION=$HOLE_MIGRATION"' in lib and "HOLE_REPORT=$HOLE_REPORT" in lib, \
+        "the library no longer records that a planted file is under test"
+    for _hole, stem, gate, _gid in HOLES:
+        text = read(SCRIPTS / gate)
+        assert '"${HOLE_MIGRATION:-$HOLES_SQL_DIR/%s.sql}"' % stem in text, "scripts/%s: the migration under test" % gate
+        assert '"${HOLE_REPORT:-$HOLES_SQL_DIR/preflight/%s_preflight_report.sql}"' % stem in text, "scripts/%s: the report under test" % gate
+        others = set(re.findall(r"\$\{(HOLE_[A-Z_]+):-", text)) - {"HOLE_MIGRATION", "HOLE_REPORT"}
+        assert not others, "scripts/%s reads another override the library does not treat as a plant: %s" % (gate, sorted(others))
 
 
 def test_the_gate_library_has_no_default_database_and_requests_run_as_authenticator():

@@ -66,7 +66,9 @@
 #   ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:postgres@127.0.0.1:<port>/<db> \
 #   [ENTITLEMENT_HOLES_DB_CONTAINER=<container>] scripts/check_hole_workspace_cap.sh
 #   HOLE_MIGRATION=<a planted copy>   apply that file instead (plants)
-# Exit: 0 every case passed (or VACUOUS) · 1 a case failed · 2 refused.
+#   HOLE_REPORT=<a planted copy>      read that report instead (plants)
+# Exit: 0 every case passed (or VACUOUS) · 1 a case failed · 2 refused ·
+#       3 a PLANTED file passed every case (never a pass: the gate did not see it).
 
 set -u
 set -o pipefail
@@ -75,7 +77,7 @@ GATE="hole-workspace-cap"
 . "$(cd "$(dirname "$0")" && pwd)/entitlement_holes/lib.sh"
 
 MIGRATION="${HOLE_MIGRATION:-$HOLES_SQL_DIR/schema_phase_workspace_cap_guard.sql}"
-REPORT_SQL="$HOLES_SQL_DIR/preflight/schema_phase_workspace_cap_guard_preflight_report.sql"
+REPORT_SQL="${HOLE_REPORT:-$HOLES_SQL_DIR/preflight/schema_phase_workspace_cap_guard_preflight_report.sql}"
 
 echo "HOLE-WORKSPACE-CAP GATE — $(basename "$MIGRATION")"
 holes_connect

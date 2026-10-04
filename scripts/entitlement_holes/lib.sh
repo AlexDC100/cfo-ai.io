@@ -23,6 +23,13 @@
 #     share a database. The URL's role needs CREATEDB (Supabase's `postgres`
 #     has it).
 #
+#   · A PLANT IS NEVER A PASS. HOLE_MIGRATION / HOLE_REPORT make a gate test
+#     a planted copy instead of the repository's file (the plant log's
+#     drivers use them; the repository file is never edited). Such a run
+#     says so on its first line and ends in exit 1 (the plant was seen) or
+#     exit 3 (it was not) — never 0, so a battery that inherited one of the
+#     variables cannot report green over somebody's planted file.
+#
 #   · SQL LEVEL, AS `authenticator`. The scratch database is not Supabase
 #     (no GoTrue, no PostgREST — scripts/entitlement_holes/scratch_bootstrap.sql).
 #     A request is reproduced the way PostgREST runs one: a session of the
@@ -295,6 +302,12 @@ holes_apply_base_file() { # entry → 0 / 1 (stderr of the failure in HOLES_ERR)
 
 holes_build_scratch() { # hole id → creates HOLES_DB with this repository's schema
   local hole="$1" e n=0
+  # A PLANT RUN tests a planted copy instead of the repository's file. It is
+  # said first, and it can never end in a pass (holes_finish: exit 3).
+  HOLES_PLANT=""
+  [ -z "${HOLE_MIGRATION:-}" ] || HOLES_PLANT="HOLE_MIGRATION=$HOLE_MIGRATION"
+  [ -z "${HOLE_REPORT:-}" ] || HOLES_PLANT="${HOLES_PLANT:+$HOLES_PLANT }HOLE_REPORT=$HOLE_REPORT"
+  [ -z "$HOLES_PLANT" ] || echo "PLANT RUN — $HOLES_PLANT is tested INSTEAD of the repository's file; nothing below is a verdict on the repository"
   for e in "${HOLES_ORDER[@]}"; do
     case "$e" in @*) continue ;; esac
     [ -f "$HOLES_SQL_DIR/$e" ] || holes_die "scripts/entitlement_holes/lib.sh HOLES_ORDER names supabase/$e, which does not exist"
@@ -429,6 +442,13 @@ holes_finish() {
   if [ "$FAILS" -gt 0 ]; then
     echo "FAIL $GATE — $FAILS of $UNITS cases failed"
     exit 1
+  fi
+  if [ -n "${HOLES_PLANT:-}" ]; then
+    # Every case passed over a planted file: the gate did not see the plant.
+    # Never exit 0 — a battery that inherited the variable must not go green
+    # over a file that is not the repository's.
+    echo "PLANT NOT SEEN $GATE — all $UNITS cases passed over a planted file ($HOLES_PLANT)"
+    exit 3
   fi
   echo "PASS $GATE — $UNITS cases"
   exit 0
