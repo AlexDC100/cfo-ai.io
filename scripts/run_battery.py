@@ -2459,37 +2459,46 @@ def _engine_gates() -> List[Gate]:
         #       the sibling tables, the catalog laws, the census of SECURITY
         #       DEFINER functions and triggers, the views, the lock behaviour,
         #       the error's remedies, and the read-only pre-flight / audit
-        #       files the runbook hands the operator.
+        #       files the runbook hands the operator. THE FENCE (owner: a
+        #       migration that only restricts access may not alter a customer
+        #       row): every application is bracketed by a fingerprint of every
+        #       row of every listed table, and the audit's row_fingerprints —
+        #       what an operator reads in production — is held to the same sum.
         #       IT ADDRESSES NO STACK BY DEFAULT: it creates users and re-opens
         #       the hole to prove it sees one, and a machine's standard local
         #       stack is shared. Without SUBS_LOCKDOWN_DB_URL and
         #       SUBS_LOCKDOWN_API_URL naming an isolated local stack it is
         #       VACUOUS (units=0, PASS(VACUOUS) — never green); so is it when
         #       that stack is not running; a non-loopback host is refused.
-        #       Floor 425 = the measured 436 on a stack without
+        #       Floor 434 = the measured 445 on a stack without
         #       schema_phase_owner_plan.sql (13 cases SKIPPED there — printed,
-        #       counted apart, never a pass; 454 with it and none skipped).
+        #       counted apart, never a pass; 464 with it and none skipped),
+        #       less 11: a stack that serves no /graphql/v1 runs 5 fewer (the
+        #       four GraphQL rows and A3b), one whose runner is a superuser 1
+        #       fewer (T7); the other 5 are headroom, not cases to lose.
         #   entitlement-write-laws
         #       the source half the stack cannot see: no browser or
         #       edge-function writer of a listed table, no committed SQL that
         #       re-opens one, the migration one batch that returns what it
-        #       did, the report files one read-only statement each, the
-        #       console probe in a mocked browser, the gate's own default.
+        #       did and holds no statement that changes a row (the fence),
+        #       the report files one read-only statement each, the console
+        #       probe in a mocked browser, the gate's own default.
         # Plant log: docs/engine_book/gates.md.
         Gate("subscriptions-write-lockdown",
              ["bash", "scripts/check_subscriptions_write_lockdown.sh"],
-             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=425,
+             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=434,
              units="cases on the local stack", vacuous_ok=True,
              canaries=("SUBSCRIPTIONS-WRITE-LOCKDOWN GATE",)),
         Gate("entitlement-write-laws",
              [PY, "-m", "pytest", "tests/engine/test_entitlement_write_laws.py", "-q"],
-             work_junit=True, floor=34, units="tests",
+             work_junit=True, floor=35, units="tests",
              canaries=("test_the_scanner_sees_the_writer_this_law_exists_for",
                        "test_no_browser_or_edge_function_code_writes_an_entitlement_table",
                        "test_the_sql_scanner_sees_the_two_policies_this_law_exists_for",
                        "test_no_committed_sql_reopens_an_entitlement_table",
                        "test_each_report_file_is_one_read_only_statement_returning_one_jsonb_row",
                        "test_the_migration_is_one_batch_that_ends_with_the_row_applied",
+                       "test_the_migration_changes_no_row_and_no_table_shape",
                        "test_the_stack_gate_is_vacuous_unless_it_is_told_which_stack",
                        "test_no_user_jwt_client_in_the_engine_names_an_entitlement_table")),
     ]

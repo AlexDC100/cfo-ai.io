@@ -3705,6 +3705,10 @@ write privileges revoked from `authenticated` (MAINTAIN too on Postgres 17+).
 SELECT, to authenticated). `schema.sql` no longer creates the two write
 policies; `cancel()` / `reactivate()` are deleted (Settings cancels through
 `POST /api/billing/cancel`, which asks Stripe; the webhook writes the row).
+**It changes no row** — the owner's fence for production (2026-10-03: "apply
+migrations that only remove or restrict access … may not delete or alter
+customer rows"): the file holds no INSERT, UPDATE, DELETE or TRUNCATE and
+changes no table's columns, in its own text or in a string it executes.
 
 **The rule.** An entitlement table — the plan row, a meter, the quota ledger,
 a seat, a billing log or queue — is written by the SERVICE ROLE (or a
@@ -3735,8 +3739,9 @@ list — the static law reds when they differ) and re-run it.
   --local`) refuses a multi-statement file; the `do $lockdown$ … $lockdown$;`
   block alone is the single-statement fallback.
 
-**The files beside it — all read-only** (run in this order: report → read →
-migration → Dashboard "Reload schema cache" (§14) → report again → probe):
+**The files beside it — all read-only** (run in this order: report → audit →
+read both → migration → Dashboard "Reload schema cache" (§14) → report again →
+audit again → probe):
 - `…_preflight_report.sql` — ONE statement, one jsonb row `report`, with a
   computed `verdict`: `hole_open` / `stopgap_in_place` / `fully_locked`. Run
   again after the migration it is the post-check: `fully_locked` must be true.
@@ -3744,7 +3749,12 @@ migration → Dashboard "Reload schema cache" (§14) → report again → probe)
   entitlement has no payment visible behind them, and the rows whose Stripe id
   is in no recorded Stripe event. A list for a person, not a verdict; no
   email, no Stripe id value; does not need `founding_members` or
-  `billing_events`.
+  `billing_events`. Its `row_fingerprints` — per listed table
+  `"<rows>:<md5 over every row's whole content>"`, `"absent"` where the table
+  does not exist — is THE FENCE as production can read it: the same string
+  before and after the migration = no row of that table was changed, added or
+  removed in between. A string that differs is somebody else's write (a
+  signup, a webhook, an upload) — the migration holds none.
 - `…_preflight.sql` — the same questions as grids, SELECTs only, for a person
   in Studio or psql.
 - `…_probe.js` — the browser-console probe; must print `CLOSED`.
@@ -3768,15 +3778,24 @@ created by NO file in this repository; the runbook says how to read its row.
 **Gates** (plant log: `docs/engine_book/gates.md`, at the end):
 - `subscriptions-write-lockdown` — `scripts/check_subscriptions_write_lockdown.sh`
   on a LOCAL Supabase stack, through real PostgREST and GraphQL with a real
-  GoTrue session, from four starting states. IT ADDRESSES NO STACK BY DEFAULT
+  GoTrue session, from four starting states — (b) is the owner's stopgap on a
+  database built from the old files (the three own-row SELECT policies still
+  `to public`, SELECT and MAINTAIN left on `subscriptions`, the default ALL on
+  the meters): the shape a production database holds once the stopgap was
+  run. Every application of the migration is bracketed by a fingerprint of
+  every row of every listed table (the fence), and the audit's
+  `row_fingerprints` is held to the same sum. IT ADDRESSES NO STACK BY DEFAULT
   (it creates users and re-opens the hole to prove it sees one): set
   `SUBS_LOCKDOWN_DB_URL` and `SUBS_LOCKDOWN_API_URL` to an isolated local
   stack, or it is VACUOUS. `--before <state>` / `--after <state>` print the
   attack table.
 - `entitlement-write-laws` — `tests/engine/test_entitlement_write_laws.py`:
   the source half — no browser or edge-function writer, no committed SQL that
-  re-opens a table, the migration one batch, the report files one read-only
-  statement each, the probe in a mocked browser, the gate's own default.
+  re-opens a table, the migration one batch that changes no row and no
+  table's shape (the fence, read in its text and in the strings it executes),
+  the report files one read-only statement each (a query handed to
+  `query_to_xml` must be a literal or `format()` of one), the probe in a
+  mocked browser, the gate's own default.
   Two of its laws over-reach on purpose and were narrowed where they would
   have red another lane's honest files (measured by merging this branch
   read-only with main and each sibling lane and running the laws there): the
@@ -3800,18 +3819,26 @@ the local stack with `--agent=no`, `--agent=yes` and neither). The gate cannot
 run there — it creates accounts and re-opens the hole. What proves "0 of 35" there: the post-check report's
 `verdict.fully_locked: true` (the catalog state the gate shows refusing every
 attack), anonymous `GET` / `POST /rest/v1/subscriptions` answering 401, and the
-signed-in console probe printing `CLOSED`. The "Reload schema cache" click
+signed-in console probe printing `CLOSED`. What proves that no customer row
+was touched there: `audit.row_fingerprints.subscriptions`, the same string in
+the audit run before the migration and in the one run after it. The "Reload schema cache" click
 (§14) is discipline here, not what closes the door: a revoke and a dropped
 policy are enforced by Postgres on the next statement — measured with no
 NOTIFY sent — so the anonymous 401 is the evidence where the Dashboard cannot
 be reached.
 
-**Unknown until the two reports are read there:** whether the hole was used,
+**What only the two reports, run there, can say:** whether the hole was used,
 who owns the tables, what views and hand-made functions exist, and the
 Postgres major version (the files were run on 17.6 only; the MAINTAIN
-statements are version-guarded). The ops log of 2026-10-03 records the old
-`schema.sql`'s three policies and then the owner's three-statement stopgap —
-the gate's state (b).
+statements are version-guarded). The coordinator read production with both,
+read-only, on 2026-10-04 (the audit in its text before `row_fingerprints`);
+what they answered is in that run's log, not in this repository. The ops log
+of 2026-10-03 records the old `schema.sql`'s three policies and then the
+owner's three-statement stopgap — the gate's state (b), built to be exactly
+that catalog. The four-statement migration has not yet been sent through
+`supabase db query --linked` by anyone: on the local stack the same batch
+went through psql and through pg-meta's `/query` (one batch, one
+transaction, the row `applied` last).
 
 **Found, not fixed here** — a free user still gets paid entitlements by
 routes this migration does not touch (`gates.md`, same section, with the
