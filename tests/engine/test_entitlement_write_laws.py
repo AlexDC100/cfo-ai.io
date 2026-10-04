@@ -14,8 +14,9 @@ database, and ``scripts/check_subscriptions_write_lockdown.sh`` proves it on
 a local stack through real PostgREST. That gate is VACUOUS where no stack is
 named, and it cannot see the SOURCE. These are the static laws for that half:
 
-  A. THE LIST. It is written in the migration; the pre-flight report and the
-     pre-flight grids carry the same names, and the same three kept policies.
+  A. THE LIST. It is written in the migration; the pre-flight report, the
+     audit report and the pre-flight grids carry the same names, and the same
+     three kept policies.
   B. THE BROWSER. No file under ``frontend/``, ``mobile/`` or
      ``supabase/functions/`` writes a listed table through a supabase-js
      client or names its REST path; no browser file calls an RPC that writes
@@ -32,11 +33,18 @@ named, and it cannot see the SOURCE. These are the static laws for that half:
      in the form it keeps them (``to authenticated``).
   E. THE MIGRATION is one batch: no psql meta-command; ``lock_timeout``
      before anything else; ``enable row level security`` only where it is
-     off; its LAST statement returns the row ``applied``.
+     off; its LAST statement returns the row ``applied``. THE FENCE (owner,
+     2026-10-03: a migration "that only removes or restricts access" may
+     not "delete or alter customer rows"): it holds no statement that
+     changes a row or a table's shape — in its own text or in a string it
+     executes.
   F. THE READ-ONLY FILES are read-only: the two report files are ONE
      SELECT / WITH statement each, the grids file is SELECTs only, and no
-     statement — nor any query string handed to ``query_to_xml`` — holds a
-     keyword or a function that writes.
+     statement — nor any query handed to ``query_to_xml``, which must be a
+     literal (or ``format()`` of one) so that it can be read here — holds a
+     keyword or a function that writes. The audit returns
+     ``row_fingerprints``: the instrument that shows, in production, that
+     no row changed across the migration.
   G. THE CONSOLE PROBE, run in a mocked browser: CLOSED on a refusal, OPEN on
      an accepted write, INCONCLUSIVE when it cannot tell — never an uncaught
      error, never a write of anything but the value it just read.
@@ -129,6 +137,9 @@ def test_the_list_is_read_from_the_migration_and_names_the_plan_row_and_the_mete
 def test_the_files_beside_the_migration_name_exactly_the_list_and_the_kept_policies():
     assert _block("ENTITLEMENT-TABLES-USER-READABLE", PREFLIGHT_REPORT) == USER_READABLE
     assert _block("ENTITLEMENT-TABLES-SERVICE-ONLY", PREFLIGHT_REPORT) == SERVICE_ONLY
+    # the audit fingerprints the rows of every listed table: its list is this one
+    assert _block("ENTITLEMENT-TABLES-USER-READABLE", AUDIT_REPORT) == USER_READABLE
+    assert _block("ENTITLEMENT-TABLES-SERVICE-ONLY", AUDIT_REPORT) == SERVICE_ONLY
     kept = _kept(MIGRATION)
     assert [k[0] for k in kept] == sorted(USER_READABLE), kept
     assert _kept(PREFLIGHT_REPORT) == kept
@@ -676,6 +687,59 @@ def test_the_migration_is_one_batch_that_ends_with_the_row_applied():
     assert "with recursive listed as" in body and "walk.depth + 1" in body, "the migration's view walk is no longer transitive"
 
 
+# THE FENCE. The owner's permission for production is a migration that "only
+# removes or restricts access"; it "may not delete or alter customer rows". The
+# migration's dynamic statements live in strings (`execute format('…')`), so
+# the scan reads the text with comments removed and strings LEFT IN.
+_ROW_CHANGES = (
+    ("insert into", re.compile(r"\binsert\s+into\b", re.I)),
+    ("update … set", re.compile(r"\bupdate\s+(?:only\s+)?[\w.\"%]+\s+(?:as\s+\w+\s+)?set\b", re.I)),
+    ("delete from", re.compile(r"\bdelete\s+from\b", re.I)),
+    ("merge into", re.compile(r"\bmerge\s+into\b", re.I)),
+    ("truncate <table>", re.compile(r"\btruncate\s+(?:table\s+)?(?:only\s+)?(?!on\b)[\w.\"%]+\s*(?:;|'|\)|$)", re.I | re.M)),
+    ("copy … from", re.compile(r"\bcopy\s+[\w.\"%]+\s*(?:\([^)]*\)\s*)?from\b", re.I)),
+    ("drop table", re.compile(r"\bdrop\s+table\b", re.I)),
+    ("alter table … column / rename", re.compile(
+        r"\balter\s+table\s+[^;]*?\b(?:(?:add|drop|alter|rename)\s+(?:column\b|constraint\b)|rename\s+to\b|add\s+\w)", re.I)),
+)
+
+
+def row_changes(text: str) -> list[str]:
+    """What in a SQL text changes a row or a table's shape. Comments are
+    removed; string literals are NOT — a statement the file builds and
+    executes is a statement it runs."""
+    body = re.sub(r"/\*.*?\*/", "", _strip_sql_comments(text), flags=re.S)
+    return [what for what, rx in _ROW_CHANGES if rx.search(body)]
+
+
+def test_the_migration_changes_no_row_and_no_table_shape():
+    # The scanner sees a row change, plain and inside an executed string …
+    assert row_changes("update public.subscriptions set tier = 'trial' where tier is null;") == ["update … set"]
+    assert row_changes("execute format('update %I set tier = null', v_table);") == ["update … set"]
+    assert row_changes("update only public.user_usage as u set uploads = 0;") == ["update … set"]
+    assert row_changes("delete from public.billing_events;") == ["delete from"]
+    assert row_changes("insert into public.founding_members (user_id) values (auth.uid());") == ["insert into"]
+    assert row_changes("truncate public.user_usage;") == ["truncate <table>"]
+    assert row_changes("execute format('truncate table %s', v_rel);") == ["truncate <table>"]
+    assert row_changes("alter table public.subscriptions drop column tier;") == ["alter table … column / rename"]
+    assert row_changes("alter table public.subscriptions add constraint c check (tier is not null);") == [
+        "alter table … column / rename"]
+    assert row_changes("drop table public.user_usage;") == ["drop table"]
+    # … and does not take a REVOKE's privilege list, a policy or a switch of row level
+    # security for one (the migration's own statements).
+    assert row_changes("revoke insert, update, delete, truncate, references, trigger on table %s from authenticated") == []
+    assert row_changes("revoke update (tier) on public.subscriptions from authenticated;") == []
+    assert row_changes("Run: revoke insert, update, delete, truncate on % from anon, authenticated;") == []
+    assert row_changes("execute format('alter table %s enable row level security', v_rel);") == []
+    assert row_changes("create policy p on t for update using (true); drop policy p on t;") == []
+    assert row_changes("-- update public.subscriptions set tier = 'x'\nselect 1;") == []
+    # THE LAW.
+    found = row_changes(MIGRATION.read_text(encoding="utf-8"))
+    assert found == [], (
+        "the lockdown migration changes a row or a table's shape (%s) — it is permitted to remove and "
+        "restrict access, nothing else: no customer row is deleted or altered" % ", ".join(found))
+
+
 # ── F. THE READ-ONLY FILES ARE READ-ONLY ─────────────────────────────────
 
 _WRITE_WORDS = re.compile(
@@ -695,10 +759,19 @@ def read_only_violations(stmt: str) -> list[str]:
     for rx, what in ((_WRITE_WORDS, "keyword"), (_WRITE_FUNCTIONS, "function")):
         for m in rx.finditer(masked):
             out.append("%s %r" % (what, m.group(1)))
-    # A query handed to query_to_xml() runs too: it is held to the same law.
-    for m in re.finditer(r"query_to_xml\s*\(\s*(?:'((?:[^']|'')*)'|\$([A-Za-z_]*)\$(.*?)\$\2\$)", stmt, re.S):
+    # A query handed to query_to_xml() runs too: it is held to the same law —
+    # so it must be a LITERAL this scan can read, or format() of a literal
+    # (whose placeholders take identifiers). A query assembled any other way
+    # is one nobody has read.
+    literal = r"(?:'((?:[^']|'')*)'|\$([A-Za-z_]*)\$(.*?)\$\2\$)"
+    read = set()
+    for m in re.finditer(r"query_to_xml\s*\(\s*(?:format\s*\(\s*)?" + literal + r"\s*,", stmt, re.S):
+        read.add(m.start())
         inner = (m.group(1) if m.group(1) is not None else m.group(3)).strip()
         out += ["inside query_to_xml: " + v for v in read_only_violations(inner)]
+    for m in re.finditer(r"query_to_xml\s*\(", stmt):
+        if m.start() not in read:
+            out.append("query_to_xml: its query is not a literal (or format() of one) — it cannot be read")
     return out
 
 
@@ -712,6 +785,14 @@ def test_the_read_only_law_sees_a_write():
     assert read_only_violations("select * into t2 from t")
     assert read_only_violations("select query_to_xml('delete from public.billing_events', false, false, '')")
     assert read_only_violations("select query_to_xml($q$ with e as (select 1) select * from e $q$, false, false, '')") == []
+    # format() of a literal is read like the literal; anything else is a query nobody read.
+    assert read_only_violations("select query_to_xml(format($q$ select count(*) from public.%I t $q$, n), false, false, '') from l") == []
+    assert read_only_violations("select query_to_xml(format('delete from public.%I', n), false, false, '') from l")
+    assert read_only_violations("select query_to_xml('select 1 from ' || n, false, false, '') from l") == [
+        "query_to_xml: its query is not a literal (or format() of one) — it cannot be read"]
+    assert read_only_violations("select query_to_xml(q.text, false, false, '') from q") == [
+        "query_to_xml: its query is not a literal (or format() of one) — it cannot be read"]
+    assert read_only_violations("select query_to_xml(format(q.text, n), false, false, '') from q")
 
 
 @pytest.mark.parametrize("path, alias", [(PREFLIGHT_REPORT, "report"), (AUDIT_REPORT, "audit")])
@@ -740,6 +821,14 @@ def test_the_preflight_report_computes_the_three_verdicts_and_the_audit_report_s
     assert not {"stripe_customer_id", "stripe_subscription_id", "email"} & keys, "a Stripe id value or an email is returned"
     assert {"has_stripe_customer", "has_stripe_subscription", "why_listed", "listed_count",
             "stripe_ids_in_no_billing_event", "tier_by_stripe_subscription", "tables_present"} <= keys
+    # THE FENCE's instrument: one fingerprint per listed table — the rows counted, and an md5
+    # over every row's WHOLE content (row_to_json of the row, not a chosen column).
+    assert "'row_fingerprints'" in audit and "jsonb_object_agg(r.name, coalesce(r.fp, 'absent'))" in audit
+    fp = re.search(r"query_to_xml\(format\(\$rows\$(.*?)\$rows\$, l\.name\)", audit, re.S)
+    assert fp, "the audit's fingerprint query moved — re-anchor this law"
+    assert re.sub(r"\s+", " ", fp.group(1)).strip() == (
+        "select count(*) || ':' || coalesce(md5(string_agg(md5(row_to_json(t)::text), '' "
+        "order by md5(row_to_json(t)::text))), '-') as fp from public.%I t"), fp.group(1)
     assert audit.count("to_regclass('public.founding_members')") and audit.count("to_regclass('public.billing_events')")
     # The two optional tables are named ONLY inside strings (query_to_xml, to_regclass): a
     # plain reference would make the statement fail to parse where one is absent.

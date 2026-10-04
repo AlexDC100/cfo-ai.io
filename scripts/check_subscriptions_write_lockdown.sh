@@ -13,13 +13,17 @@
 # What it proves, one PASS/FAIL line per case, from FOUR starting states that
 # must each end in the same catalog and the same refused-attack table:
 #   (a) the catalog a database built from this repository has BEFORE the fix
-#       (the two write policies present, the default grants in place) — and
-#       the attack is first shown to SUCCEED there, so the harness is known to
-#       see an open hole;
-#   (b) the hand-applied three-statement STOPGAP (the two write policies
-#       dropped; insert, update, delete, truncate, references, trigger revoked
-#       from anon and authenticated) — the migration must run on top of it
-#       without an error and still close what the stopgap left;
+#       (the two write policies present, the default grants in place, the
+#       three own-row SELECT policies as the old files created them: with no
+#       `to authenticated`, so `to public`) — and the attack is first shown to
+#       SUCCEED there, so the harness is known to see an open hole;
+#   (b) the hand-applied three-statement STOPGAP on top of (a) (the two write
+#       policies dropped; insert, update, delete, truncate, references, trigger
+#       revoked from anon and authenticated on subscriptions) — what a
+#       production database built from the old files holds once the stopgap
+#       was run. The migration must run on top of it without an error and
+#       still close what the stopgap left: anon's SELECT, MAINTAIN, the two
+#       meters' default ALL, and the three policies' `to public`;
 #   (c) the migration's own result (a second run: idempotent, and silent);
 #   (d) a locked database somebody RE-OPENED BY HAND under names the migration
 #       has never heard of (a `for all` policy to authenticated, a permissive
@@ -34,7 +38,11 @@
 # it; anon sees nothing; the user still reads their own row and only that; the service
 # role's webhook-shaped upsert, a brand-new signup's seeded row and the
 # document / chat reserve-commit RPCs still work; every sibling entitlement
-# table refuses a user write. Beside the behaviour, the catalog laws: row
+# table refuses a user write. THE FENCE: every application of the migration
+# is bracketed by a fingerprint of every row of every listed table — a
+# migration that only restricts access changes no row, and the audit report's
+# `row_fingerprints` (the instrument an operator has in production) must say
+# the same. Beside the behaviour, the catalog laws: row
 # level security on, no policy that is not a SELECT policy, no privilege for
 # anon, no write privilege for authenticated, on every table of THE LIST —
 # which this script reads from the migration (one list); no function an API
@@ -509,7 +517,10 @@ first_col() { sql "select attname from pg_attribute where attrelid = 'public.$1'
 # ── The four starting states ─────────────────────────────────────────────
 # (a) the catalog of a database built from this repository BEFORE the fix —
 #     measured on a fresh stack: the three policies of the old schema.sql,
-#     Supabase's default grants on the three user-readable tables.
+#     Supabase's default grants on the three user-readable tables, and the two
+#     meters' own-row SELECT policies as schema_phase5_usage_limits.sql and
+#     schema_phase_pricing_v2.sql created them before 2026-10-03 — with no
+#     `to authenticated`, which Postgres records as roles {public}.
 state_a() {
   sql "set client_min_messages = warning;
        drop policy if exists \"subscriptions self select\" on public.subscriptions;
@@ -518,6 +529,10 @@ state_a() {
        create policy \"subscriptions self select\" on public.subscriptions for select using (auth.uid() = user_id);
        create policy \"subscriptions self insert\" on public.subscriptions for insert with check (auth.uid() = user_id);
        create policy \"subscriptions self update\" on public.subscriptions for update using (auth.uid() = user_id);
+       drop policy if exists \"users_see_own_usage\" on public.user_usage;
+       create policy \"users_see_own_usage\" on public.user_usage for select using (auth.uid() = user_id);
+       drop policy if exists \"plan_chat_daily_usage_own_select\" on public.plan_chat_daily_usage;
+       create policy \"plan_chat_daily_usage_own_select\" on public.plan_chat_daily_usage for select using (user_id = auth.uid());
        grant all on public.subscriptions, public.user_usage, public.plan_chat_daily_usage to anon, authenticated;
        notify pgrst, 'reload schema';"
 }
@@ -618,7 +633,39 @@ writable_public_views() {
           and exists (select 1 from unnest(array['anon', 'authenticated']) r, unnest(array['DELETE', 'INSERT', 'UPDATE']) p
                        where has_table_privilege(r, v.oid, p));" | head -1
 }
-migrate() { # label
+# THE FENCE (owner, 2026-10-03: "migrations that only remove or restrict
+# access … may not delete or alter customer rows"). Every row of every listed
+# table that exists, as one line: "table=<rows>:<md5 of every row, whole>".
+rows_of_listed() {
+  local t out=""
+  for t in $ALL_TABLES; do
+    if exists_table "$t"; then out="$out$t=$(tfp "$t") "; fi
+  done
+  echo "$out"
+}
+# The same question, asked of the instrument an operator has in production:
+# …_audit_report.sql's `row_fingerprints`, read inside a READ ONLY transaction.
+audit_rows_of_listed() {
+  local out t r; out="$(read_only "$AUDIT_REPORT")"; r=""
+  case "$out" in *ERROR*) echo "ERROR $(printf '%s' "$out" | grep ERROR | head -1)"; return ;; esac
+  for t in $ALL_TABLES; do
+    r="$r$t=$(printf '%s' "$out" | grep -o "\"$t\": \"[^\"]*\"" | head -1 | sed 's/^"[^"]*": "//; s/"$//') "
+  done
+  echo "$r"
+}
+# What the audit's fingerprint must be, computed here on its own: the number of
+# rows, and one md5 over the md5 of every row's whole content.
+expected_rows_of_listed() {
+  local t r=""
+  for t in $ALL_TABLES; do
+    if exists_table "$t"; then
+      r="$r$t=$(sql "select count(*) || ':' || coalesce(md5(string_agg(md5(row_to_json(t)::text), '' order by md5(row_to_json(t)::text))), '-') from public.$t t;" | head -1) "
+    else r="$r$t=absent "; fi
+  done
+  echo "$r"
+}
+migrate() { # label — its first word is the case id; the fence case is that id + "f"
+  local rows_before; rows_before="$(rows_of_listed)"
   apply_file "$MIGRATION"; local rc=$?
   if [ $rc -eq 0 ]; then
     case "$APPLY_OUT" in
@@ -626,6 +673,8 @@ migrate() { # label
       *) pass "$1" ;;
     esac
   else fail "$1" "$(echo "$APPLY_OUT" | grep -v '^$' | tail -4)"; fi
+  check "${1%% *}f … and it changed NO ROW: every listed table holds the same rows, byte for byte, before and after it (the fence — a migration that only restricts access)" \
+    "$(rows_of_listed)" "$rows_before"
 }
 
 
@@ -740,6 +789,21 @@ catalog_of() {
        from pg_class c where c.oid = 'public.$1'::regclass;" | head -1
 }
 ONE_POLICY="subscriptions self select|SELECT|{authenticated}|(auth.uid() = user_id)|"
+kept_policy_roles() { # the three policies the lockdown keeps → "table:{roles} …"
+  sql "select coalesce(string_agg(tablename || ':' || roles::text, ' ' order by tablename), '(none)')
+         from pg_policies
+        where schemaname = 'public'
+          and (tablename, policyname) in (('subscriptions', 'subscriptions self select'),
+                                          ('user_usage', 'users_see_own_usage'),
+                                          ('plan_chat_daily_usage', 'plan_chat_daily_usage_own_select'));" | head -1
+}
+# What an API role holds under Supabase's DEFAULT grant, and what the stopgap
+# leaves of it on subscriptions — MAINTAIN exists from Postgres 17.
+if [ "$(sql "select current_setting('server_version_num')::int >= 170000;" | head -1)" = "t" ]; then
+  DEFAULT_ALL="DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"; STOPGAP_LEFT="MAINTAIN,SELECT"
+else
+  DEFAULT_ALL="DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"; STOPGAP_LEFT="SELECT"
+fi
 policies_of() { # table → every policy on it
   sql "select coalesce(string_agg(policyname || '|' || cmd || '|' || roles::text || '|' || coalesce(qual, '') || '|' || coalesce(with_check, ''), ' ; ' order by policyname), '(none)')
          from pg_policies where schemaname = 'public' and tablename = '$1';" | head -1
@@ -981,6 +1045,8 @@ out="$(state_a)"
 check "A0 state (a) is built: the two write policies, the default grants" \
   "$out|$(sql "select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'subscriptions';")|$(sql "select has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE'), has_table_privilege('anon', 'public.subscriptions', 'INSERT');")" \
   "|subscriptions self insert,subscriptions self select,subscriptions self update|t|t"
+check "A0c … and the three own-row SELECT policies are in the form the old files gave them: no \`to authenticated\`, recorded as roles {public}" \
+  "$(kept_policy_roles)" "plan_chat_daily_usage:{public} subscriptions:{public} user_usage:{public}"
 check "A0b the pre-flight report (…_preflight_report.sql, run READ ONLY) reads state (a) as hole_open" \
   "$(verdict_of)" "hole_open hole_open=true stopgap_in_place=false fully_locked=false"
 # The hole, seen by this harness: without these the suite below could be
@@ -1050,7 +1116,22 @@ check "B1 the stopgap alone leaves anon's SELECT on subscriptions and the meters
   "t|t|t"
 check "B1b the pre-flight report reads state (b) as stopgap_in_place" \
   "$(verdict_of)" "stopgap_in_place hole_open=false stopgap_in_place=true fully_locked=false"
+check "B1c state (b) is what a database built from the OLD files holds after the stopgap: on subscriptions anon and authenticated keep $STOPGAP_LEFT, on the two meters the default grant, and the three own-row SELECT policies are still \`to public\`" \
+  "$(catalog_of subscriptions) ; $(catalog_of user_usage) ; $(catalog_of plan_chat_daily_usage) ; $(kept_policy_roles)" \
+  "rls=true non-select-policies=0 anon=$STOPGAP_LEFT authenticated=$STOPGAP_LEFT public=- ; rls=true non-select-policies=0 anon=$DEFAULT_ALL authenticated=$DEFAULT_ALL public=- ; rls=true non-select-policies=0 anon=$DEFAULT_ALL authenticated=$DEFAULT_ALL public=- ; plan_chat_daily_usage:{public} subscriptions:{public} user_usage:{public}"
 migrate "B2 the migration applies ON TOP of the stopgap: nothing errors on a missing policy or an already-revoked privilege"
+got=""
+for frag in '{"cmd": "SELECT", "table": "subscriptions", "policy": "subscriptions self select"}' \
+            '{"cmd": "SELECT", "table": "user_usage", "policy": "users_see_own_usage"}' \
+            '{"cmd": "SELECT", "table": "plan_chat_daily_usage", "policy": "plan_chat_daily_usage_own_select"}' \
+            '{"table": "subscriptions", "policy": "subscriptions self select"}' \
+            '{"table": "user_usage", "policy": "users_see_own_usage"}' \
+            '{"table": "plan_chat_daily_usage", "policy": "plan_chat_daily_usage_own_select"}' \
+            '"row_level_security_switched_on": []' '"changed_anything": true'; do
+  case "$APPLY_OUT" in *"$frag"*) got="$got ok" ;; *) got="$got MISSING($frag)" ;; esac
+done
+check "B2b … and its result row says what it did there: the three own-row SELECT policies dropped (they were \`to public\`) and created again \`to authenticated\`, no table's row level security touched" \
+  "$got" " ok ok ok ok ok ok ok ok"
 suite "b"
 
 # ══ C. from state (c): the migration's own result ════════════════════════
@@ -1124,6 +1205,22 @@ case "$out" in *'"billing_events": false'*) got="$got, billing_events absent" ;;
 check "Y5 … and it runs where founding_members and billing_events do not exist" \
   "$got" "no error, founding_members absent, billing_events absent"
 baseline
+# The audit's row_fingerprints: what an operator compares before and after the
+# migration in production, where this gate cannot run.
+check "Y6 the audit report's row_fingerprints: for every listed table '<rows>:<md5 over every row's whole content>' — equal to the same sum computed here — and 'absent' for a table that does not exist" \
+  "$(audit_rows_of_listed)" "$(expected_rows_of_listed)"
+y_before="$(audit_rows_of_listed)"
+sql "update public.subscriptions set cancel_at_period_end = not cancel_at_period_end where user_id = '$V';" >/dev/null
+y_moved="$(audit_rows_of_listed)"
+baseline
+y_before2="$(audit_rows_of_listed)"
+apply_file "$MIGRATION"
+y_after="$(audit_rows_of_listed)"
+got=""
+if [ "${y_before%% *}" != "${y_moved%% *}" ] && [ "${y_before#* }" = "${y_moved#* }" ]; then got="one write to one row moves that table's fingerprint and no other"; else got="ONE WRITE DID NOT MOVE EXACTLY ONE FINGERPRINT: $y_before -> $y_moved"; fi
+if [ -n "$y_before2" ] && [ "$y_before2" = "$y_after" ]; then got="$got; identical before and after the migration"; else got="$got; THE MIGRATION MOVED A FINGERPRINT: $y_before2 -> $y_after"; fi
+check "Y7 … one write to one row moves the fingerprint of that table alone, and applying the migration moves none: the same file run on both sides of it shows that no row changed (the fence, as production can read it)" \
+  "$got" "one write to one row moves that table's fingerprint and no other; identical before and after the migration"
 
 # ══ T. a grant, or a table, that is not the owner's to change ════════════
 # Each case is ONE transaction that is rolled back (the roles it creates

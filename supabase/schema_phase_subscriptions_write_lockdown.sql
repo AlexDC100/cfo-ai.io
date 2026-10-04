@@ -64,6 +64,11 @@
 --     privilege is left as found.
 --   · the service-only tables — nothing.
 -- `service_role` and the table owner are never touched.
+-- NO ROW IS CHANGED. This file holds no INSERT, UPDATE, DELETE or TRUNCATE
+-- and changes no table's columns: it removes and restricts access, nothing
+-- else (the static law reds on a statement that would; the gate fingerprints
+-- every row of every listed table around each run). In production the audit
+-- report's `row_fingerprints`, read before and after, is the same proof.
 -- NO VIEW IS CHANGED. A view over a listed table is not closed by a revoke
 -- on the table; every such view an API role may use — directly or through
 -- another view — is NAMED in the result row (and in a WARNING when it can be
@@ -151,7 +156,9 @@
 --   · schema_phase_subscriptions_write_lockdown_audit_report.sql
 --       ONE statement, ONE row, one jsonb column `audit`: the rows whose
 --       entitlement has no payment visible behind it. A list for a person,
---       not a verdict. No email, no Stripe id.
+--       not a verdict. No email, no Stripe id. And `row_fingerprints`: for
+--       each listed table the number of rows and one md5 over every row —
+--       the same string before and after this file = no row changed.
 --   · schema_phase_subscriptions_write_lockdown_preflight.sql
 --       the same questions as grids, one SELECT each, for a person in Studio
 --       or psql (run one block at a time: an editor shows the last result).
@@ -206,6 +213,7 @@
 --     first list cannot see (a self-written tier WITH forged ids of the
 --     right shape). IT IS A LIST FOR A PERSON TO READ, NOT A VERDICT: the
 --     file's own `false_positives` and `cannot_see` say why.
+--     KEEP `audit.row_fingerprints` — post-check (v) compares it.
 --
 -- 1. RUN THIS FILE, whole. Read the one row it returns:
 --      `applied.verified` — the sentence; `applied.changed_anything`;
@@ -235,6 +243,14 @@
 --          refused, 403).
 --    (iv)  Sign up a throw-away account: it still gets its subscriptions
 --          row. Upload one document: the quota still counts.
+--    (v)   Run …_audit_report.sql again — BEFORE (iv), which adds rows:
+--          `audit.row_fingerprints.subscriptions` must be the string step 0b
+--          returned: no subscription row was changed, added or removed. A
+--          string that differs is somebody else's write in between, not this
+--          file's (it writes no row): a signup, a Stripe webhook or a cancel
+--          for `subscriptions`; an upload or a chat turn for a meter; a
+--          Stripe event for `billing_events`. `audit.subscriptions_total`
+--          and `audit.rows_by_tier_plan_status` say which.
 --    WHAT PROVES "0 OF 35" IN PRODUCTION. The gate cannot run there (it
 --    creates accounts and re-opens the hole to prove it sees one). On the
 --    local stack it shows that the catalog state `fully_locked` refuses 35 of

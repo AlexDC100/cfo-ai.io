@@ -21,6 +21,18 @@
 --                                        price (this is what covers a PAYING user
 --                                        who raised their own tier, and forged ids)
 --   audit.rows_by_tier_plan_status       every row of the table, counted
+--   audit.row_fingerprints               "<rows>:<md5>" for every table on THE LIST
+--                                        that exists here ("absent" otherwise): the
+--                                        number of rows and one md5 over every row's
+--                                        whole content. No value of any row is
+--                                        returned. THE SAME STRING BEFORE AND AFTER
+--                                        the migration = no row of that table was
+--                                        changed, added or removed in between. The
+--                                        migration writes no row; `subscriptions`
+--                                        moves only on a signup, a webhook or a
+--                                        cancel in between, a meter when a user
+--                                        uploads or chats, `billing_events` on a
+--                                        Stripe event
 --   audit.tables_present                 founding_members / billing_events: the
 --                                        statement does not need either — where
 --                                        one is absent its columns answer null and
@@ -29,10 +41,41 @@
 -- It runs before and after the migration, and before and after
 -- schema_phase_owner_plan.sql (it names none of that file's objects). A single
 -- WITH … SELECT: `supabase db query --linked -f <this file>`, Studio, psql.
--- The two optional tables are read through query_to_xml(), which runs its
--- query read-only; nothing else here can write.
+-- The two optional tables, and the rows behind each fingerprint, are read
+-- through query_to_xml(), which runs its query read-only; nothing else here
+-- can write.
+--
+-- THE LIST below is the migration's (tests/engine/test_entitlement_write_laws.py
+-- reds when the two differ).
 
 with
+listed (name) as (
+  values
+    -- ENTITLEMENT-TABLES-USER-READABLE-BEGIN
+    ('subscriptions'),
+    ('user_usage'),
+    ('plan_chat_daily_usage'),
+    -- ENTITLEMENT-TABLES-USER-READABLE-END
+    -- ENTITLEMENT-TABLES-SERVICE-ONLY-BEGIN
+    ('document_quota_ledger'),
+    ('founding_members'),
+    ('billing_events'),
+    ('renewal_email_queue'),
+    ('plan_assignment_audit')
+    -- ENTITLEMENT-TABLES-SERVICE-ONLY-END
+),
+rowfp as (
+  select l.name, x.fp
+    from listed l
+    cross join lateral (
+      select case when to_regclass(format('public.%I', l.name)) is not null
+                  then query_to_xml(format($rows$
+                         select count(*) || ':' || coalesce(md5(string_agg(md5(row_to_json(t)::text), ''
+                                                                order by md5(row_to_json(t)::text))), '-') as fp
+                           from public.%I t
+                       $rows$, l.name), false, false, '') end as doc) q
+    left join lateral xmltable('/table/row' passing q.doc columns fp text path 'fp') x on true
+),
 present as (
   select to_regclass('public.founding_members') is not null as fm_present,
          (to_regclass('public.billing_events') is not null
@@ -178,6 +221,8 @@ select jsonb_build_object(
     (select coalesce(jsonb_agg(jsonb_build_object('tier', g.tier, 'plan', g.plan, 'status', g.status, 'count', g.n)
                                order by g.n desc, g.tier, g.plan, g.status), '[]'::jsonb)
        from (select s.tier, s.plan, s.status, count(*) as n from s group by 1, 2, 3) g),
+  'row_fingerprints',
+    (select jsonb_object_agg(r.name, coalesce(r.fp, 'absent')) from rowfp r),
   'false_positives', jsonb_build_array(
     'every account that existed when supabase/schema_phase5_usage_limits.sql was applied, or re-applied: that file backfills tier from plan on EVERY row whose tier is NULL (professional -> business, starter -> solo, enterprise -> professional), paid or not — recognisable by an updated_at at that run',
     'an intro unlock whose Stripe session carried no customer (payment mode): tier intro, status active, no Stripe ids — stripe_event_names_user is true',
