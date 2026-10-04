@@ -16,11 +16,18 @@
 //    the model call is reachable only through guard.handleChat; the pure
 //    modules touch no Deno global.
 //
+//    And the redeploy changes the prompt by the rule ALONE: with its section
+//    taken out, every prompt hashes to what main's function sent (pins
+//    computed from main's own builders); the CORS allowlist is the same six
+//    origins and still decides the echoed origin.
+//
 // WHAT IT REDS ON (TC-11): the rule dropped from either persona, reworded on
 // one side only, or moved after a per-request fragment (which would void the
 // prompt cache); a kill switch, a second fetch, a counter read (a pre-check
 // outside the RPC), a fourth RPC, or a model call outside the guard coming
-// back into the function.
+// back into the function; a byte of a persona, of the currency rule or of the
+// public-company block changing without its pin; an origin added to, or the
+// caller's origin echoed past, the CORS allowlist.
 //
 // 3. THE PREFLIGHT REPORT the coordinator runs on production BEFORE the
 //    deploy (supabase/preflight/chat_cap_always_preflight_report.sql). The
@@ -126,6 +133,56 @@ describe("the stock-claim rule is in the function's system prompt", () => {
   });
 });
 
+// ── C7: the redeploy changes the prompt by the rule, and by nothing else ──
+//
+// Each pin is the sha256 of a system prompt as MAIN's function built it
+// (supabase/functions/chat-llm/index.ts at 4a7b82bc) — computed by running
+// THAT file's builders over the request, not these. With the rule's section
+// taken out, this branch's prompt must hash the same: the two personas, the
+// currency rule and the public-company block did not move by a byte. A
+// deliberate edit of any of them changes its pin in the same commit; an
+// accidental one reds here.
+describe("apart from the rule, the system prompt is byte for byte what the function sent before", () => {
+  const q = msg("q");
+  const PINNED: [string, LlmChatRequest, string, string][] = [
+    ["bare", { messages: q },
+      "458406798779609bf5d4160250fc25c1b94e5e17287fd629ca37d67b29268906",
+      "12a682036a0d0707f3ae1e933b8facaaba5be596800754cfeebe237b1b074a64"],
+    ["a snapshot, a converted currency, a demo ticker with every figure", {
+      messages: q, page: "Ask CFO AI", company_name: "Invented SRL",
+      dataset_summary: "Period: FY2025\n  · Revenue: 1", display_currency: "EUR",
+      fx_context: { source_currency: "RON", display_currency: "EUR", rate: 0.2011, rate_date: "2026-10-02", provider: "BNR" },
+      public_company: {
+        ticker: "AAPL", company_name: "Apple Inc.", sector: "Technology", industry: "Consumer Electronics", exchange: "NASDAQ", currency: "USD",
+        latest_period: "FY2024", latest_period_end: "2024-09-28", revenue: 1000, ebitda: 300, net_income: 200, total_assets: 5000, total_equity: 2000, cash: 400,
+        net_debt: 100, free_cash_flow: 250, market_cap: 9000, enterprise_value: 9100, pe_ratio: 30.5, ev_to_ebitda: 22.25, ebitda_margin: 30, net_margin: 20, roe: 10,
+        net_debt_to_ebitda: 0.33, source: "demo",
+      },
+    },
+      "c9e698941905efb503b77029bce1e7a76d335a2071beeba9763e543d6ac82e81",
+      "da98069d9462283cfeb5a6f33dae550136f7e7841c3d283be0791e4eecd50ed1"],
+    ["the display currency is the stored one", { messages: q, display_currency: "ron" },
+      "13cf069e938ba211f54c8262bdab96d8079389244c0e711153355cb6a35a8342",
+      "160219c06083f8318884649c2518b90f839b146d0b8ecfd6c2b27d4735f29d48"],
+    ["a live ticker with no figures", { messages: q, public_company: { ticker: "MSFT", source: "nasdaq" } },
+      "c0547ade4e81a7dc31231e0a5e4545a35907d0ff19db0e9adb1120461c28e806",
+      "4a5a4f0463eecab8947a76ae5a3af19c6334c2cab6371c0dc212af93b924166d"],
+  ];
+  const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
+  const withoutTheRule = (prompt: string) => {
+    expect(count(prompt, STOCK_CLAIM_SECTION)).toBe(1); // …the one thing that IS new
+    return prompt.replace(STOCK_CLAIM_SECTION, "");
+  };
+
+  it.each(PINNED)("workspace persona — %s", (_name, req, workspace) => {
+    expect(sha256(withoutTheRule(buildWorkspaceChatSystemPrompt(req)))).toBe(workspace);
+  });
+
+  it.each(PINNED)("inventory persona — %s", (_name, req, _workspace, inventory) => {
+    expect(sha256(withoutTheRule(buildChatSystemPrompt(req)))).toBe(inventory);
+  });
+});
+
 describe("no switch, no second door — the function's source", () => {
   it("POSITIVE CONTROL: the function is these four files, and the comment stripper keeps code and URLs", () => {
     expect(FILES).toEqual(["guard.ts", "index.ts", "plans.ts", "prompt.ts"]);
@@ -205,6 +262,18 @@ describe("no switch, no second door — the function's source", () => {
     for (const origin of ["https://cfo-ai.io", "https://www.cfo-ai.io", "https://cfo-ai.finance", "https://www.cfo-ai.finance", "http://localhost:5173", "http://127.0.0.1:5173"]) {
       expect(index).toContain(`"${origin}"`);
     }
+  });
+
+  it("the allowlist — not the caller — decides the origin that is echoed: the same six origins, and any other gets the default", () => {
+    const index = code("index.ts");
+    const listed = /const ALLOWED_ORIGINS = new Set\(\[([\s\S]*?)\]\);/.exec(index)?.[1] ?? "";
+    expect([...listed.matchAll(/"([^"]+)"/g)].map((m) => m[1])).toEqual([
+      "https://cfo-ai.io", "https://www.cfo-ai.io", "https://cfo-ai.finance", "https://www.cfo-ai.finance", "http://localhost:5173", "http://127.0.0.1:5173",
+    ]);
+    expect(index).toContain('const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://cfo-ai.io";');
+    // ONE place writes the header, and it writes `allow`.
+    expect(count(index, "Access-Control-Allow-Origin")).toBe(1);
+    expect(index).toContain('"Access-Control-Allow-Origin": allow,');
   });
 });
 

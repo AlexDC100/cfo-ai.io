@@ -2152,11 +2152,13 @@ def _engine_gates() -> List[Gate]:
         #                    table and the row resolution READ from the
         #                    engine's Python; the function's source (no
         #                    switch, one fetch, three RPCs, no counter read,
-        #                    the stock-claim rule in the prompt); the
+        #                    the stock-claim rule in the prompt — and, with
+        #                    the rule taken out, every prompt hashing to what
+        #                    main's function sent; the CORS allowlist); the
         #                    coordinator's preflight report held to the SQL
         #                    and to the names index.ts calls; the app's
         #                    sentences from the refusal CODES in EN and RO;
-        #                    one refresh + one retry on a 401. Measured 152.
+        #                    one refresh + one retry on a 401. Measured 161.
         #   chat-cap-real    the DEPLOYED FILE (index.ts) under Deno on a
         #                    loopback port against the local stack's real
         #                    auth server, plan row and reserve / commit /
@@ -2168,7 +2170,7 @@ def _engine_gates() -> List[Gate]:
         #                    database. VACUOUS — never green — without the
         #                    stack or Deno; refuses (exit 2, a FAIL here) a
         #                    non-loopback API and an API that is not that
-        #                    stack's gateway. Measured 73.
+        #                    stack's gateway. Measured 74.
         # Plant log: docs/engine_book/gates.md "chat-cap-always",
         # "chat-cap-real".
         Gate("chat-cap-always",
@@ -2194,6 +2196,8 @@ def _engine_gates() -> List[Gate]:
                        "every tier string the engine knows resolves to the SAME daily and monthly cap here",
                        "nothing reads USAGE_LIMITS_ENABLED: the cap has no off switch",
                        "the function's two sentences ARE the frontend's (the snapshot law's words), byte for byte",
+                       "apart from the rule, the system prompt is byte for byte what the function sent before > workspace persona — bare",
+                       "the allowlist — not the caller — decides the origin that is echoed",
                        "its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's",
                        "401, then a fresh session: ONE refresh, ONE retry with the NEW token — and the answer",
                        "a refused turn reads as the app's own sentence, from the code — ro > sign_in")),

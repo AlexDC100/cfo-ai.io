@@ -256,6 +256,15 @@ try {
     const g = await fetch(fn.url, { method: "GET" });
     await g.body?.cancel();
     check("1.2 GET: 405", g.status, 405);
+    // The allowlist — not the caller — decides the origin that is echoed.
+    const STRANGER = `https://app.${DOMAIN}`;
+    const p = await fetch(fn.url, { method: "OPTIONS", headers: { Origin: STRANGER, "Access-Control-Request-Method": "POST" } });
+    await p.body?.cancel();
+    const refused = await ask(fn, null, MESSAGE, STRANGER);
+    const dev = await ask(fn, null, MESSAGE, "http://localhost:5173");
+    check("1.3 an origin that is not on the allowlist is never echoed — on the preflight or on a refusal it gets the default; a listed one is echoed; Vary: Origin",
+      [p.headers.get("access-control-allow-origin"), refused.status, refused.cors, dev.cors, p.headers.get("vary")],
+      ["https://cfo-ai.io", 401, "https://cfo-ai.io", "http://localhost:5173", "Origin"]);
   }
 
   // ── 2. NO VERIFIED USER, NO MODEL CALL ─────────────────────────────────
