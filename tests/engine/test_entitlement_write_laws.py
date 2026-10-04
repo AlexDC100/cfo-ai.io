@@ -20,7 +20,8 @@ named, and it cannot see the SOURCE. These are the static laws for that half:
      ``supabase/functions/`` writes a listed table through a supabase-js
      client or names its REST path; no browser file calls an RPC that writes
      one; and no file that names a listed table in quotes also makes a
-     supabase-js write, a write ``fetch`` or a GraphQL call.
+     supabase-js write, a write ``fetch`` or a GraphQL call (this last one is
+     not asked of test files, which no browser session runs).
   C. THE SQL. No committed ``supabase/**/*.sql`` re-opens a listed table: a
      non-select policy, a grant to an API role (quoted identifiers
      included), ``on all tables in schema public``, ``disable row level
@@ -215,6 +216,20 @@ def names_a_listed_table_and_writes(text: str):
     return (q.group(1), w.group(0).strip()) if q and w else None
 
 
+# A TEST FILE is not code a browser session runs, and a test ABOUT these
+# tables names them in quotes beside a hash's `.update(` or a mocked client's
+# (fix/chat-cap-always: frontend/lib/__tests__/chatLlmPrompt.test.ts asserts
+# the edge function's text names no meter, and md5s it with
+# `createHash("md5").update(…)`). The co-occurrence law — an over-reach on
+# purpose — is not asked of test files; the two exact laws (a `.from("t")`
+# write chain, a `/rest/v1/<t>` path) are asked of every file, tests included.
+_TEST_FILE = re.compile(r"(^|/)__tests__/|^frontend/test/|\.(test|spec)\.[cm]?[jt]sx?$")
+
+
+def is_test_file(rel: str) -> bool:
+    return bool(_TEST_FILE.search(rel))
+
+
 def test_the_scanner_sees_the_writer_this_law_exists_for():
     # The deleted reactivate(), verbatim: a law that cannot see it is no law.
     old = '''
@@ -247,6 +262,15 @@ def test_the_co_occurrence_scanner_sees_the_evasions_a_chain_scan_misses():
     assert not hit('const { data } = await sb.from("subscriptions").select("*");\nlisteners.delete(cb);')
     assert not hit('// the `subscriptions` row\nawait sb.from("profiles").update({ language });')
     assert not hit('await sb.from("profiles").upsert({ id });')
+    # It is an over-reach on purpose — a hash's `.update(` beside a quoted name is a hit —
+    # so it is not asked of TEST files (and only of them).
+    assert hit('const names = ["user_usage"]; const md5 = createHash("md5").update(text, "utf8").digest("hex");')
+    assert is_test_file("frontend/lib/__tests__/chatLlmPrompt.test.ts")
+    assert is_test_file("frontend/pages/cfo/Billing.test.tsx") and is_test_file("mobile/src/auth.spec.ts")
+    assert is_test_file("frontend/test/setup.ts")
+    for shipped in ("frontend/lib/billing.ts", "frontend/lib/testMode.ts", "frontend/pages/cfo/Contest.tsx",
+                    "supabase/functions/chat-llm/index.ts", "frontend/lib/latest/tests.ts", "mobile/src/test/boot.ts"):
+        assert not is_test_file(shipped), shipped
 
 
 def test_no_browser_or_edge_function_code_writes_an_entitlement_table():
@@ -276,7 +300,10 @@ def test_no_browser_or_edge_function_code_writes_an_entitlement_table():
         # Browser code only: an edge function holds the service role, reads the
         # plan and POSTs to a model provider in one file — its direct table
         # writes are the two checks above.
-        both = None if rel.startswith("supabase/functions/") else names_a_listed_table_and_writes(text)
+        # … nor a test file: it is not shipped to a browser (the two exact checks
+        # above read it all the same).
+        skip_both = rel.startswith("supabase/functions/") or is_test_file(rel)
+        both = None if skip_both else names_a_listed_table_and_writes(text)
         if both:
             offenders.append("%s: names %r in quotes and also writes (%s) — read a listed table and write "
                              "anything else in two files, or send the write to the backend" % (rel, both[0], both[1]))
@@ -393,8 +420,14 @@ def sql_openings(text: str, tables=None, user_readable=None) -> list[str]:
             found.append("alter table %s disable row level security" % _ident(m.group(1)))
     # An `execute` string that names a listed table: SQL built at run time is
     # invisible to every other check here.
-    # (`grant execute on function …` and a trigger's `execute function …` are not it.)
+    # (`grant execute on function …` and a trigger's `execute function …` are not it;
+    # nor is the WORD inside a string literal — 'service_role may not execute ' || name,
+    # a sentence of a read-only report — which is told by the quotes before it on its
+    # own line: an odd number means the word sits inside a literal.)
     for m in re.finditer(r"(?<![a-z_])execute\s+(?!on\b|function\b|procedure\b)([^;]*)", text, re.I):
+        line = re.sub(r"/\*.*?\*/", "", text[text.rfind("\n", 0, m.start()) + 1:m.start()])
+        if line.count("'") % 2 == 1:
+            continue
         literals = re.findall(r"'((?:[^']|'')*)'|\$[A-Za-z_]*\$(.*?)\$[A-Za-z_]*\$", m.group(1), re.S)
         for a, b in literals:
             named = re.search(r"\b(%s)\b" % "|".join(re.escape(t) for t in tables), a or b)
@@ -442,6 +475,16 @@ def test_the_sql_scanner_sees_the_evasions_that_re_open_a_table():
         "execute '… subscriptions …'")
     assert sql_openings("execute format('alter table %I disable row level security', 'founding_members');")[0].startswith(
         "execute '… founding_members …'")
+    # The keyword is seen after a literal on its own line, and behind a block comment that
+    # holds a quote …
+    assert sql_openings("do $$ begin if current_user = 'postgres' then execute format('alter table %I disable row "
+                        "level security', 'user_usage'); end if; end $$;")[0].startswith("execute '… user_usage …'")
+    assert sql_openings("do $$ begin /* it's */ execute format('grant update on %I to authenticated', "
+                        "'subscriptions'); end $$;")[0].startswith("execute '… subscriptions …'")
+    # … and the WORD inside a string is not the keyword: a report's sentence, before the
+    # names it goes on to select.
+    assert sql_openings("select case when not f.ok then 'service_role may not execute ' || f.name end as why,\n"
+                        "       to_regclass('public.subscriptions') is not null as there\n  from f;") == []
     # The lockdown's own dynamic statements name no table: they take it as a parameter.
     assert sql_openings("execute format('revoke all on table %s from public, anon', v_rel);") == []
     assert sql_openings("grant all on all tables in schema public to service_role;") == []
