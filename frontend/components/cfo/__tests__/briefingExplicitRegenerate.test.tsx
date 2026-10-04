@@ -387,6 +387,43 @@ describe("exactly one request per click, with the D9 body", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(String(fetchMock.mock.calls[1][1]?.body)).toBe('{"intent":"user","language":"ro","currency":"EUR"}');
   });
+
+  // Review 2026-10-04: the two actions above ask for RON, and the card showed a
+  // session narration only when its currency WAS the display currency. With EUR
+  // on display the paid, stored answer never appeared: the card stayed as it was
+  // before the click, the same paid button enabled, until the period query
+  // re-read (for the whole session when that re-read failed). NO rerender here —
+  // the period query has not answered yet.
+  it("with the display currency EUR, a stored 'Generate the briefing' is SHOWN at once — and the next action is the currency one, not the same paid click", async () => {
+    env.currency = "EUR";
+    answer = { status: 200, body: { ok: true, regenerated: true, persisted: true, briefing: ENGLISH, language: "en", currency: "RON", stale: false } };
+    render(card({ baseBriefing: null, unavailable: true }));
+    fireEvent.click(button());
+    await waitFor(() => expect(screen.getByTestId("cfo-briefing-body").textContent).toBe(ENGLISH));
+    expect(screen.queryByTestId("cfo-briefing-unavailable")).toBeNull();
+    expect(header()).not.toMatch(/displayed in EUR/);
+    expect(button().textContent).toBe("Regenerate in EUR");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // the next click is a DIFFERENT request: the conversion, for the session
+    answer = { status: 200, body: { ok: true, regenerated: true, persisted: false, briefing: "Revenue was 83.2M EUR.", language: "en", currency: "EUR", stale: false } };
+    fireEvent.click(button());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(String(fetchMock.mock.calls[1][1]?.body)).toBe('{"intent":"user","language":"en","currency":"EUR"}');
+    await waitFor(() => expect(screen.getByTestId("cfo-briefing-body").textContent).toBe("Revenue was 83.2M EUR."));
+    expect(screen.queryByTestId("briefing-regenerate")).toBeNull();
+  });
+
+  it("with the display currency EUR, a stored language regeneration is SHOWN at once — the language action is not offered again", async () => {
+    await i18n.changeLanguage("ro");
+    env.currency = "EUR";
+    answer = { status: 200, body: { ok: true, regenerated: true, persisted: true, briefing: ROMANIAN, language: "ro", currency: "RON", stale: false } };
+    render(card()); // an English stored briefing, a Romanian reader, EUR on display
+    expect(button().textContent).toBe("Regenerează în română");
+    fireEvent.click(button());
+    await waitFor(() => expect(screen.getByTestId("cfo-briefing-body").textContent).toBe(ROMANIAN));
+    expect(button().textContent).toBe("Regenerează în EUR");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("a failed regeneration keeps the briefing", () => {

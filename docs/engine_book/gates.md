@@ -20374,3 +20374,219 @@ FastAPI route table (a script, a cron, `docker exec`); the other files on
 the same volume (`public_ro.db`, `public_market.db`, the name-index sidecar,
 the journal) — each has its own gates; whether the operator bearer is held
 only by the operator.
+
+## briefing-keep-last-good
+
+A briefing a model failure cannot destroy. Owner ruling 2026-10-02: "a failed
+regenerate must NEVER overwrite a stored briefing with [NARRATIVE_UNAVAILABLE]
+— keep the last good one, mark it stale." Rulings 2026-10-03: everything this
+gate tests is in the hotfix (the re-run route, the SKU briefing, the period
+read); a takeover keeps the month's recommendations too; an unsupported
+language or an unknown currency is refused BEFORE the meter; a failed
+regenerate answers the `stale` the row holds, never a state that is not stored.
+
+THE DEFECT (measured on 91fc4e24 and on the hotfix's own first build,
+d3c955a7). `briefings` holds ONE row per period and no history.
+
+- `POST /api/period/{id}/briefing/regenerate` with the provider refusing
+  answered 200 `ok: true` and the stored briefing BECAME
+  `[NARRATIVE_UNAVAILABLE]`; the route was unmetered and every deployed bundle
+  fired it from an effect (a language mismatch, a currency toggle);
+- a re-run whose narration failed upserted the failure text over the briefing
+  and deleted the period's recommendations — statuses, owners and due dates;
+- the same-month takeover moved the staged run's failure text over the
+  month's briefing; the Docs panel's "Re-run analysis" reset the period first,
+  so nothing was left to keep;
+- THIS GATE WAS SPECIFIED WITH THE HOTFIX AND NOT WRITTEN. When it was
+  (2026-10-03) it was RED on the hotfix's own code in a dozen places: the
+  takeover with no staged briefing row, the Docs-panel re-run, recommendations
+  deleted by a failed narration over a stored failure text, a meter outage
+  answered as a spent allowance, an unsupported language charged, a failed
+  converted regenerate answering `stale: true` for a row it had not marked,
+  prose containing "credit balance" read as a provider error, a reply fragment
+  served as the briefing, `GET /api/period` reading `briefings` by period
+  alone (no tenant in the filter), the SKU writer storing the failure over a
+  usable SKU briefing. Two independent reviews (2026-10-03, 2026-10-04) then
+  found: an in-place re-run design that left a FAILED document over a served
+  period (withdrawn — the reset is production's again and what it takes is
+  CARRIED across it); the carry dropped before the run was durable; a refused
+  narrative write on a re-run leaving the reader with nothing; carried
+  recommendations deleted by a takeover onto a month that held none.
+
+THE REPAIR (all in `src/engine/api/pipeline.py`, plus the meter's
+`metering_unavailable` kind in `_usage_gate.py`):
+
+- one predicate pair — `narration_unavailable_code(narrate)` (the run's own
+  code) and `stored_briefing_failure_code(body)` (a stored text, anchored) —
+  and one reader, `_stored_briefing_row` (period AND tenant in the filter, the
+  row's own `org_id` re-checked);
+- the regenerate route: the legacy body-less shape is inert (answers the
+  stored briefing, calls nothing); then walls → inputs (422
+  `unsupported_language` / `unsupported_currency`, 503 `fx_unavailable`) →
+  meter (`reserve_chat`; unreachable → 503 `metering_unavailable`) → model. A
+  failure writes nothing, releases the unit, marks the row stale by a SEPARATE
+  update and answers `stale` as stored (`_mark_briefing_stale` returns whether
+  the marker landed); only a RON narration is persisted;
+- `stage_persist_narrative`: usable → written, marker cleared, recommendations
+  replaced only by a readable list (validated before the delete; the previous
+  rows put back when the insert is refused and did not land); unusable over a
+  usable row → row and recommendations kept, row marked stale; unusable with
+  nothing to keep → the neutral sentinel, the recommendations untouched;
+  alerts in `finally`;
+- the Docs-panel re-run's CARRY: `_carry_before_rerun_reset` reads the
+  period's usable briefing and recommendations (tenant in every filter; 503
+  `rerun_unavailable` when they cannot be read) before the unchanged reset;
+  the writer puts them back on the new period when the run's narration brings
+  nothing — or when a narrative write is refused (`_restore_rerun_carry`,
+  marker `write_refused`); the stage only REPORTS `carry_settled`, the
+  orchestrator drops the carry after the document is marked analysed;
+- `_finalize_same_month_takeover`: told the run's narration code and what it
+  stored (`keep_recommendations`, `keep_alerts`); the staged-only deletes come
+  first; a staged period that is gone raises `StagedPeriodGone` before any
+  write; recommendations under the staged id move (target re-pointed) when the
+  month holds none;
+- `_persist_sku_analysis`: the same three cases for the SKU briefing;
+- `GET /api/period`: `briefings` read with the period's own tenant, served
+  through `served_briefing` (`body: null, unavailable: true` for a failure
+  text; `stale` when marked).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_briefing_keep_last_good_route.py tests/engine/test_briefing_keep_last_good_served.py tests/engine/test_briefing_keep_last_good_writers.py -q` |
+| work count | junit-xml, floor **640** tests (measured 640: route 217, served 211, writers 212) |
+| canary | `test_a_failed_regenerate_leaves_the_stored_briefing_byte_identical`, `test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing`, `test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_spent_allowance`, `test_a_language_the_narrator_has_no_instruction_for_is_422_before_the_meter`, `test_stale_in_every_answer_is_what_the_stored_row_holds`, `test_the_body_the_frontend_card_sends_is_accepted_by_the_real_route_on_the_real_app`, `test_prose_is_never_mistaken_for_a_failure_text`, `test_the_tenant_of_the_briefing_read_is_the_periods_own_never_the_requests`, `test_census_no_briefings_upsert_payload_names_a_stale_column`, `test_a_failed_narration_never_deletes_the_periods_recommendations_whatever_the_briefing_row_holds`, `test_a_takeover_whose_staged_run_left_no_briefing_row_keeps_the_months_briefing`, `test_a_docs_panel_rerun_whose_narration_fails_still_serves_the_last_good_briefing`, `test_a_docs_panel_rerun_whose_narrative_write_is_refused_still_serves_what_the_reset_took`, `test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_keeps_the_carry_for_the_next_run`, `test_a_failed_narration_never_replaces_a_usable_sku_briefing`, `test_the_runs_alerts_are_written_even_when_a_narrative_write_raises` |
+
+**SCOPE.** Nothing of the engine is stubbed but the provider client. Route
+file: the real router on the real app, the real `stage_narrate`, the real
+`_usage_gate` with its RPC wire recorded, a projection-faithful PostgREST
+double (it refuses a column no migration declares — both states of
+`schema_phase_briefing_stale.sql`). Writers file: the real
+`stage_persist_narrative`, `_finalize_same_month_takeover`,
+`_persist_sku_analysis` at their seams, and the real orchestrator
+(`_run_pipeline_sync`) for a re-run, a same-month re-upload, a sales document
+and the Docs-panel re-run through the real `POST /api/pipeline/retry`, with
+production's period cascade modelled. Served file: the real `GET /api/period`,
+the predicates over a corpus of real prose and real failure texts, and static
+censuses of every `briefings` write in the engine.
+
+**PLANT** — four lists, 140 plants, each applied ALONE to
+`src/engine/api/pipeline.py` / `_usage_gate.py`, the gate run, the file
+restored byte-exact (sha256 asserted) — `specs-durable/hotfix2/
+briefing_plants.py`:
+
+| list | plants | what they revert |
+|---|---|---|
+| served (`plants_derived_served.json`) | 72 | the period read without its tenant or without the row re-check; a failure text served as prose; prose read as a failure; the stale marker served unconditionally or never; a marker column inside an upsert; the predicates' anchors and codes |
+| route (`plants_derived_route.json`) | 22 | a failed regenerate writing the row; the legacy shape reaching the model; the meter after the model, never released, never committed; a dead meter answered as a cap; inputs refused after the meter; `stale` answered as asked for; a converted narration persisted |
+| writers (`plants_derived_writers.json`, `plants_restated_P05.json`) | 25 | the failure text upserted; recommendations deleted on a failure; the takeover requiring a staged row; the carry not taken, read without the tenant, never restored; the SKU writer storing the failure; alerts skipped after a raise |
+| review 2026-10-04 (`plants_review_2026-10-04.json`) | 21 | the carry dropped inside the stage or never; a refused write putting nothing back; the previous recommendations not put back, or put back beside a landed insert; the takeover ignoring the run's failure code; staged recommendations deleted onto an empty month; the restored briefing stamped as this run's; the earlier carry forgotten or merged across tenants |
+
+**RED** — all 140, judged at the gate (a plant's own seam file first, then
+the two sibling files): served 72 of 72 (run on 7d58f184; the served seam has
+not changed since, but for the withheld-numerals hand-off, which is plant N17
+of the review list); route 22 of 22; writers 25 of 25 — of the 26 derived at
+0340f736 two no longer applied to the final code: P05 ("the takeover never
+keeps the month's recommendations") was restated on it as P05b and is RED, P18
+("the previous recommendations are not put back") IS the review list's N04;
+review 21 of 21. Two plants of the writers list were NOT RED when derived
+(P18, P26 — no test drove them); the laws
+`test_a_refused_recommendations_insert_puts_the_periods_previous_recommendations_back`
+and `test_a_docs_panel_rerun_whose_usable_reply_brings_no_readable_list` were
+written for them and both are RED now. Transcripts:
+`specs-durable/hotfix2/plants_replay_served.out`, `plants_final_run.out`.
+
+**REVERT** — every file restored byte-exact; the gate green again: `640
+passed`. No plant marker left in `src/`.
+
+**After the repair it reds on:** any write of a failure text, a provider
+message or an operator sentence into `briefings.body` or
+`sku_analyses.briefing` over a usable one; a failed narration deleting or
+replacing recommendations; a regenerate that reaches the model without the
+explicit-intent body, before its walls, its input checks or the meter, or
+that keeps the unit after a failure; a meter outage answered as a spent
+allowance; an answer whose `stale` is not what the row holds; a `briefings`
+read under the service role without the tenant; a marker column inside a
+briefing upsert; the Docs-panel re-run no longer resetting (the in-place
+design), resetting without the carry, serving less than before the click
+after a failed narration or a refused write, or letting the carry go before
+the run is durable; a takeover replacing the month's usable briefing with
+nothing, deleting the month's recommendations or alerts for a run that stored
+none, or deleting recommendations left under the staged id when the month
+holds none; alerts skipped because a narrative write raised.
+
+**CANNOT SEE:** PostgREST itself (the real merge-duplicates upsert, the
+`language in ('en','ro')` check, the foreign keys — W6 models the period
+cascade by hand); whether `schema_phase_briefing_stale.sql` is applied in
+production (both states are gated; applied and verified 2026-10-04); a stored
+reply FRAGMENT that reads as prose; two runs racing; a restart between a
+re-run's reset and its narrative stage — the carry lives in the process
+(ticket: the durable form is a re-run staged beside the month); the AI lane,
+which pins a document without narrating and never consults the carry
+(ticket); `make-active` / `move-period`, which delete the briefing before
+their own re-run (ticket); the takeover as a transaction (it is a sequence);
+`GET /api/period`'s other period-only reads (metrics, recommendations,
+alerts, valuations — ticket); the chat-llm edge function's own meter.
+
+
+## briefing-explicit-regenerate
+
+The briefing card makes no model call without a click, and a plan refusal is
+rendered from its code. Hotfix 2026-10-02 (SPEC D4, D10), rulings 2026-10-03.
+
+THE DEFECT. `CFOBriefingCard` fired `POST …/briefing/regenerate` from an
+effect — on mount when the briefing's language differed from the interface's,
+and on every display-currency toggle — against a route that was unmetered and
+overwrote the stored briefing when the provider refused. And
+`lib/uploadRefusals` printed the server's own `message`, which named a plan:
+one member's plan was shown to another on the shared document row. Found by
+review afterwards: every action sent the DISPLAY currency, so with EUR on
+display "Generate the briefing" and the language action paid for a narration
+that was never stored; and once they asked for RON, the card showed a session
+narration only when its currency was the display currency — the paid, stored
+answer never appeared and the same paid button stayed enabled.
+
+THE REPAIR. No effect calls the route; ONE call site, the click handler, with
+`regenerateRequestBody(language, currency)` = `{intent: "user", language,
+currency}` (the fixture `tests/engine/fixtures/hotfix2/
+regenerate_request_body.json`, which the engine gate posts to the real route).
+"Generate" and the language action ask for RON; only the currency action asks
+for the display currency. A session narration in RON is shown under every
+display currency. A failure keeps the prose and is shown stale only when the
+engine answers `stale` not false. 422 / 429 / 503 print the card's own
+sentence. `uploadRefusalSentence(code, lng)` renders a refusal from its code.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/__tests__/briefingExplicitRegenerate.test.tsx frontend/lib/__tests__/uploadRefusalCodes.test.ts --reporter=verbose` |
+| work count | `Tests N passed`, floor **77** (measured 77: 45 + 32) |
+| canary | "on mount: no request, and no action offered when language and currency already match", "on a currency toggle: no request", "a click sends ONE POST: no query string, the explicit-intent body", "with the display currency EUR, 'Generate the briefing' asks for RON", "a stored 'Generate the briefing' is SHOWN at once", "the same failure with stale:true IS presented as kept" and the refusal-code titles named in `scripts/run_battery.py` |
+
+**PLANT** — eight, each alone, the two files run, the source restored
+byte-exact (`specs-durable/hotfix2/frontend_plants.py`): F1 an effect that
+regenerates on a language or currency mismatch, with no click; F2 the
+humanizer printing the server's words for a known refusal code; F3 a failed
+regenerate always shown as kept, whatever the engine's `stale` says; F4 the
+click's body without `intent`; F5 the one chokepoint letting a stored failure
+text through as the briefing; F6 a failure answer carrying the sentinel shown
+as a fresh narration; F7 every action sending the DISPLAY currency; F8 a
+stored RON narration hidden while the display currency is not RON.
+
+**RED** — eight of eight exit `1` (transcript with the failing titles:
+`specs-durable/hotfix2/frontend_plants.out`).
+
+**REVERT** — both source files restored byte-exact; `77 passed`.
+
+**After the repair it reds on:** any request to the regenerate route that no
+click caused; a click that sends more than one request, a query string, or a
+body other than the fixture's shape; an action that creates or replaces the
+stored briefing asking for a currency other than RON; a stored regeneration
+not shown at once, or the same paid action still on offer after it; a failed
+regeneration that hides the prose, or calls it kept when the engine says the
+row is not marked; a cap or meter refusal printed in the server's words; a
+refusal sentence that names a plan the viewer does not hold.
+
+**CANNOT SEE:** a deployed bundle older than this one (it still fires the
+effect — the engine's inert legacy shape is what makes that harmless, gate
+`briefing-keep-last-good`); the period query's own re-read after a persisted
+regeneration; the diacritics probe offering "Regenerate in English" on
+English prose that names a Romanian company (ticket); the real network.

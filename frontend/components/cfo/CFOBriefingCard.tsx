@@ -33,8 +33,9 @@ import "@/components/cfo/dashInstrumentI18n";
 // re-exported here because the header-policy test reads it from the card.
 export { isUnusableNarrative };
 
-/** The body the explicit action sends: always into the ACTIVE UI language
- *  and the display currency on screen. */
+/** The body the explicit action sends: always into the ACTIVE UI language;
+ *  the currency is the caller's — RON for an action that creates or replaces
+ *  the STORED briefing, the display currency for the currency action. */
 export function regenerateRequestBody(language: string, currency: string): RegenerateBriefingBody {
   return { intent: "user", language, currency };
 }
@@ -131,8 +132,16 @@ export function CFOBriefingCard({
   }, []);
 
   // What is on screen: this session's narration while the display currency is
-  // the one it was written in, else the stored briefing (always RON).
-  const live = session && session.periodId === periodId && session.currency === display ? session : null;
+  // the one it was written in, else the stored briefing (always RON). A
+  // session narration IN RON is the stored briefing's replacement (the
+  // "Generate" and language actions ask for RON whatever is on display): it
+  // is shown under every display currency — hidden, the paid answer never
+  // appeared and the same paid action stayed on offer until the period query
+  // re-read (review 2026-10-04). The currency action is offered on it next.
+  const live =
+    session && session.periodId === periodId && (session.currency === display || session.currency === "RON")
+      ? session
+      : null;
   const text = live ? live.text : baseText;
   const shownLang = live ? live.lang : briefingLanguageOf(baseText, baseLanguage);
   const shownCurrency = live ? live.currency : "RON";

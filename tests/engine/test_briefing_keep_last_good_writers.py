@@ -139,10 +139,9 @@ OBSERVED — NOT ASSERTED (reported to the owner).
     (D7's "carried by the regenerate response" exists only for the route).
   · The Docs-panel re-run is unmetered (an analysed document's correction,
     by design) and still calls the provider.
-  · A Docs-panel re-run that goes in place and whose RUN fails leaves the
-    month serving what it served, with its source document `failed` — the
-    state every other in-place re-run entry leaves. Before the repair the
-    month was gone.
+  · A Docs-panel re-run whose RUN fails leaves the document `failed` and NO
+    period, as it always did (the reset is production's); what the reset
+    took waits in the carry — in this process — for the document's next run.
 
 WHAT RUNS HERE. Neither writer is stubbed, and no expectation is taken from
 the code under test (the sentinel, the six codes, the marker columns, the
@@ -196,13 +195,12 @@ WHAT THESE RED ON, with the defect repaired (TC-11):
   · a malformed `recommendations` raising, or costing the period its stored
     recommendations; an object item with a null rationale or numeric
     actions no longer stored; an EMPTY list no longer replacing;
-  · the Docs-panel re-run resetting a period that holds a usable briefing
-    (anything deleted before the run, or the document unpinned); no longer
-    resetting one that holds none; a re-run that fails costing the month
-    its briefing, recommendations or alerts; a successful re-file leaving
-    the old row; the retirement touching another document's month, a
-    period another document is pinned to, another tenant's period, or the
-    only home of a last good briefing;
+  · the Docs-panel re-run no longer resetting the period (the in-place
+    design is withdrawn), or resetting it without carrying its usable
+    briefing and recommendations; the carry read without the tenant; a
+    re-run whose narration fails — or whose narrative write the database
+    refuses — serving less than before the click; the carry let go before
+    the run is durable; a carried briefing re-stamped as this run's;
   · the SKU writer storing a failed narration over a usable briefing,
     anything but the sentinel on a failed first analysis, recommendations
     over a stored row on a failure, or reading the stored row without the
@@ -213,9 +211,9 @@ WHAT THESE RED ON, with the defect repaired (TC-11):
 CANNOT SEE.
   · PostgREST itself: the real merge-duplicates upsert, the `language in
     ('en','ro')` check, `body not null`, the foreign keys' ON DELETE CASCADE
-    (the double models none of them — after POST /api/pipeline/retry the
-    old period's briefing survives here as an orphan; production cascades
-    it away), or whether the migration is applied in production.
+    (the double models none; W6 models the period's cascade itself,
+    `_cascade_period_deletes`), or whether the migration is applied in
+    production.
   · A stored reply FRAGMENT: the text predicate cannot tell it from prose, so
     it is kept as "usable" (D5 lists what is recognised; a fragment is not).
   · The regenerate route and the served shape (the sibling files of this
@@ -3092,7 +3090,7 @@ def test_a_sales_documents_rerun_through_the_real_orchestrator_keeps_the_sku_bri
     `if scope == "sku":` branch — `stage_narrate` -> `_persist_sku_analysis`
     — was driven by no test: a branch that handed the writer the narration
     WITHOUT its `unavailable` code left this whole file green (review
-    2026-10-03, plant M17). Here the real `_run_pipeline_sync` runs a
+    2026-10-03, one of its plants). Here the real `_run_pipeline_sync` runs a
     document whose scope is `sku`, over a stored usable SKU analysis."""
     _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), _SKU_RERUNS[second]()])
     first = _first_analysis(app, gw)
@@ -3119,3 +3117,544 @@ def test_a_sales_documents_rerun_through_the_real_orchestrator_keeps_the_sku_bri
             "%s: the sales document's re-run stored %r over its briefing" % (second, row["briefing"]))
         assert row["recommendations"] == SKU_RECOMMENDATIONS, row["recommendations"]
         assert row["model"] == "the-model-of-the-stored-write" and row["language"] == "en", row
+
+
+# ══════════════════════════════════════════════════════════════════════
+# The findings of the independent review of 2026-10-04, as laws
+# ══════════════════════════════════════════════════════════════════════
+#
+# Measured on 0340f736, through the real retry route and the real run:
+#   · a Docs-panel re-run whose narration WORKED and whose narrative write the
+#     database refused once served no recommendations (2 -> 0), or no briefing
+#     at all — the carry sat unused in memory (blocker);
+#   · the carry was dropped INSIDE the narrative stage: one timeout on the
+#     run's last status write rolled back the period it had just been
+#     restored on, and nothing was left to restore from (major);
+#   · a re-run staged beside another document's month had its carried
+#     recommendations deleted "because the month keeps its own" — also when
+#     the month held none;
+#   · two repaired lines survived mutation with this file green: the
+#     takeover's code-based keep decision, and the put-back of the period's
+#     previous recommendations.
+
+
+def _refuse_once(gw, monkeypatch, op: str, table: str, *, land: bool = False) -> List[Any]:
+    """The DATABASE refuses the NEXT `op` on `table` — once, as a transient
+    PostgREST timeout does — and answers again afterwards. `land`: the write
+    IS performed and only its reply is lost (what a read timeout can be).
+    Returns the refused payloads."""
+    refused = []  # type: List[Any]
+    real = getattr(gw.db, op)
+
+    def write(tbl: str, *args: Any, **kwargs: Any) -> Any:
+        if tbl == table and not refused:
+            refused.append(copy.deepcopy(args[0]) if args else None)
+            if land:
+                real(tbl, *args, **kwargs)
+            raise httpx.ReadTimeout("The read operation timed out")
+        return real(tbl, *args, **kwargs)
+
+    monkeypatch.setattr(gw.db, op, write)
+    return refused
+
+
+_REFUSED_NARRATIVE_WRITES = {
+    "the_recommendations_insert": ("insert", "recommendations"),
+    "the_briefing_upsert": ("upsert", "briefings"),
+}  # type: Dict[str, Tuple[str, str]]
+
+
+@pytest.mark.parametrize("refused_write", sorted(_REFUSED_NARRATIVE_WRITES))
+def test_a_docs_panel_rerun_whose_narrative_write_is_refused_still_serves_what_the_reset_took(
+        app, gw, monkeypatch, refused_write):
+    """THE BLOCKER. The re-run's narration WORKED; the database refused one
+    narrative write. The period is new — the reset took the old one — so
+    "the period's previous recommendations" are none and nothing on the
+    period can be kept: what the period then lacks is put back FROM THE
+    CARRY. The reader is never served less than before the click."""
+    op, table = _REFUSED_NARRATIVE_WRITES[refused_write]
+    first = _rerun_world(app, gw, monkeypatch, _reply(BODY_B, TITLES_B))
+    r = _post_retry(app, first)
+    assert r.status_code == 202, r.text[:300]
+    refused = _refuse_once(gw, monkeypatch, op, table)
+
+    rerun = V.run_analysis(gw, first["doc"]["id"])
+
+    assert refused, "the scenario never happened: no %s on %s was refused" % (op, table)
+    assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
+    _assert_every_run_reached_the_provider(2)
+    body = _served_period(app, first["org_id"], rerun["period_id"])
+    # The recommendations the reset took — the worked one with its status,
+    # owner and due date — on the period the document is filed under now.
+    now = gw.db.rows("recommendations")
+    assert _rec_view(now) == _rec_view(first["recommendations"]), (
+        "%s refused: the re-run cost the reader the recommendations: %r" % (refused_write, now))
+    assert all(x["period_id"] == rerun["period_id"] and x["target_id"] == rerun["period_id"] for x in now)
+    assert sorted(x["title"] for x in body["recommendations"]) == TITLES_A
+    (kept,) = gw.db.rows("briefings")
+    assert kept["period_id"] == rerun["period_id"] and kept["org_id"] == first["org_id"], kept
+    if refused_write == "the_recommendations_insert":
+        # The briefing write had landed: the new prose, current.
+        assert body["briefing"]["body"] == BODY_B and body["briefing"]["stale"] is None, body["briefing"]
+    else:
+        # No briefing was stored by the run: the last good one, as it was,
+        # and marked — with a reason that is not a narration's failure.
+        was = first["briefings"][0]
+        for column in ("body", "language", "model", "ebitda_definition"):
+            assert kept[column] == was[column], (column, kept[column], was[column])
+        assert body["briefing"]["body"] == BODY_A and body["briefing"]["unavailable"] is False
+        assert kept["stale_reason"] == "write_refused" and _is_a_timestamp(kept["stale_since"]), kept
+        assert kept["stale_reason"] not in P.NARRATION_UNAVAILABLE_CODES
+    alerts = gw.db.rows("alerts")
+    assert alerts and all(a["period_id"] == rerun["period_id"] for a in alerts), alerts
+    assert P._RERUN_CARRY == {}, "the carry outlived the run that put it back"
+
+
+def test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_keeps_the_carry_for_the_next_run(
+        app, gw, monkeypatch):
+    """THE CARRY IS LET GO ONLY ONCE THE RUN IS DURABLE. The re-run's
+    narration fails, the carry is restored on the new period — and the run's
+    LAST write (documents.status = analyzed) times out once. The failure
+    handler rolls the period back, the restored briefing and recommendations
+    with it. The carry must still be there: the document's next run — POST
+    /api/pipeline/run, the entry the Docs panel has for a document that is
+    not analysed — serves the last good briefing and the recommendations."""
+    first = _rerun_world(app, gw, monkeypatch,
+                         [RuntimeError(PROVIDER_ERROR_TEXT), RuntimeError(PROVIDER_ERROR_TEXT)])
+    doc_id = first["doc"]["id"]
+    real_status = P._admin_set_status
+    timed_out = []  # type: List[str]
+
+    def status(document_id: str, value: str, **kwargs: Any) -> None:
+        if value == "analyzed" and not timed_out:
+            timed_out.append(document_id)
+            raise httpx.ReadTimeout("The read operation timed out")
+        return real_status(document_id, value, **kwargs)
+
+    monkeypatch.setattr(P, "_admin_set_status", status)
+
+    failed = _docs_panel_rerun(app, gw, first)
+
+    assert timed_out == [doc_id], "the scenario never happened"
+    assert failed["status"] == "failed", (failed["status"], failed.get("error"))
+    assert gw.db.rows("financial_periods") == [], "a failed run left a period"
+    assert gw.db.rows("briefings") == [] and gw.db.rows("recommendations") == []
+    held = P._RERUN_CARRY.get(doc_id) or {}
+    assert (held.get("briefing") or {}).get("body") == BODY_A and \
+        _rec_view(held.get("recommendations") or []) == _rec_view(first["recommendations"]), (
+        "a run that failed AFTER the narrative stage lost the carry — the last good briefing "
+        "and the worked recommendations are gone for good: %r" % (held,))
+
+    r = V._http(app).post("/api/pipeline/run", headers=V._headers(V.USER, first["org_id"]),
+                          json={"document_id": doc_id})
+    assert r.status_code in (200, 202) and r.json()["status"] == "queued", (r.status_code, r.text[:400])
+    again = V.run_analysis(gw, doc_id)
+
+    assert again["status"] == "analyzed", (again["status"], again.get("error"))
+    _assert_every_run_reached_the_provider(3)
+    body = _served_period(app, first["org_id"], again["period_id"])
+    assert body["briefing"]["body"] == BODY_A and body["briefing"]["unavailable"] is False, body["briefing"]
+    now = gw.db.rows("recommendations")
+    assert _rec_view(now) == _rec_view(first["recommendations"]), now
+    assert all(x["period_id"] == again["period_id"] for x in now)
+    assert P._RERUN_CARRY == {}
+
+
+LEGACY_PID = "c1ea0000-0000-4000-8000-0000000000ea"
+LEGACY_DOC = "c1ea0000-0000-4000-8000-0000000000d0"
+
+
+def test_a_docs_panel_rerun_staged_beside_another_documents_month_keeps_the_carried_recommendations(
+        app, gw, monkeypatch):
+    """A re-run can be STAGED: another period of the same month exists (a
+    legacy duplicate month, another document's). Its narration fails; the
+    writer restores the carry under the staged id; the takeover then makes
+    the run the month. The month held NO recommendations and no briefing —
+    the state of 7 of 11 production periods is close to it — so there was
+    nothing of the month's to keep, and the carried rows are MOVED onto it,
+    pointing at the period they are on. (They were deleted: 2 -> 0.)"""
+    first = _rerun_world(app, gw, monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
+    (own,) = gw.db.rows("financial_periods")
+    # another document's bytes (not a duplicate of this one)
+    gw.db.insert("documents", dict(first["doc"], id=LEGACY_DOC, period_id=LEGACY_PID,
+                                   content_hash="%064x" % 0xc1ea))
+    gw.db.insert("financial_periods", dict(copy.deepcopy(own), id=LEGACY_PID,
+                                           source_document_id=LEGACY_DOC))
+
+    rerun = _docs_panel_rerun(app, gw, first)
+
+    assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
+    _assert_every_run_reached_the_provider(2)
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == LEGACY_PID == rerun["period_id"] and \
+        period["source_document_id"] == first["doc"]["id"], period      # the takeover happened
+    now = gw.db.rows("recommendations")
+    assert _rec_view(now) == _rec_view(first["recommendations"]), (
+        "the takeover deleted the re-run's carried recommendations: %r" % now)
+    assert all(x["period_id"] == LEGACY_PID and x["target_id"] == LEGACY_PID for x in now), now
+    (worked,) = [x for x in now if x["title"] == first["worked_title"]]
+    assert dict((k, worked[k]) for k in WORKED) == WORKED, worked
+    (kept,) = gw.db.rows("briefings")
+    assert kept["period_id"] == LEGACY_PID and kept["body"] == BODY_A and \
+        kept["stale_reason"] == "provider_error", kept
+    body = _served_period(app, first["org_id"], LEGACY_PID)
+    assert body["briefing"]["body"] == BODY_A and sorted(x["title"] for x in body["recommendations"]) == TITLES_A
+    assert P._RERUN_CARRY == {}
+
+
+CARRIED_BODY = "Briefingul pe care rularea l-a purtat peste resetare: marja s-a menținut."
+CARRIED_MARKER = ("2026-09-30T10:00:00+00:00", "provider_error")
+
+_STAGED_USABLE_ROW_AND_A_CODE = {
+    # id -> (the month's briefing, whose briefing the month holds afterwards)
+    "beside_a_usable_briefing_of_the_month": (GOOD_BODY, "the_months"),
+    "beside_a_failure_text": ("[NARRATIVE_UNAVAILABLE]", "the_carried"),
+    "beside_no_briefing": (None, "the_carried"),
+}  # type: Dict[str, Tuple[Optional[str], str]]
+
+
+@pytest.mark.parametrize("cell", sorted(_STAGED_USABLE_ROW_AND_A_CODE))
+def test_a_run_whose_narration_failed_brought_no_briefing_whatever_row_sits_under_the_staged_id(cell):
+    """The ONE input the takeover's `narration_unavailable is not None`
+    decides: a USABLE row under the staged id (a re-run's carried briefing,
+    restored there by the writer) together with the run's failure code. The
+    run narrated nothing — the month's usable briefing is never replaced by
+    it; where the month has none, the carried one moves, its marker intact.
+    (Mutation `narration_unavailable is not None` -> False left this file
+    green, review 2026-10-04.)"""
+    served_body, expected = _STAGED_USABLE_ROW_AND_A_CODE[cell]
+    double = _takeover_world(staged_body=CARRIED_BODY, served_body=served_body)
+    double.update("briefings", {"stale_since": CARRIED_MARKER[0], "stale_reason": CARRIED_MARKER[1]},
+                  filters={"period_id": "eq.%s" % STAGED_PID})
+    double.writes[:] = []
+    month_before = copy.deepcopy(_of_period(double, "briefings"))
+    foreign_before = _foreign(double)
+
+    assert _take_over(double, narration_unavailable="unparseable_reply") == PID
+
+    _assert_the_takeover_happened(double)
+    (row,) = [b for b in double.rows("briefings") if b["org_id"] == ORG]
+    assert row["period_id"] == PID, row
+    if expected == "the_months":
+        assert _sans_marker(row) == _sans_marker(month_before[0]), (
+            "the run's failed narration replaced the month's briefing with the row under the "
+            "staged id: %r" % (row,))
+        assert row["stale_reason"] == "unparseable_reply" and _is_a_timestamp(row["stale_since"]), row
+        (staged_delete,) = _writes(double, "briefings", "delete")
+        assert staged_delete["filters"] == {"period_id": "eq.%s" % STAGED_PID, "org_id": "eq.%s" % ORG}
+    else:
+        assert row["body"] == CARRIED_BODY and row["id"] == "briefing-of-the-staged-run", row
+        assert (row["stale_since"], row["stale_reason"]) == CARRIED_MARKER, row
+    assert _foreign(double) == foreign_before
+
+
+@pytest.mark.parametrize("month_holds", ["none", "its_own"])
+def test_recommendations_under_the_staged_id_move_onto_a_month_that_holds_none(month_holds):
+    """`recommendations_stay` is "the month KEEPS ITS OWN" — a month that
+    holds none has nothing to keep, and the rows under the staged id (a
+    re-run's carried recommendations) move onto it, their target the period
+    they are on. A month that holds its own keeps them and the staged ones
+    go (the control — the cell the earlier ruling gated)."""
+    double = _takeover_world(staged_body=CARRIED_BODY, staged_recommendations=True)
+    if month_holds == "none":
+        double.delete("recommendations", filters={"period_id": "eq.%s" % PID})
+    double.writes[:] = []
+    foreign_before = _foreign(double)
+
+    assert _take_over(double, narration_unavailable="provider_error") == PID
+
+    _assert_the_takeover_happened(double)
+    mine = sorted(((r["id"], r["period_id"], r["target_id"])
+                   for r in double.rows("recommendations") if r["org_id"] == ORG))
+    if month_holds == "none":
+        assert mine == [("rec-of-the-staged-run", PID, PID)], (
+            "the takeover deleted the recommendations under the staged id although the month "
+            "held none: %r" % (mine,))
+        assert [w for w in _writes(double, "recommendations", "delete")
+                if w["filters"].get("period_id") == "eq.%s" % STAGED_PID] == []
+    else:
+        assert mine == [("rec-1", PID, PID), ("rec-2", PID, PID)], mine
+    assert [r for r in double.rows("recommendations") if r["period_id"] == STAGED_PID] == []
+    assert _foreign(double) == foreign_before
+
+
+class _RefusingOnceDouble(RecordingDouble):
+    """`RecordingDouble` whose database times out on the FIRST `insert` into
+    `table` only. `land`: that insert is performed and only its reply lost."""
+
+    def __init__(self, table: str, *, land: bool = False, **kwargs: Any) -> None:
+        super(_RefusingOnceDouble, self).__init__(**kwargs)
+        self.table, self.land, self.refused_once = table, land, False
+
+    def insert(self, table: str, rows: Any, *, returning: bool = True) -> List[Dict[str, Any]]:
+        if table == self.table and not self.refused_once:
+            self.refused_once = True
+            if self.land:
+                super(_RefusingOnceDouble, self).insert(table, rows, returning=returning)
+            else:
+                self.writes.append({"op": "insert", "table": table, "payload": copy.deepcopy(rows),
+                                    "filters": {}, "on_conflict": None, "refused": True})
+            raise httpx.ReadTimeout("The read operation timed out")
+        return super(_RefusingOnceDouble, self).insert(table, rows, returning=returning)
+
+
+@pytest.mark.parametrize("landed", [False, True], ids=["the_insert_was_refused", "the_insert_landed_and_its_reply_was_lost"])
+def test_a_refused_recommendations_insert_puts_the_periods_previous_recommendations_back(monkeypatch, landed):
+    """The replacement is a delete then an insert. An insert the database
+    refused leaves the period with NONE — its worked recommendations gone
+    although the narration had not failed (measured 2 -> 0): they are put
+    back, the same rows. A timeout is ambiguous — when the insert LANDED and
+    only its reply was lost, the period holds the run's own and the previous
+    are NOT put back beside them. Either way the raise reaches the caller,
+    the run did not "store its recommendations", and the alerts are written.
+    (Mutation `if previous_recs` -> False left this file green.)"""
+    narration, _requests = _real_usable_narration(monkeypatch)
+    double = _seed_like(_world(), _RefusingOnceDouble("recommendations", land=landed))
+    before = copy.deepcopy(_of_period(double, "recommendations"))
+    assert len(before) == 2 and before[0]["status"] == "in_progress", before
+    foreign_before = _foreign(double)
+    stored = {}  # type: Dict[str, bool]
+
+    with RA.installed(double):
+        with pytest.raises(httpx.ReadTimeout):
+            P.stage_persist_narrative(_doc("ro"), PID, copy.deepcopy(narration),
+                                      copy.deepcopy(RUN_ALERTS), stored=stored)
+
+    assert double.refused_once, "the scenario never happened"
+    after = _of_period(double, "recommendations")
+    if not landed:
+        assert sorted(after, key=lambda r: r["id"]) == sorted(before, key=lambda r: r["id"]), (
+            "a refused insert cost the period its recommendations: %r" % (after,))
+    else:
+        assert after and not ({r["id"] for r in after} & {r["id"] for r in before}), (
+            "the previous recommendations were put back BESIDE the run's own: %r" % (after,))
+    assert "recommendations" not in stored and stored.get("alerts") is True, stored
+    _assert_the_runs_alerts_are_stored(double, "recommendations insert refused once")
+    assert _foreign(double) == foreign_before
+
+
+def test_a_kept_row_branch_still_puts_back_recommendations_waiting_in_a_carry(monkeypatch):
+    """A carry can outlive the run it was taken for (a restore the database
+    refused). A later run on the period whose narration fails KEEPS the
+    period's usable briefing — and the recommendations still waiting in the
+    carry are put back when the period holds none, before the carry is
+    reported settled. (They were dropped with it.)"""
+    narration, _code = _real_failed_narration(monkeypatch, "provider_raises")
+    double = _world(recommendations=False)
+    carried = [{"id": "rec-carried", "org_id": ORG, "period_id": "the-period-the-reset-took",
+                "target_type": "dataset", "target_id": "the-period-the-reset-took",
+                "title": "Carried", "explanation": "…", "urgency": "high",
+                "status": "in_review", "owner": "CFO", "due_date": "2026-11-15"}]
+    monkeypatch.setattr(P, "_RERUN_CARRY", {DOC_ID: {"org_id": ORG, "briefing": None,
+                                                     "recommendations": copy.deepcopy(carried)}})
+    stored = {}  # type: Dict[str, bool]
+
+    with RA.installed(double):
+        P.stage_persist_narrative(_doc("ro"), PID, copy.deepcopy(narration),
+                                  copy.deepcopy(RUN_ALERTS), stored=stored)
+
+    (row,) = _of_period(double, "recommendations")
+    assert (row["id"], row["period_id"], row["target_id"], row["status"], row["owner"]) == \
+        ("rec-carried", PID, PID, "in_review", "CFO"), row
+    assert stored.get("carry_settled") is True, stored
+    # THE STAGE NEVER DROPS THE CARRY: the orchestrator does, once durable.
+    assert DOC_ID in P._RERUN_CARRY
+
+
+def test_the_narrative_stage_reports_the_carry_settled_and_never_drops_it(monkeypatch):
+    """At the seam: every exit of `stage_persist_narrative` that used to
+    drop the carry now REPORTS it settled and leaves it in place — the
+    orchestrator lets it go after the document is marked analysed (the law
+    `…fails_after_the_narrative_stage…` is the reason)."""
+    carry = {"org_id": ORG, "briefing": {"body": CARRIED_BODY, "language": "ro", "model": "m",
+                                         "ebitda_definition": CURRENT_DEFINITION},
+             "recommendations": []}
+    usable, _requests = _real_usable_narration(monkeypatch)
+    failed, _code = _real_failed_narration(monkeypatch, "provider_raises")
+    for what, narration, world in (
+            ("a usable narration", usable, dict(stored_body=None, recommendations=False)),
+            ("a failed narration, the carried briefing restored", failed,
+             dict(stored_body=None, recommendations=False)),
+            ("a failed narration over a usable row", failed, dict())):
+        monkeypatch.setattr(P, "_RERUN_CARRY", {DOC_ID: copy.deepcopy(carry)})
+        stored = {}  # type: Dict[str, bool]
+        with RA.installed(_world(**world)):
+            P.stage_persist_narrative(_doc("ro"), PID, copy.deepcopy(narration),
+                                      copy.deepcopy(RUN_ALERTS), stored=stored)
+        assert stored.get("carry_settled") is True, (what, stored)
+        assert P._RERUN_CARRY == {DOC_ID: carry}, "%s: the stage dropped (or changed) the carry" % what
+
+
+def test_a_staged_run_whose_period_vanished_fails_plainly_and_the_month_is_served_as_before(
+        app, gw, monkeypatch):
+    """`StagedPeriodGone`, through the ORCHESTRATOR: a same-month re-upload
+    whose staged period is deleted just before the takeover. The run fails
+    with the plain sentence (no exception type in front of it), the month
+    and its document are what they were, nothing is left under the staged
+    id, and GET /api/period still serves the first analysis."""
+    _script_the_provider(monkeypatch, [_reply(BODY_A, TITLES_A), _reply(BODY_B, TITLES_B)])
+    first = _first_analysis(app, gw)
+    month_before = copy.deepcopy(first["period"])
+    served_before = _served_period(app, first["org_id"], first["period_id"])
+    real_takeover = P._finalize_same_month_takeover
+    staged_ids = []  # type: List[str]
+
+    def takeover(doc: Dict[str, Any], period_id: str, **kwargs: Any) -> str:
+        # The staged period goes away during the run (DELETE /api/period, a purge).
+        staged_ids.append(str(period_id))
+        for table in _PERIOD_CHILD_TABLES:
+            gw.db.delete(table, filters={"period_id": "eq.%s" % period_id})
+        gw.db.delete("financial_periods", filters={"id": "eq.%s" % period_id})
+        return real_takeover(doc, period_id, **kwargs)
+
+    monkeypatch.setattr(P, "_finalize_same_month_takeover", takeover)
+
+    replaced = _reupload(app, gw, first["org_id"])
+
+    assert staged_ids and staged_ids[0] != first["period_id"], staged_ids
+    assert replaced["status"] == "failed", (replaced["status"], replaced.get("error"))
+    assert replaced["error"].startswith("The period this run was staged under no longer exists"), \
+        replaced["error"]
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == first["period_id"] and \
+        period["source_document_id"] == month_before["source_document_id"], period
+    (first_doc,) = gw.docs(id=first["doc"]["id"])
+    assert first_doc["status"] == "analyzed" and first_doc.get("deleted_at") is None, first_doc
+    _assert_nothing_is_left_under(gw, staged_ids, "the staged period vanished")
+    after = _served_period(app, first["org_id"], first["period_id"])
+    assert after["briefing"] == served_before["briefing"]
+    assert sorted(x["title"] for x in after["recommendations"]) == TITLES_A
+
+
+def test_a_takeover_with_both_periods_gone_refuses_rather_than_pinning_the_document_to_nothing():
+    """The staged row is checked BEFORE "the month's row is gone — the
+    staged row stands": with both gone the takeover used to return the gone
+    id, and the run went on to mark the document analysed on a period that
+    does not exist."""
+    double = _takeover_world(staged_body=None)
+    for period_id in (PID, STAGED_PID):
+        double.delete("financial_periods", filters={"id": "eq.%s" % period_id})
+    double.writes[:] = []
+    with pytest.raises(P.StagedPeriodGone):
+        _take_over(double)
+    assert double.writes == [], "a refused takeover wrote: %r" % (double.writes,)
+
+
+def test_a_withheld_narration_carries_a_list_like_every_other_failure(monkeypatch):
+    """`stage_narrate`: "a failure result always carries a LIST". The
+    numeral guard's withheld narration did not when the reply had no
+    `recommendations` key (review 2026-10-04) — the one failure branch whose
+    fixture reply happened to carry `[]`."""
+    monkeypatch.setitem(_PROVIDER_REPLIES, "numerals_withheld", json.dumps(
+        {"briefing": "Revenue was 987,654,321 RON and the margin 77.7%."}))     # no `recommendations` key
+    narrated, _code = _real_failed_narration(monkeypatch, "numerals_withheld")
+    assert narrated["unavailable"] == "withheld_numerals"
+    assert isinstance(narrated["recommendations"], list), narrated
+
+
+def test_a_usable_sku_reply_whose_recommendations_cannot_be_read_keeps_the_stored_ones(monkeypatch):
+    """The SKU writer, the same rule as the period writer: a usable reply
+    that OMITS `recommendations` (the narrator hands on None) is not a reply
+    that recommends nothing — the briefing is the new one, the stored
+    recommendations are kept. Where there is no row to keep, an empty list."""
+    narration, _requests = _real_usable_narration(monkeypatch)
+    narration = dict(narration, recommendations=None)
+    double = _sku_world()
+    _persist_sku(double, copy.deepcopy(narration))
+    row = _sku_row(double)
+    assert row["briefing"] == narration["briefing"], row["briefing"]
+    assert row["recommendations"] == SKU_RECOMMENDATIONS, (
+        "an unreadable list replaced the stored SKU recommendations: %r" % (row["recommendations"],))
+    _assert_the_other_tenants_sku_row_is_untouched(double)
+
+    fresh = _sku_world()
+    fresh.delete("sku_analyses", filters={"org_id": "eq.%s" % ORG})     # no row to keep
+    _persist_sku(fresh, copy.deepcopy(narration))
+    assert _sku_row(fresh)["recommendations"] == []
+
+
+# ── plants that stayed GREEN in the review of 2026-10-04, closed ──────────
+
+_USABLE_RERUN_REPLIES = {
+    # id -> (the re-run's reply, the recommendation titles afterwards, are they the CARRIED rows)
+    "an_empty_list_is_the_narrations_word": (
+        lambda: json.dumps({"briefing": BODY_B, "recommendations": []}, ensure_ascii=False), [], False),
+    "the_key_is_absent": (lambda: json.dumps({"briefing": BODY_B}, ensure_ascii=False), TITLES_A, True),
+    "the_value_is_null": (lambda: json.dumps({"briefing": BODY_B, "recommendations": None},
+                                             ensure_ascii=False), TITLES_A, True),
+}  # type: Dict[str, Tuple[Callable[[], str], List[str], bool]]
+
+
+@pytest.mark.parametrize("reply", sorted(_USABLE_RERUN_REPLIES))
+def test_a_docs_panel_rerun_whose_usable_reply_brings_no_readable_list(app, gw, monkeypatch, reply):
+    """Across the RESET (the same-period law above cannot see the carry): a
+    usable reply that says `[]` recommends nothing — the carried rows are
+    NOT put back beside the new briefing; a reply whose list cannot be read
+    replaced nothing — the carried rows ARE the period's, re-keyed."""
+    second, titles_after, carried = _USABLE_RERUN_REPLIES[reply]
+    first = _rerun_world(app, gw, monkeypatch, second())
+
+    rerun = _docs_panel_rerun(app, gw, first)
+
+    assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
+    _assert_every_run_reached_the_provider(2)
+    body = _served_period(app, first["org_id"], rerun["period_id"])
+    assert body["briefing"]["body"] == BODY_B and body["briefing"]["stale"] is None, body["briefing"]
+    now = gw.db.rows("recommendations")
+    assert sorted(x["title"] for x in now) == titles_after, (reply, now)
+    if carried:
+        assert _rec_view(now) == _rec_view(first["recommendations"]), now
+        assert all(x["period_id"] == rerun["period_id"] and x["target_id"] == rerun["period_id"] for x in now)
+    assert P._RERUN_CARRY == {}
+
+
+def test_the_restored_briefing_is_the_one_that_was_stored_not_this_runs(app, gw, monkeypatch):
+    """"As it was": the model that wrote it, the EBITDA definition it was
+    written under (the page hides prose written under an earlier one) and
+    the time of its FIRST failure travel with the restored row. In the main
+    law the first analysis and the re-run share a model and a definition, so
+    a restore that stamped this run's passed it."""
+    first = _rerun_world(app, gw, monkeypatch, RuntimeError(PROVIDER_ERROR_TEXT))
+    first_failure = "2026-09-30T10:00:00+00:00"
+    gw.db.update("briefings", {"model": "the-model-of-the-first-write",
+                               "ebitda_definition": PREVIOUS_DEFINITION,
+                               "stale_since": first_failure, "stale_reason": "empty_reply"},
+                 filters={"period_id": "eq.%s" % first["period_id"]})
+
+    rerun = _docs_panel_rerun(app, gw, first)
+
+    assert rerun["status"] == "analyzed", (rerun["status"], rerun.get("error"))
+    (kept,) = gw.db.rows("briefings")
+    assert kept["period_id"] == rerun["period_id"] and kept["body"] == BODY_A, kept
+    assert kept["model"] == "the-model-of-the-first-write", kept["model"]
+    assert kept["ebitda_definition"] == PREVIOUS_DEFINITION, kept["ebitda_definition"]
+    assert (kept["stale_since"], kept["stale_reason"]) == (first_failure, "provider_error"), kept
+    served = _served_period(app, first["org_id"], rerun["period_id"])["briefing"]
+    assert served["definition"]["written_under_previous_definition"] is True, served["definition"]
+    assert served["stale"] == {"since": first_failure, "reason": "provider_error"}
+
+
+_EARLIER_CARRY = {"org_id": ORG, "briefing": {"body": CARRIED_BODY, "language": "ro"},
+                  "recommendations": [{"id": "rec-earlier", "org_id": ORG, "title": "Earlier"}]}
+
+_CARRY_MERGES = {
+    # id -> (the period now, the earlier carry's org, carried body, carried recommendation ids)
+    "recommendations_only_keeps_the_earlier_briefing":
+        (dict(body="[NARRATIVE_UNAVAILABLE]", recommendations=2), ORG, CARRIED_BODY, ["rec-0", "rec-1"]),
+    "a_briefing_only_keeps_the_earlier_recommendations":
+        (dict(body=GOOD_BODY), ORG, GOOD_BODY, ["rec-earlier"]),
+    "an_earlier_carry_of_another_tenant_is_never_merged_in":
+        (dict(body="[NARRATIVE_UNAVAILABLE]", recommendations=2), OTHER_ORG, None, ["rec-0", "rec-1"]),
+}  # type: Dict[str, Tuple[Dict[str, Any], str, Optional[str], List[str]]]
+
+
+@pytest.mark.parametrize("what", sorted(_CARRY_MERGES))
+def test_a_new_carry_keeps_what_an_earlier_one_of_the_same_tenant_still_held(what, monkeypatch):
+    world, earlier_org, body, rec_ids = _CARRY_MERGES[what]
+    monkeypatch.setattr(P, "_RERUN_CARRY", {DOC_ID: dict(copy.deepcopy(_EARLIER_CARRY), org_id=earlier_org)})
+    with RA.installed(_carry_world(**world)):
+        P._carry_before_rerun_reset({"id": DOC_ID, "period_id": PID, "org_id": ORG})
+    carry = P._RERUN_CARRY[DOC_ID]
+    assert carry["org_id"] == ORG
+    assert (carry["briefing"] or {}).get("body") == body, carry["briefing"]
+    assert sorted(r["id"] for r in carry["recommendations"]) == rec_ids, carry["recommendations"]

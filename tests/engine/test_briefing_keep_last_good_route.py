@@ -1806,6 +1806,25 @@ def test_a_briefing_that_was_written_is_never_left_marked_stale_when_the_period_
         assert (row["stale_since"], row["stale_reason"]) == (None, None), row
 
 
+def test_a_period_touch_the_database_refuses_still_commits_the_callers_unit(monkeypatch):
+    """The law above ran with enforcement off, so its meter half was pinned
+    by nothing (review 2026-10-04): the briefing IS stored when the period
+    touch is refused — the caller's reserved unit is COMMITTED, not released
+    (a release would hand back a message the model was paid for)."""
+    with _world(monkeypatch, enforce=True) as w:
+        w.store_briefing()
+        w.provider.replies(USABLE_REPLY)
+        w.failing_updates.add("financial_periods")
+        resp = w.post(EXPLICIT, user=MEMBER)
+        assert resp.status_code == 200, resp.text[:300]
+        answer = resp.json()
+        assert (answer["ok"], answer["regenerated"], answer["persisted"], answer["stale"]) == \
+            (True, True, True, False), answer
+        assert w.writes("financial_periods"), "the period touch was never attempted"
+        assert w.meter_names() == ["reserve_user_chat", "commit_user_chat"], w.meter_names()
+        assert w.briefing_rows()[0]["body"] == NEW_BODY
+
+
 def test_the_marker_is_cleared_right_after_the_upsert_and_before_the_period_touch(monkeypatch):
     """HOW the law above holds (ruling 2026-10-03, as read by the
     coordinator: "a persisted success clears the marker IMMEDIATELY after
