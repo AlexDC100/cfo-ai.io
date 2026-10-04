@@ -20283,7 +20283,7 @@ are there, and is itself held by laws in both gates.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/chatLlmGuard.test.ts frontend/lib/__tests__/chatLlmPlans.test.ts frontend/lib/__tests__/chatLlmPrompt.test.ts frontend/lib/__tests__/chatLlmSignInRetry.test.ts frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx --reporter=verbose` |
-| work count | `Tests N passed`, floor **160** (measured 170: guard 66, plans 37, prompt 31, sign-in retry 13, refusal 23) |
+| work count | `Tests N passed`, floor **160** (measured 170: guard 66, plans 37, prompt 31, sign-in retry 13, refusal 23) — as built. Since the review of 2026-10-04 (the last subsection of this file): floor **180**, measured **191** |
 | canaries | `GATE-WORK chat-cap-always engine-plans=` (the Python table was read: 6 plans, 5 legacy keys), `GATE-WORK chat-cap-always function-files=` (the four files, 879 code lines), and nineteen law names — the no-bearer 401, the unverified 401, reserve → call → commit, the two caps, the race at cap − 1, a rejecting reserve, a rejecting plan read, a plan with a NULL cap, the tier parity, the missing switch, the rule's two sentences, a persona pin, the allowlist, the LAN dev allowance, the preflight report's md5 literals, the one refresh + one retry, the Romanian sign-in sentence, no labelled link leaving the site |
 
 **SCOPE.**
@@ -20812,7 +20812,7 @@ signatures, not exercised against a real capped user". This is that exercise.
 | | |
 |---|---|
 | command | `python scripts/check_chat_cap_real.py` (the battery's interpreter: the engine must be importable) → `deno run --no-prompt --no-config --allow-net=127.0.0.1 --allow-env --allow-read=<repo> scripts/chat_cap_real/driver.ts` |
-| work count | `GATE-WORK chat-cap-real units=N`, floor **72** (measured 76: 2 refusals of the gate itself + 5 catalog + 5 preflight report + 1 engine + 62 driver + 1 cleanup) |
+| work count | `GATE-WORK chat-cap-real units=N`, floor **72** (measured 76: 2 refusals of the gate itself + 5 catalog + 5 preflight report + 1 engine + 62 driver + 1 cleanup) — as built. Since the review of 2026-10-04 (the last subsection of this file): floor **95**, measured **100** |
 | canary | `CHAT-CAP-REAL GATE` |
 | vacuous | `units=0`, exit 0, when Deno, docker, the stack's API or its database container is absent — `PASS(VACUOUS)` in the battery, never green |
 | refuses | exit 2 (a FAIL in the battery) when `CHAT_CAP_API_URL` is not `http://` on 127.0.0.1 / localhost / ::1, when its port is not the one the stack's gateway container (`supabase_kong_<project>`) publishes, or when the database container publishes on a non-local address |
@@ -21180,7 +21180,9 @@ commit that fails after an answer, a call across midnight UTC, a plan
 table with a NULL cap (no environment value can produce one, so the deployed
 file never meets it here) (`chat-cap-always`). An OVERLOAD of one of the three functions, a missing
 column or unique key: the preflight report names them (by hand, above), but
-this gate creates no database, so no run of it sees one. A user with TWO
+no run of this gate sees one — the scratch database it has made since the
+review of 2026-10-04 holds three bare tables for the report's table fact
+only, never the functions. A user with TWO
 plan rows: the stack's `user_id` is unique, so the report's count is only
 ever seen at 0 here and the function's refusal of such a user is
 supabase-js's `maybeSingle` error, never run (the injected equivalent — a
@@ -21189,6 +21191,317 @@ does not read at all: a counter column of another TYPE, a NOT NULL column
 the meter's insert does not supply, a trigger that raises, row security
 that binds the functions' owner — each passes the report and fails the
 first reservation (closed: `503 metering_unavailable`). Whether a user can
-write their own `subscriptions` row (on a repository-built database they
-can — the subscriptions write lockdown's gate, not this one). The browser,
+write their own `subscriptions` row was not this gate's as built (on a
+repository-built database they can — the subscriptions write lockdown's
+gate); since the review of 2026-10-04 the gate MEASURES it and holds the
+preflight report to the measurement (the last subsection of this file). The browser,
 and every refusal's rendering.
+
+### chat-cap-always / chat-cap-real — the review of 2026-10-04: what both gates had let through
+
+An independent review read the branch at `6986d20a` (both gates green:
+170 laws / 76 cases, 119 plants) and reported eight findings. Each was
+REPRODUCED before anything was changed; where a finding was a defect of the
+function or of a gate, the repair came with a law, and each law with a plant.
+
+**REPRODUCED (2026-10-04, the branch as reviewed, local stack `cfo-ai-test`).**
+
+| finding | reproduced as | measured |
+|---|---|---|
+| HIGH — the free live checks (OPTIONS, a POST with no bearer, the anon key) cannot show whether a SIGNED-IN call works on production; on the bundle in production three different failures look the same | read on main's `index.ts`: `auth.getUser`, the plan read and `reserve_user_chat` are each swallowed on failure — production has never shown whether any of them works there; read on `aiDegraded.ts` / `chatTurns.ts` as deployed: only `429 chat_cap_reached` is recognised | no code defect. The three free checks pass on a function that refuses every real user (they are refused before verification matters). Two signed-in checks tell the states apart — now cases 13.1–13.3 and the owner's steps in CLAUDE.md |
+| MEDIUM — the preflight report answers `ready: true` and `meter_closed_to_browser_roles: true` on a database where a signed-in user raises their own cap | the report on the stack; then a trial user's own `PATCH /rest/v1/subscriptions {tier: "multi"}` with their own session | report: `ready true`, `meter_closed_to_browser_roles true`. PATCH: HTTP 200, 1 row changed. The report looked at EXECUTE on the three functions only |
+| MEDIUM — three wiring regressions pass the gates | each planted alone in `index.ts` at `6986d20a`, both gates run (transcript below) | a bearer remembered once verified: **170 / 76, both green**. The plan row read for an id from a header: **170 / 76, both green**. A retry on a 5xx inside the one `fetch(`: `chat-cap-always` green; only `chat-cap-real` 6.2 red — and that gate is vacuous without the stack |
+| MEDIUM — the model call has no timeout | the new case 14 against the function as reviewed (plant P120 is that function) | "no answer within 12 s"; the meter read `[0, 1, 0, 1]` — 0 used, 1 reserved, day and month — until the recorder was released by hand |
+| LOW — an upstream failure is released, so a user below the cap can keep sending while the upstream errors | read: C2 (release on failure) is the brief's | not changed. Rejected requests are not billed; the Console spend limit is the ceiling. In CLAUDE.md's list for the owner |
+| LOW — a refusal sentence becomes part of the conversation sent to the model | the real `startChatTurn`: a refused turn, then one more question (plant P148 is that code) | the next request's messages: `[user q1] [assistant "**Ask CFO AI could not check your plan's message allowance** …"] [user q2]` |
+| LOW — the command bar and Explain show one generic sentence for a 401 and a 503 | read: only `chatTurns.ts` calls `chatRefusalOf` | not changed (the sentence is the app's own, EN + RO; neither surface is reachable signed out). Why the deploy's signed-in checks are read as HTTP |
+| LOW — "authentication settings were not readable": they are, with one public GET | `GET /auth/v1/settings` on the local stack with the anon key alone | `disable_signup false`, `mailer_autoconfirm true`, `external.anonymous_users false`. In the coordinator's steps |
+| LOW — a `PRICING_CHAT_*` override is parsed differently from the engine for exotic values | read; no override is set | not changed (plain ASCII digits, set on both runtimes) |
+
+The three wiring regressions at the reviewed tip, each alone
+(`TREE: clone at 6986d20a`):
+
+```
+E2 — index.ts REMEMBERS a bearer it verified once (a deleted or signed-out user's token keeps working in a warm instance)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-always: exit 0 — 170 passed (170)
+  chat-cap-real:   exit 0 — units=76, 0 FAIL
+E7 — index.ts reads the plan row of an id the CALLER names in a header (a trial user borrows a paying user's caps)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-always: exit 0 — 170 passed (170)
+  chat-cap-real:   exit 0 — units=76, 0 FAIL
+E3 — the model call is retried once on a 5xx inside the one `fetch(` (two upstream requests for one reservation)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-always: exit 0 — 170 passed (170)
+  chat-cap-real:   exit 1 — units=76, 1 FAIL
+      FAIL 6.2 …ONE upstream request — no retry
+REVERTED — every planted file byte-identical to HEAD (git status, tracked files: clean)
+  chat-cap-always: exit 0 — 170 passed (170)
+  chat-cap-real:   exit 0 — units=76, 0 FAIL
+```
+
+**THE REPAIRS.**
+
+1. *The model request has a deadline* (`guard.MODEL_TIMEOUT_MS`, 100 s).
+   `handleChat` hands the model call an `AbortSignal` and races it: at the
+   deadline the request is aborted (`index.ts` passes the signal to its one
+   `fetch`), the reservation is released once and the caller gets the
+   sentinel a failed model call always got. The function no longer waits for
+   the platform to cut it off (150 s — after which nothing releases). 3 × 8 s
+   before the request + 100 s + 8 s for the release = 132 s.
+2. *The preflight report looks at the tables.* New read-only fact,
+   `plan_and_counters_closed_to_browser_roles`, over the same three tables
+   `ready` is computed over: for each of INSERT / UPDATE / DELETE a browser
+   role either lacks the privilege (table or any column) or row security is
+   on, not bypassed, with no permissive policy for that command (or FOR ALL)
+   applying to the role or to public. `browser_role_row_writes` names every
+   door; `browser_role_truncate_grants` is for the record. It reads the
+   catalog only — still ONE statement, still five row reads.
+3. *The wiring is held.* No function change: `index.ts` already verified the
+   bearer and read the plan row on every call, for the auth server's user.
+   What changed is that a regression there now reds — source laws
+   (`chatLlmPrompt`), decision laws (`chatLlmGuard`) and real cases (2.0,
+   2.8, 2.8b, 12.1, 12.2).
+4. *A refusal is not a turn.* The refused turn is marked
+   (`ChatMessage.refused`, kept in the localStorage cache) and left out of
+   the next request's `messages`.
+5. *The deploy's two signed-in checks are cases* (13.1–13.3) and steps in
+   CLAUDE.md: a real session with `{"messages":[]}` (400 — free, proves the
+   bearer verified; 401 / 503 where verification is broken), and a real
+   message while the key is dead (the 200 sentinel; both counter rows exist
+   at 0 used / 0 reserved, and the report's meter counts are the tables').
+
+**AS REGISTERED NOW** (`scripts/run_battery.py`):
+
+| | `chat-cap-always` | `chat-cap-real` |
+|---|---|---|
+| work count | `Tests N passed`, floor **180** — measured **191**: guard 77, plans 37, prompt 35, sign-in retry 13, refusal 29 | `GATE-WORK chat-cap-real units=N`, floor **95** — measured **100**: 2 refusals of the gate itself + 5 catalog + 4 preflight report + 11 shapes in a scratch database + 1 engine + 73 driver + 3 report-after-the-run + 1 cleanup |
+| canaries | the two `GATE-WORK` lines and twenty-eight law names — the nineteen it had and nine of this round: the hung model call, the sum of the deadlines, the auth server asked on every call, who is metered, the model request's lines, the two request headers, module scope, the report's table fact, a refusal left out of the next request | `CHAT-CAP-REAL GATE` (a vacuous run prints it too) |
+
+**THE NEW LAWS — what each reds on.**
+
+- `chatLlmGuard` (+11). A model call that never settles is released once at
+  the deadline, the signal aborted, the sentinel answered — and one that
+  honours the abort is still released ONCE; an answer in time is never
+  aborted, then or later; the deadline a deployed call gets IS
+  `MODEL_TIMEOUT_MS` (fake timers: one millisecond before it the function is
+  still waiting and the slot is held); the deadlines add up under 150 s with
+  ten seconds to spare; with every step at its worst the function still
+  answers. The auth server is asked on EVERY call (a bearer it vouched for a
+  moment ago and no longer does is refused); the plan row is read on every
+  call; a body naming another user, a tier or its own caps changes nothing —
+  served on the caller's plan, refused on the caller's plan. A request the
+  upstream rejects for its key (401) or its credit (400) is released.
+- `chatLlmPrompt` (+4). The model request pinned line for line — ONE fetch
+  with the guard's signal, no loop keyword, no timer, no `.catch(` and no
+  "retry" anywhere in `index.ts`, and `guard.ts` calling the model once under
+  `withTimeout(…, deadline.signal)`. `index.ts` reads two request headers
+  (`origin`, `authorization`), its method and its JSON body: six uses of the
+  request in all, no URL, no cookie. Module scope holds sixteen named
+  declarations — nine constants, one arrow, six functions — no `let` / `var`,
+  no `Map` / `WeakMap`, nothing `.set` / `.add` / `.push`ed; the pure modules
+  likewise. The report's fact is there, over `tbl`, from the catalog alone.
+- `chatRefusal` (+6). An answered turn rides in the next request (control);
+  after each of the four refusals the next request carries the reader's two
+  questions and nothing else; the marker survives a re-read of the cached
+  conversation.
+- `chat-cap-real` (+24). 2.0 / 2.8 / 2.8b: two tokens SERVED once, then one
+  user deleted and one signed out — each 401. 12.1: a trial user at the cap
+  naming a paying user in five headers, a cookie, the query string and the
+  body — refused on trial 3 / 5, the paying user's meter untouched. 12.2:
+  the plan row raised and lowered by the service role between calls —
+  served, then refused. 13.1–13.3: the two signed-in checks. 14.0–14.3: the
+  deadlines against the platform's 150 s (the number written in the gate);
+  an upstream that never answers, and one that sends the first bytes and
+  stops — the function answers at its deadline, the upstream connection is
+  seen to be dropped by the caller, nothing is left reserved; an answered
+  call asked for the same one timer. Eleven shapes of the report's table
+  fact in a scratch database. After the run: the report's meter counts are
+  the tables' and no reservation of the run is open; and what the report
+  says about the plan row and the counters is what the run's signed-in user
+  could write (on this stack: the plan row, twice — open, and named). Z now
+  also counts plan / counter rows without a user, and scratch databases.
+
+**ONE CLOCK IS COMPRESSED.** Case 14 does not wait 100 s. The driver counts
+every timer the process is asked for with a delay of exactly
+`MODEL_TIMEOUT_MS` and, for the two hung calls only, runs it in 1.5 s. The
+file under test is untouched; "asked for once, with exactly that delay" is
+part of the case, and 14.0 holds the number itself. "The upstream request
+ABORTED" is the recorder seeing the caller drop the connection (the request's
+signal for a request never answered; the body stream's `cancel` for one
+half-sent) — read before the driver lets the hung request go.
+
+**MEASURED BY HAND, NOT BY A GATE.** Nothing of this round ran under the
+Supabase edge runtime or on the hosted platform. The platform's limits were
+READ (Supabase, "Edge Function limits", 2026-10-04: wall clock 150 s on the
+free plan and 400 s on paid plans; request idle timeout 150 s, answered 504);
+the function's own 132 s is held against that written number.
+
+**PLANT.** 33 defects of this round (P120–P152), each planted ALONE in a scratch clone of the branch at `8c91a093`, both gates run, the files restored byte for byte (`git diff --quiet`) — and, in the SAME run, the 119 plants of the build (P1–P119, the definitions of the previous replay, unchanged) under the same code: 152 plants, 3212 s. `where` is the file planted. A gate that stays green on a plant says so. One line of the driver came AFTER that run (`ad32d692`: whether the caller dropped the hung request is read before that request is let go by hand — read after it, the figure said 1 for a function that had aborted nothing). The 6 plants of the deadline (P120–P125) were run again at that commit, 275 s; their rows and transcripts below are that run's, no plant changed sides, and it ended green: chat-cap-always: exit 0 — 191 passed (191); chat-cap-real:   exit 0 — units=100, 0 FAIL.
+
+| plant (alone) | where | `chat-cap-always` | `chat-cap-real` |
+|---|---|---|---|
+| **P120** THE REVIEWED DEFECT: the model request has no deadline — a hung upstream holds the reservation until the platform cuts the function off | `guard.ts` | **RED** 5 failed, 186 passed (191) — *chatLlmGuard: the ONE model request has a deadline — a hung upstream is released, not left to the platform > a model call that HONOURS the abort (it rejects with the s…* | **RED** 3 FAIL — *14.1 an upstream that never answers: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = 100 s, asked f…*; *14.2 an upstream that sends the first bytes of an answer and then nothing: the function ANSWERS at its deadline (a timer of exa…* |
+| **P121** index.ts does not hand the deadline's signal to its fetch: the function answers and releases, the upstream request runs on (WIRING) | `index.ts` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > the model request is these lines and nothing else: ONE fetch carrying the guard's deadline — no loop…* | **RED** 2 FAIL — *14.1 an upstream that never answers: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = 100 s, asked f…*; *14.2 an upstream that sends the first bytes of an answer and then nothing: the function ANSWERS at its deadline (a timer of exa…* |
+| **P122** at the deadline nothing is aborted: guard.ts stops waiting, the request is never told | `guard.ts` | **RED** 3 failed, 188 passed (191) — *chatLlmGuard: the ONE model request has a deadline — a hung upstream is released, not left to the platform > a model call that NEVER settles: at the deadline the reque…* | **RED** 2 FAIL — *14.1 an upstream that never answers: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = 100 s, asked f…*; *14.2 an upstream that sends the first bytes of an answer and then nothing: the function ANSWERS at its deadline (a timer of exa…* |
+| **P123** the deadline is longer than the platform allows (100 s → 140 s): the function is cut off before it can release | `guard.ts` | **RED** 2 failed, 189 passed (191) — *chatLlmGuard: the ONE model request has a deadline — a hung upstream is released, not left to the platform > the deadlines ADD UP under the platform's limit: auth + pl…* | **RED** 1 FAIL — *14.0 the function's own deadlines fit under the platform's 150 s: the auth check, the plan read, the reservation and the releas…* |
+| **P124** the model request is given the METERING timeout (8 s): real answers are cut off | `guard.ts` | **RED** 2 failed, 189 passed (191) — *chatLlmGuard: the ONE model request has a deadline — a hung upstream is released, not left to the platform > the deadline a deployed call gets IS MODEL_TIMEOUT_MS: one…* | **RED** 3 FAIL — *14.1 an upstream that never answers: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = 100 s, asked f…*; *14.2 an upstream that sends the first bytes of an answer and then nothing: the function ANSWERS at its deadline (a timer of exa…* |
+| **P125** a call that timed out is COMMITTED: a message nobody was answered is counted | `guard.ts` | **RED** 4 failed, 187 passed (191) — *chatLlmGuard: the ONE model request has a deadline — a hung upstream is released, not left to the platform > a model call that HONOURS the abort (it rejects with the s…* | **RED** 2 FAIL — *14.1 an upstream that never answers: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = 100 s, asked f…*; *14.2 an upstream that sends the first bytes of an answer and then nothing: the function ANSWERS at its deadline (a timer of exa…* |
+| **P126** index.ts REMEMBERS a bearer it verified once (a deleted or signed-out user's token keeps working in a warm instance) (WIRING) | `index.ts` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > nothing is remembered between requests: module scope holds constants only — no variable, no containe…* | **RED** 3 FAIL — *2.8 a real, unexpired token this function SERVED a moment ago, whose user has since been DELETED: 401 — nothing is remembered*; *2.8b a real, unexpired token this function SERVED a moment ago, whose user has since SIGNED OUT: 401 — and nothing more is coun…* |
+| **P127** index.ts reads the plan row of an id the CALLER names in a header (a trial user borrows a paying user's caps) (WIRING) | `index.ts` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > index.ts reads two request headers — Origin and Authorization — its method and its JSON body, and no…* | **RED** 2 FAIL — *12.1 a trial user at the cap who NAMES a paying user — in headers, the apikey, a cookie, the query string and the body — is ref…*; *12.2 the plan row is read on EVERY call: raised to multi the next call is served; back on trial the one after is refused on 3 /…* |
+| **P128** the model call is retried once on a 5xx inside the one `fetch(` (two upstream requests for one reservation) (WIRING) | `index.ts` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > the model request is these lines and nothing else: ONE fetch carrying the guard's deadline — no loop…* | **RED** 1 FAIL — *6.2 …ONE upstream request — no retry* |
+| **P129** guard.ts remembers the verdict for a bearer (the decision's own cache) | `guard.ts` | **RED** 60 failed, 131 passed (191) — *chatLlmGuard: C1 — no verified user, no model call > an auth server that answers 'unavailable' is not a yes: 503 auth_unavailable, nothing upstream, nothing metered* | **RED** 5 FAIL — *2.8 a real, unexpired token this function SERVED a moment ago, whose user has since been DELETED: 401 — nothing is remembered*; *2.8b a real, unexpired token this function SERVED a moment ago, whose user has since SIGNED OUT: 401 — and nothing more is coun…* |
+| **P130** guard.ts meters the user the BODY names (`user_id`) when it carries one | `guard.ts` | **RED** 2 failed, 189 passed (191) — *chatLlmGuard: the decision remembers nothing, and only the auth server says who is asking > WHO is metered is who the auth server named: a body that names another user…* | **RED** 2 FAIL — *12.1 a trial user at the cap who NAMES a paying user — in headers, the apikey, a cookie, the query string and the body — is ref…*; *12.2 the plan row is read on EVERY call: raised to multi the next call is served; back on trial the one after is refused on 3 /…* |
+| **P131** index.ts caches the plan row per user: a plan that was lowered keeps its old caps in a warm instance (WIRING) | `index.ts` | **RED** 2 failed, 189 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > index.ts reads two request headers — Origin and Authorization — its method and its JSON body, and no…* | **RED** 1 FAIL — *12.2 the plan row is read on EVERY call: raised to multi the next call is served; back on trial the one after is refused on 3 /…* |
+| **P132** the QUERY STRING names the user whose plan is read (index.ts reads req.url) (WIRING) | `index.ts` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > index.ts reads two request headers — Origin and Authorization — its method and its JSON body, and no…* | **RED** 2 FAIL — *12.1 a trial user at the cap who NAMES a paying user — in headers, the apikey, a cookie, the query string and the body — is ref…*; *12.2 the plan row is read on EVERY call: raised to multi the next call is served; back on trial the one after is refused on 3 /…* |
+| **P133** the reservation is made on the counter of the user a header names: the caller's own counter never moves (WIRING) | `index.ts` | **RED** 2 failed, 189 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > index.ts reads two request headers — Origin and Authorization — its method and its JSON body, and no…* | **RED** 3 FAIL — *12.1 a trial user at the cap who NAMES a paying user — in headers, the apikey, a cookie, the query string and the body — is ref…*; *12.2 the plan row is read on EVERY call: raised to multi the next call is served; back on trial the one after is refused on 3 /…* |
+| **P134** a module-level variable in index.ts (a request counter): state that outlives a request | `index.ts` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: no switch, no second door — the function's source > nothing is remembered between requests: module scope holds constants only — no variable, no containe…* | green — cannot see it |
+| **P135** THE REVIEWED DEFECT: the report does not look at the tables — 'closed' whatever a browser can write | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 7 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — an UPDATE policy on the plan row for authent…*; *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a policy FOR ALL to public on the daily counter* |
+| **P136** a policy FOR ALL is not seen as a write policy | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 1 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a policy FOR ALL to public on the daily counter* |
+| **P137** a RESTRICTIVE policy is read as a door | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 1 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a RESTRICTIVE write policy alone: it admits …* |
+| **P138** a column-level grant is not seen (the table-level privilege is the only one asked about) | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 1 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a COLUMN-level UPDATE grant on tier (the tab…* |
+| **P139** row security switched OFF is not seen | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 1 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — row security switched OFF on the monthly cou…* |
+| **P140** a policy for ANOTHER role (service_role) is read as the browser's | `chat_cap_always_preflight_report.sql` | green — cannot see it | **RED** 4 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — an UPDATE policy on the plan row for authent…*; *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a write policy for service_role only: no bro…* |
+| **P141** a missing table reads as 'closed' (true, where the report cannot say) | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 1 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — one of the three tables is not there: it can…* |
+| **P142** the privilege is not asked about: a policy alone is a door (production's stopgap shape reads open) | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 2 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — production's stopgap shape: the write polici…*; *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a COLUMN-level UPDATE grant on tier (the tab…* |
+| **P143** the report counts YESTERDAY's counter rows as today's (the trace the coordinator reads is not the tables') | `chat_cap_always_preflight_report.sql` | green — cannot see it | **RED** 1 FAIL — *P. the report's meter counts are the tables': rows for today exist, and no call of this run — served, refused, failed upstream,…* |
+| **P144** the fact looks at the plan table only: the two counter tables are not checked | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 3 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a policy FOR ALL to public on the daily counter*; *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — row security switched OFF on the monthly cou…* |
+| **P145** only `authenticated` is looked at: anon's doors are not | `chat_cap_always_preflight_report.sql` | **RED** 1 failed, 190 passed (191) — *chatLlmPrompt: the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over t…* | **RED** 3 FAIL — *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a policy FOR ALL to public on the daily counter*; *P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — row security switched OFF on the monthly cou…* |
+| **P146** a request the upstream REJECTS (a dead key: 401 / no credit: 400) keeps its reservation — released only on a 5xx or a thrown call | `guard.ts` | **RED** 2 failed, 189 passed (191) — *chatLlmGuard: the reservation is settled exactly once > a model call that is refused by the upstream for its credit (400): released once, never committed; the answer i…* | **RED** 2 FAIL — *13.3 PROBE (b) — free while the key is dead: a rejected key (401) and a key with no credit (400) each read HTTP 200 with the 'C…*; *P. the report's meter counts are the tables': rows for today exist, and no call of this run — served, refused, failed upstream,…* |
+| **P147** an empty `messages` list is no longer refused: the 'free' signed-in probe reserves and reaches the model | `guard.ts` | **RED** 1 failed, 190 passed (191) — *chatLlmGuard: C4 — one reservation, one bounded request > a verified user's request that is an empty messages list: 400 with the words it always had, nothing reserved* | **RED** 5 FAIL — *9.1 a verified user's image block / system turn / unreadable body / empty list: 400 each*; *9.2 …with the words the function always used for the last two* |
+| **P148** THE REVIEWED DEFECT: a refused turn's sentence rides in the next request as an assistant turn (the payload filter as it was) | `chatTurns.ts` | **RED** 5 failed, 186 passed (191) — *chatRefusal: a refusal is the app's notice, not the assistant's words: it is never sent to the model > after a daily refusal the next request carries the reader's two …* | green — cannot see it |
+| **P149** the refusal marker is dropped when the cached conversation is read again (after a reload the sentence rides) | `useChatStore.ts` | **RED** 1 failed, 190 passed (191) — *chatRefusal: a refusal is the app's notice, not the assistant's words: it is never sent to the model > …and it stays out after a reload: the conversation re-read from …* | green — cannot see it |
+| **P150** the refused turn is not marked at all | `chatTurns.ts` | **RED** 5 failed, 186 passed (191) — *chatRefusal: a refusal is the app's notice, not the assistant's words: it is never sent to the model > after a daily refusal the next request carries the reader's two …* | green — cannot see it |
+| **P151** (harness) the gate leaves the counter row of the user it deleted on the stack | `check_chat_cap_real.py` | green — cannot see it | **RED** 1 FAIL — *Z. the gate left none of its users behind, no workspace without a member and no plan or counter row without a user that was not…* |
+| **P152** (harness) the gate leaves its scratch database on the cluster | `check_chat_cap_real.py` | green — cannot see it | **RED** 1 FAIL — *Z. the gate left none of its users behind, no workspace without a member and no plan or counter row without a user that was not…* |
+
+Of the 33: RED on both gates 25; on `chat-cap-always` alone 4 (P134, P148, P149, P150); on `chat-cap-real` alone 4 (P140, P143, P151, P152); green on both: none.
+
+**The 119 plants of the build, under the final code.** RED on both gates 58; on `chat-cap-always` alone 46; on `chat-cap-real` alone 15 (P15, P16, P40, P52, P83, P84, P87, P88, P94, P97, P99, P102, P103, P116, P118); green on both: none. Against the previous replay (`21668599` / `5e076366`) 2 plant(s) changed sides — each one GAINED a gate:
+
+| plant | was RED on | is RED on |
+|---|---|---|
+| **P59** the metering timeout is ten minutes | `chat-cap-always` only | both |
+| **P79** the upstream request carries another API version | `chat-cap-real` only | both |
+
+The reviewed defects themselves, as this run printed them (P120: the function with no deadline; P126–P128: the three wiring regressions that had been green; P135: the report that did not look at the tables; P148: the payload filter as it was):
+
+```
+P120 — THE REVIEWED DEFECT: the model request has no deadline — a hung upstream holds the reservation until the platform cuts the function off
+  files: supabase/functions/chat-llm/guard.ts
+  chat-cap-always: exit 1 — 5 failed | 186 passed (191)
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > the ONE model request has a deadline — a hung upstream is released, not left to the platform > a model call that HONOURS the abort (it rejects with the signal's reason): still ONE release, never a commit
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > the ONE model request has a deadline — a hung upstream is released, not left to the platform > a model call that NEVER settles: at the deadline the request is told to abort, the reservation is released once, and the caller gets the sentinel
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > the ONE model request has a deadline — a hung upstream is released, not left to the platform > the deadline a deployed call gets IS MODEL_TIMEOUT_MS: one millisecond before it the function is still waiting, at it the call is released
+      × frontend/lib/__tests__/chatLlmGuard.test.ts > the ONE model request has a deadline — a hung upstream is released, not left to the platform > …and it is the WHOLE request that is bounded: with every step hanging at its worst the function still answers, and nothing is left reserved that it could release
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > no switch, no second door — the function's source > the model request is these lines and nothing else: ONE fetch carrying the guard's deadline — no loop, no second try, no timer of its own
+  chat-cap-real:   exit 1 — units=100, 3 FAIL
+      FAIL 14.1 an upstream that never answers: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = 100 s, asked for once) — the sentinel, the upstream request ABORTED, the reservation released
+           | got:  ["no answer within 12 s",false,1,0,0,[0,1,0,1]]
+           | want: [[200,"Couldn't reach Claude: TimedOut: the model request timed out. Try again in a moment.",null],true,1,1,1,[0,0,0,0]]
+      FAIL 14.2 an upstream that sends the first bytes of an answer and then nothing: the function ANSWERS at its deadline (a timer of exactly MODEL_TIMEOUT_MS = 100 s, asked for once) — the sentinel, the upstream request ABORTED, the reservation released
+           | got:  ["no answer within 12 s",false,1,0,0,[0,1,0,1]]
+           | want: [[200,"Couldn't reach Claude: TimedOut: the model request timed out. Try again in a moment.",null],true,1,1,1,[0,0,0,0]]
+      FAIL 14.3 CONTROL: an answered call asked for that ONE deadline timer too, and was not cut off
+           | got:  [200,0,[1,0,1,0]]
+           | want: [200,1,[1,0,1,0]]
+P126 — index.ts REMEMBERS a bearer it verified once (a deleted or signed-out user's token keeps working in a warm instance) (WIRING)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-always: exit 1 — 1 failed | 190 passed (191)
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > no switch, no second door — the function's source > nothing is remembered between requests: module scope holds constants only — no variable, no container, nothing a request could write to
+  chat-cap-real:   exit 1 — units=100, 3 FAIL
+      FAIL 2.8 a real, unexpired token this function SERVED a moment ago, whose user has since been DELETED: 401 — nothing is remembered
+           | got:  [503,"metering_unavailable"]
+           | want: [401,"sign_in_required"]
+      FAIL 2.8b a real, unexpired token this function SERVED a moment ago, whose user has since SIGNED OUT: 401 — and nothing more is counted for them
+           | got:  [200,null,[2,0,2,0]]
+           | want: [401,"sign_in_required",[1,0,1,0]]
+      FAIL 2.12 across those eleven calls the recorder saw NO upstream request
+           | got:  1
+           | want: 0
+P127 — index.ts reads the plan row of an id the CALLER names in a header (a trial user borrows a paying user's caps) (WIRING)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-always: exit 1 — 1 failed | 190 passed (191)
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > no switch, no second door — the function's source > index.ts reads two request headers — Origin and Authorization — its method and its JSON body, and nothing else of a request: who is metered is never the request's to say
+  chat-cap-real:   exit 1 — units=100, 2 FAIL
+      FAIL 12.1 a trial user at the cap who NAMES a paying user — in headers, the apikey, a cookie, the query string and the body — is refused on their OWN plan: 429 trial 3 / 5, no upstream request, the paying user's meter untouched
+           | got:  [200,null,null,null,1,[null,null,null,null],[4,0,4,0]]
+           | want: [429,"trial",3,5,0,[null,null,null,null],[3,0,3,0]]
+      FAIL 12.2 the plan row is read on EVERY call: raised to multi the next call is served; back on trial the one after is refused on 3 / 5 again
+           | got:  [200,429,"trial",3,2]
+           | want: [200,429,"trial",3,1]
+P128 — the model call is retried once on a 5xx inside the one `fetch(` (two upstream requests for one reservation) (WIRING)
+  files: supabase/functions/chat-llm/index.ts
+  chat-cap-always: exit 1 — 1 failed | 190 passed (191)
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > no switch, no second door — the function's source > the model request is these lines and nothing else: ONE fetch carrying the guard's deadline — no loop, no second try, no timer of its own
+  chat-cap-real:   exit 1 — units=100, 1 FAIL
+      FAIL 6.2 …ONE upstream request — no retry
+           | got:  2
+           | want: 1
+P135 — THE REVIEWED DEFECT: the report does not look at the tables — 'closed' whatever a browser can write
+  files: supabase/preflight/chat_cap_always_preflight_report.sql
+  chat-cap-always: exit 1 — 1 failed | 190 passed (191)
+      × frontend/lib/__tests__/chatLlmPrompt.test.ts > the preflight report the coordinator runs before the deploy > it says whether a browser's roles can write the plan row or the counters — one fact over the SAME three tables, read from the catalog alone
+  chat-cap-real:   exit 1 — units=100, 7 FAIL
+      FAIL P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — an UPDATE policy on the plan row for authenticated (a user raises their own tier)
+           | got:  [true, ["authenticated may UPDATE public.subscriptions (policy w)"]]
+           | want: [false, ["authenticated may UPDATE public.subscriptions (policy w)"]]
+      FAIL P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a policy FOR ALL to public on the daily counter
+           | got:  [true, ["anon may DELETE public.plan_chat_daily_usage (policy every)", "anon may INSERT public.plan_chat_daily_usage (policy every)", "anon may UPDATE public.plan_chat_daily_usage (policy every)", "authenticated may DELETE public.plan_chat_daily_usage (policy every)", "authenticated may INSERT public.plan_chat_daily_usage (policy every)", "authenticated may UPDATE public.plan_chat_daily_usage (policy every)"]]
+           | want: [false, ["anon may DELETE public.plan_chat_daily_usage (policy every)", "anon may INSERT public.plan_chat_daily_usage (policy every)", "anon may UPDATE public.plan_chat_daily_usage (policy every)", "authenticated may DELETE public.plan_chat_daily_usage (policy every)", "authenticated may INSERT public.plan_chat_daily_usage (policy every)", "authenticated may UPDATE public.plan_chat_daily_usage (policy every)"]]
+      FAIL P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — row security switched OFF on the monthly counter
+           | got:  [true, ["anon may DELETE public.user_usage (row security is off)", "anon may INSERT public.user_usage (row security is off)", "anon may UPDATE public.user_usage (row security is off)", "authenticated may DELETE public.user_usage (row security is off)", "authenticated may INSERT public.user_usage (row security is off)", "authenticated may UPDATE public.user_usage (row security is off)"]]
+           | want: [false, ["anon may DELETE public.user_usage (row security is off)", "anon may INSERT public.user_usage (row security is off)", "anon may UPDATE public.user_usage (row security is off)", "authenticated may DELETE public.user_usage (row security is off)", "authenticated may INSERT public.user_usage (row security is off)", "authenticated may UPDATE public.user_usage (row security is off)"]]
+      FAIL P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a COLUMN-level UPDATE grant on tier (the table-level one revoked), with a policy
+           | got:  [true, ["authenticated may UPDATE public.subscriptions (policy u)"]]
+           | want: [false, ["authenticated may UPDATE public.subscriptions (policy u)"]]
+      FAIL P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — an INSERT policy for anon on the monthly counter
+           | got:  [true, ["anon may INSERT public.user_usage (policy a)"]]
+           | want: [false, ["anon may INSERT public.user_usage (policy a)"]]
+      FAIL P. the report's plan_and_counters_closed_to_browser_roles, in a scratch database — a DELETE policy on the plan row for authenticated
+           | got:  [true, ["authenticated may DELETE public.subscriptions (policy d)"]]
+           | want: [false, ["authenticated may DELETE public.subscriptions (policy d)"]]
+      FAIL P. what the report says about the plan row and the counters IS what a signed-in user could write on this stack (here: the plan row 2 write(s), the counters 0 — open, and the report names the table)
+           | the report: plan_and_counters_closed_to_browser_roles = true, browser_role_row_writes = ["anon may INSERT public.subscriptions (policy \"subscriptions self insert\")", "anon may UPDATE public.subscriptions (policy \"subscriptions self update\")", "authenticated may INSERT public.subscriptions (policy \"subscriptions self insert\")", "authenticated may UPDATE public.subscriptions (policy \"subscriptions self update\")"]
+           | measured: rows a signed-in user wrote — plan row 2, counters 0
+P148 — THE REVIEWED DEFECT: a refused turn's sentence rides in the next request as an assistant turn (the payload filter as it was)
+  files: frontend/components/cfo/chat/chatTurns.ts
+  chat-cap-always: exit 1 — 5 failed | 186 passed (191)
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refusal is the app's notice, not the assistant's words: it is never sent to the model > after a daily refusal the next request carries the reader's two questions and NOT the refusal
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refusal is the app's notice, not the assistant's words: it is never sent to the model > after a metering refusal the next request carries the reader's two questions and NOT the refusal
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refusal is the app's notice, not the assistant's words: it is never sent to the model > after a monthly refusal the next request carries the reader's two questions and NOT the refusal
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refusal is the app's notice, not the assistant's words: it is never sent to the model > after a sign_in refusal the next request carries the reader's two questions and NOT the refusal
+      × frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx > a refusal is the app's notice, not the assistant's words: it is never sent to the model > …and it stays out after a reload: the conversation re-read from the cache still knows the turn was a refusal
+  chat-cap-real:   exit 0 — units=100, 0 FAIL
+REVERTED — every planted file byte-identical to HEAD (git status, tracked files: clean)
+  chat-cap-always: exit 0 — 191 passed (191)
+  chat-cap-real:   exit 0 — units=100, 0 FAIL
+STACK AFTER:  0 gate users, 0 workspaces without a member, 2 workspaces, 1 users, 0 daily counter rows, 0 monthly counter rows, 0 scratch databases
+152 plants in 3212 s
+```
+
+**CANNOT SEE (this round's laws).** The hosted runtime: that its `fetch`
+honours the signal (if it did not, `guard.ts` still stops waiting, releases
+and answers — only the upstream request would run on), and its real limits
+(150 s is the platform's published number, written in both gates, not
+measured). Whether an aborted upstream request was billed. A cache or a
+caller-named user introduced OUTSIDE the four files (a database trigger, a
+proxy). The report's table fact: a SECURITY DEFINER function, trigger or view
+through which a browser role writes the rows; a policy's own condition (a
+policy that admits nobody still reads as a door); on THIS stack the fact is
+only ever seen `false` — the `true` side is the scratch database's. The
+"what a signed-in user could write" case tries update, delete and insert of
+the plan row and of the two counters through PostgREST; it does not try
+TRUNCATE (no API issues it) or another role. A gate run KILLED mid-way can
+leave the workspace and the daily counter row of the user it deleted (their
+ids reach the wrapper only when the driver ends): the next run's Z compares
+before and after and does not see them — remove them by hand
+(`plan_chat_daily_usage` rows whose user is gone; a memberless workspace
+named `deleted-<run>-…`). (That happened once while these plants were being
+written: the harness was stopped mid-run, one counter row and one workspace
+stayed, and both were removed by hand; the stack reads as found — 1 user,
+2 workspaces, no counter row, no scratch database.) ONE run per stack at a time: a second concurrent run
+removes the first's users (as built) and its scratch database. The old bundle: that a 401, a 503 and the dead-key
+sentinel look the same THERE is read, not gated — no gate runs production's
+bundle. The cap message re-read from SERVER history carries no marker (it is
+written there, as it always was) and rides in a later request, as on main.
