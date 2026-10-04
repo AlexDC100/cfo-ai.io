@@ -74,6 +74,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
+from . import _staged_rerun
+
 logger = logging.getLogger("engine.period_move")
 
 #: What happens to the period the document is LEAVING.
@@ -336,6 +338,11 @@ def find_orphaned_snapshots(
     periods = client.select(
         "financial_periods", filters={"org_id": "eq.%s" % org_id}
     )
+    # A re-run's STAGED row (`_staged_rerun`) is not a period serving
+    # anything: it carries an envelope and line items and no document is
+    # attached to it, by design, until its run takes the month over or its
+    # row is dropped. Reported here it would read as "a period nobody backs".
+    periods = [p for p in (periods or []) if _staged_rerun.marker_of(p) is None]
     live_docs = client.select(
         "documents",
         filters={"org_id": "eq.%s" % org_id, "deleted_at": "is.null"},
@@ -472,12 +479,17 @@ def move_document_to_period(
         return _record(plan, document_id=document_id, destination_period_id=None,
                        orphaned=[], filename=document.get("original_filename"))
 
-    destination = client.select(
-        "financial_periods",
-        filters={"org_id": "eq.%s" % org_id, "period_end": "eq.%s" % target},
-        order="updated_at.desc",
-        limit=1,
-    )
+    # Read without a limit: the newest row of the month may be a re-run's
+    # STAGED row (`_staged_rerun`), which is never a destination — the record
+    # would name a period that is about to stop existing.
+    destination = [
+        p for p in (client.select(
+            "financial_periods",
+            filters={"org_id": "eq.%s" % org_id, "period_end": "eq.%s" % target},
+            order="updated_at.desc",
+        ) or [])
+        if _staged_rerun.marker_of(p) is None
+    ]
     destination_period_id = str(destination[0]["id"]) if destination else None
 
     # 1. The confirmation, and the detach. Detaching first means that

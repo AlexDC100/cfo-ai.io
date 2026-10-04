@@ -64,6 +64,9 @@ from . import _period_move
 from . import _quota_ledger
 from . import _ratio_units
 from . import _reconcile
+# THE STAGED RE-RUN'S MARKER — how every reader of `financial_periods` tells
+# a re-run's staged row (never a month) from a period (leaf module).
+from . import _staged_rerun
 from . import _supabase
 from . import _usage_limits
 from . import _valuation
@@ -2928,6 +2931,12 @@ def _own_periods_for_rerun(admin_client: Any, document_id: Any, org_id: Any) -> 
         if named_since != document_id:
             raise RerunRefused(RERUN_REFUSED_SUPERSEDED)
         return [dict(period, source_document_id=named_since)]
+    if _staged_rerun.marker_of(full[0]) is not None:
+        # A STAGED row of a re-run (this document's or another's) is nobody's
+        # period: its envelope carries the provenance stamp of the document
+        # it was built from, and read by that stamp alone a document pinned
+        # to it by a browser write would re-run "its own" staged row.
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
     built_from = _period_move.envelope_source_document_id(full[0])
     if built_from:
         if built_from != document_id:
@@ -3244,6 +3253,13 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 },
                 order="updated_at.desc",  # newest first if legacy duplicates exist
             )
+            # A re-run's STAGED row is never "the month" (`_staged_rerun`):
+            # it names no source and is nobody's analysis yet. Taken for the
+            # month, an upload would stage beside it and take over a row that
+            # a re-run's cleanup then drops — the month's own row, and its
+            # document, left as they were under a second row for the month.
+            month_periods = [p for p in (month_periods or [])
+                             if _staged_rerun.marker_of(p) is None]
             if month_periods:
                 # 2a'. NOT YET. The served row keeps serving until this run
                 #      has succeeded (G4 — see the takeover notes above the
@@ -7994,13 +8010,21 @@ def _monthly_inventory_points(client: Any, period: Dict[str, Any]) -> Optional[D
             "financial_periods",
             filters={"org_id": "eq.%s" % period["org_id"],
                      "period_end": "in.(%s)" % ",".join(month_ends)},
-            columns="id,period_end,inventory_days:assembled_canonical_v1->inventory_days",
+            columns=("id,period_end,source_document_id,"
+                     "inventory_days:assembled_canonical_v1->inventory_days,"
+                     + _staged_rerun.MARKER_SELECT),
         ) or []
     except Exception:  # noqa: BLE001 — a lookup failure is "no monthly basis"
         logger.exception("[inventory days] monthly periods lookup failed (non-fatal)")
         return None
     by_month: Dict[int, Dict[str, Any]] = {}
     for r in rows:
+        if _staged_rerun.marker_of(r) is not None:
+            # A re-run's STAGED row is not a second period of its month: read
+            # as one, it made the month "ambiguous" below and December's
+            # basis fell from the monthly average to the year-end snapshot
+            # for as long as the re-run (or its stranded row) was there.
+            continue
         try:
             d = _dt.date.fromisoformat(str(r.get("period_end") or "")[:10])
         except ValueError:
