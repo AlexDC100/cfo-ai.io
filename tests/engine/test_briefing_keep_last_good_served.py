@@ -1384,6 +1384,53 @@ def test_the_tenant_of_the_briefing_read_is_the_periods_own_never_the_requests(w
     assert resp.status_code == 200 and resp.json()["briefing"] is None, resp.text[:300]
 
 
+def _a_database_that_ignores_the_tenant_filter(double: D.PostgrestDouble) -> None:
+    """A read of `briefings` answered as if `org_id` had not been in its
+    filter (a policy that admits both workspaces and a filter that is not
+    applied — a schema cache that does not know the column, a proxy, a
+    future refactor of the client). The double honours filters, so the
+    code's own re-check of the row it is handed was invisible to this file
+    (two plants stayed green, 2026-10-03: `briefings[0]` in GET /api/period,
+    row [0] in `_stored_briefing_row`). This makes the re-check observable."""
+    real = double.select
+
+    def select(table: str, **kwargs: Any) -> Any:
+        if table == "briefings":
+            kwargs = dict(kwargs, filters=dict((k, v) for k, v in (kwargs.get("filters") or {}).items()
+                                               if k != "org_id"))
+        return real(table, **kwargs)
+
+    double.select = select  # type: ignore[assignment]
+
+
+@pytest.mark.parametrize("row", ["the_other_workspaces_row", "the_periods_own_row"])
+def test_a_row_of_another_workspace_is_never_taken_even_when_the_filter_did_not_hold(row):
+    """THE ROW IS RE-CHECKED, not trusted: the period's briefing is a row
+    whose OWN `org_id` is the period's — on both readers (GET /api/period,
+    and `_stored_briefing_row` behind the regenerate route's answer).
+    (`briefings.period_id` is unique: a period holds one row, so the two
+    cases are the foreign row alone, and — the positive control — the
+    period's own row through the very same unfiltered read.)"""
+    double = _world()
+    _reader_of_both_workspaces(double)
+    if row == "the_other_workspaces_row":
+        double.add("briefings", dict(FOREIGN_BRIEFING))
+    else:
+        double.add("briefings", dict({"period_id": PID, "org_id": ORG}, **_usable_row()))
+    _a_database_that_ignores_the_tenant_filter(double)
+
+    payload = _get_period(double)
+    kept = _regenerate(double, None)          # the inert shape: it answers the stored row
+    assert kept.status_code == 200, kept.text[:300]
+    assert "Foreign prose" not in json.dumps(payload, ensure_ascii=False)
+    assert "Foreign prose" not in kept.text
+    if row == "the_other_workspaces_row":
+        assert payload["briefing"] is None and kept.json()["briefing"] is None
+    else:
+        assert payload["briefing"]["body"] == GOOD and kept.json()["briefing"] == GOOD
+    assert len(double.selects("briefings")) >= 2, "one of the two readers never read briefings"
+
+
 @pytest.mark.parametrize("foreign_first", [True, False], ids=["foreign_row_first", "own_row_first"])
 def test_get_period_serves_the_periods_own_row_whichever_row_the_database_lists_first(foreign_first):
     """"Row [0]" is whichever row the database happens to list first. With a
