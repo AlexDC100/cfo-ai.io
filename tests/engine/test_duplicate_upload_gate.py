@@ -145,11 +145,12 @@ def world(monkeypatch):
         the stages replaced by their persisted outcome.
 
         An ANALYSED outcome leaves what `stage_persist` leaves: the document
-        pinned to a period that EXISTS — when a /retry's reset deleted the
-        world's period row, the run files the document under a row of its
-        own, naming it as its source (stated 2026-10-04, gate
-        rerun-data-loss: the stub used to pin an analysed document to an id
-        that named nothing, and a re-run of such a document is refused)."""
+        pinned to a period that EXISTS — when the world holds no such row,
+        the run files the document under a row of its own, naming it as its
+        source (stated 2026-10-04, gate rerun-data-loss: the stub used to pin
+        an analysed document to an id that named nothing, and a re-run of
+        such a document is refused. A /retry itself no longer deletes a
+        period: the re-run is staged beside it)."""
         def stages(document_id):
             if outcome == "analyzed" and not db.select("financial_periods", filters={"id": "eq.%s" % PERIOD}):
                 (row,) = db.select("documents", filters={"id": "eq.%s" % document_id})
