@@ -7,7 +7,8 @@ Endpoints:
                                                   month is staged beside it — nothing is reset)
   GET  /api/period/:id                          → consolidated payload
 
-Pipeline stages (each updates documents.status as it starts):
+Pipeline stages (each updates documents.status as it starts — except in a
+STAGED re-run, whose document stays `analyzed` over the month it serves):
   queued → extracting → mapping → computing → narrating → analyzed | failed
 
 Stages:
@@ -21,8 +22,11 @@ Stages:
   narrate  — Opus 4.7 → briefing + recommendations + alerts
   finalize — documents.status = 'analyzed'; documents.period_id set
 
-CRITICAL: every stage is idempotent. retry() wipes prior derivatives before
-re-running so the user can re-attempt without ghost data.
+CRITICAL: every stage is idempotent. retry() of a document that holds no
+period wipes its prior derivatives before re-running, so the user can
+re-attempt without ghost data. retry() of a document that OWNS its month wipes
+nothing: the run is staged beside the month and replaces it only once it has
+succeeded (see "The Docs panel's Re-run analysis is STAGED" below).
 """
 
 from __future__ import annotations

@@ -468,10 +468,13 @@ def _engine_gates() -> List[Gate]:
         # (legacy shape inert; walls -> inputs -> meter -> model; nothing
         # written on a failure; `stale` in every answer is what is stored),
         # the other writers (stage_persist_narrative, the takeover, the
-        # re-run's carry across its reset, the SKU writer), and the served
-        # shape with its predicates and static censuses. Measured 640.
-        # Plant log (four lists, each plant alone, byte-exact restore):
-        # docs/engine_book/gates.md "briefing-keep-last-good".
+        # Docs-panel re-run — staged beside its month since 2026-10-04, gate
+        # rerun-data-loss below — the SKU writer), and the served shape with
+        # its predicates and static censuses. Measured 640; 624 since the
+        # seam laws of the re-run's in-memory carry went with the carry
+        # (gates.md, the dated addendum). Plant log (four lists, each plant
+        # alone, byte-exact restore): docs/engine_book/gates.md
+        # "briefing-keep-last-good".
         Gate("briefing-keep-last-good",
              [PY, "-m", "pytest",
               "tests/engine/test_briefing_keep_last_good_route.py",
@@ -540,10 +543,31 @@ def _engine_gates() -> List[Gate]:
         # and the reservation of a metered re-run that died. O5 / O6 / O7 of
         # stage 1 restated ("nothing is deleted"). Measured 156 (38 + 96 +
         # 22). Plant log (66 plants): gates.md "rerun-data-loss", stage 2.
+        #
+        # STAGE 3 (hand-over item 3): THE AI LANE. A non-Romanian document's
+        # run stores the statements and nothing else; its takeover, called
+        # with no arguments, replaced the month's alerts with none and
+        # stamped a kept briefing with a narration failure that never
+        # happened; the lane's cache (the period row, which a staged re-run
+        # leaves in place) answered the re-run of an unchanged file; a
+        # re-run that read as a public-records summary ended "analysed with
+        # no period" over its month. test_rerun_ai_lane.py, through the real
+        # stage_extract, its jurisdiction gate and the real plan gate — the
+        # first run's statements handed back by the lane, and THE REAL LANE
+        # on the Hungarian fixture ledger with only its model scripted: the
+        # briefing (marked `not_renarrated`), the recommendations and the
+        # alerts are the same rows; only a staged re-run re-extracts and
+        # the flag is never stored; the public-records re-run is refused
+        # before any write; the plan refusal leaves the month as it was; the
+        # lane's takeover killed after every write, and a REAL restart
+        # healed by the next re-run or by another document's run. Measured
+        # 170 (38 + 96 + 22 + 14). Plant log: gates.md "rerun-data-loss",
+        # stage 3.
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
-              "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py", "-q"],
-             work_junit=True, floor=156, units="tests",
+              "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
+              "tests/engine/test_rerun_ai_lane.py", "-q"],
+             work_junit=True, floor=170, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_the_refusal_is_one_answer_whatever_the_pin_names",
                        "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
@@ -552,7 +576,10 @@ def _engine_gates() -> List[Gate]:
                        "test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was",
                        "test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result",
                        "test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything",
-                       "test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl")),
+                       "test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl",
+                       "test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts",
+                       "test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing",
+                       "test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun")),
         # … AND THE DOCS PANEL SAYS SO. The refusal is a CODE and nothing
         # else (no sentence, no period id, no document id); the panel used
         # to discard the body of every failed retry and say "Couldn't start
@@ -574,7 +601,10 @@ def _engine_gates() -> List[Gate]:
         # stored after the prefix; and the Workspace tab's own read of
         # financial_periods drops a re-run's staged row (an empty container
         # stays). Measured 84 (34 + 16 + 29 + 5). Plant log (14 plants):
-        # gates.md "rerun-refusal-surfaces", stage 2.
+        # gates.md "rerun-refusal-surfaces", stage 2. STAGE 3: the code of a
+        # refused public-records re-run (`rerun_not_a_trial_balance`) prints
+        # the "didn't finish" line and is never printed itself — two cells.
+        # Measured 86 (34 + 16 + 31 + 5).
         Gate("rerun-refusal-surfaces",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/rerunRefusals.test.ts",
@@ -582,7 +612,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/cfo/__tests__/docRerunNote.test.tsx",
               "frontend/lib/__tests__/orgPeriodsStagedRow.test.ts",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=84,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=86,
              units="tests",
              canaries=("the codes are exactly the three the route answers with",
                        "ro: document_superseded prints the stated sentence",

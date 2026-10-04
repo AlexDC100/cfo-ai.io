@@ -559,8 +559,12 @@ export async function enqueuePipeline(documentId: string): Promise<EnqueuePipeli
 
 /**
  * Re-run the pipeline for a document that previously failed (or analyzed —
- * useful for re-extraction after the user uploads a corrected file). The
- * server resets the status to 'queued' and wipes prior derivatives.
+ * useful for re-extraction after the user uploads a corrected file). For a
+ * document that holds no analysis the server resets the status to 'queued'
+ * and wipes prior derivatives. For one that OWNS its month nothing is reset:
+ * the row stays 'analyzed', the month keeps being served, and the re-run
+ * replaces it only once it has succeeded (a re-run that does not finish is
+ * said on the row — components/cfo/DocRerunNote).
  */
 export async function retryPipeline(documentId: string): Promise<boolean> {
   return (await retryPipelineDetailed(documentId)).ok;

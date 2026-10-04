@@ -10,7 +10,7 @@ after the persist and never reached the narrative stage. So:
     metered request) — and nothing put it back;
   · once the re-run was staged (stage 2) the takeover was still called with
     no arguments: it replaced the month's ALERTS with none, and stamped a
-    kept briefing with a narration failure (`provider_error`) that never
+    kept briefing with a narration failure (`empty_reply`) that never
     happened;
   · with the month's row left in place, the lane's own cache — which IS that
     row — answered the re-run of an unchanged file: a silent no-op;
@@ -329,7 +329,8 @@ def test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recomm
     recommendations and the alerts are the same rows. (Before: the reset
     cascaded all three away and nothing put them back; staged with no
     arguments, the takeover deleted the alerts — measured 4 → 0 — and
-    stamped the briefing `provider_error`.)"""
+    stamped the briefing `empty_reply`, a narration failure that never
+    happened.)"""
     applied = migration == "stale_migration_applied"
     if not applied:
         W._before_the_stale_migration(gw)
