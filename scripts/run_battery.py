@@ -587,9 +587,9 @@ def _engine_gates() -> List[Gate]:
         # unique (org_id, alert_key); five weakenings every law let through;
         # the page-mount watchdog completing what a restart interrupted; the
         # AI lane keeping the archived file's alerts on another file's
-        # statements. Measured 218 (57 + 121 + 25 + 15). Plant log (78
-        # plants: 37 new, 10 re-anchored, 31 replayed): gates.md
-        # "rerun-data-loss — the review of 2026-10-05".
+        # statements. Measured 218 (57 + 121 + 25 + 15). Plant log (80
+        # plants: 38 new — 34 engine, 4 frontend — 10 re-anchored, 32
+        # replayed): gates.md "rerun-data-loss — the review of 2026-10-05".
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
               "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",

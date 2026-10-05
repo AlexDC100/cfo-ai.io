@@ -21683,3 +21683,312 @@ frontend`). **BASELINE** `86 passed (86)`.
 **CANNOT SEE (stage 3):** a code the engine adds later without a sentence —
 it prints the `kept` line, which is true only while the engine keeps the
 rule that an unfinished staged re-run leaves the month as it was.
+
+### rerun-data-loss — the review of 2026-10-05: what the three stages left open or unheld
+
+Three independent reviews of the stage-3 tip `5f8e020e` (the states and the
+restarts; ownership and tenancy; the gate itself). EVERY finding below was
+reproduced on that tip FIRST, with the reviewers' own probes run unchanged,
+then repaired; each repair has a law, and each law is plant-proven (the next
+subsection). Nothing here needs SQL; no figure of any stored period is
+computed differently.
+
+| finding | measured on `5f8e020e` | the repair | law |
+|---|---|---|---|
+| BLOCKING — `/retry` of a restored superseded document whose PIN IS NULL (one browser PATCH; what the period foreign key's ON DELETE SET NULL leaves) | 202; after the run the month's row named the OLDER file, served revenue 48,349,081.59 → 110,798,309.14, the newer document archived, its briefing (stale) and its worked recommendation on the older file's statements — item 1 through the door the pin check left open; the same on 7ca386ec | an ANALYSED trial balance that holds no period is not "a document with no period". Where the quota ledger (a table the browser cannot write) shows the document's own analysis: 409 `rerun_period_not_own`, nothing written. Where only `documents.status` says so — a browser can write that, and such a retry is a first, METERED analysis (gate `quota-count-once`) — the run starts as one that NEVER takes over a month that is another document's: refused in `stage_persist` before anything is staged | O13 (6 laws, 12 cells) |
+| BLOCKING — "Make source" on the restored copy (UI-reachable exactly where the retry's refusal leaves the reader) | at the click the month's line items 295 → 0, metrics 70 → 0, briefing 1 → 0, the source re-pointed at the older file; with the narration refused the newer document's last good briefing was gone for good; the re-run failing, an EMPTY month under a failed document | `make-active` refuses before its first write over another ANALYSED document's analysis — `400 month_has_another_analysis` — live owner or one in "Recently deleted". THE SAFE BEHAVIOUR, NOT THE DURABLE ONE (below) | O15 (3 laws, 6 cells) + `rerun-refusal-surfaces` |
+| HIGH (three lenses) — a newer upload's takeover landing INSIDE a re-run's apply | the upload's whole run injected at one statement boundary of the apply: the month's row named the new file over the old file's statements, briefing and recommendations (or the new rows under the old envelope), the old document archived with its superseded marker erased, no staged row left, nothing saying so | ONE takeover of a company's months at a time in this process: every takeover (its last ownership look included), every resume and every drop holds the company's lock. After the commit point there is ONE applier, for the live takeover and the resume (they had drifted): a guarded table loop; the month's row takes the run's columns only while it still names the document (the source in the filter, read back); only a re-run's own marker is cleared on the document's row | S23 (two REAL threads, two statement boundaries), S30, S16 |
+| HIGH — the last good briefing lost: a kill between the month's briefing delete and the move of the run's own, then a same-month upload inside fifteen minutes whose narration fails | with a real second process: the upload's pass LEFT the committed row, its takeover moved its failure sentinel onto the month, the later pass dropped the staged row — `briefing.unavailable: true`, the previous briefing and the run's new one both gone | a COMMITTED staged row whose document is not in flight is a dead process's: it is completed at once, before anything stages beside or takes over its month. The fifteen minutes are for an uncommitted row only | T8 (second process), S14 |
+| HIGH — the gate did not hold the company filter between a browser-writable marker and the applier's service-role deletes | with `org_id` removed from the applier's two reads, all 171 laws and the tenant census stayed GREEN while a marker forged in one company emptied another company's month | the law (both directions, every way a staged row is cleaned up) and the reads' own seam law; the applier also re-checks the company on the rows it read | S24 (3 cells + the seam) |
+| MEDIUM — an in-place run of the SAME document over its own stranded committed row (the builders' open item, wider than stated: at ANY age) | the failed banner's Retry wrote the month; another document's later run resumed the OLD row over it — the older re-run's briefing on the newer run's statements, unmarked | every run first settles its own document's leftover (it holds the claim) — BEFORE ITS FIRST STAGE, so that no same-month upload finishing while it reads its file takes over a month that is mid-replacement, and again at its persist (the reprocessing tool enters there); when that cannot be done it stops before it writes | S25 (2 laws), S19 |
+| MEDIUM — a re-filed re-run resumed after an upload took the new month | two live periods dated 2025-12-31, each with its document | an apply never re-dates its row onto a month that became another row's: the analysis is applied, the row keeps its month | S26 (the resume, and the live takeover) |
+| MEDIUM — a staged run's alerts under the legacy `unique (org_id, alert_key)` (`schema.sql`; kept on purpose by `schema_phase_notes_period_scope.sql`; whether production still has it is unverified) | modelled by hand: the whole alerts write refused (three keys collided with the month's own), the run `analyzed` with no error, 4 of 4 alerts the PREVIOUS analysis's | the run's alerts are keyed to the row they are stored under; the takeover re-keys them to the month once they sit on it | S27, S1 |
+| MEDIUM — a pin to an empty same-month container | two periods for one document after the re-run | a source-less, stamp-less period is the document's only when no OTHER period already names the document | O14 |
+| MEDIUM — between the commit point and the resume the page serves gaps, and a company that uploads nothing keeps them (no sweep at boot) | `GET /api/period` 200 with revenue 0.0 and 0 line items, or `briefing: null` | the page-mount watchdog (`POST /api/pipeline/recover-stuck`, which the dashboard posts when it mounts) completes the interrupted re-runs of the caller's OWN companies — `resumed_reruns` in its answer. No boot sweep: it would run in the deploy's probe container while the old process is still applying | S29, T9 (second process) |
+| MEDIUM — the AI lane kept the archived file's alerts on ANOTHER file's statements, unmarked (new in stage 3) | A4 asserted it | the lane keeps the month's alerts only across a re-run of the SAME document; a same-month re-upload is what it was on 7ca386ec for alerts | A4 restated, the census |
+| MEDIUM — five weakenings every law let through (one document's cleanup touching another's staged row; a re-run started although its leftovers could not be listed; the handler saying "did not finish" over an interrupted takeover it cannot read; the month check gone from the mint; T0 accepting any period of the document's) | each planted alone: 367 + 1,192 tests green | five laws | S28 |
+
+**WHERE THE SAFEST BEHAVIOUR WAS TAKEN, AND WHAT THE DURABLE ONE NEEDS.**
+
+1. *"Make source".* The promotion wipes before the promoted file's re-run
+   has produced anything; no ordering of today's statements makes that safe
+   over a month that holds another document's analysis. It is REFUSED there
+   and says what does work (upload the file again: staged beside the month,
+   replaced only on success — G4). The durable form is this lane's own
+   mechanism for a promotion: run the promoted document STAGED beside the
+   month and re-point `source_document_id` only in the takeover — the mint,
+   T0 and the applier accepting a marker that says "promotion", and a reader
+   that says a promotion is under way. It still PROCEEDS as before where no
+   analysed document's analysis would be lost (the month's own file failed,
+   or the month names nobody): there the wipe-then-re-run is what it was.
+2. *An analysed document with no period whose analysis only its own row
+   claims.* Nothing the browser cannot write tells a status forged onto a
+   fresh upload from an analysis that predates the ledger. Refusing both
+   breaks the metering law; running both re-opens item 1. So the run starts
+   and can never take a month over. A correct design needs the fact "this
+   document was analysed" stored where the browser cannot write it for
+   EVERY analysis (the ledger records it only while enforcement is on).
+3. *Two backend PROCESSES.* The lock, like the claim, is in process memory.
+   A second process that persists in the same company while this one is
+   inside an apply can still resume that apply's committed row under it; the
+   guarded loop and S30 narrow what the two can do to each other. Excluding
+   it needs the takeover as ONE transaction — a database function, an ADDING
+   migration (the owner's step).
+
+**NOT BUILT (each stated, none hidden):** `DELETE /api/period` soft-deleting
+attached documents by pin alone; one code for "not this company's" and "does
+not exist" in the two corrections; the readers that are not guarded against
+a staged row (forecast history, the sector benchmark's prior, the Capsule
+context — no figure moved in the reviewers' measurements); a failed document
+that owns its period keeping `rerun_failed: <text>` on a `failed` row (the
+notifications menu prints a failed row's error as stored); the page after a
+re-run or a watchdog resume (nothing refetches; a product decision); `org_id`
+in the children statements of the apply (the ids come from rows read under
+the company's filter).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_rerun_ownership.py tests/engine/test_rerun_staged.py tests/engine/test_rerun_restart.py tests/engine/test_rerun_ai_lane.py -q` |
+| work count | junit-xml, floor **218** tests (ownership 57, staged 121, restart 25, the AI lane 15) |
+| canary (added) | `test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing`, `test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month`, `test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply`, `test_a_forged_committed_marker_never_reaches_another_companys_month`, `test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later` |
+
+**After the repair it reds on (the review's laws):** an analysed, counted
+trial balance with no period re-run at all; a run of a document that merely
+reads analysed taking over another document's month, or deleting alerts that
+sit on it; a failed first run, a sales document or a public-records summary
+refused or marked; a source-less period called the document's own while
+another period names the document; "Make source" writing anything over
+another analysed document's analysis — or refusing where none would be lost;
+a takeover that does not hold the company's lock; the applier reading the
+month or the document its marker names without the company; a committed row
+left waiting, by the company pass or by the watchdog; the watchdog
+completing nothing, or completing another company's; a run that does not
+settle its own document's leftover first, or writes under one it could not
+complete; a row re-dated onto a month that became another's; a staged run's
+alerts keyed to the month while the month's own still hold those keys, or
+left keyed to the staged row afterwards; one document's cleanup touching
+another's staged row; a re-run started although its leftovers could not be
+listed; "the previous analysis is still served" written over an interrupted
+takeover; the month check gone from the mint; T0 accepting any period of the
+document's; the month's row written over, or the document reported done,
+after the month changed hands mid-apply; a kept table re-keyed; the lane
+keeping another file's alerts.
+
+**CANNOT SEE:** Postgres itself — whether production's `alerts` still
+carries the legacy unique key (the laws hold with and without it; the
+coordinator's read-only check below says which), the unique tuple of
+`financial_periods`, PostgREST's parsing of the json-path select; two
+backend processes alive at once (above); a kill inside one HTTP statement;
+what a reader is served between a commit point and its completion (recorded
+by the restart laws, not asserted — the watchdog shortens it to "until a
+member next opens the dashboard"); a status a browser sets back to `failed`
+on a restored superseded copy before its `/retry` (that run is a first
+analysis by every record there is, and takes the month over as the same
+file uploaded again would: G4, the owner's ruling); `move-period` filing a
+document under a month another document holds (the user's explicit command;
+staged, replaced only on success); the takeover lock where it is only a belt
+— a drop or a resume against a LIVE takeover of this process is already
+excluded by the claim (the document is in flight), except a permanent delete
+of the document mid-apply, whose month goes with it either way; the applier's
+guard against an uncommitted row (its callers ask first).
+
+**DEPLOY (coordinator — stages 1 to 3's steps stand; added by this round).**
+- Read-only, before the switch — which state of `alerts` production is in
+  (the laws hold in both):
+  `select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.alerts'::regclass and contype = 'u';`
+- In the new image:
+  `docker compose run --rm --no-deps backend python3 -c "from engine.api import pipeline as P, _period_move as M; print(callable(P._apply_committed_staged_rerun), callable(P._takeover_lock), callable(P._resume_interrupted_reruns_of), hasattr(P, '_NO_TAKEOVER_RUNS'), M.MONTH_HAS_ANOTHER_ANALYSIS)"`
+  → `True True True True month_has_another_analysis`.
+- After the switch: `POST /api/pipeline/recover-stuck` signed in answers a
+  body that carries `resumed_reruns` (0 on a healthy store). A staged row
+  with `takeover_began_at` found by stage 2's select is completed the first
+  time a member of that company opens the dashboard, or at that company's
+  next analysis — no longer "after fifteen minutes".
+- `scripts/reprocess_periods_definition.py --apply` holds no claim: do not
+  run it over a company while a re-run of that company is in flight in the
+  backend (two processes are not serialised).
+- The frontend ships with the backend: "Make source" over another file's
+  analysis now answers 400 with a code; an older bundle prints the server's
+  English sentence for it (true, untranslated).
+
+### rerun-data-loss — the review of 2026-10-05 PLANT / RED / REVERT (branch `fix/rerun-data-loss`)
+
+Runner: `specs-durable/rerun_data_loss/plants_review_fix.py` (stage 2's
+runner: one PLANT at a time, ALONE, exact-match edits each asserted to match
+once, the laws the plant is a plant of run, the files restored byte-exact,
+sha256 asserted). THE PLANTS RAN IN A PLAIN COPY OF THE COMMITTED TREE
+(`git archive HEAD`, the copy's own `tests/` and `src/`, never one tree's
+tests against another's source — `tests/engine/conftest.py` puts the test
+tree's own `src` first), so the tree the lane works in was never planted.
+Records: `plants_review_fix_engine.json`, `plants_review_fix_engine.out`.
+
+**BASELINE** — the gate's own command (the four files), exit `0`:
+`218 passed`.
+
+THE REVIEW'S OWN PLANTS — one or more per law added or changed:
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| R-orphan (O13) an analysed, counted trial balance with no period is re-run 'as a document with no period' (item 1 through the null pin) | `4 failed` | `test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing`, `test_an_analysed_document_whose_period_was_cleared_is_not_rerun_through_this_route`, `test_an_analysed_document_whose_stored_kind_is_not_a_summarys_reads_as_an_analysed_trial_balance` |
+| R-notakeover (O13) a run of a document that reads analysed and holds no period MAY take over another document's month | `2 failed` | `test_a_period_less_document_whose_analysis_only_its_own_row_claims_never_takes_over_another_documents_month` |
+| R-notmarked (O13) the hand-off does not mark such a run (the registry is never set) | `4 failed` | `test_a_period_less_document_whose_analysis_only_its_own_row_claims_never_takes_over_another_documents_month`, `test_an_analysed_document_whose_stored_kind_is_not_a_summarys_reads_as_an_analysed_trial_balance`, `test_such_a_document_whose_month_is_free_is_analysed_into_a_period_of_its_own` |
+| R-statusproof (O13 / quota-count-once) refused on `documents.status` alone (the ledger's proof dropped): a browser-written `analyzed` is refused instead of metered | `4 failed; 2 failed, 1 passed` | `test_a_period_less_document_whose_analysis_only_its_own_row_claims_never_takes_over_another_documents_month`, `test_an_analysed_document_whose_stored_kind_is_not_a_summarys_reads_as_an_analysed_trial_balance`, `test_p1_a_status_the_browser_wrote_never_skips_the_meter_on_retry` … (5 laws) |
+| R-anystatus (O13, control) EVERY period-less financial document reads as analysed (a failed first run is marked 'never takes over') | `2 failed, 3 passed` | `test_a_period_less_document_that_never_held_a_months_analysis_still_reruns` |
+| R-nosummary (O13, control) the stored public-records summary is not read (only the best-effort tag excuses the document) | `1 failed, 4 passed` | `test_a_period_less_document_that_never_held_a_months_analysis_still_reruns` |
+| R-alertsgone (O13) the hand-off of such a run deletes alerts by document id (rows a newer upload's takeover kept on ITS month) | `2 failed` | `test_a_period_less_document_whose_analysis_only_its_own_row_claims_never_takes_over_another_documents_month` |
+| R-container (O14) a source-less, stamp-less period is 'own' although another period names the document (a pin to an empty container) | `1 failed, 1 passed` | `test_a_pin_to_an_empty_container_of_the_month_never_leaves_two_periods_for_one_document` |
+| R-makeactive (O15) make-active wipes another analysed document's analysis (the refusal gone) | `2 failed, 5 passed; 1 failed, 4 passed` | `test_make_active_never_wipes_another_analysed_documents_analysis`, `test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month` |
+| R-makeactive-live (O15) make-active refuses only over a LIVE owner (an owner in Recently deleted loses its analysis) | `1 failed, 4 passed; 1 failed, 4 passed` | `test_make_active_never_wipes_another_analysed_documents_analysis`, `test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month` |
+| R-makeactive-any (O15, control) make-active refuses whatever the owner's status (a month whose own file FAILED can no longer be promoted over) | `1 failed, 4 passed; 2 failed, 3 passed` | `test_make_active_promotes_an_attachment_to_the_periods_analysis_source`, `test_make_active_route_promotes_and_requeues`, `test_make_source_still_promotes_where_no_analysed_documents_analysis_would_be_lost` |
+| R-nolock (S23) a takeover does not hold the company's lock (two threads interleave on one month) | `2 failed` | `test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply` |
+| R-nocompany (S24) the applier reads the month and the document its marker names WITHOUT the company (filter and re-check) | `4 failed` | `test_a_forged_committed_marker_never_reaches_another_companys_month`, `test_the_appliers_reads_of_the_month_and_the_document_name_the_company` |
+| R-ttl-committed (S14 / S29 / T8 / T9) the fifteen minutes apply to a COMMITTED row again (the briefing lost after a kill + a same-month upload) | `2 failed, 15 passed; 3 failed` | `test_a_rerun_killed_inside_its_apply_is_completed_when_a_member_next_opens_the_app`, `test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later`, `test_the_company_pass_clears_only_the_staged_rows_of_dead_runs` … (4 laws) |
+| R-notclaimed (S25 / S19) stage_persist does not say whose run makes the pass (an in-place run is later resumed OVER) | `2 failed, 1 passed` | `test_a_first_analysis_pays_two_light_reads_for_the_staged_rows_and_no_write`, `test_a_run_whose_own_interrupted_rerun_cannot_be_completed_stops_before_it_writes` |
+| R-startsettle (S25 / S19) a run does not settle its own document's leftover before its first stage (only minutes later, at its persist) | `2 failed` | `test_a_first_analysis_pays_two_light_reads_for_the_staged_rows_and_no_write`, `test_an_in_place_run_first_completes_its_own_documents_interrupted_rerun` |
+| R-writeunder (S25) a run writes its month under its own interrupted re-run that could not be completed | `1 failed` | `test_a_run_whose_own_interrupted_rerun_cannot_be_completed_stops_before_it_writes` |
+| R-redate (S26) an apply re-dates its row onto a month that became another row's (two live periods for one month) | `2 failed` | `test_an_apply_never_re_dates_its_row_onto_a_month_that_became_another_rows` |
+| R-alertkeys (S27) a staged run keys its alerts to the MONTH while storing them under the staged id (stage 2's shape: refused under the legacy unique) | `1 failed` | `test_a_staged_reruns_alerts_replace_the_months_where_the_legacy_unique_key_is_still_on_alerts` |
+| R-norekey (S27 / S1 / T9) the takeover does not re-key the run's alerts to the month | `6 failed, 1 passed; 2 failed` | `test_a_rerun_killed_inside_its_apply_is_completed_when_a_member_next_opens_the_app`, `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_staged_reruns_alerts_replace_the_months_where_the_legacy_unique_key_is_still_on_alerts` … (4 laws) |
+| R-MY2 (S28) one document's cleanup resumes / drops ANOTHER document's staged row (the document filter gone) | `4 failed` | `test_one_documents_cleanup_never_touches_another_documents_staged_row` |
+| R-MY12 (S28) a re-run is started although its document's earlier staged rows could not be listed | `1 failed` | `test_a_rerun_is_not_started_when_its_documents_earlier_staged_rows_cannot_be_listed` |
+| R-EV23 (S28) the handler writes 'did not finish' over the interrupted text when the staged rows cannot be read | `1 failed` | `test_a_handler_that_cannot_read_the_staged_rows_never_says_the_previous_analysis_is_still_served` |
+| R-EV4b (S28) the month check is gone from the MINT (the takeover's own look answers the same code, after the whole run) | `1 failed` | `test_a_refiled_rerun_whose_new_month_is_taken_is_refused_before_anything_is_staged_or_narrated` |
+| R-MY24 (S28) T0 accepts ANY period of the document's, not the one the run was staged beside | `1 failed` | `test_a_takeover_is_refused_before_any_write_when_the_month_it_was_staged_beside_is_no_longer_its_own` |
+| R-nowatchdog (S29 / T9) the page-mount watchdog completes nothing | `1 failed; 2 failed` | `test_a_rerun_killed_inside_its_apply_is_completed_when_a_member_next_opens_the_app`, `test_the_page_mount_watchdog_completes_an_interrupted_rerun_of_the_callers_own_company` |
+| R-watchdog-anyone (S29 / S24) the watchdog completes interrupted re-runs of EVERY company, whoever calls | `1 failed, 3 passed` | `test_the_page_mount_watchdog_completes_an_interrupted_rerun_of_the_callers_own_company` |
+| R-t5blind (S30) the month's row takes the run's columns whoever it names now, and the apply goes on (source out of the filter, no read-back) | `1 failed` | `test_a_month_that_changes_hands_while_its_takeover_is_applied_is_never_written_over_nor_reported_done` |
+| R-t6any (S16) the apply clears ANY error on the document's row (a superseded marker included) — what the live takeover did | `3 failed, 3 passed` | `test_the_resume_clears_only_a_marker_a_staged_rerun_wrote` |
+| R-kept-rekey (A1) the apply re-keys recommendations the month KEPT (a write on rows that must never be touched) | `3 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_lane_takeover_killed_after_any_write_is_dropped_or_resumed_to_the_same_result` |
+| R-kept-unsaid (S15 / A1) the commit marker does not say which tables the month keeps | `1 failed, 3 passed; 3 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_lane_takeover_killed_after_any_write_is_dropped_or_resumed_to_the_same_result`, `test_the_commit_point_comes_after_the_staged_only_work_and_before_the_month` |
+| R-unguarded-loop (S16) the apply's table loop is unconditional again: delete the month's rows, then move (a table another applier completed is emptied) | `5 failed` | `test_a_resume_interrupted_itself_is_resumed_again`, `test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result` |
+| R-lane-keepall (A4 / the census) the lane keeps the month's alerts across a same-month re-upload of ANOTHER file (stage 3's shape) | `2 failed, 13 passed` | `test_a_same_month_reupload_through_the_ai_lane_keeps_the_briefing_marked_and_never_the_old_files_alerts`, `test_census_the_lanes_takeover_is_told_what_the_lane_is` |
+| R-lane-keepnone (A1 / the census) the lane keeps the month's alerts across NO takeover (item 3: a re-run's alerts replaced by none) | `4 failed, 11 passed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_the_workspaces_plan_refuses_leaves_the_month_and_its_briefing_as_they_were`, `test_census_the_lanes_takeover_is_told_what_the_lane_is` |
+
+EARLIER PLANTS WHOSE TEXT THIS ROUND REWROTE, re-anchored on the code as it
+is now and run against the selection each was first run against:
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| RA-P28 (stage 2, re-anchored) a COMMITTED staged row is dropped instead of resumed | `19 failed, 16 passed; 10 failed, 2 passed` | `test_a_document_that_was_failed_over_its_period_is_analysed_once_its_rerun_took_over`, `test_a_rerun_is_not_started_over_an_interrupted_takeover_that_cannot_be_completed`, `test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl` … (13 laws) |
+| RA-harddelete (stage 2, re-anchored) a hard delete RESUMES the document's committed staged row instead of dropping it | `1 failed, 6 passed` | `test_a_committed_row_is_never_dropped_unless_its_document_is_being_deleted_for_good` |
+| RA-P27 (stage 2, re-anchored) a statement touches the MONTH before the commit point (its cached report is cleared first) | `10 failed, 5 passed` | `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_takeover_killed_before_its_commit_point_is_dropped_and_the_month_is_what_it_was`, `test_the_commit_point_comes_after_the_staged_only_work_and_before_the_month` |
+| RA-nodocmarker (stage 2, re-anchored) the commit point does not say `interrupted` on the document's row | `10 failed, 5 passed; 1 failed` | `test_a_rerun_killed_after_its_commit_point_is_completed_by_the_documents_next_rerun`, `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result` … (4 laws) |
+| RA-t6order (stage 2, re-anchored) the staged row is deleted BEFORE the document's row is written | `1 failed; 4 failed` | `test_a_rerun_killed_after_its_takeover_has_nothing_left_to_clean`, `test_the_commit_point_comes_after_the_staged_only_work_and_before_the_month` |
+| RA-t6status (stage 2, re-anchored) the apply's document write does not leave it analysed | `6 failed, 11 passed` | `test_a_document_that_was_failed_over_its_period_is_analysed_once_its_rerun_took_over`, `test_the_commit_point_comes_after_the_staged_only_work_and_before_the_month` |
+| RA-nopass (stage 2, re-anchored) stage_persist no longer runs the company pass | `1 failed; 3 failed` | `test_a_first_analysis_pays_two_light_reads_for_the_staged_rows_and_no_write`, `test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl`, `test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later` |
+| RA-ttl-young (stage 2, re-anchored) the company pass treats every staged row as dead (no fifteen minutes) | `2 failed, 14 passed` | `test_the_company_pass_clears_only_the_staged_rows_of_dead_runs` |
+| RA-P32 (stage 3, re-anchored) the lane's takeover is not told why the kept briefing is stale | `9 failed, 6 passed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun`, `test_a_lane_takeover_killed_by_a_restart_is_completed_by_another_documents_run_and_the_briefing_says_so` … (7 laws) |
+| RA-keeprecs (stage 3, re-anchored) the lane's takeover is not told to keep the recommendations (the census) | `1 failed, 14 passed` | `test_census_the_lanes_takeover_is_told_what_the_lane_is` |
+
+EARLIER PLANTS THAT STILL APPLY AS WRITTEN, replayed on the rewritten
+functions (the predicate, the takeover, the applier, the cleanup, the
+failure handler, the lane's exit):
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| RP-P16 (replayed as written) the marker rides along in the envelope the month's row takes | `6 failed` | `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_staged_takeover_replaces_its_own_months_analysis_and_leaves_nothing_behind` |
+| RP-P17 (replayed as written) the takeover leaves the month's cached benchmark report | `7 failed` | `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_staged_takeover_replaces_its_own_months_analysis_and_leaves_nothing_behind`, `test_an_uploads_takeover_clears_the_months_cached_benchmark_report_and_is_otherwise_what_it_was` |
+| RP-P22 (replayed as written) a re-filed re-run may take over a month that is another document's (both month checks gone) | `4 failed, 4 passed` | `test_a_refiled_rerun_is_refused_when_its_new_month_is_another_documents`, `test_a_refiled_rerun_never_takes_over_a_month_that_is_another_rows`, `test_a_refiled_rerun_whose_new_month_is_taken_is_refused_before_anything_is_staged_or_narrated` |
+| RP-P23 (replayed as written) the takeover does not look at ownership again (it reads the served row by id and company alone) | `4 failed, 2 passed; 2 passed` | `test_a_rerun_overtaken_by_a_newer_upload_leaves_the_newer_documents_month_exactly`, `test_a_staged_takeover_looks_at_ownership_again_and_writes_nothing_when_overtaken` |
+| RP-P24 (replayed as written) a permanent delete leaves the document's staged rows (neither hard-delete route drops them) | `4 failed, 2 passed` | `test_a_permanent_delete_takes_the_documents_staged_rows_with_it` |
+| RP-P25 (replayed as written) stage_persist takes a staged row for 'the month' (the lookup guard is gone) | `1 failed` | `test_an_upload_takes_over_the_served_row_never_a_stranded_staged_row` |
+| RP-P29 (replayed as written) the failure handler drops a committed row (resume=False) | `1 failed, 2 passed` | `test_a_takeover_refused_a_write_after_its_commit_point_is_completed_by_the_handler` |
+| RP-P30 (replayed as written) the document's next re-run does not clean up what an earlier one left | `14 passed; 1 failed` | `test_a_rerun_is_not_started_over_an_interrupted_takeover_that_cannot_be_completed` |
+| RP-P-emptied (replayed as written) a resume leaves the month's old rows in a table the run stored nothing in | **GREEN — NOT CAUGHT** `5 passed` |  |
+| RP-P-nocommit (replayed as written) the takeover never writes its commit marker (a death mid-apply is then dropped) | `15 failed; 1 failed` | `test_a_rerun_killed_after_its_commit_point_is_completed_by_the_documents_next_rerun`, `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result` … (6 laws) |
+| RP-P-resumeclear (replayed as written) the resume clears whatever the document's error holds | `3 failed, 3 passed` | `test_the_resume_clears_only_a_marker_a_staged_rerun_wrote` |
+| RP-P-route503 (replayed as written) a re-run is started over a committed row that could not be completed | `1 failed` | `test_a_rerun_is_not_started_over_an_interrupted_takeover_that_cannot_be_completed` |
+| RP-P-ttl-alive (replayed as written) the company pass does not spare a row whose document is in flight in this process | `3 failed, 13 passed` | `test_the_company_pass_clears_only_the_staged_rows_of_dead_runs` |
+| RP-P-resumeonto (replayed as written) a resume writes into a month that is another document's now | `1 failed, 2 passed` | `test_a_resume_with_nothing_to_resume_onto_drops_and_moves_nothing` |
+| RP-P-cleanupraises (replayed as written) the cleanup raises when the staged rows cannot be listed | `1 failed` | `test_the_cleanup_never_raises_when_the_store_cannot_be_read` |
+| RP-P-handlerleft (replayed as written) the handler says 'did not finish' over a committed row it could not complete | `1 failed` | `test_a_handler_that_cannot_complete_a_committed_takeover_leaves_the_row_and_the_marker` |
+| RP-P-resurrect (replayed as written) 'the staged row stands' when the month is no longer the document's (the upload takeover's rule) | `6 failed, 3 passed` | `test_a_document_or_period_deleted_mid_run_is_never_resurrected`, `test_a_rerun_overtaken_by_a_newer_upload_leaves_the_newer_documents_month_exactly`, `test_a_staged_takeover_looks_at_ownership_again_and_writes_nothing_when_overtaken` |
+| RP-P-mint (replayed as written) the staged row is inserted without looking at ownership again | `1 failed, 1 passed; 4 passed` | `test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands` |
+| RP-P-redate (replayed as written) a re-filed re-run does not re-date the document's row | `1 failed, 7 passed; 2 failed` | `test_a_docs_panel_rerun_that_files_the_document_under_another_month`, `test_a_staged_takeover_replaces_its_own_months_analysis_and_leaves_nothing_behind` |
+| RP-P-superseded (replayed as written) the failure handler writes over an archived copy's marker | `4 failed` | `test_a_failed_staged_rerun_never_writes_over_an_archived_copys_marker`, `test_a_rerun_overtaken_by_a_newer_upload_leaves_the_newer_documents_month_exactly` |
+| RP-P-ownstaged (replayed as written) a staged row can be a document's 'own' period | `1 failed` | `test_a_staged_row_is_never_a_documents_own_period` |
+| RP-R-P1 (replayed as written) the predicate accepts any period of the company (a period that names ANOTHER document is 'own') | `7 failed, 50 passed` | `test_a_metered_rerun_refused_under_the_claim_gives_its_reservation_back`, `test_a_period_that_changes_hands_between_the_look_and_the_claim_is_refused_under_the_claim`, `test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands` … (6 laws) |
+| RP-R-P7 (replayed as written) a document with no pin 'holds no period': the ownership lookup is skipped | `5 failed, 52 passed` | `test_a_document_with_no_pin_is_staged_beside_the_period_the_engine_wrote_never_run_in_place`, `test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing`, `test_an_analysed_document_whose_period_was_cleared_is_not_rerun_through_this_route` … (4 laws) |
+| RP-R-P8 (replayed as written) a period that names no source is anyone's | `4 failed, 53 passed` | `test_a_period_that_names_no_source_is_the_documents_only_when_that_can_be_shown`, `test_a_pin_to_an_empty_container_of_the_month_never_leaves_two_periods_for_one_document` |
+| RP-R-P8b (replayed as written) ownership that cannot be read is taken for 'holds no period' (the re-run starts blind) | `3 failed, 54 passed; 2 failed` | `test_a_period_that_cannot_be_read_refuses_the_rerun_and_resets_nothing`, `test_ownership_that_cannot_be_read_does_not_start_the_rerun` |
+| RP-R-P9 (replayed as written) a deleted document is promoted / moved again (the guard is gone) | `2 failed, 55 passed` | `test_a_deleted_document_is_neither_promoted_nor_moved` |
+| RP-R-P-census (replayed as written) a seventh, unclassified delete of a period | `1 failed, 56 passed` | `test_census_every_delete_of_a_period_is_a_stated_site_with_its_ownership_rule` |
+| RP-P-reasoncode (replayed as written) the reason of a run that narrates nothing IS a narration code (`provider_error`) | `4 failed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing`, `test_the_reason_of_a_run_that_narrates_nothing_is_not_a_narration_code` |
+| RP-P-flagall (replayed as written) EVERY run is told to re-extract (a first analysis, an upload, a retry with no period) | `2 failed` | `test_a_same_month_reupload_through_the_ai_lane_keeps_the_briefing_marked_and_never_the_old_files_alerts`, `test_only_a_staged_rerun_tells_the_extract_stage_to_re_extract_and_the_flag_is_never_stored` |
+| RP-P33 (replayed as written) a staged re-run does not tell the extract stage to re-extract (the lane's cache answers: a silent no-op) | `9 failed, 6 passed` | `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun`, `test_a_lane_takeover_killed_by_a_restart_is_completed_by_another_documents_run_and_the_briefing_says_so` … (7 laws) |
+| RP-P34 (replayed as written) a staged re-run that reads as a public-records summary is not refused (analysed with no period over its month) | `1 failed, 1 passed` | `test_a_rerun_that_now_reads_as_a_public_records_summary_is_refused_before_any_write` |
+| RS-P-emptied (replayed, the positive control in the selection) a resume leaves the month's old rows in a table the run stored nothing in | `1 failed, 8 passed` | `test_a_staged_takeover_replaces_its_own_months_analysis_and_leaves_nothing_behind` |
+
+**RED** — 75 of 76 exit `1` (34 of 34 new,
+10 of 10 re-anchored, 31 of 32 replayed). Not caught:
+RP-P-emptied.
+
+`RP-P-emptied` IS THE INSTRUCTIVE ROW. Replayed against the selection it was
+first run against, it is NOT CAUGHT: that selection compares a RESUME with
+the uninterrupted takeover, and since this round both run the one applier —
+the plant changes both alike. The takeover's positive control, which STATES
+the expected rows of each variant, catches it (`RS-P-emptied`, the same edit
+with that law in the selection). So, from this round on: the kill laws hold
+CONVERGENCE (an apply interrupted anywhere ends where an uninterrupted one
+does); what an uninterrupted one must BE is held by the stated control; a
+plant in the applier is run against both.
+
+Of the 96 plants of stages 1 to 3, 12 no longer apply as written
+(`plants_review_fix.py dry`): ten are the re-anchored rows above; `P18`
+(alerts keyed to the staged row) is now the code itself, and its opposite is
+`R-alertkeys`; `P31` is `R-lane-keepnone`.
+
+**REVERT** — every file restored byte-exact after each plant; the gate's own
+command, exit `0`: `218 passed`. No plant marker left in `src/`.
+
+**TWO PASSES.** The table is the first pass, on a copy of `d4a4165d`. The
+round's last engine commit (`fcab3277`: a run settles its own document's
+leftover before its first stage) changed two laws (S19, S25) and added one
+plant (`R-startsettle`); the plants of those laws were run again on a copy
+of that tip, where `RS-P-emptied` ran too — `R-notclaimed`, `R-startsettle`, `R-writeunder`, `RA-nopass`, `RS-P-emptied` — and their rows
+above show that second pass. Every one of the 80 plants applies
+exactly once to the tip (`plants_review_fix.py check`).
+
+### rerun-refusal-surfaces — the review of 2026-10-05: "Make source" refused over another file's analysis
+
+The engine's `make-active` refuses over another analysed file's analysis
+(`rerun-data-loss`, O15) with a code and an English sentence. The file row
+printed whatever sentence the server sent. `periodFiling.post()` now carries
+the refusal's code out of the answer (`FilingRefused`), and `PeriodFileRow`
+prints OUR sentence for it in the reader's language — "This month already
+has an analysis from another file, so this file was not made its source and
+nothing was changed. To use this file for the month, upload it again." /
+"Luna are deja o analiză făcută din alt fișier, așa că acest fișier nu a
+devenit sursa ei și nu s-a schimbat nimic. Ca să folosești acest fișier
+pentru lună, încarcă-l din nou." — and, for any other refusal, the server's
+message as before. Law:
+`frontend/components/cfo/workspace/__tests__/makeSourceRefusal.test.tsx` (7
+tests): the REAL row and the REAL client call over a fetch that answers with
+`tests/engine/fixtures/rerun/make_active_refused_another_analysis.json` — the
+body the engine law holds the real handler to. The gate runs five files and
+measures **93** (34 + 16 + 31 + 5 + 7); canary added: `ro: the real route's
+answer over another file's analysis`.
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| R-F-serverwords (the row) the file row prints the server's sentence for the known code (English, whatever the reader's language) | `1 failed; 92 passed (93)` | `ro: the real route's answer over another file's analysis` |
+| R-F-nocode (the client) the client drops the refusal's code | `2 failed; 91 passed (93)` | `ro: the real route's answer over another file's analysis`, `the committed answer of the real route → FilingRefused with the code` |
+| R-F-barekey (the row) the code maps to a key the strings do not hold (the key is printed) | `3 failed; 90 passed (93)` | `carries the code this screen knows, and the engine's own literal is the same`, `en: the real route's answer over another file's analysis`, `ro: the real route's answer over another file's analysis` |
+| R-F-everycode (the row) OUR sentence is printed for every refusal, whatever its code | `2 failed; 91 passed (93)` | `a refusal with another code still shows the server's sentence, never ours`, `carries the code this screen knows, and the engine's own literal is the same` |
+
+**RED** — 4 of 4 exit `1` (the gate's own command, each ALONE, in
+the copy of the committed tree; runner `plants_review_fix.py frontend`).
+**BASELINE** `93 passed (93)`.
+
+**REVERT** — exit `0`: `93 passed (93)`.
+
+**After the repair it reds on:** the server's English shown for the known
+code; the bare code or the key on screen; the sentence in the wrong
+language; our sentence shown for a refusal that carries another code; a
+second request, or one that does not name the file; `onChanged` fired for a
+refusal.
+
+**CANNOT SEE:** the real network and the real route (the engine gate holds
+the handler to the fixture's body); the Docs panel — it has no "Make
+source"; a refusal code the engine adds later (its server sentence is shown,
+in English).
