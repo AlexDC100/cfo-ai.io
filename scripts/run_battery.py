@@ -2724,10 +2724,37 @@ def _engine_gates() -> List[Gate]:
         # a non-figure re-spelt because a currency or unit stands beside
         # it ("Versiunea 2.1 RON"); a text HELD as written (counted — it
         # still holds the model's notation).
+        #
+        # ROUND 2 (three reviews, 2026-10-05, all "do not ship"): what is
+        # NOT a figure was re-spelt because a figure followed it —
+        # "Contul 5121.01 – 1.234.567,89 RON" came back "5121,01", "Sold
+        # la 31.12 – 5,2 mil. RON" as "31,12", in one pass or in the
+        # second — and both gates were green: no fixture held an id
+        # before a spaced dash, and the reader reads amounts, not whether
+        # a token is one. Now: E15 THE LABEL GRAMMAR (labels.json, 29,263
+        # texts: an account / date / reference / list / plain / period
+        # label x an id x a separator x an amount) — the id's bytes
+        # survive, a second pass changes nothing, the digest is the
+        # browser's; E16 the independent reader over all 12,000 composed
+        # outputs (its flags pinned, each read by hand); E17 one
+        # recommendation is one text, read off the STORED row, and the
+        # pass never changes what a stored briefing is read as; E18 a
+        # code that only changes sides beside a lone group moves, and no
+        # number token changes; E19 the time of a long unbroken run grows
+        # with its length, not its square. The corpus holds 198 cases (a
+        # hedged range, an in-line space the product does not write, a
+        # year-shaped amount before a count, a bare integer beside a
+        # code — each left as written, counted); the grid's 36 bare
+        # integers after a code come back byte-identical. The canary line
+        # prints `mixed=`: corpus outputs that still hold both notations.
+        # Measured 453 tests. Blind to: an id of the shape NNN.NNN
+        # outside an account word (a lone group to every reader); a
+        # non-figure with a unit RIGHT beside it and no account word
+        # ("Versiunea 2.1 RON").
         Gate("ai-figures-engine",
              [PY, "-m", "pytest", "-p", "netblock",
               "tests/engine/test_ai_figure_format.py", "-q"],
-             work_junit=True, floor=357, units="tests",
+             work_junit=True, floor=453, units="tests",
              canaries=("test_e3_the_detector_is_the_frontends_every_pattern_is_read_out_of_its_file_and_compiles",
                        "test_e2_the_standard_and_the_hint_examples_are_what_lib_money_prints",
                        "test_the_corpus_is_what_it_says_it_is",
@@ -2741,7 +2768,15 @@ def _engine_gates() -> List[Gate]:
                        "test_e11_the_reviews_sentences_come_back_as_written_and_counted",
                        "test_e11_joiners_the_product_did_not_write_are_read_as_spaces_and_kept_as_bytes",
                        "test_e12_a_text_holding_a_lone_group_is_returned_whole_whatever_else_it_holds",
-                       "test_e12_the_narrator_holds_each_prose_field_on_its_own",
+                       "test_e17_one_recommendation_is_one_text_a_lone_group_in_any_field_holds_every_field",
+                       "test_e17_the_stored_recommendation_is_never_half_rewritten",
+                       "test_e17_the_pass_never_changes_what_a_stored_briefing_is_read_as",
+                       "test_e18_a_code_that_only_changes_sides_beside_a_lone_group_is_moved_and_no_number_changes",
+                       "test_e15_the_label_grammar_an_id_beside_an_amount_survives_and_a_second_pass_changes_nothing",
+                       "test_e16_the_reader_over_the_composed_set_flags_exactly_what_was_read_by_hand",
+                       "test_e19_the_time_of_a_long_unbroken_run_grows_with_its_length_not_with_its_square",
+                       "test_e19_the_shortcuts_change_no_output",
+                       "test_e7_a_field_the_pass_raised_on_keeps_the_models_text_and_is_counted_and_logged_as_a_defect",
                        "test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_twin_digest_holds",
                        "test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_another_number",
                        "test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_format",
@@ -2800,7 +2835,25 @@ def _engine_gates() -> List[Gate]:
         # the card shows a narration stamped in another language as
         # served; a figure inside a link label and a reply that is one
         # bare figure are corpus cases.
-        # Measured 765 tests. Blind to: what a model writes; a text HELD
+        #
+        # ROUND 2 (2026-10-05): a reply that does not show its own
+        # language was formatted in the language of the QUESTION or of an
+        # earlier turn — a Romanian request for an English table came
+        # back in Romanian notation, a correct "Marja EBITDA este 11,1%."
+        # after one English exchange was stored "11.1%", a Spanish "57,7M
+        # EUR" became "57,7 mil. EUR" — and every language law handed the
+        # text its own language as context. Now the text's OWN words
+        # decide (a caller confirms them, or decides for a text with no
+        # words; Explain and the card pass a language they KNOW), held by
+        # laws that hand every corpus reply the OTHER language's question
+        # and turn, the review's conversations through the real send
+        # pipeline, and the seven other languages after a Romanian and an
+        # English question. The eight corpus replies whose words show no
+        # language are stored as written in a chat — named in the gate.
+        # Also the browser's half of the engine's round: the label
+        # grammar and its digest, a code that only changes sides, the
+        # grid's 36 bare integers, 100 KB runs beside an "@".
+        # Measured 957 tests. Blind to: what a model writes; a text HELD
         # as written (counted; it still holds the model's notation); a
         # token left by design; the deployed function's source; the
         # report page and the exports; a bundle older than the release.
@@ -2813,7 +2866,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/explainFigures.test.ts",
               "frontend/components/cfo/__tests__/briefingCardFigures.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=755,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=947,
              units="figure-format tests", no_skips=True,
              canaries=("GATE-WORK ai-figures-standard grid=984 lone=120 examples=12",
                        "POSITIVE CONTROL: it sees the shapes the base patterns cannot",
@@ -2843,11 +2896,19 @@ def _engine_gates() -> List[Gate]:
                        "the composition is deterministic and varied, and holds the review's shapes",
                        "the structure reader sees a magnitude read as another, a dropped sign",
                        "with the proof blinded a rule that loses a sign changes what is shown",
-                       "984 rows: 864 rewritten to the print byte for byte",
+                       "984 rows: 828 rewritten to the print byte for byte",
                        "FIGURE_STANDARD equals standard.json",
                        "de: a narration in another language is not changed by a byte",
                        "pl: a narration in another language is not changed by a byte",
-                       "a text too short to tell is not touched on its own",
+                       "a text with NO words takes the language of the question it answers",
+                       "every corpus reply in its RIGHT notation, placed after a question",
+                       "the review's conversations: a short correct reply after an exchange in the other language",
+                       "es: a reply in another language is not changed by a byte after a Romanian or an English question",
+                       "pl: a reply in another language is not changed by a byte after a Romanian or an English question",
+                       "29,263 texts: the id's bytes survive, a second pass changes nothing",
+                       "the review's sentences, typed here: a label before a spaced dash",
+                       "14 beside a lone group a code still changes sides",
+                       "100 KB runs beside an address, each inside a second",
                        "an English answer that quotes Romanian terms is English",
                        "no word Spanish, Portuguese or Italian shares makes a text Romanian",
                        "with one English gloss, is NOT read as English",
@@ -2862,7 +2923,9 @@ def _engine_gates() -> List[Gate]:
                        # the chat, and the command bar's guard
                        "GATE-WORK ai-figures-chat turns=",
                        "the snapshot's figures reach the pass",
-                       "a reply too short to tell its language takes the QUESTION's",
+                       "a reply with NO words takes the QUESTION's language",
+                       "each is a WRONG reply the same pass formats the moment the language is known",
+                       "the review's conversations (round 2)",
                        "what the pipeline logs about a reply is its language and COUNTS by reason",
                        "Spanish and Portuguese share words with Romanian, not its format",
                        "a correct Romanian reply written as labels with one English gloss keeps its right figures",

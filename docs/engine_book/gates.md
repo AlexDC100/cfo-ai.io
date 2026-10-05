@@ -30738,3 +30738,233 @@ card re-spelling a narration stamped in another language.
    (with ă, ș, ț) is read as English only where the question is English; a short reply whose few
    words point one way while its question points the other is not touched.
 5. **The briefing card believes a stamp that names another language** (es, pt, de …): shown as served.
+
+### ai-figures / ai-figures-engine — round 2, after three reviews (2026-10-05)
+
+Three independent reviewers read the lane after its first fix round — values, the reader, the seam —
+and all three said do not ship. Every blocking and high finding was reproduced on `24092aa3` before
+anything was touched: 101 probe sentences (the values review's own four files) gave its transcript
+on both twins, byte for byte.
+
+**What was wrong, and both gates were green on it**
+
+| the finding | on `24092aa3` | why no law saw it |
+|---|---|---|
+| an account, a date, a note number re-spelt as a decimal because a figure follows it | "Contul 5121.01 – 1.234.567,89 RON" → "Contul 5121,01 – …"; "Sold la 31.12 – 5,2 mil. RON" → "31,12" — in a reply ALREADY in the product's format | no fixture held an id before a spaced dash; the independent reader reads amounts, not whether a token is one |
+| a second pass changes the text | "Sold la 31.12 - RON 5.2M" → pass 1 leaves "31.12" (counted `possible_date`), pass 2 writes "31,12": 521 of 136,000 runs | the idempotence laws ran over the corpus and the composed set, which had no label–dash–amount |
+| a code before a hedged range moves onto the first bound | "între EUR 40 și circa 55 milioane" → "între 40 EUR și circa 55 milioane" | the reader's joiner needed the bare word |
+| a code moves INSIDE a number grouped with a thin space | "EUR 12 300 000" (U+2009) → "12 EUR 300 000" | the rule, the proof and the reader all read three spaces |
+| the year exception moves a code off an amount | "Capital social 2000 RON 100 părți" → "2000 100 RON părți" | the proof and the reader carried the same exception |
+| a reply that does not show its language takes the question's | a Romanian request for an English table → "287.340.915 RON"; after one English exchange "Marja EBITDA este 11,1%." → "11.1%"; a Spanish "57,7M EUR" → "57,7 mil. EUR" | every language law handed the text its own language as context |
+| a stored recommendation is half rewritten | rationale and actions are stored as ONE explanation; held per field, "RON 386,102" stood alone in the other notation among rewritten figures | the law asserted the per-field behaviour |
+| the hold fires where only a code would move | an English briefing in its own notation with one 4–6 digit amount came back untouched | — (a loss of usefulness, not of a value) |
+| the pass is quadratic on an unbroken run | 0.37 – 10.1 s for 20 KB, inside the request | the engine gate had no time law; the browser's had no "@" |
+
+**The repairs** (both twins: `src/engine/ai/figure_format.py`, `frontend/lib/readerFigures.ts`). The
+rule of every one: when in doubt the pass leaves the text as the model wrote it and counts it.
+
+1. A number takes a range partner's evidence only across a dash written against both ("1.2-1.5%")
+   or between an opener and ITS joiner ("între … și", "between … and", "from … to", "de la …
+   (până) la") — and still passes the reference, outline and date guards. A spaced dash is what
+   stands between a label and its amount.
+2. After an ACCOUNT WORD (a closed list of whole words: cont, contul, analiticul, account, …) a
+   number is an account — `reference` — whatever stands beside it: a currency, a unit, a dash.
+3. A BARE INTEGER BESIDE A CODE STAYS: "cont RON 5121", "În EUR 3 scenarii", "între EUR 40 și circa
+   55 milioane", "Argumentul $1". A code moves only behind a number written as an amount — a
+   decimal part, a grouping, a magnitude. Counted `code_before`.
+4. A code-first number with no magnitude of its own whose NEXT number carries one and names no
+   currency, in the same sentence; one hedge word after a joiner; an en dash as the second bound's
+   sign; any space that can stand inside a line as a group separator: one expression, left as
+   written, counted `open_amount`.
+5. A code after a year-shaped number is the next figure's only when that figure is written as an
+   amount ("În 2025 RON 64.5M"); otherwise neither number takes it.
+6. An opener's range is rewritten at both bounds ("între RON 191.3M și RON 318.8M") or at neither.
+7. "$" behind emphasis or a colon after another currency's code is not written USD; in a text that
+   names an interbank rate, "EUR 3M" is a tenor.
+8. The hold ("never half a text") fires only where a number would be RESHAPED — separators
+   exchanged, a magnitude re-spelt. A code that only changes sides is moved.
+9. One recommendation is one text (`normalise_narrate_result`): a lone group in any field and a
+   reshaped figure in any other return every field as the model wrote it; `actions` as one string is
+   walked; the pass never changes what `stored_briefing_failure_code` reads a briefing as; a field
+   the pass raised on is counted `errors` and logged at WARNING.
+10. Never slow: the e-mail alternative's local part is bounded and the alternative is skipped
+    without an "@"; word scans are bounded; the line start is found without a walk.
+11. THE LANGUAGE (browser). The text's own words decide: strong evidence wins; evidence of BOTH
+    languages is never touched; words of one language are followed where the caller agrees or says
+    nothing; a text with no words takes the caller's; words that are neither language's take only a
+    language the caller KNOWS (`known`: the one Explain asked for, the engine's `ro` stamp) — never
+    one read off a question. Romanian is confirmed only by a word or a letter no other narration
+    language has; the list gained the Romanian-only words of a finance reply ("numerarul",
+    "cursul", "veniturile", …), the English one words no other narration language writes.
+
+**The laws** — `ai-figures-engine`: E15 the label grammar (`labels.json`, 29,263 texts — the id's
+bytes survive, a second pass changes nothing, the reader flags nothing, the digest is the
+browser's), E16 the independent reader over the composed set (its 12 flags pinned by index, each
+read by hand), E17 one recommendation is one text (read off the stored row) and the verdict guard,
+E18 a code that only changes sides, E19 growth (10 KB against 40 KB) and the shortcuts, E7 a field
+the pass raised on; the corpus 156 → 198 cases; the grid's third outcome. `ai-figures`: laws 13 and 14, the language laws with the
+OTHER language as context, the review's conversations through the real send pipeline, the list of
+the eight corpus replies a chat leaves as written.
+
+**Measured on the repaired tree** (no model was called; every engine run under `-p netblock`):
+
+| | `24092aa3` | now |
+|---|---|---|
+| the values review's 68,000 texts, with and without handed figures: twin differences | 0 of 136,000 | 0 of 136,000 |
+| … texts a second pass changes | 521 | 0 |
+| … runs where the review's own reader reads another figure list | 814 | 14 (handed bare decimals, the judged anchor rule; one stop merged into "mil.") |
+| the label grammar: ids re-spelt / second-pass changes | 4,236 / 1,220 of 29,263 | 0 / 0 |
+| 20 KB unbroken run, engine (word chars · letters and digits · "1.5%" · "1.5-" · bare decimals) | 0.37 · 0.43 · 7.4 · 10.1 · 2.5 s | 0.005 · 0.17 · 0.25 · 0.26 · 0.13 s |
+| the reader review's 120 Romanian replies in the incident's notation, chat, first turn: fully right / language unknown | 45 / 40 | 62 / 18 |
+| … its 120 correct Romanian and 40 correct English replies: unchanged | 160 | 160 |
+
+#### both gates, round 2 — PLANT / RED / REVERT
+
+Each defect planted ALONE in the worktree, the gate run, the file restored byte for byte (sha256
+compared); one runner at a time, behind a lock file. Two runs: the first on `6617bd7c`, the second
+— the plants the first run asked for — on `f6d2ae0e` (the two trees give the same outputs: both
+digests are unchanged between them).
+
+FIRST RUN, `6617bd7c` — BASELINE {'engine': (0, '448 passed in 51.59s'), 'browser': (0, 'Tests 945 passed (945)')}
+
+| # | PLANT | file | RED |
+|---|---|---|---|
+| E1 | a spaced dash lets a number take the next figure's evidence again ("Contul 5121.01 – 1.234.567,89 RON" -> "5121,01") | `figure_format.py` | **RED** — engine: 7 failed, 441 passed (test_e1, test_e10, test_e13, test_e15) |
+| E2 | evidence borrowed from a range partner skips the reference / outline / date guards | `figure_format.py` | **RED** — engine: 3 failed, 445 passed (test_e10, test_e13, test_e15) |
+| E3 | the account-word guard is gone ("Contul 5124.01 EUR" -> "5124,01 EUR") | `figure_format.py` | **RED** — engine: 22 failed, 426 passed (test_e1, test_e10, test_e13, test_e15, test_e16…) |
+| E4 | a bare integer beside a code is moved again ("cont RON 5121", "În EUR 3 scenarii") | `figure_format.py` | **RED** — engine: 14 failed, 434 passed (test_e1, test_e10, test_e13, test_e16, test_e4) |
+| E5a | a magnitude shared words apart is not seen ("EUR 1.5 în primul an și de 2.5M") | `figure_format.py` | **RED** — engine: 4 failed, 444 passed (test_e1, test_e10, test_e13, test_e4) |
+| E5b | a hedge word after a joiner is not read ("RON 1.5M, eventual 2.5 milioane") | `figure_format.py` | **RED** — engine: 6 failed, 442 passed (test_e1, test_e10, test_e11, test_e13, test_e4) |
+| E6 | an en dash before the second bound is not its sign ("RON 5.2M, respectiv –3.1M") | `figure_format.py` | **RED** — engine: 6 failed, 442 passed (test_e1, test_e10, test_e11, test_e13, test_e4) |
+| E7 | only the three spaces the product writes group digits (U+2009 and a figure space do not) | `figure_format.py` | **GREEN** — engine: 448 passed |
+| E8 | a code after a year-shaped number is the next number's whatever it is ("2000 RON 100 părți") | `figure_format.py` | **RED** — engine: 1 failed, 447 passed (test_e1) |
+| E9a | an opener's range: the second bound is rewritten while the first is left | `figure_format.py` | **RED** — engine: 2 failed, 446 passed (test_e1, test_e4) |
+| E9b | an opener's range is never read to its end ("între RON 191.3M și RON 318.8M" half rewritten) | `figure_format.py` | **RED** — engine: 4 failed, 444 passed (test_e1, test_e10, test_e13, test_e4) |
+| E10 | "$" is named USD behind emphasis or a colon ("**CAD** $7.5M" -> "7,5 mil. USD") | `figure_format.py` | **RED** — engine: 4 failed, 444 passed (test_e1, test_e10, test_e13, test_e4) |
+| E11 | a tenor after a code is a million ("EUR 3M" beside ROBOR -> "3 mil. EUR") | `figure_format.py` | **RED** — engine: 4 failed, 444 passed (test_e1, test_e10, test_e13, test_e4) |
+| E12 | the hold fires on any rewrite again: a text whose codes alone would move is returned whole | `figure_format.py` | **RED** — engine: 10 failed, 438 passed (test_e1, test_e10, test_e13, test_e16, test_e18…) |
+| E13 | a recommendation is held field by field again (the stored explanation comes out half rewritten) | `figure_format.py` | **RED** — engine: 2 failed, 446 passed (test_e17) |
+| E14 | `actions` given as one string is not rewritten | `figure_format.py` | **RED** — engine: 2 failed, 446 passed (test_e17, test_e7) |
+| E15 | the pass may change what a stored briefing is read as ("Error code: RON 1,250.50" -> "Error code: 1.250,50 RON") | `figure_format.py` | **RED** — engine: 1 failed, 447 passed (test_e17) |
+| E16 | the backward word scan is unbounded again (quadratic on an unbroken run) | `figure_format.py` | **RED** — engine: 4 failed, 444 passed (test_e19) |
+| E17 | the e-mail alternative's local part is unbounded again (quadratic on a run beside an address) | `figure_format.py` | **RED** — engine: 2 failed, 446 passed (test_e19) |
+| E18 | REPLAY O1 (the review's green plant): any four-digit integer is a year | `figure_format.py` | **RED** — engine: 6 failed, 442 passed (test_e1, test_e4) |
+| E19 | REPLAY O6 (the review's green plant): a colon joins a range ("Poziția 12.5: 15%" -> "12,5") | `figure_format.py` | **RED** — engine: 2 failed, 446 passed (test_e10, test_e15) |
+| R1 | the independent reader does not read a hedge word after a joiner | `_figure_reader.py` | **RED** — engine: 2 failed, 446 passed (test_e11, test_e16) |
+| R2 | the independent reader reads three spaces only | `_figure_reader.py` | **RED** — engine: 1 failed, 447 passed (test_e11) |
+| R3 | the independent reader hands a code after a year to any number | `_figure_reader.py` | **RED** — engine: 3 failed, 445 passed (test_e10, test_e11) |
+| B1 | browser: a spaced dash lets a number take the next figure's evidence again | `readerFigures.ts` | **RED** — browser: Tests 22 failed | 923 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B2 | browser: borrowed evidence skips the guards | `readerFigures.ts` | **RED** — browser: Tests 3 failed | 942 passed (945) (readerFigures.test.ts) |
+| B3 | browser: the account-word guard is gone | `readerFigures.ts` | **RED** — browser: Tests 33 failed | 912 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B4 | browser: a bare integer beside a code is moved again | `readerFigures.ts` | **RED** — browser: Tests 28 failed | 917 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B5a | browser: a magnitude shared words apart is not seen | `readerFigures.ts` | **RED** — browser: Tests 9 failed | 936 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B5b | browser: a hedge word after a joiner is not read | `readerFigures.ts` | **RED** — browser: Tests 8 failed | 937 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B6 | browser: an en dash before the second bound is not its sign | `readerFigures.ts` | **RED** — browser: Tests 8 failed | 937 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B7 | browser: only the three spaces the product writes group digits | `readerFigures.ts` | **GREEN** — browser: Tests 945 passed (945) |
+| B8 | browser: a code after a year-shaped number is the next number's whatever it is | `readerFigures.ts` | **RED** — browser: Tests 1 failed | 944 passed (945) (readerFigures.test.ts) |
+| B9a | browser: an opener's range: the second bound is rewritten while the first is left | `readerFigures.ts` | **RED** — browser: Tests 7 failed | 938 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B9b | browser: an opener's range is never read to its end | `readerFigures.ts` | **RED** — browser: Tests 11 failed | 934 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B10 | browser: "$" is named USD behind emphasis or a colon | `readerFigures.ts` | **RED** — browser: Tests 11 failed | 934 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B11 | browser: a tenor after a code is a million | `readerFigures.ts` | **RED** — browser: Tests 10 failed | 935 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B12 | browser: the hold fires on any rewrite again | `readerFigures.ts` | **RED** — browser: Tests 17 failed | 928 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| B16 | browser: the backward word scan is unbounded again | `readerFigures.ts` | **RED** — browser: Tests 2 failed | 943 passed (945) (readerFigures.test.ts) |
+| B17 | browser: the e-mail alternative's local part is unbounded again | `readerFigures.ts` | **RED** — browser: Tests 1 failed | 944 passed (945) (readerFigures.test.ts) |
+| B18 | browser: REPLAY O1 — any four-digit integer before a code and an amount is a year | `readerFigures.ts` | **GREEN** — browser: Tests 945 passed (945) |
+| B19 | browser: REPLAY O6 — a colon joins a range | `readerFigures.ts` | **RED** — browser: Tests 2 failed | 943 passed (945) (readerFigures.test.ts) |
+| L1 | a question or an earlier turn decides for a reply of labels again (an English table asked for in Romanian is re-spelt) | `readerFigures.ts` | **RED** — browser: Tests 42 failed | 903 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, readerFigures.test.ts) |
+| L2 | a word Spanish or Portuguese shares confirms Romanian ("este" after a Romanian question) | `readerFigures.ts` | **RED** — browser: Tests 12 failed | 933 passed (945) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, readerFigures.test.ts) |
+| L3 | a text with evidence of both languages takes the caller's (a bilingual reply is re-spelt) | `readerFigures.ts` | **RED** — browser: Tests 3 failed | 942 passed (945) (chatReplyFigures.test.tsx, readerFigures.test.ts) |
+| L4 | Explain hands the asked language as a hint, not as what it knows | `explain.ts` | **RED** — browser: Tests 10 failed | 935 passed (945) (explainFigures.test.ts) |
+| L5 | the briefing card hands the engine's stamp as a hint, not as what it knows | `CFOBriefingCard.tsx` | **RED** — browser: Tests 6 failed | 939 passed (945) (briefingCardFigures.test.tsx) |
+| L6 | what a caller says overrules the text's own words | `readerFigures.ts` | **RED** — browser: Tests 4 failed | 941 passed (945) (readerFigures.test.ts) |
+
+REVERT {'engine': (0, '448 passed in 50.70s'), 'browser': (0, 'Tests 945 passed (945)')} · tree clean
+
+48 plants, 45 RED. **GREEN: E7, B7, B18** — and each was acted on, not recorded and left:
+
+- **E7 / B7** ("only the three spaces the product writes group digits"): the in-line-space test this
+  round had added to the closure was REDUNDANT — the number after the space is always an item, and
+  the connective already folds every in-line space. The closure went back to what it was; the fold
+  is the one rule, and its plants are X8 / X9 below. The run-time proof's wider spaces had no law
+  either: one planted control per gate, plants X10 / X11.
+- **B18** (the review's O1, at ONE site of the browser's twin): the second site held the output.
+  The twin read a year with five inline patterns; it has one definition now (`isYear`), as the
+  engine's `_YEAR` — the replay is B18b below.
+
+SECOND RUN, `f6d2ae0e` — BASELINE {'engine': (0, '453 passed in 50.99s'), 'browser': (0, 'Tests 957 passed (957)')}
+
+| # | PLANT | file | RED |
+|---|---|---|---|
+| B18b | browser: REPLAY O1 — any four-digit integer is a year (the twin's ONE definition, as the engine's plant E18) | `readerFigures.ts` | **RED** — browser: Tests 10 failed | 947 passed (957) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| X1 | an opener pairs with any joiner again ("la 4.5 și 12.5%" -> "4,5") | `figure_format.py` | **RED** — engine: 3 failed, 450 passed (test_e1, test_e10, test_e13) |
+| X2 | emphasis marks before a reference word hide it ("**art. 9.19" handed -> "9,19") | `figure_format.py` | **RED** — engine: 1 failed, 452 passed (test_e1) |
+| X3 | a currency in words counts as a magnitude the first amount shares ("RON 1,234,567.89, eventual 12.5 lei" left whole) | `figure_format.py` | **RED** — engine: 6 failed, 447 passed (test_e1, test_e10, test_e13, test_e4) |
+| X4 | a field the pass raised on is not counted as an error (a defect reads as a proof refusal) | `figure_format.py` | **RED** — engine: 1 failed, 452 passed (test_e7) |
+| X5 | browser: an opener pairs with any joiner again | `readerFigures.ts` | **RED** — browser: Tests 10 failed | 947 passed (957) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| X6 | browser: emphasis marks before a reference word hide it | `readerFigures.ts` | **RED** — browser: Tests 4 failed | 953 passed (957) (chatReplyFigures.test.tsx, readerFigures.test.ts) |
+| X7 | browser: a currency in words counts as a magnitude | `readerFigures.ts` | **RED** — browser: Tests 15 failed | 942 passed (957) (briefingCardFigures.test.tsx, chatReplyFigures.test.tsx, explainFigures.test.ts, readerFigures.test.ts) |
+| X8 | only the two no-break spaces are read as a space between numbers (a thin-space group is cut out of its expression) | `figure_format.py` | **RED** — engine: 2 failed, 451 passed (test_e1) |
+| X9 | browser: only the two no-break spaces are read as a space between numbers | `readerFigures.ts` | **RED** — browser: Tests 2 failed | 955 passed (957) (readerFigures.test.ts) |
+| X10 | the run-time proof reads three spaces only (a code landing inside a thin-space number passes it) | `figure_format.py` | **RED** — engine: 1 failed, 452 passed (test_e14) |
+| X11 | browser: the run-time proof reads three spaces only | `readerFigures.ts` | **RED** — browser: Tests 1 failed | 956 passed (957) (readerFigures.test.ts) |
+
+REVERT {'engine': (0, '453 passed in 50.81s'), 'browser': (0, 'Tests 957 passed (957)')} · tree clean
+
+12 plants, 12 RED; GREEN: none.
+
+**After the repair it reds on** (TC-11): an account, a date, a note number or a year re-spelt or
+given a currency because a figure follows it; a second pass that changes what the first returned; a
+code moved before a hedged range, inside a number grouped with any in-line space, off a year-shaped
+amount onto a count, or onto a bare integer; one bound of an opener's range rewritten and the other
+left; a "$" named USD behind emphasis or a colon; a tenor after a code re-spelt as a million; a
+recommendation stored half rewritten; the pass changing what a stored briefing is read as; a text
+held although only codes would move; a quadratic rule; a reply of labels, a bilingual reply or a
+reply in another language formatted in the language of its question, an earlier turn or a hint; a
+shared word ("este") confirming Romanian; Explain or the card handing what they know as a hint; the
+independent reader blinded to a hedge, an in-line space or the year rule.
+
+**CANNOT SEE:**
+
+- **a non-figure with a unit RIGHT beside it and no account word before it**: "Versiunea 2.1 RON",
+  "Pe 5.11 lei" are still re-spelt (the label grammar puts a separator between the id and the
+  amount); "Contul în EUR 5124" keeps its code in front only because the number is a bare integer;
+- **an id of the shape NNN.NNN outside an account word** ("401.100 – 3.210.000,00 RON" in a list):
+  it is a lone group to every reader, and holds the text;
+- **a label before a TIGHT dash and a figure** ("Poziția 4111.01-15%"): a dash written against both
+  numbers is a range by rule;
+- **a spaced-dash range's first bound** ("Rata este de 3.5 - 4.2% pe an" → "3.5 - 4,2%"): left,
+  counted `bare_decimal` — the cost of rule 1;
+- **a reply whose words show no language**: a Romanian sentence with no diacritic and none of
+  Romanian's own words ("Rata este de 3.5%"), a table of labels, a formula — stored and shown as
+  the model wrote it in a chat (8 of the corpus's chat cases, named in the gate);
+- **a text in a third language where the caller KNOWS the language** (a card body stamped `ro` that
+  is Spanish): read in the language the caller names — unchanged from the first fix round;
+- **the link-target pattern** on a run of "](a](a…": it reads to the end of the line by itself (0.3 s
+  for 20 KB, before and after);
+- **the three never-throw wrappers** on the chat's send path (`languageHints`, `anchorsOfSnapshot`,
+  `leftByReason`): no law makes them throw;
+- what a model WRITES under the prompt and the hint; whether a figure is TRUE; everything the
+  earlier records list.
+
+**Decisions of this round that change what a reader sees** (each the owner's to reverse):
+
+1. **A bare integer beside a code keeps its code in front** — "RON 500", "EUR 40", "$5" stay as the
+   model wrote them (counted). It closes "cont RON 5121 → 5121 RON", "În EUR 3 scenarii", a hedged
+   range's first bound and a year-shaped amount before a count with one provable rule. The cost: a
+   whole amount under 1,000, or one written without grouping ("RON 386102"), is not moved. Reverse
+   = one condition in each twin (plant E4 / B4).
+2. **In a chat, a reply that does not show its own language is left as the model wrote it** — a
+   list of labels, a formula, a short sentence with no Romanian-only or English-only word — even in
+   a one-language conversation. Before, the question decided, and a Romanian request for an English
+   table was re-spelt. Explain and the briefing card are not affected: they know the language.
+3. **A text with evidence of both languages is never touched** — a bilingual reply, and an English
+   answer that quotes Romanian terms with ă / ș / ț (the first fix round read it as English where
+   the question was English).
+4. **A spaced-dash range's first bound stays** ("3.5 - 4,2%"), and **a label before a dash is never
+   a range's first term**.
+5. **A code-first amount followed in the same sentence by a number that carries a magnitude and no
+   currency is left as written** ("RON 1,234,567.89, în creștere cu 2.5M").
+6. **"În 2025 RON 64.5M" is still moved; "2000 RON 100 părți" and "5000 RON 3.5M" are left.**
+7. **One recommendation is held as one text**; a text whose codes alone would move is no longer held.
+8. **The example ratios** of the chat function's figure-format section, the engine hint and
+   `standard.json` are invented ones (8,75% / 2,35×): the section's sha256 pin moved on purpose.
