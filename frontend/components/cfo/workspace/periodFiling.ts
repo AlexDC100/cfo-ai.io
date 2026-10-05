@@ -204,6 +204,32 @@ export interface MakeSourceResult {
   orphaned_after: unknown[];
 }
 
+/** A correction the engine REFUSED, with the refusal's code when it sent
+ *  one. The message is the server's own sentence (English); a caller that
+ *  holds a sentence of its own for the code prints that instead. */
+export class FilingRefused extends Error {
+  readonly code: string | null;
+
+  constructor(message: string, code: string | null) {
+    super(message);
+    this.name = "FilingRefused";
+    this.code = code;
+  }
+}
+
+/** The month already holds the analysis of ANOTHER analysed file: "Make
+ *  source" changes nothing there (the engine's `make-active` refuses before
+ *  its first write — it used to wipe that analysis and only then re-run the
+ *  promoted file). The same literal as `_period_move.MONTH_HAS_ANOTHER_ANALYSIS`. */
+export const MONTH_HAS_ANOTHER_ANALYSIS = "month_has_another_analysis";
+
+/** The key of OUR sentence for a refused "Make source" — null for a code
+ *  this screen has no sentence for (the server's message is shown then, as
+ *  before). */
+export function makeSourceRefusalKey(code: string | null | undefined): string | null {
+  return code === MONTH_HAS_ANOTHER_ANALYSIS ? "pf.sourceHasAnalysis" : null;
+}
+
 async function post<T>(path: string, orgId: string, body?: unknown): Promise<T> {
   const headers = await authHeaders(orgId);
   if (!headers) throw new Error("Not signed in.");
@@ -214,17 +240,19 @@ async function post<T>(path: string, orgId: string, body?: unknown): Promise<T> 
   });
   if (!res.ok) {
     let message = `${res.status}`;
+    let code: string | null = null;
     try {
       const detail = (await res.json()) as { detail?: unknown };
       if (typeof detail.detail === "string") message = detail.detail;
       else if (detail.detail && typeof detail.detail === "object") {
-        message =
-          ((detail.detail as { message?: string }).message as string) ?? message;
+        const refusal = detail.detail as { message?: unknown; code?: unknown };
+        if (typeof refusal.message === "string") message = refusal.message;
+        if (typeof refusal.code === "string") code = refusal.code;
       }
     } catch {
       /* keep the status code */
     }
-    throw new Error(message);
+    throw new FilingRefused(message, code);
   }
   return (await res.json()) as T;
 }
