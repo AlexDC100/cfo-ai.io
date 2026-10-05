@@ -515,8 +515,9 @@ def _engine_gates() -> List[Gate]:
         # document is 409 with the committed body, writes nothing and leaves
         # the month served as before; one answer whatever the pin names; the
         # refusal precedes the claim and the meter, and is repeated under the
-        # claim and at the DELETE itself (id + company + source, re-read
-        # after); no pin is reset by the engine's own pointer; a source-less
+        # claim and (stage 1 only: stage 2 removed the reset) at the DELETE
+        # itself; a document with no pin is found by the engine's own
+        # pointer, never run in place; a source-less
         # period is never "anyone's"; unreadable ownership is 503; a sales
         # document pinned to the month by the Products upload never resets
         # it; a metered re-run refused under the claim gives its reservation
@@ -564,12 +565,42 @@ def _engine_gates() -> List[Gate]:
         # and a REAL restart healed by the next re-run or by another
         # document's run. Measured 171 (38 + 96 + 22 + 15). Plant log:
         # gates.md "rerun-data-loss", stage 3.
+        #
+        # THE REVIEW OF 2026-10-05 (three lenses; every finding reproduced on
+        # the stage-3 tip first). What the three stages left open or unheld:
+        # an ANALYSED trial balance that holds no period re-run "as a
+        # document with no period" (item 1 through the null pin: 409 where
+        # the quota ledger shows its analysis; otherwise a run that never
+        # takes over another document's month); a pin to an empty container
+        # leaving two periods for one document; "Make source" wiping another
+        # analysed document's month before its own re-run (refused before
+        # the first write — the safe behaviour, a staged promotion is the
+        # durable one); a newer upload's takeover running THROUGH a re-run's
+        # apply (one takeover of a company's months at a time — two real
+        # threads); a marker forged in one company reaching another's month
+        # had the company left the applier's reads (no law held it); a
+        # committed staged row left waiting fifteen minutes while a
+        # same-month upload cost it the last good briefing (a real second
+        # process); an in-place run resumed OVER by its own document's older
+        # re-run; a re-filed row re-dated onto a month that had become
+        # another's; a staged run's alerts refused whole under the legacy
+        # unique (org_id, alert_key); five weakenings every law let through;
+        # the page-mount watchdog completing what a restart interrupted; the
+        # AI lane keeping the archived file's alerts on another file's
+        # statements. Measured 218 (57 + 121 + 25 + 15). Plant log (78
+        # plants: 37 new, 10 re-anchored, 31 replayed): gates.md
+        # "rerun-data-loss — the review of 2026-10-05".
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
               "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
               "tests/engine/test_rerun_ai_lane.py", "-q"],
-             work_junit=True, floor=171, units="tests",
+             work_junit=True, floor=218, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
+                       "test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing",
+                       "test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month",
+                       "test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply",
+                       "test_a_forged_committed_marker_never_reaches_another_companys_month",
+                       "test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later",
                        "test_the_refusal_is_one_answer_whatever_the_pin_names",
                        "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
                        "test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin",
@@ -605,17 +636,26 @@ def _engine_gates() -> List[Gate]:
         # gates.md "rerun-refusal-surfaces", stage 2. STAGE 3: the code of a
         # refused public-records re-run (`rerun_not_a_trial_balance`) prints
         # the "didn't finish" line and is never printed itself — two cells.
-        # Measured 86 (34 + 16 + 31 + 5).
+        # Measured 86 (34 + 16 + 31 + 5). THE REVIEW OF 2026-10-05: "Make
+        # source" refused over another analysed file's analysis
+        # (`month_has_another_analysis`) — the REAL file row and the REAL
+        # client call over a fetch that answers with
+        # tests/engine/fixtures/rerun/make_active_refused_another_analysis.json
+        # (the body the engine gate holds the real handler to): our sentence
+        # for the code in EN and RO, never the server's English; any other
+        # refusal still shows the server's message. Measured 93 (86 + 7).
         Gate("rerun-refusal-surfaces",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/rerunRefusals.test.ts",
               "frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx",
               "frontend/components/cfo/__tests__/docRerunNote.test.tsx",
               "frontend/lib/__tests__/orgPeriodsStagedRow.test.ts",
+              "frontend/components/cfo/workspace/__tests__/makeSourceRefusal.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=86,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=93,
              units="tests",
              canaries=("the codes are exactly the three the route answers with",
+                       "ro: the real route's answer over another file's analysis",
                        "ro: document_superseded prints the stated sentence",
                        "ro: the real route's answer for a superseded file",
                        "en: a failure with no known code shows the title alone",

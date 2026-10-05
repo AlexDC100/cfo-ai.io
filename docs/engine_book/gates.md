@@ -20818,8 +20818,9 @@ A re-run acts only on a period that is the document's own. Owner order
 design of the same day, STAGE 1 OF 3 (R1: the ownership check, the refusal,
 the sibling sweep). Stages 2 and 3 (their own subsections below) replaced the
 reset with a re-run STAGED beside the document's own month and took the AI
-lane through it; their laws run in this gate (the table below is the gate as
-it stands after stage 3).
+lane through it; their laws run in this gate. THE REVIEW OF 2026-10-05 (the
+last subsections of this file) closed what the three stages left open or
+unheld; the table below is the gate as it stands after it.
 
 THE DEFECT (measured on 7ca386ec, production's commit, through the real
 routes — `tests/engine/test_rerun_ownership.py` drives each).
@@ -20882,10 +20883,12 @@ THE REPAIR (`src/engine/api/pipeline.py`, `_period_move.py`).
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_rerun_ownership.py tests/engine/test_rerun_staged.py tests/engine/test_rerun_restart.py tests/engine/test_rerun_ai_lane.py -q` |
-| work count | junit-xml, floor **171** tests (measured 171: ownership 38, staged 96, restart 22, the AI lane 15; stage 2 measured 156, stage 1 38) |
-| canary | `test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing`, `test_the_refusal_is_one_answer_whatever_the_pin_names`, `test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands` (stage 1: `test_the_reset_deletes_only_a_period_this_document_is_the_source_of`, restated), `test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin`, `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was`, `test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result`, `test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything`, `test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl`, `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun` |
+| work count | junit-xml, floor **218** tests (measured 218: ownership 57, staged 121, restart 25, the AI lane 15; stage 3 measured 171, stage 2 156, stage 1 38) |
+| canary | `test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing`, `test_the_refusal_is_one_answer_whatever_the_pin_names`, `test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands` (stage 1: `test_the_reset_deletes_only_a_period_this_document_is_the_source_of`, restated), `test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin`, `test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point`, `test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was`, `test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result`, `test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything`, `test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl`, `test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts`, `test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing`, `test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun`; the review of 2026-10-05: `test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing`, `test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month`, `test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply`, `test_a_forged_committed_marker_never_reaches_another_companys_month`, `test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later` |
 
-**SCOPE.** The real `create_app()` routes (`POST /api/pipeline/retry`,
+**SCOPE** (stage 1's, as written on 2026-10-04 — what stage 2 changed in it
+is said where it changed: the reset and the carry are gone, O5 holds that
+NOTHING is deleted, and the census states seven sites). The real `create_app()` routes (`POST /api/pipeline/retry`,
 `/api/documents/{id}/restore`, `DELETE /api/documents/{id}`, the upload
 card's identify + commit), the real `_run_pipeline_sync` from `stage_extract`
 to the takeover, the real `GET /api/period` and year tiles, in the `gw` world
@@ -20908,7 +20911,7 @@ repeated under the claim, the claim given back — and a metered re-run's
 reservation released, never committed; O5 the DELETE's filter and the
 re-read, with and without an earlier carry; O6 no pin; O7 seven cells of a period that names no source;
 O8 three unreadable reads; O9–O11 the siblings; O12 an AST census of every
-`delete("financial_periods", …)` in the engine — six stated sites, each with
+`delete("financial_periods", …)` in the engine — six stated sites (seven since stage 2), each with
 its rule and the columns its filter must name. One law of
 `test_briefing_keep_last_good_writers.py` was restated (stronger): the
 reset's one delete has filters `{id, org_id, source_document_id}`.
@@ -20972,6 +20975,21 @@ deleted document promoted or moved; a move deleting a period whose analysis
 is another document's, or deleting by id alone; a refused period insert
 adopting another document's row, or its own adopted row left behind by a
 failed run; a seventh `delete("financial_periods"` nobody classified.
+(Two test names in the table above are stage 1's:
+`test_the_reset_deletes_only_a_period_this_document_is_the_source_of` and
+`test_a_document_with_no_pin_is_reset_by_the_pointer_the_engine_wrote_never_run_in_place`
+were restated in stage 2 as
+`test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands`
+and
+`test_a_document_with_no_pin_is_staged_beside_the_period_the_engine_wrote_never_run_in_place`.)
+
+**CORRECTION (review of 2026-10-05).** "A re-run that … writes into a
+period whose source is another document" was NOT fully held by the above: a
+restored superseded document whose PIN WAS NULL answered 202 from this route
+and took the newer document's month over through the same-month takeover
+(the same on 7ca386ec), and `make-active` on the restored copy wiped that
+month before its own re-run. Both are closed, with their laws, in "the
+review of 2026-10-05" at the end of this file (O13, O15).
 
 **CANNOT SEE:** Postgres itself — the foreign keys (modelled by hand), row
 security, the unique tuple; how many production rows the rule refuses (a
@@ -20981,8 +20999,10 @@ hand-over); a hand-over INSIDE one HTTP statement, and two backend processes
 (the look, the carry and the delete are three statements — the DELETE's
 filter and the re-read are what hold between them); a restart between the
 reset and the run (the carry is in memory until stage 2); `make-active` on a
-LIVE attachment, which deletes the month's briefing before its own re-run
-(ticket); an OLDER document's FIRST run replacing a newer document's month
+LIVE attachment, which deleted the month's briefing before its own re-run
+(a ticket on 2026-10-04; refused since the review of 2026-10-05 wherever
+another analysed document's analysis would be lost — O15); an OLDER
+document's FIRST run replacing a newer document's month
 through `/api/pipeline/run` or recover-stuck (G4's rule — owner ruling
 needed); `DELETE /api/period`, permanent delete, restore and the workspace
 purge (swept, unchanged, not driven here); the AI lane; a sales (SKU)
@@ -21049,6 +21069,11 @@ THE REPAIR (`src/engine/api/pipeline.py`, `_staged_rerun.py`,
   `status = failed`), by a hard delete of the document (dropped, never
   resumed), and by every `stage_persist` of the company once the row is
   fifteen minutes old and its document is not in flight in this process.
+  (SINCE THE REVIEW OF 2026-10-05: the fifteen minutes are for an
+  UNCOMMITTED row only. A committed row whose document is not in flight is
+  completed at once — by the company pass, by the page-mount watchdog, and
+  by its own document's next run of any kind. Left waiting, a same-month
+  upload cost it the last good briefing.)
 - THE READERS: the persist's month lookup, the monthly inventory-days basis,
   the orphan audit, a move's destination, the ownership look and the
   Workspace tab's own read (frontend) ignore a staged row.
@@ -21133,7 +21158,9 @@ cascades, PostgREST's parsing of the json-path select, row security) — the
 owner's read-only check of `financial_periods`' unique constraint before
 this ships; two backend processes ALIVE at once and two documents' takeovers
 interleaving on one month after a commit point (in-flight is per process;
-nothing serialises the apply); a kill INSIDE one HTTP statement; the
+nothing serialised the apply — SINCE THE REVIEW OF 2026-10-05 two runs of
+ONE process are serialised by the company's takeover lock, law S23; two
+processes still are not); a kill INSIDE one HTTP statement; the
 takeover as ONE transaction — between the commit point and the end of the
 apply (or its resume) a reader can be served statements of one run beside
 metrics of another, or a table with no rows; only a database function, an
@@ -21147,7 +21174,12 @@ the AI lane end to end (stage 3); make-active / move-period on a live month;
 the browser after a re-run — the period id no longer changes and nothing
 shows that a re-run is going (no progress indicator: a product decision).
 
-**NOT CLOSED, MEASURED (a probe, not a law — a law would assert the gap):**
+**CLOSED BY THE REVIEW OF 2026-10-05 (law S25 — the paragraph below is the
+record of the gap as it stood, and it was WIDER than stated: the document's
+own in-place run is skipped by its own pass at ANY age of the row, because
+the document is in flight, so the fifteen minutes never protected it). A run
+now settles its own document's leftover before it writes.**
+NOT CLOSED, MEASURED on 2026-10-04 (a probe, not a law — a law would assert the gap):
 a NON-staged run of the same document that writes its month IN PLACE while a
 COMMITTED staged row of an earlier re-run is still there and younger than the
 fifteen minutes (`scripts/reprocess_periods_definition.py`, `/run` of a
@@ -21173,6 +21205,13 @@ re-run, not a moved verdict. A row there whose marker carries
 over that company (`scripts/reprocess_periods_definition.py --apply`) until
 the row is gone — it goes at the document's next "Re-run analysis", or at the
 company's next analysis once it is fifteen minutes old (see NOT CLOSED above).
+(SINCE THE REVIEW OF 2026-10-05 it goes sooner: at the company's next
+analysis of anything, at once; when any member of the company next opens
+the dashboard — the page-mount watchdog; and at that document's own next
+run of any kind. The reprocessing tool holds no claim: it settles the
+leftover of the document it reprocesses itself, but it must still not be
+run over a company while a re-run of that company is IN FLIGHT in the
+backend — two processes are not serialised.)
 
 ### rerun-data-loss — stage 2 PLANT / RED / REVERT (2026-10-04, branch `fix/rerun-data-loss`)
 
