@@ -255,6 +255,8 @@ const CLOSERS = ".,;:!?)]}\"'\u00bb\u201d\u2019\u2026*_|";
 const LOOSE_BETWEEN = ` ${NBSP}${NARROW_NBSP}\t-${MINUS}+${EN_DASH}${EM_DASH}~\u2248(*_`;
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
+/** A plain year, 1900 to 2099 — ONE definition for every rule that reads one. */
+const isYear = (tok: string) => /^(?:19|20)\d\d$/.test(tok);
 // A Unicode LETTER on ONE UTF-16 unit: "×" and "÷" are not letters.
 const isLetter = (c: string) => c !== "" && /\p{L}/u.test(c);
 const isSpace = (c: string) => c === " " || c === NBSP || c === NARROW_NBSP;
@@ -262,7 +264,7 @@ const isSpace = (c: string) => c === " " || c === NBSP || c === NARROW_NBSP;
 // matches but the line breaks. U+2009 is the SI group separator
 // ("12\u2009300\u2009000"); a figure space, a tab, an ideographic space group
 // digits the same way.
-const isGapSpace = (c: string) => c !== "" && /[^\S\n\r\v\f\u2028\u2029]/.test(c);
+const GAP_SPACE = /[^\S\n\r\v\f\u2028\u2029]/g;
 // How far back a word is looked for: no word a rule knows is longer, and an
 // unbroken run of thousands of characters is not walked once per number.
 const WORD_SCAN = 64;
@@ -562,7 +564,9 @@ function ownStart(s: string, it: Item): number {
  *  "1.5-2.5M", "10 – 12"), "list" (a comma, a joining word: "40 și 55
  *  milioane") — or null: they are two sentences' worth apart. */
 function connective(gap: string, opener: boolean): "group" | "dash" | "list" | "weak" | null {
-  let g = gap.replace(/[^\S\n\r\v\f\u2028\u2029]/g, " ").toLowerCase();
+  // ANY space that can stand inside a line may group digits — not only the
+  // three the product writes.
+  let g = gap.replace(GAP_SPACE, " ").toLowerCase();
   // (nothing in between: the second number's sign is all there is)
   if (g === "") return "dash";
   if (g === " " || APOSTROPHES.includes(g)) return "group";
@@ -654,14 +658,9 @@ function amountEnds(s: string, items: Item[], i: number, joinedRight: boolean): 
     // "EUR 2.5M/USD 2.7M" two currencies: neither ends at the slash.
     if (!isLetter(s[j + 1] ?? "") || codeLike(s, j + 1)) return false;
   } else if (!isSpace(c) && !CLOSERS.includes(c) && !/\s/.test(c)) return false;
-  // ANY space that can stand inside a line may group digits ("12\u2009300", a
-  // figure space, a tab): the number goes on.
-  if (isGapSpace(c)) {
-    const d = s[j + 1] ?? "";
-    if (isDigit(d) || isSymbol(d)) return false;
-  }
   if (isSpace(c)) {
     const d = s[j + 1] ?? "";
+    if (isDigit(d) || isSymbol(d)) return false;
     if (d === "(" && codeLike(s, j + 2) && s[j + 5] === ")") return false;
     if (isLetter(d)) {
       if (codeLike(s, j + 1)) return false;
@@ -789,7 +788,7 @@ function structureOf(s: string): { marks: string; figures: [string, string, stri
     const code = s.slice(j, j + 3);
     if (PROOF_CODES.includes(code) && !isLetter(s[j + 3] ?? "") && !isDigit(s[j + 3] ?? "")) {
       // (a code after a plain year and right before an AMOUNT is the amount's)
-      if (mag || !/^(?:19|20)\d\d$/.test(m[0]) || !proofAmountAt(s, j + 3)) after = code;
+      if (mag || !isYear(m[0]) || !proofAmountAt(s, j + 3)) after = code;
     } else if (proofSymbol(s[j] ?? "") && !isLetter(s[j + 1] ?? "") && !isDigit(s[j + 1] ?? "")) after = proofSymbol(s[j]);
     let b = st;
     if (b > 0 && SIGNS.includes(s[b - 1])) b -= 1;
@@ -861,7 +860,7 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     let contested = false;
     const afterCode = en + tail.magLen + tail.currencyLen;
     if (tail.currency && figureFollows(s, afterCode)) {
-      if (!tail.mag && !head.currency && /^(?:19|20)\d\d$/.test(m[0]) && amountShapedAt(s, afterCode)) tail = { ...tail, currency: null, currencyLen: 0 };
+      if (!tail.mag && !head.currency && isYear(m[0]) && amountShapedAt(s, afterCode)) tail = { ...tail, currency: null, currencyLen: 0 };
       else contested = true;
     }
     // AFTER AN ACCOUNT WORD the number is an account, whatever stands beside
@@ -894,7 +893,7 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
       const prev = items[i - 1];
       const pe = fullEnd(prev), p = ownStart(s, it);
       const between = s.slice(pe, it.head.start);
-      const year = prev.e === pe && !prev.head.currency && /^(?:19|20)\d\d$/.test(prev.tok) && (between === " " || between === NBSP || between === NARROW_NBSP);
+      const year = prev.e === pe && !prev.head.currency && isYear(prev.tok) && (between === " " || between === NBSP || between === NARROW_NBSP);
       if (p === pe || (p - pe === 1 && DASH_CHARS.includes(s[pe])) || (!year && numberBeforeCode(s, it.head.start))) {
         it.frozen = true;
         if (!prev.frozen) {
@@ -997,7 +996,7 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
         // A handed figure proves a value-unique token IS a figure — never a
         // two-digit DD.MM / HH.MM, never a pair of years, never one decimal.
         const twoDigitDate = a.length === 2 && (dayMonth || clock); // "25.03", "31.12", "14.30"
-        const years = /^(?:19|20)\d\d$/.test(a) && /^(?:19|20)\d\d$/.test(b);
+        const years = isYear(a) && isYear(b);
         const proved = it.borrowed || a === "0" || (b.length >= 2 && !twoDigitDate && !years && anchoredBy(anchors, reading(it.tok, fd)));
         if (proved) { num = figureSwap.swap(it.tok, lang); numChanged = true; }
         else { left.push({ token: it.tok, reason: "bare_decimal" }); continue; }
@@ -1007,7 +1006,7 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
     const two = !!(it.head.currency && it.tail.currency);
     const currency = it.head.currency ?? it.tail.currency;
     // A year after a code ("EUR 2025") is not an amount.
-    if (it.head.currency && !numChanged && !it.tail.mag && /^(?:19|20)\d\d$/.test(it.tok)) { left.push({ token: it.tok, reason: "possible_year" }); continue; }
+    if (it.head.currency && !numChanged && !it.tail.mag && isYear(it.tok)) { left.push({ token: it.tok, reason: "possible_year" }); continue; }
     let mag = "", magChanged = false;
     const magSrc = out.slice(it.e, it.e + it.tail.magLen);
     if (it.tail.mag) {

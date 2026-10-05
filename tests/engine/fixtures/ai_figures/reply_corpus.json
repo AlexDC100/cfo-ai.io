@@ -2902,6 +2902,46 @@
      "reason": "open_amount"
     }
    ]
+  },
+  {
+   "id": "r2-opener-with-another-joiner",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Dobânda a ajuns la 4.5 și 12.5% din credite sunt restante.",
+   "expected": "Dobânda a ajuns la 4.5 și 12,5% din credite sunt restante.",
+   "kept": [
+    {
+     "token": "4.5",
+     "reason": "bare_decimal"
+    }
+   ]
+  },
+  {
+   "id": "r2-emphasised-reference-handed",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Vezi **art. 9.19** din contract, iar marja este de 4.5%.",
+   "expected": "Vezi **art. 9.19** din contract, iar marja este de 4,5%.",
+   "kept": [
+    {
+     "token": "9.19",
+     "reason": "reference"
+    }
+   ],
+   "anchors": [
+    9.19
+   ]
+  },
+  {
+   "id": "r2-amount-then-an-amount-in-lei",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Datoria este de RON 1,234,567.89, eventual 12.5 lei pe acțiune.",
+   "expected": "Datoria este de 1.234.567,89 RON, eventual 12,5 lei pe acțiune.",
+   "kept": []
   }
  ]
 }

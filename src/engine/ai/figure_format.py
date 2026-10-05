@@ -343,10 +343,6 @@ def _is_space(c: str) -> bool:
     return c in (" ", NBSP, "\u202f") and c != ""
 
 
-def _is_gap_space(c: str) -> bool:
-    return c != "" and c in _GAP_SPACES
-
-
 def _sentence_breaks(gap: str) -> bool:
     """`\\n|[.!?…]\\s+\\p{Lu}` — a line ends, or a sentence does and the next
     one starts, somewhere in `gap`."""
@@ -671,6 +667,8 @@ def _connective(gap: str, opener: bool) -> Optional[str]:
     "group" (a space or an apostrophe: "64 567 890", "1'234'567"), "dash" (a
     range: "1.5-2.5M", "10 – 12"), "list" (a comma, a joining word:
     "40 și 55 milioane") — or None: they are two sentences' worth apart."""
+    # ANY space that can stand inside a line may group digits ("12\u2009300",
+    # a figure space, a tab) — not only the three the product writes.
     g = "".join(" " if c in _GAP_SPACES else c for c in gap).lower()
     # (nothing in between: the second number's sign is all there is)
     if g == "":
@@ -787,14 +785,10 @@ def _amount_ends(s: str, items: List[Dict[str, Any]], i: int, joined_right: bool
             return False
     elif not _is_space(c) and c not in _CLOSERS and c not in _JS_SPACE_SET:
         return False
-    # ANY space that can stand inside a line may group digits ("12\u2009300",
-    # a figure space, a tab): the number goes on.
-    if _is_gap_space(c):
+    if _is_space(c):
         d = _at(s, j + 1)
         if _is_digit(d) or (d in _SYMBOL_CODE and d != ""):
             return False
-    if _is_space(c):
-        d = _at(s, j + 1)
         if d == "(" and _code_like(s, j + 2) and _at(s, j + 5) == ")":
             return False
         if _is_letter(d):

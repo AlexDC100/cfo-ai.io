@@ -618,6 +618,7 @@ describe("12 the run-time proof holds what the digits cannot", () => {
       ["de RON +4.58M față", "de 4,58 mil. RON față"],
       ["este 2.5‰ din", "este 2,5% din"],
       ["de RON 64 567 890 în", "de 64 RON 567 890 în"],
+      ["de RON 64,5\u2009567\u2009890 în", "de 64,5 RON\u2009567\u2009890 în"], // (a thin space groups digits too: round 2)
       ["de RON 4.58M în", "de 4,58 mil. EUR în"],
       ["de EUR 1.5-2.5M, în", "de 1,5 EUR-2,5 mil., în"],
     ] as const) {

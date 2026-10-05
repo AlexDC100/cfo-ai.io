@@ -205,7 +205,7 @@ def numbers_as_written(text: str) -> List[str]:
 
 #: Corpus outputs that hold both notations after the pass (measured; the list
 #: only shrinks: a rule that produces one more half-converted output reds).
-MIXED_OUTPUTS_AT_MOST = 43
+MIXED_OUTPUTS_AT_MOST = 45
 
 
 def held(case: Dict[str, Any]) -> bool:
@@ -1071,6 +1071,15 @@ def test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_
     assert out == spaced and [why for _t, why in report["left"]] == ["proof_failed"]
     monkeypatch.undo()
 
+    # 4 — the same, the number grouped with a THIN space (round 2: the proof
+    # read three spaces, so "64,5 RON\u2009567" looked like the same structure).
+    thin = "Cifra de afaceri este de RON 64,5\u2009567\u2009890 în această perioadă."
+    assert F.normalise_figures(thin, "ro")[0] == thin
+    monkeypatch.setattr(F, "_amount_ends", lambda *_a, **_k: True)
+    out, report = F.normalise_figures(thin, "ro")
+    assert out == thin and [why for _t, why in report["left"]] == ["proof_failed"]
+    monkeypatch.undo()
+
     # POSITIVE CONTROL: with the proof itself blinded, plant 3 DOES produce the misbound text.
     monkeypatch.setattr(F, "_amount_ends", lambda *_a, **_k: True)
     monkeypatch.setattr(F, "_structure_held", lambda *_a: True)
@@ -1429,6 +1438,34 @@ def test_e7_a_pass_that_raises_leaves_the_models_text_usable_and_stored(monkeypa
     assert SERVED._briefing_rows(double)[0]["body"] == WRONG_RO
     assert "narration figure format failed" in caplog.text        # one logged exception, no token in it
     assert "64,567,890" not in "".join(r.getMessage() for r in caplog.records)
+
+
+def test_e7_a_field_the_pass_raised_on_keeps_the_models_text_and_is_counted_and_logged_as_a_defect(monkeypatch, caplog):
+    """An honest refusal of the proof and a DEFECT in the pass looked the same
+    in the log — a `proof_failed` count at INFO, no word that anything raised
+    (review 2026-10-05, round 2). A field the pass raised on is counted
+    `errors`, and the pipeline says so at WARNING."""
+    def boom(*_a: Any, **_k: Any) -> Any:
+        raise RecursionError("planted: the pass failed inside a field")
+
+    monkeypatch.setattr(F, "_normalise_segment", boom)
+    out, report = F.normalise_narrate_result({"briefing": WRONG_RO, "recommendations": [{"title": WRONG_RO}]}, "ro")
+    assert out == {"briefing": WRONG_RO, "recommendations": [{"title": WRONG_RO}]}
+    assert report["errors"] == 2 and report["left_by_reason"] == {"proof_failed": 2} and report["rewritten"] == 0
+    with caplog.at_level("INFO", logger=P.logger.name):
+        narrated, provider = _narrate(monkeypatch, _reply(WRONG_RO), "ro")
+    assert narrated["briefing"] == WRONG_RO and not narrated.get("unavailable")     # as the model wrote it, usable
+    assert len(provider.calls) == 1
+    warnings = [r for r in caplog.records if r.levelname == "WARNING" and "the pass raised on" in r.getMessage()]
+    assert len(warnings) == 1 and "1 field" in warnings[0].getMessage()
+    # What THIS seam logs holds counts — never a token of the text.
+    ours = [r.getMessage() for r in caplog.records if "narration figures" in r.getMessage()]
+    assert len(ours) == 2 and "64,567,890" not in "".join(ours) and "7,654,321" not in "".join(ours)
+    # POSITIVE CONTROL: a refusal of the PROOF is not an error.
+    monkeypatch.undo()
+    monkeypatch.setattr(F, "_structure_held", lambda *_a: False)
+    _out, refused = F.normalise_narrate_result({"briefing": WRONG_RO}, "ro")
+    assert refused["errors"] == 0 and refused["left_by_reason"] == {"proof_failed": 1}
 
 
 def test_e7_a_module_that_cannot_be_imported_leaves_the_narration_and_the_old_hint(monkeypatch):
