@@ -15,16 +15,21 @@ rule changed in ONE runtime moves that runtime's digest: red. A rule
 changed in BOTH on purpose moves both: the failure prints the new digest,
 and committing it is the deliberate act.
 
-    python tests/engine/_figure_compose.py          # prints the digest NOW
+THE LABEL GRAMMAR (`labels.json`, round 2) is the same idea for what is NOT
+a figure: a label, an id, a separator, an amount — every combination, in the
+file's order (`label_texts`). Its digest is held the same way.
+
+    python tests/engine/_figure_compose.py          # prints both digests NOW
 """
 from __future__ import annotations
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Tuple
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ai_figures" / "compose.json"
+LABELS = Path(__file__).resolve().parent / "fixtures" / "ai_figures" / "labels.json"
 MODULUS = 2147483647
 MULTIPLIER = 48271
 
@@ -54,17 +59,43 @@ def compose(spec: Dict[str, Any], i: int) -> Tuple[str, str, List[float]]:
     return "".join(parts), lang, list(pick(spec["anchor_sets"]))
 
 
+def _line(lang: str, out: str, report: Dict[str, Any]) -> bytes:
+    left = "\x1e".join("%s\x1d%s" % (token, why) for token, why in report["left"])
+    return ("%s\x1f%s\x1f%d\x1f%s\n" % (lang, out, report["rewritten"], left)).encode("utf-8")
+
+
 def digest_of(spec: Dict[str, Any], normalise: Callable[[str, str, List[float]], Tuple[str, Dict[str, Any]]]) -> str:
     h = hashlib.sha256()
     for i in range(spec["count"]):
         text, lang, anchors = compose(spec, i)
         out, report = normalise(text, lang, anchors)
-        left = "\x1e".join("%s\x1d%s" % (token, why) for token, why in report["left"])
-        h.update(("%s\x1f%s\x1f%d\x1f%s\n" % (lang, out, report["rewritten"], left)).encode("utf-8"))
+        h.update(_line(lang, out, report))
+    return h.hexdigest()
+
+
+def label_texts(spec: Dict[str, Any]) -> Iterator[Tuple[str, str, str, str, str]]:
+    """Every text of the label grammar: (language, class, what stands before
+    the id, the id, the whole text) — in the file's order."""
+    for lang in ("ro", "en"):
+        for cls in spec["classes"]:
+            for label in cls["labels"][lang]:
+                for ident in cls["ids"]:
+                    for sep in cls["seps"]:
+                        for amount in spec["amounts"]:
+                            yield lang, cls["name"], label, ident, label + ident + sep + amount + spec["tail"][lang]
+
+
+def label_digest_of(spec: Dict[str, Any],
+                    normalise: Callable[[str, str, List[float]], Tuple[str, Dict[str, Any]]]) -> str:
+    h = hashlib.sha256()
+    for lang, _cls, _label, _ident, text in label_texts(spec):
+        out, report = normalise(text, lang, [])
+        h.update(_line(lang, out, report))
     return h.hexdigest()
 
 
 if __name__ == "__main__":
     from engine.ai import figure_format
 
-    print(digest_of(json.loads(FIXTURE.read_text(encoding="utf-8")), figure_format.normalise_figures))
+    print("compose.json", digest_of(json.loads(FIXTURE.read_text(encoding="utf-8")), figure_format.normalise_figures))
+    print("labels.json ", label_digest_of(json.loads(LABELS.read_text(encoding="utf-8")), figure_format.normalise_figures))

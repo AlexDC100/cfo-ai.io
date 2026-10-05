@@ -31,7 +31,11 @@ import re
 from typing import Any, Dict, List, Optional
 
 NUM = re.compile(r"[0-9][0-9.,]*[0-9]|[0-9]")
-SPC = "   "
+# Every space that can stand inside one line (review 2026-10-05, round 2: a
+# thin space groups digits as a plain one does) — written as escapes, never
+# typed. SPC goes inside a character class; SPC_CHARS is the same set as text.
+SPC = " \u00a0\u202f\t\u1680\u2000-\u200a\u205f\u3000\ufeff"
+SPC_CHARS = " \u00a0\u202f\t\u1680\u205f\u3000\ufeff" + "".join(chr(c) for c in range(0x2000, 0x200B))
 CODE = r"RON|EUR|USD|CAD|AUD|GBP|CHF|HUF|MXN|JPY"
 LETTER = "A-Za-zăâîșțĂÂÎȘȚ"
 WORD_MAGNITUDES = {"mil.": 1e6, "mld.": 1e9, "mii": 1e3, "milioane": 1e6, "miliarde": 1e9,
@@ -48,13 +52,21 @@ RX_CCY_AFTER = re.compile(r"[%s]?(?:de )?(%s|lei|euro|€|\$|£|¥)(?![%s0-9])" 
 RX_CCY_BEFORE = re.compile(r"(?:(?<![A-Za-z0-9/])(%s)|([A-Za-z]{0,3})(€|\$|£|¥))[%s]?\Z" % (CODE, SPC))
 RX_SIGN = re.compile(r"[-−+]\Z")
 RX_YEAR = re.compile(r"(?:19|20)[0-9]{2}")
-RX_FIGURE_NEXT = re.compile(r"[%s]?[-−+]?[0-9]" % SPC)
+# A figure written as an AMOUNT — a separator inside it, or a magnitude beside
+# it. (A bare integer after "<year> <code>" is nobody's amount by its shape.)
+RX_AMOUNT_NEXT = re.compile(
+    r"[%s]?[-−+]?[0-9]+(?:(?:[.,][0-9]+)+|(?:Bn|bn|MM|mn|M|B|K|k|m|T)(?![A-Za-z0-9])|[%s](?:mil|mld|mii|mio|mln|mili|bill|thou))"
+    % (SPC, SPC))
 RX_UNIT = re.compile(r"[%s]?(%%|‰|×|x(?![A-Za-z])|(?:pp|p\.p\.|/100|zile|days|ori|ani|luni)(?![%s]))" % (SPC, LETTER))
-JOIN_DASH = re.compile(r"[%s]?[-–—][%s]?\Z" % (SPC, SPC))
-JOIN_WORD = re.compile(r",? (și|si|and|to|sau|or|până la|pana la) \Z")
-JOIN_LA = " la "            # a range joiner only after an opener ("de la 5 la 7 milioane")
+# One hedge word may stand between the joiner and the second term ("și circa
+# 55 milioane", "to roughly 55 million", "– max. 12M", ", eventual 12").
+HEDGE = r"(?:[~≈]|[^0-9\s,;:()]{1,14}\.?[%s])?[~≈]?" % SPC
+JOIN_DASH = re.compile(r"[%s]?[-–—][%s]?%s\Z" % (SPC, SPC, HEDGE))
+JOIN_WORD = re.compile(r",?[%s](și|si|and|to|sau|or|respectiv|până la|pana la)[%s]%s[-–−]?\Z" % (SPC, SPC, HEDGE))
 OPENERS = ("la", "între", "intre", "between", "from")
-JOIN_LIST = re.compile(r", ?\Z")
+JOIN_LIST = re.compile(r",[%s]?%s\Z" % (SPC, HEDGE))
+# "la": a range joiner only after an opener ("de la 5 la 7 milioane", "de la 10 la aproximativ 12")
+JOIN_LA = re.compile(r"[%s]la[%s]%s\Z" % (SPC, SPC, HEDGE))
 SYMBOLS = {"€": "EUR", "$": "USD", "£": "GBP", "¥": "JPY"}
 WORDS = {"lei": "RON", "euro": "EUR"}
 
@@ -90,9 +102,10 @@ def expressions(text: str, first: str, second: str) -> List[Dict[str, Any]]:
         has_magnitude = bool(glued or word)
         code_after, end = None, e + j
         ca = RX_CCY_AFTER.match(after[j:])
-        # A code after a plain year and right before a number is that number's
-        # ("În 2025 RON 64.5M"): a year is not an amount.
-        if ca and not has_magnitude and RX_YEAR.fullmatch(token) and RX_FIGURE_NEXT.match(after[j + ca.end():]):
+        # A code after a plain year and right before an AMOUNT is that amount's
+        # ("În 2025 RON 64.5M"): a year is not an amount. Before a bare integer
+        # ("2000 RON 100 părți") the code stays this number's.
+        if ca and not has_magnitude and RX_YEAR.fullmatch(token) and RX_AMOUNT_NEXT.match(after[j + ca.end():]):
             ca = None
         if ca:
             c = ca.group(1)
@@ -135,9 +148,9 @@ def expressions(text: str, first: str, second: str) -> List[Dict[str, Any]]:
     # currency, the unit — and the currency written before its first term.
     for a, b in zip(out, out[1:]):
         between = text[a["end"]:b["start"]]
-        opened = text[:a["start"]].rstrip(SPC).lower().endswith(OPENERS)
+        opened = text[:a["start"]].rstrip(SPC_CHARS).lower().endswith(OPENERS)
         if (JOIN_DASH.match(between) or JOIN_WORD.match(between) or JOIN_LIST.match(between)
-                or (between == JOIN_LA and opened)):
+                or (JOIN_LA.match(between) and opened)):
             closed = bool(a["code_after"])
             # Two terms that each carry a currency of their own are two amounts.
             own = bool((a["code_before"] or a["code_after"]) and (b["code_before"] or b["code_after"]))
@@ -160,7 +173,7 @@ def expressions(text: str, first: str, second: str) -> List[Dict[str, Any]]:
 
 
 def _plain(text: str) -> str:
-    return text.replace(" ", " ").replace(" ", " ")
+    return text.replace("\u00a0", " ").replace("\u202f", " ")
 
 
 def changed_amounts(before: str, after: str, lang: str) -> List[str]:

@@ -86,7 +86,7 @@ function isRo(lang: string): boolean {
  *  leaves a token with two readings as written. The TEMPLATE path is not
  *  passed through this — its figures are the panel's own strings, verbatim. */
 function shownAiText(answer: string, req: ExplainRequest): string {
-  return displayModelText(answer, { fallback: isRo(req.lang) ? "ro" : "en" }).text;
+  return displayModelText(answer, { known: isRo(req.lang) ? "ro" : "en" }).text;
 }
 
 // ── Deterministic templates ────────────────────────────────────────────

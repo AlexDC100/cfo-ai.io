@@ -5111,7 +5111,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # ── THE READER'S FIGURE FORMAT (engine.ai.figure_format) ─────────
     # What the model wrote is what every writer below stores and every
     # surface serves, and the hint above is only a request: a Romanian
-    # briefing that says "~EUR 12.3M (marjă 11.25%)" would be stored and
+    # briefing that says "~EUR 12.3M (marjă 8.75%)" would be stored and
     # shown as written. Here — after the numeral guard, before any caller
     # — a figure PROVEN to be in the other language's notation is
     # rewritten into the text's own (separators swapped character by
@@ -5131,11 +5131,23 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
                 anchors=_figures.anchors_of(
                     briefing_facts, user_payload.get("metrics"),
                     user_payload.get("valuation"), user_payload.get("inventory_days")),
+                # (the pass must not change what the stored-text predicate
+                # reads a briefing AS: "Error code: RON 1,250.50 …" with the
+                # code moved would begin like the SDK's own error text)
+                briefing_verdict=stored_briefing_failure_code,
             )
             if _fig["rewritten"] or _fig["left"]:
                 logger.info(
                     "[pipeline] narration figures (%s): %d rewritten, left %s — doc=%s",
                     output_language, _fig["rewritten"], _fig["left_by_reason"], doc.get("id"),
+                )
+            if _fig.get("errors"):
+                # An honest refusal of the proof and a DEFECT in the pass look
+                # the same in the counts above: say which it was.
+                logger.warning(
+                    "[pipeline] narration figures (%s): the pass raised on %d field(s); "
+                    "the model's text was kept — doc=%s",
+                    output_language, _fig["errors"], doc.get("id"),
                 )
     except Exception:  # noqa: BLE001 — a formatter must never break a narration
         logger.exception("[pipeline] narration figure format failed (non-fatal)")

@@ -40,22 +40,22 @@
    "whole": 1234567,
    "decimals": 1234567.89,
    "compact": 12300000,
-   "percent": "11.25",
-   "multiple": "1.19"
+   "percent": "8.75",
+   "multiple": "2.35"
   },
   "ro": {
    "whole": "1.234.567",
    "decimals": "1.234.567,89",
    "compact": "12,3 mil.",
-   "percent": "11,25%",
-   "multiple": "1,19\u00d7"
+   "percent": "8,75%",
+   "multiple": "2,35\u00d7"
   },
   "en": {
    "whole": "1,234,567",
    "decimals": "1,234,567.89",
    "compact": "12.3M",
-   "percent": "11.25%",
-   "multiple": "1.19\u00d7"
+   "percent": "8.75%",
+   "multiple": "2.35\u00d7"
   }
  }
 }

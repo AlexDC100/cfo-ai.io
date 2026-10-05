@@ -54,7 +54,7 @@ vi.mock("@/lib/cfoApi", async (importOriginal) => {
 const i18n = (await import("@/i18n")).default;
 const { explainCacheKey, getExplanation, templateExplanation } = await import("@/lib/explain");
 import type { ExplainRequest } from "@/lib/explain";
-const { displayModelText } = await import("@/lib/readerFigures");
+const { displayModelText, normaliseFigures } = await import("@/lib/readerFigures");
 const { CURRENCY_BEFORE_FIGURE, foreignNumbersInProse, maskNotProse, plainSpaces } = await import("@/test/numberLanguage");
 const { FIGURE_FORMAT_SECTION, buildSystemPrompt } = await import("../../../supabase/functions/chat-llm/prompt");
 
@@ -155,9 +155,13 @@ describe("14 an AI explanation is shown in the reader's format — fresh, and fr
     const labels = "- Marjă EBITDA: 12,4%\n- Marjă netă: 6,1%\n- Free cash flow from the operations: 2.345.678 RON";
     answers(labels);
     expect((await getExplanation({ ...REQ, lang: "ro", snapshotKey: "labels-ro" })).text).toBe(labels);
-    // POSITIVE CONTROL: where ENGLISH was asked for, the same words do read as English — the caller agrees with them.
-    expect(displayModelText(labels, { fallback: "en" }).lang).toBe("en");
-    expect(displayModelText(labels, { fallback: "en" }).text).not.toBe(labels);
+    // …and where ENGLISH was asked for, too (round 2): English words around
+    // Romanian letters are evidence of BOTH languages — nobody picks a side.
+    answers(labels);
+    expect((await getExplanation({ ...REQ, lang: "en", snapshotKey: "labels-en" })).text).toBe(labels);
+    expect(displayModelText(labels, { known: "en" })).toMatchObject({ text: labels, lang: null });
+    // POSITIVE CONTROL: read as English, every figure of it WOULD be re-spelt.
+    expect(normaliseFigures(labels, "en").text).not.toBe(labels);
     // A few Romanian words in an answer to an ENGLISH request: thin evidence against the caller — not touched.
     const thin = "EBITDA: 12.4% pentru anul în curs.";
     answers(thin);

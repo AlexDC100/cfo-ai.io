@@ -56,7 +56,7 @@ vi.mock("@/lib/supabase", async (importOriginal) => ({
 import i18n from "@/i18n";
 import { CFOBriefingCard } from "@/components/cfo/CFOBriefingCard";
 import { queryClient } from "@/lib/queryClient";
-import { displayModelText, proseLanguageOf } from "@/lib/readerFigures";
+import { displayModelText, normaliseFigures, proseLanguageOf } from "@/lib/readerFigures";
 import { CURRENCY_BEFORE_FIGURE, foreignNumbersInProse, maskNotProse, plainSpaces } from "@/test/numberLanguage";
 
 type Lang = "ro" | "en";
@@ -195,13 +195,13 @@ describe("15 a stored briefing is SHOWN in the reader's format", () => {
   });
 
   it.each([
-    ["de", "Der Umsatz betrug RON 64,567,890 und die EBITDA-Marge lag bei 11.85%. Das Unternehmen ist nicht verschuldet (1.19x)."],
-    ["fr", "Le chiffre d'affaires est de RON 64,567,890 et la marge d'EBITDA est de 11.85%. La société est peu endettée (1.19x)."],
-    ["es", "La cifra de negocios fue de RON 64,567,890 y el margen EBITDA del 11.85%. La empresa no está endeudada (1.19x)."],
-    ["it", "Il fatturato è stato di RON 64,567,890 e il margine EBITDA dell'11.85%. La società non si è indebitata (1.19x)."],
-    ["pt", "O volume de negócios foi de RON 64,567,890 e a margem EBITDA de 11.85%. A empresa não está endividada (1.19x)."],
-    ["nl", "De omzet bedroeg RON 64,567,890 en de EBITDA-marge was 11.85%. Het bedrijf heeft weinig schulden (1.19x)."],
-    ["pl", "Przychody wyniosły RON 64,567,890, a marża EBITDA 11.85%. Firma nie jest zadłużona (1.19x)."],
+    ["de", "Der Umsatz betrug RON 64,567,890 und die EBITDA-Marge lag bei 11.85%. Das Unternehmen ist nicht verschuldet (2.35x)."],
+    ["fr", "Le chiffre d'affaires est de RON 64,567,890 et la marge d'EBITDA est de 11.85%. La société est peu endettée (2.35x)."],
+    ["es", "La cifra de negocios fue de RON 64,567,890 y el margen EBITDA del 11.85%. La empresa no está endeudada (2.35x)."],
+    ["it", "Il fatturato è stato di RON 64,567,890 e il margine EBITDA dell'11.85%. La società non si è indebitata (2.35x)."],
+    ["pt", "O volume de negócios foi de RON 64,567,890 e a margem EBITDA de 11.85%. A empresa não está endividada (2.35x)."],
+    ["nl", "De omzet bedroeg RON 64,567,890 en de EBITDA-marge was 11.85%. Het bedrijf heeft weinig schulden (2.35x)."],
+    ["pl", "Przychody wyniosły RON 64,567,890, a marża EBITDA 11.85%. Firma nie jest zadłużona (2.35x)."],
     // "este" and "dar" are everyday Spanish and Portuguese (review 2026-10-05):
     // read as Romanian, the glued magnitude became "mil." / "mii" — a thousand there.
     ["es", "Este ejercicio la empresa registró ingresos de 12,3M EUR y un EBITDA de 2,1M EUR, lo que puede dar lugar a una mejora del margen."],
@@ -213,8 +213,11 @@ describe("15 a stored briefing is SHOWN in the reader's format", () => {
       for (const stamp of ["en", code, null]) expect(shownBody(body, stamp), `${ui} ${stamp}`).toBe(body);
     }
     // POSITIVE CONTROL: read as Romanian or English, the pass WOULD rewrite it.
-    expect(displayModelText(body, { fallback: "ro" }).text).not.toBe(body);
-    expect(displayModelText(body, { fallback: "en" }).text).not.toBe(body);
+    expect(normaliseFigures(body, "ro").text).not.toBe(body);
+    expect(normaliseFigures(body, "en").text).not.toBe(body);
+    // A HINT (the language of an earlier turn) never makes it either (round 2).
+    expect(displayModelText(body, { fallback: "ro" }).text).toBe(body);
+    expect(displayModelText(body, { fallback: "en" }).text).toBe(body);
   });
 });
 
@@ -222,10 +225,10 @@ describe("the pass is display only", () => {
   const WRONG = CORPUS.find((x) => x.id === "briefing-wrong-format")!;
 
   it("a failure text is never prose, whatever digits it holds; mounting makes no request", async () => {
-    for (const text of ["[NARRATIVE_UNAVAILABLE]", "Narrative unavailable: Error code: 400 - RON 4.58M (11.25%)", "   "]) {
+    for (const text of ["[NARRATIVE_UNAVAILABLE]", "Narrative unavailable: Error code: 400 - RON 4.58M (8.75%)", "   "]) {
       const view = render(card({ baseBriefing: text, baseLanguage: "ro" }));
       expect(screen.queryByTestId("cfo-briefing-body")).toBeNull();
-      expect(screen.getByTestId("cfo-briefing").textContent).not.toMatch(/4[.,]58|11[.,]25/);
+      expect(screen.getByTestId("cfo-briefing").textContent).not.toMatch(/4[.,]58|8[.,]75/);
       view.unmount();
     }
     render(card({ baseBriefing: WRONG.input, baseLanguage: "ro" }));
@@ -310,6 +313,6 @@ describe("the narration of an explicit regenerate", () => {
     const spanish = "Este ejercicio la empresa registró ingresos de 12,3M EUR y un EBITDA de 2,1M EUR, lo que puede dar lugar a una mejora del margen.";
     expect(await regenerated({ briefing: spanish, language: "es", currency: "EUR" }, "ro")).toBe(spanish);
     // POSITIVE CONTROL: handed to the pass as Romanian (what the card did before it believed the stamp), it IS re-spelt.
-    expect(displayModelText(spanish, { fallback: "ro" }).text).not.toBe(spanish);
+    expect(displayModelText(spanish, { known: "ro" }).text).not.toBe(spanish);
   });
 });

@@ -1,0 +1,227 @@
+{
+ "_about": "WHAT IS NOT A FIGURE, BESIDE ONE (review 2026-10-05, round 2). A label (an account word, a date word, a reference word, a list marker, a plain noun, a period word), an id that is NOT an amount (an account, a DD.MM date, a note number, a year), a separator, and an amount in either notation. Text = label + id + sep + amount + tail[lang], every class x label x id x sep x amount, in this file's order. Both runtimes normalise all of it: the id's bytes must survive, a second pass must change nothing, and the sha256 over every output (as in compose.json) must be `digest` in both. Invented figures only. `python tests/engine/_figure_compose.py` prints both digests NOW.",
+ "tail": {
+  "ro": " în această perioadă.",
+  "en": " for the period and that is the total."
+ },
+ "amounts": [
+  "RON 5.2M",
+  "RON 1,234,567.89",
+  "1.234.567,89 RON",
+  "5,2 mil. RON",
+  "1,234,567.89 RON",
+  "RON 1.234.567,89",
+  "15%",
+  "12.5%",
+  "12,5%",
+  "EUR 3.5M",
+  "2.5x",
+  "45.5 zile",
+  "$7.5M"
+ ],
+ "classes": [
+  {
+   "name": "account",
+   "labels": {
+    "ro": [
+     "Contul ",
+     "contul ",
+     "Cont ",
+     "Analiticul ",
+     "Conturile ",
+     "Soldul contului "
+    ],
+    "en": [
+     "Account ",
+     "account ",
+     "Accounts "
+    ]
+   },
+   "ids": [
+    "5121",
+    "5121.01",
+    "5121,01",
+    "4111.2",
+    "401.15",
+    "401.100",
+    "401,100",
+    "121,117,129",
+    "121.117.129"
+   ],
+   "seps": [
+    " - ",
+    " – ",
+    " — ",
+    ": ",
+    " (",
+    ", ",
+    " = ",
+    "-",
+    "–",
+    " EUR - ",
+    " % - "
+   ]
+  },
+  {
+   "name": "date",
+   "labels": {
+    "ro": [
+     "Sold la ",
+     "la ",
+     "pe ",
+     "până la ",
+     "Scadența: la ",
+     "din "
+    ],
+    "en": [
+     "Balance at ",
+     "on ",
+     "due by ",
+     "since "
+    ]
+   },
+   "ids": [
+    "31.12",
+    "30.06",
+    "15.03",
+    "31,12",
+    "15,03"
+   ],
+   "seps": [
+    " - ",
+    " – ",
+    " — ",
+    ": ",
+    " (",
+    ", ",
+    "-",
+    "–"
+   ]
+  },
+  {
+   "name": "reference",
+   "labels": {
+    "ro": [
+     "Nota ",
+     "Conform notei ",
+     "Art. ",
+     "art. ",
+     "IAS ",
+     "Vezi pct. ",
+     "Tabelul "
+    ],
+    "en": [
+     "Note ",
+     "Art. ",
+     "IAS ",
+     "See table ",
+     "Clause "
+    ]
+   },
+   "ids": [
+    "4.2",
+    "3.12",
+    "7.25",
+    "16.4",
+    "4,2",
+    "3,12"
+   ],
+   "seps": [
+    " - ",
+    " – ",
+    " — ",
+    ": ",
+    " (",
+    ", ",
+    "-",
+    "–"
+   ]
+  },
+  {
+   "name": "line",
+   "labels": {
+    "ro": [
+     "- ",
+     "* ",
+     "",
+     "1) "
+    ],
+    "en": [
+     "- ",
+     "* ",
+     "",
+     "1) "
+    ]
+   },
+   "ids": [
+    "4111.01",
+    "401.15",
+    "2.1",
+    "4111,01"
+   ],
+   "seps": [
+    " - ",
+    " – ",
+    " — ",
+    ": ",
+    " (",
+    ", "
+   ]
+  },
+  {
+   "name": "plain",
+   "labels": {
+    "ro": [
+     "Poziția ",
+     "Rândul ",
+     "Clientul "
+    ],
+    "en": [
+     "Line ",
+     "Row ",
+     "Customer "
+    ]
+   },
+   "ids": [
+    "4111.01",
+    "12.5",
+    "3.75",
+    "4111,01"
+   ],
+   "seps": [
+    " - ",
+    " – ",
+    " — ",
+    ": ",
+    " (",
+    ", "
+   ]
+  },
+  {
+   "name": "period",
+   "labels": {
+    "ro": [
+     "În ",
+     "Pentru anul ",
+     "T3 "
+    ],
+    "en": [
+     "In ",
+     "For ",
+     "Q4 "
+    ]
+   },
+   "ids": [
+    "2025",
+    "1999"
+   ],
+   "seps": [
+    " - ",
+    ": ",
+    ", ",
+    " "
+   ]
+  }
+ ],
+ "digest": "d82308bbaeefbc9aa93169532c15c87cd32cfa70b631e2ba81ae925a40eb90eb"
+}

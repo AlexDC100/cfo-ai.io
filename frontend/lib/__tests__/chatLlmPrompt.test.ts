@@ -257,8 +257,13 @@ describe("apart from the rule, the system prompt is byte for byte what the funct
   });
 
   it("the figure-format rule's own bytes are pinned: rewording it moves this hash on purpose", () => {
-    expect(sha256(FIGURE_FORMAT_SECTION)).toBe("121639d7765f39b48dac832644c8597a54862d29f7f4d995ede9a04abe54ee10");
-    expect(FIGURE_FORMAT_SECTION.length).toBe(1090);
+    // MOVED ON PURPOSE 2026-10-05 (was 121639d7…, length 1090): the two example
+    // ratios of the section were a real company's, read off a live screen, and
+    // this repository is public. They are invented ones now (8,75% / 2,35×) —
+    // the same shapes, two characters shorter in all. Nothing else of the
+    // section changed.
+    expect(sha256(FIGURE_FORMAT_SECTION)).toBe("94250ebc3095913624f67f1694fd9cc164373b2790b51a925c0c0ad7010a6671");
+    expect(FIGURE_FORMAT_SECTION.length).toBe(1088);
     expect(FIGURE_FORMAT_SECTION.startsWith("Figure format (non-negotiable):\n")).toBe(true);
   });
 

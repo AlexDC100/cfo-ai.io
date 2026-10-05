@@ -135,11 +135,11 @@ export const STOCK_CLAIM_SECTION =
 //
 // STATIC TEXT: no figure of the request, no clock, no id.
 export const FIGURE_FORMAT_VALUES = {
-  whole: 64567890, decimals: 162365.46, compact: 12300000, percent: "11.25", multiple: "1.19", rate: "0.1905",
+  whole: 64567890, decimals: 162365.46, compact: 12300000, percent: "8.75", multiple: "2.35", rate: "0.1905",
 } as const;
 export const FIGURE_FORMAT_EXAMPLES = {
-  ro: { whole: "64.567.890", decimals: "162.365,46", compact: "12,3 mil.", percent: "11,25%", multiple: "1,19×", rate: "0,1905" },
-  en: { whole: "64,567,890", decimals: "162,365.46", compact: "12.3M", percent: "11.25%", multiple: "1.19×", rate: "0.1905" },
+  ro: { whole: "64.567.890", decimals: "162.365,46", compact: "12,3 mil.", percent: "8,75%", multiple: "2,35×", rate: "0,1905" },
+  en: { whole: "64,567,890", decimals: "162,365.46", compact: "12.3M", percent: "8.75%", multiple: "2.35×", rate: "0.1905" },
 } as const;
 
 const RO = FIGURE_FORMAT_EXAMPLES.ro;

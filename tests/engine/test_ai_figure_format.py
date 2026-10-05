@@ -9,7 +9,7 @@ formatting standard, with a gate."
 WHAT WAS TRUE BEFORE. A briefing is prose a model wrote, stored as written.
 One prompt hint asked for the format ("Numbers in RO locale; cite currency
 as 'RON' (e.g. '1.234.567 RON')") and nothing HELD it: the day the model
-writes "~EUR 12.3M (marjă 11.25%)" in a Romanian sentence — the shape the
+writes "~EUR 12.3M (marjă 8.75%)" in a Romanian sentence — the shape the
 chat printed in production on 2026-10-04 — that is what is stored, answered
 by the regenerate route and served to every member of the workspace.
 
@@ -87,7 +87,42 @@ THE LAWS
       million, to drop a sign, or to move a code inside a number, the text
       comes back exactly as written, counted proof_failed.
 
-REDS ON, with the repair in place (TC-11): a code moved onto another number
+  E15 WHAT IS NOT A FIGURE, BESIDE ONE (review 2026-10-05, round 2: "Contul
+      5121.01 – 1.234.567,89 RON" came back "Contul 5121,01 – …", "Sold la
+      31.12 – 5,2 mil. RON" as "31,12", in one pass or in the second — with
+      both gates green: no fixture held an id before a spaced dash, and the
+      reader reads amounts, not whether a token is one). THE LABEL GRAMMAR
+      (fixtures/ai_figures/labels.json — an account word, a date word, a
+      reference word, a list marker, a plain noun, a period word x an id that
+      is not an amount x a separator x an amount in either notation, 29,263
+      texts): the id's bytes survive, a second pass changes nothing, the
+      independent reader sees no figure bound to anything else, and the
+      sha256 of every output is the fixture's `digest` in BOTH runtimes.
+  E16 THE READER OVER THE COMPOSED SET. The independent reader is run over
+      all 12,000 composed outputs: what it flags is EXACTLY the set written
+      out below, each read by hand (glued garbage, a code inside a span the
+      pass never enters). One more flag is a red.
+  E17 ONE RECOMMENDATION IS ONE TEXT. The writer stores a recommendation's
+      rationale and actions as one explanation under its title: a lone group
+      in any field and a reshaped figure in any other return EVERY field as
+      the model wrote it — read off the stored row, not off the walker.
+  E18 A CODE THAT ONLY CHANGES SIDES HOLDS NOTHING. Beside a lone group, a
+      text whose numbers are already in its own notation still gets its
+      codes moved: no number token changes by a byte, so the lone group reads
+      as it did.
+  E19 NEVER SLOW. A 20 KB unbroken run (word characters, "1.5%1.5%…",
+      "1.5-1.5-…", bare decimals on one line, "](a](a…", with and without an
+      "@") is formatted inside a time limit: the pass runs inside the request.
+
+REDS ON, with the repair in place (TC-11): an account, a date, a note number
+or a year re-spelt or given a currency because a figure follows it; a second
+pass that changes what the first returned; a code moved before a hedged range
+("între EUR 1.5 și aproximativ 2.5M"), inside a number grouped with any
+in-line space, off a year-shaped amount onto a count, or onto a bare integer;
+one bound of an opener's range rewritten and the other left; a "$" named USD
+behind emphasis or a colon; a tenor after a code re-spelt as a million; a
+recommendation stored half rewritten; a text held although only codes would
+move; a 20 KB run that stalls the worker; a code moved onto another number
 (before a range, a list, a spaced or apostrophe-grouped number, an unread
 magnitude, a second currency; a code between two numbers taken by the first);
 a "$" named USD where the reply names another dollar; a bare run of groups
@@ -105,10 +140,12 @@ what the narrator returned; another language's narration or hint changing
 by a byte; an exception of the pass reaching a caller.
 
 CANNOT SEE: a NON-FIGURE the pass re-spells because a currency or a unit
-stands beside it ("Versiunea 2.1 RON", "Pe 5.11 lei", "Contul RON 5121",
-"În EUR 3 scenarii", "Argumentul $1") — the independent reader reads the
-same value before and after, and no reader can know a version from an
-amount; a text HELD as written (it is counted, and it still holds the
+stands RIGHT beside it and no account word before it ("Versiunea 2.1 RON",
+"Pe 5.11 lei") — the independent reader reads the same value before and
+after, no reader can know a version from an amount, and the label grammar
+puts a separator between the id and the amount; a label id of the shape
+NNN.NNN outside an account word (it is a lone group to every reader, and
+holds the text); a text HELD as written (it is counted, and it still holds the
 model's notation: the detector is not run on it); a code left before its
 figure on purpose (counted `code_before` / `open_amount`); what a model
 WRITES (the provider is a script); rows stored
@@ -116,9 +153,7 @@ before this release (no stored row is rewritten — the browser's card repairs
 what it shows); a narration the model wrote in ANOTHER language than it was
 asked for (it is normalised in the asked language — notation only, never a
 value); a token left by design — a lone three-digit group ("162,365 RON" in
-Romanian text) passes every law and the detector; a recommendation whose
-`actions` is one string instead of a list (the numeral guard does not walk
-it either); the non-statement (SKU / invoice register) prompt's own wording
+Romanian text) passes every law and the detector; the non-statement (SKU / invoice register) prompt's own wording
 beyond carrying the same hint; whether a figure is TRUE.
 
 PLANT LOG: docs/engine_book/gates.md "ai-figures-engine".
@@ -154,9 +189,23 @@ GRID: Dict[str, Any] = json.loads((FIXTURES / "grid.json").read_text(encoding="u
 STANDARD_JSON: Dict[str, Any] = json.loads((FIXTURES / "standard.json").read_text(encoding="utf-8"))
 
 COMPOSE_SPEC: Dict[str, Any] = json.loads(COMPOSE.FIXTURE.read_text(encoding="utf-8"))
+LABEL_SPEC: Dict[str, Any] = json.loads(COMPOSE.LABELS.read_text(encoding="utf-8"))
 
 #: What this gate did, for the battery's canary (printed by the last test).
-WORK = {"corpus": 0, "grid": 0, "narrations": 0, "grammar": 0, "composed": 0}
+WORK = {"corpus": 0, "grid": 0, "narrations": 0, "grammar": 0, "composed": 0, "labels": 0, "mixed": 0}
+
+_NUMBER = re.compile(r"[0-9][0-9.,]*[0-9]|[0-9]")
+_MAGNITUDE = re.compile(r"[0-9](?:[ \u00a0\u202f]?(?:mil\.|mld\.|mii)|Bn|bn|[KMBk])(?![A-Za-z0-9])")
+
+
+def numbers_as_written(text: str) -> List[str]:
+    """Every number token and every magnitude of `text`, byte for byte, in order."""
+    return _NUMBER.findall(text) + [m.group(0)[1:].strip(" \u00a0\u202f") for m in _MAGNITUDE.finditer(text)]
+
+
+#: Corpus outputs that hold both notations after the pass (measured; the list
+#: only shrinks: a rule that produces one more half-converted output reds).
+MIXED_OUTPUTS_AT_MOST = 43
 
 
 def held(case: Dict[str, Any]) -> bool:
@@ -286,7 +335,7 @@ def test_the_corpus_is_what_it_says_it_is():
     """POSITIVE CONTROL of every law below: the corpus is not empty, its
     first case is the incident's sentence in shape, every wrong input IS
     flagged by the detector and every expected string passes it."""
-    assert len(CORPUS) >= 154
+    assert len(CORPUS) >= 190
     assert len(set(c["id"] for c in CORPUS)) == len(CORPUS)
     first = CORPUS[0]
     assert first["id"] == "incident-shape" and first["lang"] == "ro" and first["wrong"] is True
@@ -322,7 +371,14 @@ def test_the_corpus_is_what_it_says_it_is():
     counted = {why: sum(1 for c in CORPUS for k in c["kept"] if k["reason"] == why)
                for why in ("open_amount", "code_before", "text_held", "bare_groups")}
     assert counted["open_amount"] >= 25 and counted["code_before"] >= 10, counted
-    assert counted["text_held"] >= 4 and counted["bare_groups"] >= 8, counted
+    assert counted["text_held"] >= 4 and counted["bare_groups"] >= 5, counted
+    # The shapes the review of round 2 found it without: a label id before a
+    # spaced dash, a hedged range, an in-line space the product does not write,
+    # a year-shaped amount before a count, a bare integer beside a code.
+    for needle, why in ((" \u2013 ", "reference"), (" - ", "possible_date"), ("circa", "open_amount"),
+                        ("\u2009", "open_amount"), ("\u2007", "open_amount"), ("2000 RON 100", "open_amount"),
+                        ("EUR 3 scenarii", "code_before"), ("**CAD** $", "code_before"), ("EUR 3M", "tenor")):
+        assert any(needle in c["input"] and any(k["reason"] == why for k in c["kept"]) for c in CORPUS), needle
 
 
 @pytest.mark.parametrize("case", CORPUS, ids=[c["id"] for c in CORPUS])
@@ -348,10 +404,16 @@ def test_e1_the_corpus_the_output_is_the_expected_string_and_every_token_left_is
     # the model's own, counted: there is nothing of ours to read in it).
     if not held(case):
         assert findings(out, case["lang"], case["kept"], case.get("allowed", ())) == []
-    # NEVER HALF A TEXT: where anything was rewritten, no lone group is left.
+    # NEVER HALF A TEXT: where a number was RESHAPED, no lone group is left —
+    # beside one, at most a code changed sides (E18): every number token and
+    # every magnitude is byte for byte what the model wrote.
     reasons = [why for _t, why in report["left"]]
-    assert not (out != case["input"] and "single_group" in reasons)
+    if "single_group" in reasons:
+        assert numbers_as_written(out) == numbers_as_written(case["input"]), case["id"]
     assert ("text_held" in reasons) is held(case)
+    # (counted for the canary: an output that still holds BOTH notations — a
+    # token left on purpose beside rewritten ones)
+    WORK["mixed"] += bool(out != case["input"] and findings(out, case["lang"]) != [])
     # WHAT EVERY FIGURE IS BOUND TO — read by the independent reader, on the
     # output and on the hand-typed string alike.
     assert READER.changed_amounts(case["input"], out, case["lang"]) == []
@@ -361,7 +423,7 @@ def test_e1_the_corpus_the_output_is_the_expected_string_and_every_token_left_is
 def test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print_or_untouched():
     rows = GRID["rows"]
     assert len(rows) == 984
-    outcomes = {"rewritten": 0, "single_group": 0}
+    outcomes = {"rewritten": 0, "single_group": 0, "code_before": 0}
     for target, written, printed, outcome in rows:
         source = "en" if target == "ro" else "ro"
         text = GRID["frames"][target].replace("{figure}", written)
@@ -370,6 +432,12 @@ def test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print
             # A lone three-digit group: byte-identical, counted, never guessed.
             assert out == text, text
             assert [why for _t, why in report["left"]] == ["single_group"], text
+        elif outcome == "code_before":
+            # A bare integer beside a code is not known to be an amount ("cont
+            # RON 5121", "În EUR 3 scenarii"): byte-identical, counted.
+            assert re.fullmatch(r"-?[A-Z]{3} [0-9]+", written), written
+            assert out == text, text
+            assert report["left"] == [(written.lstrip("-"), "code_before")], text
         else:
             assert outcome == "rewritten"
             # lib/money's own bytes — the U+00A0 joiners included.
@@ -387,7 +455,7 @@ def test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print
         if not re.match(r"^-?[A-Z]{3} ", written):
             assert plain(nout) == plain(native), native
         outcomes[outcome] += 1
-    assert outcomes == {"rewritten": 864, "single_group": 120}
+    assert outcomes == {"rewritten": 828, "single_group": 120, "code_before": 36}
     WORK["grid"] = len(rows)
 
 
@@ -470,7 +538,7 @@ def test_e1_the_run_time_proof_refuses_a_result_whose_digits_differ(monkeypatch)
 
 
 def test_e1_what_is_not_a_string_or_not_a_language_of_the_standard_comes_back_as_given():
-    text = "Umsatz RON 64,567,890 (Marge 11.25%)."
+    text = "Umsatz RON 64,567,890 (Marge 8.75%)."
     for lang in OTHER_LANGUAGES + ("xx", "", "RO", None):
         out, report = F.normalise_figures(text, lang)  # type: ignore[arg-type]
         assert out is text and report == {"rewritten": 0, "left": []}, lang
@@ -507,6 +575,15 @@ MISBOUND = [
     ("ro", "este 2.5‰ din", "este 2,5% din"),                                # a per-mille made a percentage
     ("ro", "este de RON 4.58M în", "este de 4,58 mil. EUR în"),              # another currency
     ("ro", "este de RON 4.58M în", "este de 45,8 mil. RON în"),              # (digits kept, the mark moved)
+    # round 2 (review 2026-10-05): a hedge between the bounds, an in-line space
+    # the product does not write, a year-shaped amount before a count.
+    ("ro", "este între EUR 40 și circa 55 milioane, în", "este între 40 EUR și circa 55 milioane, în"),
+    ("ro", "este de la RON 10 la aproximativ 12 milioane, în", "este de la 10 RON la aproximativ 12 milioane, în"),
+    ("en", "is between USD 1,5 and roughly 2,5 mil. for", "is between 1.5 USD and roughly 2.5M for"),
+    ("ro", "este estimat la RON 10 \u2013 max. 12M în", "este estimat la 10 RON \u2013 max. 12M în"),
+    ("ro", "este de EUR 12\u2009300\u2009000 în", "este de 12 EUR\u2009300\u2009000 în"),
+    ("ro", "este de RON 64\u2007567\u2007890 în", "este de 64 RON\u2007567\u2007890 în"),
+    ("ro", "social 2000 RON 100 părți în", "social 2000 100 RON părți în"),
 ]
 
 
@@ -522,7 +599,7 @@ def test_e11_the_independent_reader_sees_a_figure_bound_to_something_else():
         ("ro", "este de RON 4.58M în", "este de 4,58 mil. RON în"),
         ("ro", "este de ~EUR 12.3M (din RON 64,567,890)", "este de ~12,3 mil. EUR (din 64.567.890 RON)"),
         ("ro", "este de RON -2,577,640.82, adică", "este de -2.577.640,82 RON, adică"),
-        ("en", "was 12,3 mil. EUR and 11,25% of", "was 12.3M EUR and 11.25% of"),
+        ("en", "was 12,3 mil. EUR and 8,75% of", "was 12.3M EUR and 8.75% of"),
         ("ro", "sunt de 1.5-2.5M EUR în", "sunt de 1,5-2,5 mil. EUR în"),
     ]:
         assert READER.changed_amounts(before, after, lang) == [], (before, after)
@@ -535,7 +612,7 @@ def test_e11_the_independent_reader_sees_a_figure_bound_to_something_else():
     assert imports == ["__future__", "re", "typing"], imports
 
 
-NB, TH = " ", " "
+NB, TH = "\u00a0", "\u202f"
 #: THE GRAMMAR of a code-first amount: every head x number x magnitude x
 #: what follows. The followers are the review's shapes — a range, a list, a
 #: number that goes on, a magnitude the standard does not print, another
@@ -552,10 +629,14 @@ GRAMMAR_FOLLOWERS = [
     " M", " milion", " milioane", " trillion", " bn", " mio.", " CAD", " (AUD)", " EUR", "%", " %", "x", " zile",
     " la 31.12", " la 7 milioane", ", 12.5% peste", " și EUR 3.5M", "$3", " €3", "\n2. Altceva", " to 9M", " sau 7",
     "-year", " (2025)", "/an", "**", " | 5", " de mii", " de milioane", "\u2014adică", "/6",
+    # round 2: a hedge before the second bound, an en dash as its sign, every in-line space as a group separator
+    " și circa 55 milioane", " to roughly 55 million", ", eventual 12 milioane", " \u2013 max. 12M",
+    ", respectiv \u20133.1M", " până la maximum 2.5M", "\u2009300\u2009000", "\u2007300", "\t300", "\u3000300",
 ]
 #: What stands before the code — a number that could own it, a rate word, a
 #: range opener, another currency's code (with the three plain magnitudes).
-GRAMMAR_BEFORE = ["la 31.12 ", "nota 4.2 ", "la 3M ", "În 2025 ", "CAD ", "între ", "de la ", "curs ", "7.5M "]
+GRAMMAR_BEFORE = ["la 31.12 ", "nota 4.2 ", "la 3M ", "În 2025 ", "CAD ", "între ", "de la ", "curs ", "7.5M ",
+                  "Contul ", "Capital 2000 "]
 
 
 def _grammar():
@@ -591,7 +672,7 @@ def test_e11_the_grammar_no_code_first_amount_is_bound_to_anything_else_after_th
         changed += out != text
         frozen += "open_amount" in reasons
     # The law ran on something: thousands rewritten, thousands left as one expression.
-    assert checked >= 100_000 and changed >= 35_000 and frozen >= 30_000, (checked, changed, frozen)
+    assert checked >= 120_000 and changed >= 30_000 and frozen >= 40_000, (checked, changed, frozen)
     WORK["grammar"] = checked
 
 
@@ -665,26 +746,124 @@ def test_e12_a_text_holding_a_lone_group_is_returned_whole_whatever_else_it_hold
     alone = "Dobânzile sunt de 386.102 RON, iar marja este 10,7%."
     assert F.normalise_figures(alone, "ro") == (alone, {"rewritten": 0, "left": [("386.102", "single_group")]})
     # In English text, and inside an expression left as written.
-    en = "Cash: 1.234 RON; debt 12.345,67 RON; margin 11,25% for the year."
+    en = "Cash: 1.234 RON; debt 12.345,67 RON; margin 8,75% for the year."
     assert F.normalise_figures(en, "en") == (en, {"rewritten": 0, "left": [("1.234", "single_group"), ("", "text_held")]})
-    ranged = "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 11.25%."
+    ranged = "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 8.75%."
     out, report = F.normalise_figures(ranged, "ro")
     assert out == ranged and ("", "text_held") in report["left"]
 
 
-def test_e12_the_narrator_holds_each_prose_field_on_its_own():
-    """The hold is per TEXT: a briefing that holds a lone group is returned
-    whole while a recommendation beside it is still rewritten."""
-    payload = {"briefing": HELD_RO,
-               "recommendations": [{"title": "Reduceți datoria netă sub 2.5× EBITDA", "rationale": HELD_RO,
-                                    "actions": ["Reduceți DSO de la 61.4 la 48.0 zile."]}]}
+#: Texts already in their OWN notation, one lone group in each (the seam
+#: review's three, invented figures): the only thing to do is move a code.
+CODE_ONLY = [
+    ("en", "Net turnover was RON 64,567,890 and interest expense RON 386,102 (margin 11.85%).",
+     "Net turnover was 64,567,890 RON and interest expense RON 386,102 (margin 11.85%)."),
+    ("ro", "Cifra de afaceri este RON 64.567.890, iar dobânzile sunt RON 386.102 (marjă 11,85%).",
+     "Cifra de afaceri este 64.567.890 RON, iar dobânzile sunt RON 386.102 (marjă 11,85%)."),
+    ("en", "Net turnover was RON 64,567,890, EBITDA RON 7,654,321 and cash RON 162,365.",
+     "Net turnover was 64,567,890 RON, EBITDA 7,654,321 RON and cash RON 162,365."),
+]
+
+
+@pytest.mark.parametrize("lang,text,expected", CODE_ONLY, ids=[c[1][:30] for c in CODE_ONLY])
+def test_e18_a_code_that_only_changes_sides_beside_a_lone_group_is_moved_and_no_number_changes(lang, text, expected):
+    out, report = F.normalise_figures(text, lang)
+    assert plain(out) == expected
+    reasons = [why for _t, why in report["left"]]
+    assert reasons == ["single_group"] and report["rewritten"] >= 1
+    # WHY THIS CANNOT MISLEAD: every number token is byte for byte the model's
+    # (no separator exchanged, no magnitude re-spelt), so the notation around
+    # the lone group — what it is read by — is exactly what it was.
+    assert numbers_as_written(out) == numbers_as_written(text)
+    assert READER.changed_amounts(text, out, lang) == []
+    assert F.normalise_figures(out, lang)[0] == out
+    # POSITIVE CONTROL: one figure in the OTHER notation beside it, and the text is held whole.
+    foreign = text.replace("11.85%", "11,85%") if lang == "en" else text.replace("11,85%", "11.85%")
+    if foreign != text:
+        held_out, held_report = F.normalise_figures(foreign, lang)
+        assert held_out == foreign and ("", "text_held") in held_report["left"]
+
+
+def test_e17_one_recommendation_is_one_text_a_lone_group_in_any_field_holds_every_field():
+    """The writer stores a recommendation's rationale and actions as ONE
+    explanation under its title (review 2026-10-05, round 2: held per field,
+    the stored text came out half rewritten — "RON 386,102" alone in the
+    other notation, among Romanian figures). The briefing is its own text."""
+    title = "Reduceți datoria netă sub 2.5× EBITDA"
+    rationale = "Un tampon de RON 3,505,910.20 acoperă 5.4% din datoriile curente."
+    actions = ["Renegociați dobânzile de RON 386,102 pe an.", "Reduceți DSO de la 61.4 la 48.0 zile."]
+    payload = {"briefing": WRONG_RO,
+               "recommendations": [{"title": title, "rationale": rationale, "actions": list(actions)},
+                                   {"title": title, "rationale": rationale, "actions": actions[1]}]}
     out, report = F.normalise_narrate_result(payload, "ro")
-    assert out["briefing"] == HELD_RO and out["recommendations"][0]["rationale"] == HELD_RO
-    assert plain(out["recommendations"][0]["title"]) == "Reduceți datoria netă sub 2,5× EBITDA"
-    assert plain(out["recommendations"][0]["actions"][0]) == "Reduceți DSO de la 61,4 la 48,0 zile."
-    assert report["left_by_reason"] == {"single_group": 2, "text_held": 2}
-    assert report["fields_checked"] == 4 and report["fields_changed"] == 2
+    # The briefing holds no lone group: rewritten, whatever a recommendation holds.
+    assert plain(out["briefing"]) == RIGHT_RO
+    # The first recommendation holds one (in an action): EVERY field of it is the model's.
+    assert out["recommendations"][0] == {"title": title, "rationale": rationale, "actions": actions}
+    # POSITIVE CONTROL: the same fields without the lone group ARE rewritten — `actions` as one string too.
+    assert plain(out["recommendations"][1]["title"]) == "Reduceți datoria netă sub 2,5× EBITDA"
+    assert plain(out["recommendations"][1]["rationale"]) == "Un tampon de 3.505.910,20 RON acoperă 5,4% din datoriile curente."
+    assert plain(out["recommendations"][1]["actions"]) == "Reduceți DSO de la 61,4 la 48,0 zile."
+    assert report["left_by_reason"] == {"single_group": 1, "text_held": 3}
+    assert report["fields_checked"] == 8 and report["fields_changed"] == 4 and report["errors"] == 0
     assert "386" not in json.dumps(report)
+    # A lone group in the TITLE holds the rationale; one in the briefing holds only the briefing.
+    out, report = F.normalise_narrate_result(
+        {"briefing": HELD_RO, "recommendations": [{"title": "Dobânzi de RON 386,102", "rationale": rationale},
+                                                  {"title": title, "rationale": rationale}]}, "ro")
+    assert out["briefing"] == HELD_RO
+    assert out["recommendations"][0] == {"title": "Dobânzi de RON 386,102", "rationale": rationale}
+    assert plain(out["recommendations"][1]["rationale"]).startswith("Un tampon de 3.505.910,20 RON")
+    # A lone group beside fields the pass would NOT reshape holds nothing (codes only change sides).
+    out, report = F.normalise_narrate_result(
+        {"recommendations": [{"title": "Dobânzi de RON 386.102", "rationale": "Un tampon de RON 3.505.910,20 ajunge."}]}, "ro")
+    assert plain(out["recommendations"][0]["rationale"]) == "Un tampon de 3.505.910,20 RON ajunge."
+    assert report["left_by_reason"] == {"single_group": 1}
+
+
+def test_e17_the_stored_recommendation_is_never_half_rewritten(monkeypatch):
+    """Read off the STORED row — `explanation` is the rationale and the
+    actions joined by the writer — with the real narrator and the real writer."""
+    double = SERVED._world()
+    recommendation = {"severity": "high", "category": "financial", "title": "Renegociați dobânzile de RON 386,102",
+                      "rationale": "Un tampon de RON 3,505,910.20 acoperă 5.4% din datoriile curente.",
+                      "actions": ["Renegociați dobânzile de RON 386,102 pe an.", "Reduceți DSO de la 61.4 la 48.0 zile."],
+                      "estimated_ron_impact": 3505910.2}
+    narrated, provider = _narrate(monkeypatch, _reply(WRONG_RO, [recommendation]), "ro")
+    assert len(provider.calls) == 1
+    with RA.installed(double):
+        P.stage_persist_narrative(dict(SERVED.DOC, detected_language="ro"), SERVED.PID, narrated, [])
+    stored = double.tables.get("recommendations", [])
+    assert len(stored) == 1
+    assert stored[0]["title"] == recommendation["title"]
+    assert stored[0]["explanation"] == (
+        "Un tampon de RON 3,505,910.20 acoperă 5.4% din datoriile curente."
+        "\n\nActions:\n• Renegociați dobânzile de RON 386,102 pe an.\n• Reduceți DSO de la 61.4 la 48.0 zile.")
+    # ONE notation in the stored text: the detector finds the model's figures
+    # (it is held, counted) and NOT ONE of ours beside them.
+    assert "5,4%" not in stored[0]["explanation"] and "3.505.910,20" not in stored[0]["explanation"]
+    assert numbers_as_written(stored[0]["explanation"]) == numbers_as_written(
+        recommendation["rationale"] + " " + " ".join(recommendation["actions"]))
+    # The briefing beside it is its own text, and is rewritten.
+    assert plain(SERVED._briefing_rows(double)[0]["body"]) == RIGHT_RO
+
+
+def test_e17_the_pass_never_changes_what_a_stored_briefing_is_read_as(monkeypatch):
+    """`stored_briefing_failure_code` reads a body that BEGINS "Error code: N"
+    as a provider failure. A briefing "Error code: RON 1,250.50 …" with the
+    code moved would begin exactly so: it keeps the model's text."""
+    body = "Error code: RON 1,250.50 a fost raportat de bancă la plata din 12.5% a creditului."
+    moved, _ = F.normalise_narrate_result({"briefing": body}, "ro")
+    assert plain(moved["briefing"]).startswith("Error code: 1.250,50 RON")           # POSITIVE CONTROL
+    assert P.stored_briefing_failure_code(moved["briefing"]) != P.stored_briefing_failure_code(body)
+    out, report = F.normalise_narrate_result({"briefing": body}, "ro", briefing_verdict=P.stored_briefing_failure_code)
+    assert out["briefing"] == body
+    assert report["left_by_reason"] == {"text_held": 1} and report["rewritten"] == 0 and report["fields_changed"] == 0
+    narrated, _provider = _narrate(monkeypatch, _reply(body), "ro")
+    assert narrated["briefing"] == body and not narrated.get("unavailable")
+    # A verdict that raises keeps the model's text too.
+    out, _ = F.normalise_narrate_result({"briefing": body}, "ro", briefing_verdict=lambda _s: 1 / 0)
+    assert out["briefing"] == body
 
 
 # ══ E13 — the composed set ════════════════════════════════════════════════
@@ -701,7 +880,9 @@ def test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_t
         if "text_held" in reasons:
             assert out == text and report["rewritten"] == 0 and "single_group" in reasons, text
             held_texts += 1
-        assert not (out != text and "single_group" in reasons), text
+        # Beside a lone group at most a code changed sides: no number token moved by a byte.
+        if "single_group" in reasons:
+            assert numbers_as_written(out) == numbers_as_written(text), text
         # A second pass changes nothing: what is stored and what is shown are one text.
         assert F.normalise_figures(out, lang, anchors)[0] == out, text
         # The run-time proof holds on what was returned.
@@ -718,6 +899,128 @@ def test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_t
         "the engine's outputs over the composed set changed: %s — if the rule change is deliberate and made in "
         "BOTH runtimes, commit this digest in compose.json" % COMPOSE.digest_of(spec, F.normalise_figures))
     WORK["composed"] = spec["count"]
+
+
+# ══ E16 — the independent reader over the composed set ════════════════════
+
+#: Every composed text the independent reader flags, by index — each READ BY
+#: HAND (round 2). None is a figure bound to something else:
+READER_FLAGS_ON_THE_COMPOSED_SET = {
+    1065: "a sentence stop merged into 'mil.' (the judged 'one stop, not two'): the reader then reads a list comma",
+    4644: "the same merged stop",
+    6667: "the same merged stop",
+    7348: "the same merged stop",
+    1444: "'CAD' is the tail of a URL — a span the pass never enters — and the '$' after it is written USD",
+    5285: "the same URL tail",
+    9241: "a magnitude letter written against a URL: read as the magnitude it is",
+    6576: "a number after ', <word>' behind a code-first amount that was closed: the reader calls it a shared code",
+    8842: "the same list after a closed amount",
+    3532: "glued garbage ('M2025 de lei USD')",
+    8703: "glued garbage ('bn$3M RON5')",
+    9863: "glued garbage ('bn€10×')",
+}
+
+
+def test_e16_the_reader_over_the_composed_set_flags_exactly_what_was_read_by_hand():
+    flagged = []
+    for i in range(COMPOSE_SPEC["count"]):
+        text, lang, anchors = COMPOSE.compose(COMPOSE_SPEC, i)
+        out, _report = F.normalise_figures(text, lang, anchors)
+        if READER.changed_amounts(text, out, lang):
+            flagged.append(i)
+    assert flagged == sorted(READER_FLAGS_ON_THE_COMPOSED_SET), (
+        "the independent reader flags another composed output — read it before pinning it: %s"
+        % sorted(set(flagged) ^ set(READER_FLAGS_ON_THE_COMPOSED_SET)))
+
+
+# ══ E15 — what is not a figure, beside one ════════════════════════════════
+
+def test_e15_the_label_grammar_an_id_beside_an_amount_survives_and_a_second_pass_changes_nothing():
+    spec = LABEL_SPEC
+    checked = changed = 0
+    by_class: Dict[str, int] = {}
+    for lang, cls, label, ident, text in COMPOSE.label_texts(spec):
+        out, report = F.normalise_figures(text, lang)
+        checked += 1
+        by_class[cls] = by_class.get(cls, 0) + 1
+        # THE ID'S BYTES SURVIVE: an account, a date, a note number, a year is
+        # nobody's amount, whatever follows it.
+        assert out.startswith(label + ident), (text, out)
+        assert digits(out) == digits(text), text
+        # A SECOND PASS CHANGES NOTHING: what is stored and what is shown are one text.
+        assert F.normalise_figures(out, lang)[0] == out, (text, out)
+        assert READER.changed_amounts(text, out, lang) == [], (text, out)
+        reasons = [why for _t, why in report["left"]]
+        assert "proof_failed" not in reasons, text
+        changed += out != text
+    assert checked == 29263 and sorted(by_class) == ["account", "date", "line", "period", "plain", "reference"], by_class
+    # The law ran on REWRITTEN texts: the amount beside the id is still formatted.
+    assert changed >= 15_000, changed
+    # POSITIVE CONTROL of the shapes: the review's sentences are IN the grammar.
+    texts = set(text for _l, _c, _a, _i, text in COMPOSE.label_texts(spec))
+    for needle in ("Contul 5121.01 \u2013 1.234.567,89 RON în această perioadă.", "Sold la 31.12 - RON 5.2M în această perioadă.",
+                   "Nota 4.2 \u2013 5,2 mil. RON în această perioadă.", "- 4111.01 - 1.234.567,89 RON în această perioadă.",
+                   "Analiticul 401.15 - 15% în această perioadă.", "În 2025 RON 5.2M în această perioadă.",
+                   "Account 5121,01 - 1.234.567,89 RON for the period and that is the total."):
+        assert needle in texts, needle
+    # THE TWIN: the browser's normaliser must reproduce the same digest
+    # (frontend/lib/__tests__/readerFigures.test.ts).
+    assert COMPOSE.label_digest_of(spec, F.normalise_figures) == spec["digest"], (
+        "the engine's outputs over the label grammar changed: %s — if the rule change is deliberate and made in "
+        "BOTH runtimes, commit this digest in labels.json" % COMPOSE.label_digest_of(spec, F.normalise_figures))
+    WORK["labels"] = checked
+
+
+# ══ E19 — never slow ══════════════════════════════════════════════════════
+
+#: One unbroken run of about 20 KB per shape (review 2026-10-05, round 2: the
+#: e-mail alternative and the backward word scans were quadratic — 0.4 to 6.7
+#: seconds for these, inside the request, with the GIL held).
+SLOW_SHAPES = {
+    "word characters": "a" * 20_000,
+    "letters and digits": "ab_9" * 5_000,
+    "percentages": "1.5%" * 5_000,
+    "dashed decimals": "1.5-" * 5_000,
+    "bare decimals on one line": "1.5 " * 5_000,
+    "link heads": "](a" * 6_700,
+    "word characters and an address": "a" * 20_000 + " x@y.ro",
+    "dashed decimals and an address": "1.5-" * 5_000 + " x@y.ro",
+}
+SLOW_LIMIT_SECONDS = 2.0
+
+
+@pytest.mark.parametrize("shape", sorted(SLOW_SHAPES))
+def test_e19_a_long_unbroken_run_is_formatted_inside_the_time_limit(shape):
+    import time
+
+    text = "Marja este " + SLOW_SHAPES[shape] + " și 4.5% acum."
+    best = None
+    for _ in range(2):                       # (the better of two: the machine is shared)
+        started = time.perf_counter()
+        out, report = F.normalise_figures(text, "ro")
+        elapsed = time.perf_counter() - started
+        best = elapsed if best is None else min(best, elapsed)
+    assert out.endswith("și 4,5% acum."), shape
+    assert digits(out) == digits(text)
+    assert best < SLOW_LIMIT_SECONDS, "%s: %.2f s" % (shape, best)
+
+
+def test_e19_the_shortcuts_change_no_output():
+    """The three shortcuts — no digit, no '@', a bounded word scan — are the
+    same outputs by construction: shown on the texts they could differ on."""
+    # no digit: the text as given, nothing counted
+    for text in ("Fără nicio cifră aici.", "x@y.ro și `cod` https://x.test/a", ""):
+        assert F.normalise_figures(text, "ro") == (text, {"rewritten": 0, "left": []})
+    # an address is still never entered — with the bounded local part, too
+    for text in ("Scrie la a.b-1.5@firma1.5.ro pentru RON 1,234.50.", "x" * 80 + "1.5@y.ro și 2.5%"):
+        out, _ = F.normalise_figures(text, "ro")
+        assert "@" in out and out.split("@")[1].startswith(text.split("@")[1][:8]), out
+    assert plain(F.normalise_figures("Scrie la a.b-1.5@firma1.5.ro pentru RON 1,234.50.", "ro")[0]) == (
+        "Scrie la a.b-1.5@firma1.5.ro pentru 1.234,50 RON.")
+    # a reference word is still read at the end of a very long line
+    long_line = "x " * 4_000 + "Vezi art. 7.25 și marja de 4.5%."
+    out, report = F.normalise_figures(long_line, "ro", [7.25])
+    assert out.endswith("Vezi art. 7.25 și marja de 4,5%.") and ("7.25", "reference") in report["left"]
 
 
 # ══ E14 — the run-time proof beyond the digits ════════════════════════════
@@ -744,7 +1047,9 @@ def test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_
     monkeypatch.undo()
 
     # 3 — the closure made blind: the code would land inside a spaced number.
-    spaced = "Cifra de afaceri este de RON 64 567 890.50 în această perioadă."
+    # (Its first group carries a decimal comma: a BARE first group is no
+    # longer moved at all — a bare integer beside a code stays.)
+    spaced = "Cifra de afaceri este de RON 64,5 567 890 în această perioadă."
     assert F.normalise_figures(spaced, "ro")[0] == spaced
     monkeypatch.setattr(F, "_amount_ends", lambda *_a, **_k: True)
     out, report = F.normalise_figures(spaced, "ro")
@@ -755,7 +1060,7 @@ def test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_
     monkeypatch.setattr(F, "_amount_ends", lambda *_a, **_k: True)
     monkeypatch.setattr(F, "_structure_held", lambda *_a: True)
     out, _ = F.normalise_figures(spaced, "ro")
-    assert plain(out) == "Cifra de afaceri este de 64 RON 567 890.50 în această perioadă."
+    assert plain(out) == "Cifra de afaceri este de 64,5 RON 567 890 în această perioadă."
     assert READER.changed_amounts(spaced, out, "ro") != []
 
 
@@ -812,7 +1117,7 @@ def test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_
         "severity": "high", "category": "financial", "title": text, "rationale": text,
         "actions": [text, "Fără cifre aici." if lang == "ro" else "No figure here.", 7, None],
         # NOT prose: a number, a numeric string in the OTHER notation, an id.
-        "estimated_ron_impact": 1234567.89, "metric_referenced": "RON 1,234.50 (11.25%)",
+        "estimated_ron_impact": 1234567.89, "metric_referenced": "RON 1,234.50 (8.75%)",
         "note": "RON 9,876.50",
     }
     out, provider = _narrate(monkeypatch, _reply(text, [recommendation, "not an object", 3]), lang)
@@ -839,15 +1144,15 @@ def test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_
 
 
 WRONG_RO = ("Cifra de afaceri este de RON 64,567,890, cu un EBITDA de RON 7,654,321 (marjă 11.85%); "
-            "datoria netă/EBITDA este 1.19×, iar zilele de stoc sunt 45.5 zile.")
+            "datoria netă/EBITDA este 2.35×, iar zilele de stoc sunt 45.5 zile.")
 RIGHT_RO = ("Cifra de afaceri este de 64.567.890 RON, cu un EBITDA de 7.654.321 RON (marjă 11,85%); "
-            "datoria netă/EBITDA este 1,19×, iar zilele de stoc sunt 45,5 zile.")
+            "datoria netă/EBITDA este 2,35×, iar zilele de stoc sunt 45,5 zile.")
 WRONG_RO_EUR = "Cifra de afaceri este de EUR 12.3M, cu un EBITDA de EUR 1,458,148.25 (marjă 11.85%)."
 RIGHT_RO_EUR = "Cifra de afaceri este de 12,3 mil. EUR, cu un EBITDA de 1.458.148,25 EUR (marjă 11,85%)."
 WRONG_EN = ("Net turnover for the year was 64.567.890 RON (EBITDA margin 11,85%), with the net debt at "
-            "1,5 mil. RON and leverage of 1,19x.")
+            "1,5 mil. RON and leverage of 2,35x.")
 RIGHT_EN = ("Net turnover for the year was 64,567,890 RON (EBITDA margin 11.85%), with the net debt at "
-            "1.5M RON and leverage of 1.19x.")
+            "1.5M RON and leverage of 2.35x.")
 WRONG_EN_EUR = "Turnover is 12,3 mil. EUR, with an EBITDA of EUR 1.458.148,25 (margin 11,85%)."
 RIGHT_EN_EUR = "Turnover is 12.3M EUR, with an EBITDA of 1,458,148.25 EUR (margin 11.85%)."
 
@@ -1048,7 +1353,7 @@ MAIN_LANGUAGE_LINE = {
 }
 #: A reply whose figures are in English notation with the code first — what
 #: the pass would rewrite if it ran.
-FOREIGN_TEXT = "Umsatz RON 64,567,890, EBITDA ~EUR 12.3M (Marge 11.25%), Verschuldung 1.19x, 45.5 Tage."
+FOREIGN_TEXT = "Umsatz RON 64,567,890, EBITDA ~EUR 12.3M (Marge 8.75%), Verschuldung 2.35x, 45.5 Tage."
 
 
 def _language_line(system: str) -> str:
@@ -1133,14 +1438,17 @@ def test_e7_whatever_shape_the_model_returned_the_walker_returns_it_and_never_ra
         before = copy.deepcopy(payload)
         out, report = F.normalise_narrate_result(payload, "ro")
         assert payload == before                      # the input is never mutated
-        assert sorted(report) == ["fields_changed", "fields_checked", "left", "left_by_reason", "rewritten"]
+        assert sorted(report) == ["errors", "fields_changed", "fields_checked", "left", "left_by_reason", "rewritten"]
     out, report = F.normalise_narrate_result(odd[-1], "ro")
     assert plain(out["briefing"]) == RIGHT_RO
     assert out["recommendations"][:4] == [None, 1, "s", {}]
-    assert out["recommendations"][4] == {"title": None, "rationale": 5, "actions": "RON 1,234.50"}
+    # (`actions` as ONE string is what the writer stores too: it is walked)
+    assert {k: (plain(v) if isinstance(v, str) else v) for k, v in out["recommendations"][4].items()} == {
+        "title": None, "rationale": 5, "actions": "1.234,50 RON"}
     assert out["recommendations"][5]["actions"][:3] == [None, 2, {"x": 1}]
     assert plain(out["recommendations"][5]["actions"][3]) == RIGHT_RO
-    assert report["fields_checked"] == 2 and report["fields_changed"] == 2 and report["rewritten"] == 10
+    assert report["fields_checked"] == 3 and report["fields_changed"] == 3 and report["rewritten"] == 11
+    assert report["errors"] == 0
     # The report that is LOGGED holds counts by reason — never a token.
     _o, r = F.normalise_narrate_result({"briefing": "Numerar RON 162,365 și rata 1.42."}, "ro")
     assert r["left"] == 2 and r["left_by_reason"] == {"bare_decimal": 1, "single_group": 1}
@@ -1152,12 +1460,12 @@ def test_e7_whatever_shape_the_model_returned_the_walker_returns_it_and_never_ra
 RO_RON_LINE = ("LANGUAGE: Răspunde în limba română. Numbers in RO locale; cite currency as 'RON' AFTER the "
                "figure — never before it, never a symbol, never 'lei' (e.g. '1.234.567 RON', "
                "'1.234.567,89 RON', '12,3 mil. RON'); percentages, multiples and other ratios in the same "
-               "locale (e.g. '11,25%', '1,19×'). Every monetary figure in `briefing_facts` is "
+               "locale (e.g. '8,75%', '2,35×'). Every monetary figure in `briefing_facts` is "
                "pre-converted to RON — do NOT re-convert.")
 EN_EUR_LINE = ("LANGUAGE: Reply in English. Numbers in EN locale; cite currency as 'EUR' AFTER the "
                "figure — never before it, never a symbol, never 'lei' (e.g. '1,234,567 EUR', "
                "'1,234,567.89 EUR', '12.3M EUR'); percentages, multiples and other ratios in the same "
-               "locale (e.g. '11.25%', '1.19×'). Every monetary figure in `briefing_facts` is "
+               "locale (e.g. '8.75%', '2.35×'). Every monetary figure in `briefing_facts` is "
                "pre-converted to EUR — do NOT re-convert.")
 
 
@@ -1199,9 +1507,9 @@ def _count_the_pass(monkeypatch) -> List[str]:
     calls: List[str] = []
     real = F.normalise_narrate_result
 
-    def counted(payload: Any, lang: str, anchors: Any = ()) -> Any:
+    def counted(payload: Any, lang: str, anchors: Any = (), **kwargs: Any) -> Any:
         calls.append(lang)
-        return real(payload, lang, anchors)
+        return real(payload, lang, anchors, **kwargs)
 
     monkeypatch.setattr(F, "normalise_narrate_result", counted)
     return calls
@@ -1302,7 +1610,12 @@ def test_e10_no_socket_was_attempted_and_the_model_was_only_ever_the_stand_in():
     assert real is None or isinstance(real, types.SimpleNamespace) or not getattr(real, "__file__", None), (
         "the real anthropic SDK was imported by this run")
     assert WORK["corpus"] == len(CORPUS) and WORK["grid"] == 984 and WORK["narrations"] >= 130, WORK
-    assert WORK["grammar"] >= 100_000 and WORK["composed"] == 12000, WORK
-    print("\nGATE-WORK ai-figures-engine corpus=%d grid=%d narrations=%d languages=%d grammar=%d composed=%d"
+    assert WORK["grammar"] >= 120_000 and WORK["composed"] == 12000 and WORK["labels"] == 29263, WORK
+    # `mixed`: corpus outputs that still hold BOTH notations — a token left on
+    # purpose beside rewritten ones. Printed so the number is seen, and held:
+    # a rule that leaves more half-converted outputs moves it.
+    assert WORK["mixed"] <= MIXED_OUTPUTS_AT_MOST, WORK
+    print("\nGATE-WORK ai-figures-engine corpus=%d grid=%d narrations=%d languages=%d grammar=%d composed=%d "
+          "labels=%d mixed=%d"
           % (WORK["corpus"], WORK["grid"], WORK["narrations"], len(ALL_LANGUAGES), WORK["grammar"],
-             WORK["composed"]))
+             WORK["composed"], WORK["labels"], WORK["mixed"]))

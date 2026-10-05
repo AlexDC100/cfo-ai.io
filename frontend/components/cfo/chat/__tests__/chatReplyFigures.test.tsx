@@ -266,6 +266,38 @@ describe("POSITIVE CONTROL — the cases, the questions, the reference text", ()
   });
 });
 
+// THE REPLIES THAT DO NOT SHOW THEIR OWN LANGUAGE (round 2, 2026-10-05). In a
+// chat the language of a reply is its OWN words': the question may confirm
+// it, never supply it (a Romanian request for an English table came back in
+// Romanian notation). These corpus replies hold no word Romanian or English
+// alone has — a label, a formula, two shared words — so in a chat they are
+// stored and shown AS THE MODEL WROTE THEM, counted `language_unknown`. The
+// list is typed here: a reply that stops being read, or starts, is a red.
+const UNREAD_IN_CHAT = new Set([
+  "magnitude-ends-sentence", "million-words-and-lei", "estimate-with-tolerance", "per-year", "calculation",
+  "altman-formula", "english-magnitudes", "r2-spaced-dash-range",
+]);
+/** What a chat stores and shows for a corpus reply. */
+const inChat = (c: Case) => (UNREAD_IN_CHAT.has(c.id) ? plainSpaces(c.input) : c.expected);
+
+describe("the replies a chat leaves as written are exactly the ones whose words show no language", () => {
+  it("each is a WRONG reply the same pass formats the moment the language is known — and nothing else of the corpus is left", () => {
+    const ids = new Set(CHAT_CASES.map((c) => c.id));
+    for (const id of UNREAD_IN_CHAT) expect(ids.has(id), id).toBe(true);
+    for (const c of CHAT_CASES) {
+      const asked = displayModelText(c.input, { context: [QUESTION[c.lang]], anchors: c.anchors ?? [] });
+      const known = displayModelText(c.input, { known: c.lang, anchors: c.anchors ?? [] });
+      if (UNREAD_IN_CHAT.has(c.id)) {
+        expect(c.wrong, c.id).toBe(true);
+        expect(asked, c.id).toMatchObject({ text: c.input, lang: null, rewritten: 0, left: [{ token: "", reason: "language_unknown" }] });
+        // POSITIVE CONTROL: with the language KNOWN, it is the expected string.
+        expect(plainSpaces(known.text), c.id).toBe(c.expected);
+      } else expect(plainSpaces(asked.text), c.id).toBe(c.expected);
+    }
+    expect(UNREAD_IN_CHAT.size).toBe(8);
+  });
+});
+
 // ══ 10 — a reply, from the transport to the bubble ════════════════════════
 
 describe("10 a reply the model wrote in the wrong format is stored and shown in the reader's — whatever the UI language", () => {
@@ -279,8 +311,10 @@ describe("10 a reply the model wrote in the wrong format is stored and shown in 
     // ONE model request per turn — the pass asks nobody.
     expect(chatLlmMock).toHaveBeenCalledTimes(1);
     // STORED: the expected string, typed by hand; nothing foreign left but what the corpus names.
-    expect(plainSpaces(reply.content)).toBe(c.expected);
-    if (held(c)) expect(reply.content).toBe(c.input); // never half a text: byte for byte what the model wrote
+    // (A reply whose words show no language is stored as the model wrote it.)
+    const unread = UNREAD_IN_CHAT.has(c.id);
+    expect(plainSpaces(reply.content)).toBe(inChat(c));
+    if (held(c) || unread) expect(reply.content).toBe(c.input); // never half a text: byte for byte what the model wrote
     else expect(findings(reply.content, c.lang, c.kept, c.allowed)).toEqual([]);
     expect(reply.content.replace(/[^0-9]/g, "")).toBe(c.input.replace(/[^0-9]/g, ""));
     expect([reply.failed, reply.refused, reply.interrupted]).toEqual([undefined, undefined, undefined]);
@@ -288,9 +322,9 @@ describe("10 a reply the model wrote in the wrong format is stored and shown in 
     const view = shown(conv.messages);
     WORK.rendered += 1;
     expect(view.bubbles).toHaveLength(1);
-    expect(plainSpaces(view.bubbles[0])).toBe(mdText(c.expected));
+    expect(plainSpaces(view.bubbles[0])).toBe(mdText(inChat(c)));
     // …a code span's own text is not prose; everything else the reader sees is read by the detector.
-    if (!c.input.includes("`") && !held(c)) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
+    if (!c.input.includes("`") && !held(c) && !unread) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
     // STORED = SHOWN, byte for byte (joiners included): the bubble's pass changes nothing of a stored reply.
     expect(view.bubbles[0]).toBe(mdText(reply.content));
     // The reader's own turn is shown as typed.
@@ -310,17 +344,58 @@ describe("10 a reply the model wrote in the wrong format is stored and shown in 
     expect(without.reply.content).toBe(text);
   });
 
-  it("a reply too short to tell its language takes the QUESTION's — never the interface's", async () => {
-    const short = "EBITDA: 4.58M RON.";
+  it("a reply with NO words takes the QUESTION's language — never the interface's; a reply of labels takes nobody's", async () => {
+    const short = "~4.58M RON (8.75%)";
+    const label = "EBITDA: 4.58M RON.";
     for (const ui of ["ro", "en"] as const) {
       await i18n.changeLanguage(ui);
       resetChatLiveState(null);
-      expect(plainSpaces((await answeredTurn(QUESTION.ro, short)).reply.content), ui).toBe("EBITDA: 4,58 mil. RON.");
+      expect(plainSpaces((await answeredTurn(QUESTION.ro, short)).reply.content), ui).toBe("~4,58 mil. RON (8,75%)");
       resetChatLiveState(null);
       expect((await answeredTurn(QUESTION.en, short)).reply.content, ui).toBe(short);
       resetChatLiveState(null);
       // A question that does not read either: the reply is stored exactly as written.
       expect((await answeredTurn("EBITDA?", short)).reply.content, ui).toBe(short);
+      // A label is a word that is nobody's: the question does not say whether
+      // the reply is a Romanian list or an English table (round 2).
+      for (const question of [QUESTION.ro, QUESTION.en]) {
+        resetChatLiveState(null);
+        expect((await answeredTurn(question, label)).reply.content, `${ui} ${question}`).toBe(label);
+      }
+    }
+  });
+
+  it("the review's conversations (round 2): a correct reply after an exchange in the other language, an English table asked for in Romanian, a Spanish reply after a Romanian turn — each stored, shown and sent back as the model wrote it", async () => {
+    const roReply = "Da, firma este în creștere față de anul trecut și este peste media sectorului.";
+    const enReply = "Yes, the company has grown and this is above the average for the sector with this definition.";
+    const cases: [string, string, string, string][] = [
+      // [earlier question, earlier reply, this question, the model's reply]
+      [QUESTION.en, enReply, "Care este marja EBITDA?", "Marja EBITDA este 11,1%."],
+      [QUESTION.en, enReply, "Cât este EBITDA?", "EBITDA: 31.882.406 RON."],
+      [QUESTION.ro, roReply, "How did turnover move?", "For FY2025, turnover is 24,816,390 RON, against 22,104,815 RON in FY2024, an increase of 12.3%."],
+      [QUESTION.ro, roReply, "Fă-mi un tabel în engleză pentru investitor, cu cifra de afaceri și EBITDA.", "| Indicator | Value |\n|---|---|\n| Net turnover | 287,340,915 RON |\n| EBITDA | 31,882,406 RON |\n| EBITDA margin | 11.1% |"],
+      [QUESTION.ro, roReply, "¿Y en español?", "Los ingresos son de 57,7M EUR y el EBITDA de 6,4M EUR, con un margen del 11,1%."],
+      [QUESTION.en, enReply, "Please answer in German for our shareholder: what are the revenue and the EBITDA for this year?", "Der Umsatz beträgt 57,7 Mio. EUR und das EBITDA 6,4 Mio. EUR, das entspricht einer Marge von 11,1 %. Die Nettoverschuldung beträgt 35.289.785 RON."],
+      [QUESTION.ro, roReply, "Poți răspunde în română și în engleză?", "Cifra de afaceri este de 287.340.915 RON, iar marja EBITDA este de 11,1%.\n\nIn English: the turnover is 287,340,915 RON and the EBITDA margin is 11.1%."],
+    ];
+    for (const [q1, a1, q2, model] of cases) {
+      resetChatLiveState(null);
+      const seeded = chatAppendUserTurn(null, { content: q1 });
+      chatCompleteAssistantTurn(null, { conversationId: seeded.conversationId, assistantId: seeded.assistantId, content: a1 });
+      chatLlmMock.mockClear();
+      const { conv, reply } = await answeredTurn(q2, model);
+      WORK.turns += 1;
+      expect(chatLlmMock).toHaveBeenCalledTimes(1);
+      // STORED as the model wrote it …
+      expect(reply.content, q2).toBe(model);
+      // … SHOWN as the model wrote it (the bubble's own pass, with the hint of the earlier turn) …
+      const view = shown(conv.messages);
+      expect(view.bubbles[view.bubbles.length - 1], q2).toBe(mdText(model));
+      view.unmount();
+      // POSITIVE CONTROL: read in the earlier turn's language, the pass WOULD have re-spelt it.
+      const earlier = q1 === QUESTION.ro ? "ro" : "en";
+      expect(displayModelText(`${a1} 1.5%`).lang).toBe(earlier);
+      expect(normaliseFigures(model, earlier).text, q2).not.toBe(model);
     }
   });
 
@@ -408,8 +483,8 @@ describe("11 a wrong-format reply ALREADY in the store is shown right — and on
     await i18n.changeLanguage(other(c.lang));
     const view = shown([user(QUESTION[c.lang]), assistant(c.input)]);
     WORK.rendered += 1;
-    expect(plainSpaces(view.bubbles[0])).toBe(mdText(c.expected));
-    if (!c.input.includes("`") && !held(c)) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
+    expect(plainSpaces(view.bubbles[0])).toBe(mdText(inChat(c)));
+    if (!c.input.includes("`") && !held(c) && !UNREAD_IN_CHAT.has(c.id)) expect(findings(view.bubbles[0], c.lang, c.kept, c.allowed)).toEqual([]);
     view.unmount();
   });
 
@@ -451,11 +526,13 @@ describe("11 a wrong-format reply ALREADY in the store is shown right — and on
     plain.unmount();
   });
 
-  it("a short reply is shown in the language of the nearest earlier turn that reads — a refusal (the app's notice, in the UI language) gives none", async () => {
+  it("a reply with no words is shown in the language of the nearest earlier turn that reads — a refusal (the app's notice, in the UI language) gives none", async () => {
     await i18n.changeLanguage("ro");
-    const short = "EBITDA: 4.58M RON.";
+    const short = "~4.58M RON (8.75%)";
     const bubble = (messages: ChatMessage[]) => { const v = shown(messages); const last = v.bubbles[v.bubbles.length - 1]; v.unmount(); return plainSpaces(last); };
-    expect(bubble([user(QUESTION.ro), assistant(short)])).toBe("EBITDA: 4,58 mil. RON.");
+    expect(bubble([user(QUESTION.ro), assistant(short)])).toBe("~4,58 mil. RON (8,75%)");
+    // (a reply of LABELS takes no turn's language: it is shown as stored)
+    expect(bubble([user(QUESTION.ro), assistant("EBITDA: 4.58M RON.")])).toBe("EBITDA: 4.58M RON.");
     expect(bubble([user(QUESTION.en), assistant(short)])).toBe(short);
     expect(bubble([assistant(short)])).toBe(short);
     expect(bubble([user("EBITDA?"), assistant(short)])).toBe(short);
@@ -464,7 +541,7 @@ describe("11 a wrong-format reply ALREADY in the store is shown right — and on
     // a Romanian refusal before it is nobody's prose
     expect(bubble([user("EBITDA?"), assistant("**Ai atins limita zilnică Ask CFO AI**\n\nPlanul tău include 25 mesaje pe zi, iar cele de azi au fost folosite.", { refused: true }), assistant(short)])).toBe(short);
     // POSITIVE CONTROL: the same sentence as an ordinary reply DOES give the hint.
-    expect(bubble([user("EBITDA?"), assistant("Planul tău include 25 mesaje pe zi, iar cele de azi au fost folosite."), assistant(short)])).toBe("EBITDA: 4,58 mil. RON.");
+    expect(bubble([user("EBITDA?"), assistant("Planul tău include 25 mesaje pe zi, iar cele de azi au fost folosite."), assistant(short)])).toBe("~4,58 mil. RON (8,75%)");
   });
 
   it("a freshly arrived reply TYPES OUT in the reader's format: no frame ever shows the shape the model wrote", async () => {
@@ -543,12 +620,12 @@ describe("12 the next request's history carries a reply as the reader saw it, an
     await i18n.changeLanguage("en");
     const c = CORPUS[0];
     // A conversation as an older bundle left it: the reply stored as the model wrote it.
-    const typed = "Cât este EUR 12.3M în RON și de ce este marja 11.25%?";
+    const typed = "Cât este EUR 12.3M în RON și de ce este marja 8.75%?";
     const seeded = chatAppendUserTurn(null, { content: typed });
     chatCompleteAssistantTurn(null, { conversationId: seeded.conversationId, assistantId: seeded.assistantId, content: c.input });
     expect(getChatConversation(null, seeded.conversationId)!.messages[1].content).toBe(c.input);
 
-    const { reply } = await answeredTurn("Și marja?", "Marja EBITDA este 11.25%.");
+    const { reply } = await answeredTurn("Și marja?", "Marja EBITDA este 8.75%.");
     WORK.requests += 1;
     expect(chatLlmMock).toHaveBeenCalledTimes(1);
     const sent = (chatLlmMock.mock.calls[0] as unknown as [{ messages: Sent }])[0].messages;
@@ -558,7 +635,7 @@ describe("12 the next request's history carries a reply as the reader saw it, an
     expect(findings(sent[1].content, "ro")).toEqual([]);
     expect(sent[2].content).toBe("Și marja?");
     // …and the new short reply took the conversation's language.
-    expect(reply.content).toBe("Marja EBITDA este 11,25%.");
+    expect(reply.content).toBe("Marja EBITDA este 8,75%.");
   });
 
   it("the request itself is what it always was: the display currency, the FX context, the snapshot as built — the pass adds nothing to it", async () => {
@@ -592,7 +669,7 @@ describe("13 the command bar's guard reads the function's text exactly as it was
   it("a reply holding a digit, a percentage and a placeholder reaches the guard byte for byte — twice (the one regeneration) — and is rejected as it always was", async () => {
     await i18n.changeLanguage("ro");
     const first = "Activele totale sunt {{money:total_assets}}, în creștere cu 4.5% — adică ~EUR 12.3M pentru anul acesta.";
-    const second = "Activele totale sunt {{money:total_assets}} și marja este 11.25% din RON 64,567,890.";
+    const second = "Activele totale sunt {{money:total_assets}} și marja este 8.75% din RON 64,567,890.";
     chatLlmMock.mockResolvedValueOnce({ answer: first, model: null, usage: null }).mockResolvedValueOnce({ answer: second, model: null, usage: null });
     const turn = await run("ro");
     expect(chatLlmMock).toHaveBeenCalledTimes(2);

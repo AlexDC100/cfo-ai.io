@@ -268,7 +268,7 @@ function packMagnitudes(file: string): Record<"million" | "thousand", Record<Lan
   return out;
 }
 
-const HINT_VALUES = { whole: 1234567, decimals: 1234567.89, compact: 12300000, percent: "11.25", multiple: "1.19" } as const;
+const HINT_VALUES = { whole: 1234567, decimals: 1234567.89, compact: 12300000, percent: "8.75", multiple: "2.35" } as const;
 
 function buildStandard(): unknown {
   const packs = packMagnitudes("packs/ratios/margin_meaning.yaml");
@@ -328,7 +328,7 @@ const GRID_VALUES = [
   1000000, 1234567, 4580000, 16778901, 64567890, 2300000000, 12345678.48,
 ];
 const GRID_FRAMES: Record<Lang, string> = { ro: "Valoarea este de {figure} acum.", en: "The value is {figure} this year." };
-type GridRow = [target: Lang, written: string, print: string, outcome: "rewritten" | "single_group"];
+type GridRow = [target: Lang, written: string, print: string, outcome: "rewritten" | "single_group" | "code_before"];
 
 function buildGrid(): GridRow[] {
   const rows: GridRow[] = [];
@@ -339,8 +339,12 @@ function buildGrid(): GridRow[] {
       const add = (src: string, want: string, outcome: GridRow[3]) => {
         variants.push([src, want, outcome]);
         // …and the same figure with the code BEFORE it (the shape the old prompt taught): "RON 4,580,000", "-RON 4,580,000".
+        // A BARE INTEGER beside a code is not known to be an amount ("cont RON
+        // 5121", "În EUR 3 scenarii": round 2 of the review) — named here from
+        // the SHAPE lib/money printed, not by any normaliser: no separator, no
+        // magnitude. Such a row must come back byte-identical, counted.
         const num = figure(src, code);
-        variants.push([`${num.startsWith("-") ? "-" : ""}${code} ${num.replace(/^-/, "")}`, want, outcome]);
+        variants.push([`${num.startsWith("-") ? "-" : ""}${code} ${num.replace(/^-/, "")}`, want, /^-?\d+$/.test(num) ? "code_before" : outcome]);
       };
       for (const fractionDigits of [0, 2]) {
         if (fractionDigits === 0 && !Number.isInteger(v)) continue;
@@ -363,7 +367,8 @@ function gridFile(rows: GridRow[]): string {
       "A figure as frontend/lib/money prints it in ONE language (code after it, and the same figure with the code before it), set in a " +
       "sentence of the OTHER language (`frames`). Row: [language of the text, the figure as written, lib/money's print in that language, outcome]. " +
       "outcome 'rewritten': a normaliser must turn the sentence into the frame holding the print, byte for byte. outcome 'single_group': the " +
-      "figure is a lone three-digit group (two readings) — the sentence must come back byte-identical, counted single_group. Written and " +
+      "figure is a lone three-digit group (two readings) — the sentence must come back byte-identical, counted single_group. outcome " +
+      "'code_before': a bare integer written after a code — not known to be an amount: byte-identical, counted code_before. Written and " +
       "compared by frontend/lib/__tests__/chatLlmFigureFormat.test.ts (AI_FIGURES_WRITE=1). Never edit by hand.",
     frames: GRID_FRAMES,
   };
@@ -408,6 +413,9 @@ describe("the shared standard: what lib/money prints NOW is what the engine and 
     const lone = rows.filter((r) => r[3] === "single_group");
     expect(lone.length).toBe(120);
     for (const [, written] of lone) expect(written).toMatch(/^-?(?:[A-Z]{3} )?\d{1,3}[.,]\d{3}(?:\u00a0[A-Z]{3})?$/);
+    const bare = rows.filter((r) => r[3] === "code_before");
+    expect(bare.length).toBe(36);
+    for (const [, written] of bare) expect(written).toMatch(/^-?[A-Z]{3} \d{1,3}$/);
     for (const [target, written, print, outcome] of rows) {
       expect(foreignNumbersInProse(print, target), print).toEqual([]);
       expect(CURRENCY_BEFORE_FIGURE.test(print), print).toBe(false);

@@ -166,7 +166,7 @@ export function CFOBriefingCard({
     // English only, and a Spanish "12,3M" is not ours to re-spell.
     if (stamp && stamp !== "ro" && stamp !== "en") return text;
     const known = stamp === "ro" ? "ro" : stamp === "en" && liveLang !== null ? "en" : null;
-    return displayModelText(text, { fallback: known }).text;
+    return displayModelText(text, { known }).text;
   }, [text, liveLang, baseLanguage]);
 
   const activeLang = (i18n.language || "en").slice(0, 2);

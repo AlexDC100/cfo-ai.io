@@ -24,8 +24,8 @@
    "lang": "ro",
    "surface": "briefing",
    "wrong": false,
-   "input": "Balanța este echilibrată (sume debit = credit = 70.118.204 RON, dezechilibru 0%). Cifra de afaceri este de 64.567.890 RON, cu un EBITDA de 7.654.321 RON (marjă 11,85%); debt/EBITDA 1,19x, lichiditate curentă 1,42 și scor Altman Z de 2,87.",
-   "expected": "Balanța este echilibrată (sume debit = credit = 70.118.204 RON, dezechilibru 0%). Cifra de afaceri este de 64.567.890 RON, cu un EBITDA de 7.654.321 RON (marjă 11,85%); debt/EBITDA 1,19x, lichiditate curentă 1,42 și scor Altman Z de 2,87.",
+   "input": "Balanța este echilibrată (sume debit = credit = 70.118.204 RON, dezechilibru 0%). Cifra de afaceri este de 64.567.890 RON, cu un EBITDA de 7.654.321 RON (marjă 11,85%); debt/EBITDA 2,35x, lichiditate curentă 1,42 și scor Altman Z de 2,87.",
+   "expected": "Balanța este echilibrată (sume debit = credit = 70.118.204 RON, dezechilibru 0%). Cifra de afaceri este de 64.567.890 RON, cu un EBITDA de 7.654.321 RON (marjă 11,85%); debt/EBITDA 2,35x, lichiditate curentă 1,42 și scor Altman Z de 2,87.",
    "kept": []
   },
   {
@@ -33,8 +33,8 @@
    "lang": "ro",
    "surface": "briefing",
    "wrong": true,
-   "input": "Cifra de afaceri netă a fost de RON 166,912,345.67, cu o EBITDA de ~RON 18.8M (marjă 11.25%); datoria netă/EBITDA este 1.19x, iar lichiditatea curentă 1.42.",
-   "expected": "Cifra de afaceri netă a fost de 166.912.345,67 RON, cu o EBITDA de ~18,8 mil. RON (marjă 11,25%); datoria netă/EBITDA este 1,19x, iar lichiditatea curentă 1.42.",
+   "input": "Cifra de afaceri netă a fost de RON 166,912,345.67, cu o EBITDA de ~RON 18.8M (marjă 8.75%); datoria netă/EBITDA este 2.35x, iar lichiditatea curentă 1.42.",
+   "expected": "Cifra de afaceri netă a fost de 166.912.345,67 RON, cu o EBITDA de ~18,8 mil. RON (marjă 8,75%); datoria netă/EBITDA este 2,35x, iar lichiditatea curentă 1.42.",
    "kept": [
     {
      "token": "1.42",
@@ -47,8 +47,8 @@
    "lang": "ro",
    "surface": "briefing",
    "wrong": true,
-   "input": "Cifra de afaceri netă a fost de RON 166,912,345.67, cu o EBITDA de ~RON 18.8M (marjă 11.25%); datoria netă/EBITDA este 1.19x, iar lichiditatea curentă 1.42.",
-   "expected": "Cifra de afaceri netă a fost de 166.912.345,67 RON, cu o EBITDA de ~18,8 mil. RON (marjă 11,25%); datoria netă/EBITDA este 1,19x, iar lichiditatea curentă 1,42.",
+   "input": "Cifra de afaceri netă a fost de RON 166,912,345.67, cu o EBITDA de ~RON 18.8M (marjă 8.75%); datoria netă/EBITDA este 2.35x, iar lichiditatea curentă 1.42.",
+   "expected": "Cifra de afaceri netă a fost de 166.912.345,67 RON, cu o EBITDA de ~18,8 mil. RON (marjă 8,75%); datoria netă/EBITDA este 2,35x, iar lichiditatea curentă 1,42.",
    "kept": [],
    "anchors": [
     1.42,
@@ -60,8 +60,8 @@
    "lang": "ro",
    "surface": "briefing",
    "wrong": true,
-   "input": "Cifra de afaceri este de RON 64,567,890, cu un EBITDA de RON 7,654,321 (marjă 11.85%); datoria netă/EBITDA este 1.19×, iar zilele de stoc sunt 45.5 zile.",
-   "expected": "Cifra de afaceri este de 64.567.890 RON, cu un EBITDA de 7.654.321 RON (marjă 11,85%); datoria netă/EBITDA este 1,19×, iar zilele de stoc sunt 45,5 zile.",
+   "input": "Cifra de afaceri este de RON 64,567,890, cu un EBITDA de RON 7,654,321 (marjă 11.85%); datoria netă/EBITDA este 2.35×, iar zilele de stoc sunt 45.5 zile.",
+   "expected": "Cifra de afaceri este de 64.567.890 RON, cu un EBITDA de 7.654.321 RON (marjă 11,85%); datoria netă/EBITDA este 2,35×, iar zilele de stoc sunt 45,5 zile.",
    "kept": []
   },
   {
@@ -78,8 +78,8 @@
    "lang": "en",
    "surface": "briefing",
    "wrong": true,
-   "input": "Net turnover for the year was 166.912.345 RON (EBITDA margin 11,25%), with the net debt at 1,5 mil. RON and leverage of 1,19x.",
-   "expected": "Net turnover for the year was 166,912,345 RON (EBITDA margin 11.25%), with the net debt at 1.5M RON and leverage of 1.19x.",
+   "input": "Net turnover for the year was 166.912.345 RON (EBITDA margin 8,75%), with the net debt at 1,5 mil. RON and leverage of 2,35x.",
+   "expected": "Net turnover for the year was 166,912,345 RON (EBITDA margin 8.75%), with the net debt at 1.5M RON and leverage of 2.35x.",
    "kept": []
   },
   {
@@ -96,8 +96,8 @@
    "lang": "en",
    "surface": "briefing",
    "wrong": false,
-   "input": "Net turnover for the year was 166,912,345 RON, with an EBITDA of 18.8M RON (margin 11.25%) and leverage of 1.19x.",
-   "expected": "Net turnover for the year was 166,912,345 RON, with an EBITDA of 18.8M RON (margin 11.25%) and leverage of 1.19x.",
+   "input": "Net turnover for the year was 166,912,345 RON, with an EBITDA of 18.8M RON (margin 8.75%) and leverage of 2.35x.",
+   "expected": "Net turnover for the year was 166,912,345 RON, with an EBITDA of 18.8M RON (margin 8.75%) and leverage of 2.35x.",
    "kept": []
   },
   {
@@ -150,8 +150,8 @@
    "lang": "ro",
    "surface": "both",
    "wrong": false,
-   "input": "Cifra de afaceri este 64.567.890 RON, EBITDA de 7.654.321 RON (marjă 11,85%), datorii/EBITDA 1,19x, lichiditate curentă 1,16, ~12,3 mil. EUR.",
-   "expected": "Cifra de afaceri este 64.567.890 RON, EBITDA de 7.654.321 RON (marjă 11,85%), datorii/EBITDA 1,19x, lichiditate curentă 1,16, ~12,3 mil. EUR.",
+   "input": "Cifra de afaceri este 64.567.890 RON, EBITDA de 7.654.321 RON (marjă 11,85%), datorii/EBITDA 2,35x, lichiditate curentă 1,16, ~12,3 mil. EUR.",
+   "expected": "Cifra de afaceri este 64.567.890 RON, EBITDA de 7.654.321 RON (marjă 11,85%), datorii/EBITDA 2,35x, lichiditate curentă 1,16, ~12,3 mil. EUR.",
    "kept": []
   },
   {
@@ -168,8 +168,8 @@
    "lang": "en",
    "surface": "both",
    "wrong": false,
-   "input": "Revenue 166.9M RON; net result -2,104,377.82 RON; 1,234.56 EUR; margin 11.25%; leverage 1.19x; on 31.12.2025.",
-   "expected": "Revenue 166.9M RON; net result -2,104,377.82 RON; 1,234.56 EUR; margin 11.25%; leverage 1.19x; on 31.12.2025.",
+   "input": "Revenue 166.9M RON; net result -2,104,377.82 RON; 1,234.56 EUR; margin 8.75%; leverage 2.35x; on 31.12.2025.",
+   "expected": "Revenue 166.9M RON; net result -2,104,377.82 RON; 1,234.56 EUR; margin 8.75%; leverage 2.35x; on 31.12.2025.",
    "kept": []
   },
   {
@@ -209,8 +209,8 @@
    "lang": "ro",
    "surface": "both",
    "wrong": true,
-   "input": "Gradul de îndatorare este 1.19x, iar marja EBITDA 11.25%.",
-   "expected": "Gradul de îndatorare este 1,19x, iar marja EBITDA 11,25%.",
+   "input": "Gradul de îndatorare este 2.35x, iar marja EBITDA 8.75%.",
+   "expected": "Gradul de îndatorare este 2,35x, iar marja EBITDA 8,75%.",
    "kept": []
   },
   {
@@ -218,8 +218,8 @@
    "lang": "ro",
    "surface": "both",
    "wrong": true,
-   "input": "Datorii/EBITDA 1.19×, acoperire 42.62× și Z″ = 6.56×X1.",
-   "expected": "Datorii/EBITDA 1,19×, acoperire 42,62× și Z″ = 6,56×X1.",
+   "input": "Datorii/EBITDA 2.35×, acoperire 42.62× și Z″ = 6.56×X1.",
+   "expected": "Datorii/EBITDA 2,35×, acoperire 42,62× și Z″ = 6,56×X1.",
    "kept": []
   },
   {
@@ -227,8 +227,8 @@
    "lang": "ro",
    "surface": "both",
    "wrong": true,
-   "input": "Marja EBITDA este 11.25% (față de 9.8 % anul trecut).",
-   "expected": "Marja EBITDA este 11,25% (față de 9,8 % anul trecut).",
+   "input": "Marja EBITDA este 8.75% (față de 9.8 % anul trecut).",
+   "expected": "Marja EBITDA este 8,75% (față de 9,8 % anul trecut).",
    "kept": []
   },
   {
@@ -386,8 +386,19 @@
    "surface": "both",
    "wrong": true,
    "input": "Formula este =SUM($B$2:$B$10) iar prețul $5 sau 5$ ori 5 € ori 5€.",
-   "expected": "Formula este =SUM($B$2:$B$10) iar prețul 5 USD sau 5 USD ori 5 EUR ori 5 EUR.",
-   "kept": []
+   "expected": "Formula este =SUM($B$2:$B$10) iar prețul $5 sau 5 USD ori 5 EUR ori 5 EUR.",
+   "kept": [
+    {
+     "token": "$5",
+     "reason": "code_before"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "$5",
+     "rule": "a bare integer beside a code is not known to be an amount: the code stays where it was written"
+    }
+   ]
   },
   {
    "id": "growth-to-a-symbol",
@@ -402,10 +413,29 @@
    "id": "plain-integer-code-before",
    "lang": "ro",
    "surface": "both",
-   "wrong": true,
+   "wrong": false,
    "input": "Capitalul social este RON 5000, iar plafonul este EUR 250000.",
-   "expected": "Capitalul social este 5000 RON, iar plafonul este 250000 EUR.",
-   "kept": []
+   "expected": "Capitalul social este RON 5000, iar plafonul este EUR 250000.",
+   "kept": [
+    {
+     "token": "RON 5000",
+     "reason": "code_before"
+    },
+    {
+     "token": "EUR 250000",
+     "reason": "code_before"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "RON 5000",
+     "rule": "a bare integer beside a code is not known to be an amount: the code stays where it was written"
+    },
+    {
+     "text": "EUR 250000",
+     "rule": "a bare integer beside a code is not known to be an amount: the code stays where it was written"
+    }
+   ]
   },
   {
    "id": "negatives",
@@ -471,7 +501,7 @@
    "kept": [
     {
      "token": "401.01",
-     "reason": "bare_decimal"
+     "reason": "reference"
     }
    ]
   },
@@ -498,8 +528,8 @@
    "lang": "ro",
    "surface": "chat",
    "wrong": true,
-   "input": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150,220,331 | 10.8% |\n| 2025 | 166,912,345 | 11.25% |",
-   "expected": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150,220,331 | 10,8% |\n| 2025 | 166,912,345 | 11,25% |",
+   "input": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150,220,331 | 10.8% |\n| 2025 | 166,912,345 | 8.75% |",
+   "expected": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150,220,331 | 10,8% |\n| 2025 | 166,912,345 | 8,75% |",
    "kept": [
     {
      "token": "150,220,331",
@@ -516,8 +546,8 @@
    "lang": "ro",
    "surface": "chat",
    "wrong": true,
-   "input": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150,220,331 | 10.8% |\n| 2025 | 166,912,345 | 11.25% |",
-   "expected": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150.220.331 | 10,8% |\n| 2025 | 166.912.345 | 11,25% |",
+   "input": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150,220,331 | 10.8% |\n| 2025 | 166,912,345 | 8.75% |",
+   "expected": "Tabel:\n| An | Venituri (RON) | Marjă |\n|---|---|---|\n| 2024 | 150.220.331 | 10,8% |\n| 2025 | 166.912.345 | 8,75% |",
    "kept": [],
    "anchors": [
     150220331.4,
@@ -529,8 +559,8 @@
    "lang": "ro",
    "surface": "chat",
    "wrong": true,
-   "input": "| EBITDA | 18,778,901 |\n| Marjă | 11.25% |\n| Lichiditate | 1.42 |",
-   "expected": "| EBITDA | 18,778,901 |\n| Marjă | 11,25% |\n| Lichiditate | 1.42 |",
+   "input": "| EBITDA | 18,778,901 |\n| Marjă | 8.75% |\n| Lichiditate | 1.42 |",
+   "expected": "| EBITDA | 18,778,901 |\n| Marjă | 8,75% |\n| Lichiditate | 1.42 |",
    "kept": [
     {
      "token": "18,778,901",
@@ -674,8 +704,8 @@
    "lang": "ro",
    "surface": "briefing",
    "wrong": false,
-   "input": "EBITDA de ~RON 18.8M (marjă 11.25%), cu RON 162,365 numerar.",
-   "expected": "EBITDA de ~RON 18.8M (marjă 11.25%), cu RON 162,365 numerar.",
+   "input": "EBITDA de ~RON 18.8M (marjă 8.75%), cu RON 162,365 numerar.",
+   "expected": "EBITDA de ~RON 18.8M (marjă 8.75%), cu RON 162,365 numerar.",
    "kept": [
     {
      "token": "162,365",
@@ -911,7 +941,7 @@
     },
     {
      "token": "401.0001",
-     "reason": "bare_decimal"
+     "reason": "reference"
     }
    ]
   },
@@ -946,7 +976,7 @@
    "kept": [
     {
      "token": "401,404,408",
-     "reason": "bare_groups"
+     "reason": "reference"
     },
     {
      "token": "64,567,890",
@@ -964,7 +994,7 @@
    "kept": [
     {
      "token": "401,404,408",
-     "reason": "bare_groups"
+     "reason": "reference"
     },
     {
      "token": "166,912,345",
@@ -982,7 +1012,7 @@
    "kept": [
     {
      "token": "401,404,408",
-     "reason": "bare_groups"
+     "reason": "reference"
     }
    ],
    "anchors": [
@@ -1476,8 +1506,8 @@
    "lang": "en",
    "surface": "both",
    "wrong": true,
-   "input": "Net turnover was 64.567.890 RON (EBITDA margin 11,25%), about 12,3 mil. EUR, or 1,19x.",
-   "expected": "Net turnover was 64,567,890 RON (EBITDA margin 11.25%), about 12.3M EUR, or 1.19x.",
+   "input": "Net turnover was 64.567.890 RON (EBITDA margin 8,75%), about 12,3 mil. EUR, or 2,35x.",
+   "expected": "Net turnover was 64,567,890 RON (EBITDA margin 8.75%), about 12.3M EUR, or 2.35x.",
    "kept": []
   },
   {
@@ -1530,8 +1560,8 @@
    "lang": "en",
    "surface": "both",
    "wrong": true,
-   "input": "It grew from 1,5 to 2,5M RON, i.e. 11,25%.",
-   "expected": "It grew from 1.5 to 2.5M RON, i.e. 11.25%.",
+   "input": "It grew from 1,5 to 2,5M RON, i.e. 8,75%.",
+   "expected": "It grew from 1.5 to 2.5M RON, i.e. 8.75%.",
    "kept": []
   },
   {
@@ -1593,7 +1623,7 @@
     },
     {
      "token": "401.404.408",
-     "reason": "bare_groups"
+     "reason": "reference"
     }
    ]
   },
@@ -1607,7 +1637,7 @@
    "kept": [
     {
      "token": "401.404.408",
-     "reason": "bare_groups"
+     "reason": "reference"
     }
    ],
    "anchors": [
@@ -2040,7 +2070,7 @@
    "kept": [
     {
      "token": "28,281,291",
-     "reason": "bare_groups"
+     "reason": "reference"
     }
    ]
   },
@@ -2058,7 +2088,7 @@
     },
     {
      "token": "28.281.291",
-     "reason": "bare_groups"
+     "reason": "reference"
     }
    ]
   },
@@ -2085,8 +2115,8 @@
    "lang": "en",
    "surface": "both",
    "wrong": false,
-   "input": "Cash: 1.234 RON; debt 12.345,67 RON; margin 11,25% for the year.",
-   "expected": "Cash: 1.234 RON; debt 12.345,67 RON; margin 11,25% for the year.",
+   "input": "Cash: 1.234 RON; debt 12.345,67 RON; margin 8,75% for the year.",
+   "expected": "Cash: 1.234 RON; debt 12.345,67 RON; margin 8,75% for the year.",
    "kept": [
     {
      "token": "1.234",
@@ -2103,8 +2133,8 @@
    "lang": "ro",
    "surface": "both",
    "wrong": false,
-   "input": "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 11.25%.",
-   "expected": "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 11.25%.",
+   "input": "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 8.75%.",
+   "expected": "Valoarea este între EUR 1,500 și 2,500, cu o marjă de 8.75%.",
    "kept": [
     {
      "token": "EUR 1,500 și 2,500",
@@ -2235,6 +2265,599 @@
     {
      "token": "EUR 2.5M",
      "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-dash-balance",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Contul 5121.01 – 1.234.567,89 RON (BT), contul 5121.02 – 234.567,10 RON (BCR).",
+   "expected": "Contul 5121.01 – 1.234.567,89 RON (BT), contul 5121.02 – 234.567,10 RON (BCR).",
+   "kept": [
+    {
+     "token": "5121.01",
+     "reason": "reference"
+    },
+    {
+     "token": "5121.02",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-list-lines",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "- 4111.01 - 2.345.678,90 RON\n- 4111.02 - 1.045.300,25 RON\n- 401.01 - 3.210.000,00 RON",
+   "expected": "- 4111.01 - 2.345.678,90 RON\n- 4111.02 - 1.045.300,25 RON\n- 401.01 - 3.210.000,00 RON",
+   "kept": [
+    {
+     "token": "4111.01",
+     "reason": "bare_decimal"
+    },
+    {
+     "token": "4111.02",
+     "reason": "bare_decimal"
+    },
+    {
+     "token": "401.01",
+     "reason": "bare_decimal"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-with-its-currency",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Contul 5124.01 EUR are un sold de 12.345,67 EUR, iar contul 5124.02 USD de 8.900,10 USD.",
+   "expected": "Contul 5124.01 EUR are un sold de 12.345,67 EUR, iar contul 5124.02 USD de 8.900,10 USD.",
+   "kept": [
+    {
+     "token": "5124.01",
+     "reason": "reference"
+    },
+    {
+     "token": "5124.02",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-date-dash-amount",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Sold la 31.12 – 5,2 mil. RON, față de 30.06 – 4,1 mil. RON.",
+   "expected": "Sold la 31.12 – 5,2 mil. RON, față de 30.06 – 4,1 mil. RON.",
+   "kept": [
+    {
+     "token": "31.12",
+     "reason": "possible_date"
+    },
+    {
+     "token": "30.06",
+     "reason": "bare_decimal"
+    }
+   ]
+  },
+  {
+   "id": "r2-payment-terms",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Termen de plată: 15.03 - 250.000,00 RON; 15.06 - 250.000,00 RON.",
+   "expected": "Termen de plată: 15.03 - 250.000,00 RON; 15.06 - 250.000,00 RON.",
+   "kept": [
+    {
+     "token": "15.03",
+     "reason": "possible_date"
+    },
+    {
+     "token": "15.06",
+     "reason": "bare_decimal"
+    }
+   ]
+  },
+  {
+   "id": "r2-note-dash-amount",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Conform notei 4.2 – 3,5 mil. RON sunt angajamente.",
+   "expected": "Conform notei 4.2 – 3,5 mil. RON sunt angajamente.",
+   "kept": [
+    {
+     "token": "4.2",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-date-dash-rate",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Cursul la 31.12 - 4.97 RON/EUR.",
+   "expected": "Cursul la 31.12 - 4,97 RON/EUR.",
+   "kept": [
+    {
+     "token": "31.12",
+     "reason": "possible_date"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-dash-percentage",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Analiticul 401.15 - 15% din totalul furnizorilor.",
+   "expected": "Analiticul 401.15 - 15% din totalul furnizorilor.",
+   "kept": [
+    {
+     "token": "401.15",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-date-and-an-amount",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Plata se face la 15.02 și 20.000,50 RON rămân în sold.",
+   "expected": "Plata se face la 15.02 și 20.000,50 RON rămân în sold.",
+   "kept": [
+    {
+     "token": "15.02",
+     "reason": "possible_date"
+    }
+   ]
+  },
+  {
+   "id": "r2-date-dash-code-first-amount",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Sold la 31.12 - RON 5.2M, în creștere.",
+   "expected": "Sold la 31.12 - 5,2 mil. RON, în creștere.",
+   "kept": [
+    {
+     "token": "31.12",
+     "reason": "possible_date"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-dash-code-first-amount",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Contul 2131.3 - RON 4.2M valoare brută.",
+   "expected": "Contul 2131.3 - 4,2 mil. RON valoare brută.",
+   "kept": [
+    {
+     "token": "2131.3",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-after-a-code",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Sold cont RON 5121.01: 1.234.567,89; contul RON 5121 are sold debitor de 1.234.567,89 RON.",
+   "expected": "Sold cont RON 5121.01: 1.234.567,89; contul RON 5121 are sold debitor de 1.234.567,89 RON.",
+   "kept": [
+    {
+     "token": "5121.01",
+     "reason": "reference"
+    },
+    {
+     "token": "5121",
+     "reason": "reference"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "RON 5121.01",
+     "rule": "after an account word the number is an account: nothing beside it moves"
+    },
+    {
+     "text": "RON 5121",
+     "rule": "after an account word the number is an account: nothing beside it moves"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-list-with-a-code",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Conturile 121,117,129 EUR sunt de capital.",
+   "expected": "Conturile 121,117,129 EUR sunt de capital.",
+   "kept": [
+    {
+     "token": "121,117,129",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-shaped-as-a-lone-group",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Contul 401.100 are un sold de RON 5.2M, iar marja este 11.3%.",
+   "expected": "Contul 401.100 are un sold de 5,2 mil. RON, iar marja este 11,3%.",
+   "kept": [
+    {
+     "token": "401.100",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-english-account-dash-balance",
+   "lang": "en",
+   "surface": "both",
+   "wrong": true,
+   "input": "Account 5121,01 - 1.234.567,89 RON is the main bank account and that is the total.",
+   "expected": "Account 5121,01 - 1,234,567.89 RON is the main bank account and that is the total.",
+   "kept": [
+    {
+     "token": "5121,01",
+     "reason": "reference"
+    }
+   ]
+  },
+  {
+   "id": "r2-spaced-dash-range",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Rata este de 3.5 - 4.2% pe an.",
+   "expected": "Rata este de 3.5 - 4,2% pe an.",
+   "kept": [
+    {
+     "token": "3.5",
+     "reason": "bare_decimal"
+    }
+   ]
+  },
+  {
+   "id": "r2-tight-dash-and-opener-ranges",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Marja a fost de 1.2-1.5%, între 8.5 și 13.2% pe segmente, de la 2.5 până la 3.5% pe an.",
+   "expected": "Marja a fost de 1,2-1,5%, între 8,5 și 13,2% pe segmente, de la 2,5 până la 3,5% pe an.",
+   "kept": []
+  },
+  {
+   "id": "r2-hedged-range-word",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Valoarea companiei este între EUR 40 și circa 55 milioane.",
+   "expected": "Valoarea companiei este între EUR 40 și circa 55 milioane.",
+   "kept": [
+    {
+     "token": "EUR 40 și circa 55",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-hedged-range-english",
+   "lang": "en",
+   "surface": "both",
+   "wrong": false,
+   "input": "The range is between USD 1,5 and roughly 2,5 mil. for this company.",
+   "expected": "The range is between USD 1,5 and roughly 2,5 mil. for this company.",
+   "kept": [
+    {
+     "token": "USD 1,5 and roughly 2,5 mil.",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-hedged-range-up-to",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Buget de EUR 1.5 până la maximum 2.5M.",
+   "expected": "Buget de EUR 1.5 până la maximum 2.5M.",
+   "kept": [
+    {
+     "token": "EUR 1.5 până la maximum 2.5M",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-hedged-list",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Estimăm RON 10, eventual 12 milioane.",
+   "expected": "Estimăm RON 10, eventual 12 milioane.",
+   "kept": [
+    {
+     "token": "RON 10, eventual 12",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-list-with-an-en-dash-sign",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Rezultatul a fost RON 5.2M, respectiv –3.1M.",
+   "expected": "Rezultatul a fost RON 5.2M, respectiv –3.1M.",
+   "kept": [
+    {
+     "token": "RON 5.2M, respectiv –3.1M",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-hedged-range-english-to",
+   "lang": "en",
+   "surface": "both",
+   "wrong": false,
+   "input": "We expect EUR 40 to roughly 55 million in revenue for the year and that is the plan.",
+   "expected": "We expect EUR 40 to roughly 55 million in revenue for the year and that is the plan.",
+   "kept": [
+    {
+     "token": "EUR 40 to roughly 55",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-range-both-bounds-with-their-code",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Valoarea este între RON 191.3M și RON 318.8M, iar cifra a crescut de la RON 265.1M la 287,3 mil. RON.",
+   "expected": "Valoarea este între 191,3 mil. RON și 318,8 mil. RON, iar cifra a crescut de la 265,1 mil. RON la 287,3 mil. RON.",
+   "kept": []
+  },
+  {
+   "id": "r2-range-first-bound-leans-on-the-second",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "EBITDA este între EUR 1.5 și 2.5M EUR.",
+   "expected": "EBITDA este între EUR 1.5 și 2.5M EUR.",
+   "kept": [
+    {
+     "token": "EUR 1.5 și 2.5M EUR",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-thin-space-groups",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Cifra de afaceri netă este de EUR 12 300 000 în această perioadă.",
+   "expected": "Cifra de afaceri netă este de EUR 12 300 000 în această perioadă.",
+   "kept": [
+    {
+     "token": "EUR 12 300 000",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-figure-space-groups",
+   "lang": "en",
+   "surface": "both",
+   "wrong": false,
+   "input": "Net turnover for the period was $1 234 567 and that is the total for the year.",
+   "expected": "Net turnover for the period was $1 234 567 and that is the total for the year.",
+   "kept": [
+    {
+     "token": "$1 234 567",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-year-shaped-amount-then-a-count",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Capital social 2000 RON 100 părți sociale; avansul este de 1950 EUR 3 rate rămân de plată.",
+   "expected": "Capital social 2000 RON 100 părți sociale; avansul este de 1950 EUR 3 rate rămân de plată.",
+   "kept": [
+    {
+     "token": "2000 RON 100",
+     "reason": "open_amount"
+    },
+    {
+     "token": "1950 EUR 3",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-year-then-an-amount",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "În 2025 RON 64.5M, în 2024 RON 61.2M.",
+   "expected": "În 2025 64,5 mil. RON, în 2024 61,2 mil. RON.",
+   "kept": []
+  },
+  {
+   "id": "r2-count-after-a-code",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "În EUR 3 scenarii sunt posibile, iar argumentul $1 este obligatoriu.",
+   "expected": "În EUR 3 scenarii sunt posibile, iar argumentul $1 este obligatoriu.",
+   "kept": [
+    {
+     "token": "EUR 3",
+     "reason": "code_before"
+    },
+    {
+     "token": "$1",
+     "reason": "code_before"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "EUR 3",
+     "rule": "a bare integer beside a code is not known to be an amount: the code stays where it was written"
+    },
+    {
+     "text": "$1",
+     "rule": "a bare integer beside a code is not known to be an amount: the code stays where it was written"
+    }
+   ]
+  },
+  {
+   "id": "r2-account-two-words-after-the-word",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Contul în EUR 5124 are sold de 12.345,67 EUR.",
+   "expected": "Contul în EUR 5124 are sold de 12.345,67 EUR.",
+   "kept": [
+    {
+     "token": "EUR 5124",
+     "reason": "code_before"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "EUR 5124",
+     "rule": "a bare integer beside a code is not known to be an amount: the code stays where it was written"
+    }
+   ]
+  },
+  {
+   "id": "r2-english-count-after-a-code",
+   "lang": "en",
+   "surface": "both",
+   "wrong": false,
+   "input": "In USD 3 scenarios are possible for the year and that is the plan.",
+   "expected": "In USD 3 scenarios are possible for the year and that is the plan.",
+   "kept": [
+    {
+     "token": "USD 3",
+     "reason": "code_before"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "USD 3",
+     "rule": "a bare integer beside a code is not known to be an amount: the code stays where it was written"
+    }
+   ]
+  },
+  {
+   "id": "r2-symbol-after-an-emphasised-code",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Veniturile sunt de **CAD** $7.5M în această perioadă, iar costurile (CAD): $2.5M.",
+   "expected": "Veniturile sunt de **CAD** $7,5 mil. în această perioadă, iar costurile (CAD): $2,5 mil.",
+   "kept": [
+    {
+     "token": "$7.5",
+     "reason": "code_before"
+    },
+    {
+     "token": "$2.5",
+     "reason": "code_before"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "$7,5",
+     "rule": "a '$' the reply names another dollar for is not written USD"
+    },
+    {
+     "text": "$2,5",
+     "rule": "a '$' the reply names another dollar for is not written USD"
+    }
+   ]
+  },
+  {
+   "id": "r2-tenor-after-a-code",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "ROBOR 3M la 5.92% și EUR 3M la 2.9%.",
+   "expected": "ROBOR 3M la 5,92% și EUR 3M la 2,9%.",
+   "kept": [
+    {
+     "token": "3M",
+     "reason": "tenor"
+    },
+    {
+     "token": "3M",
+     "reason": "tenor"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "EUR 3M",
+     "rule": "in a text that names an interbank rate, months against 'M' are a tenor"
+    }
+   ]
+  },
+  {
+   "id": "r2-code-moves-beside-a-lone-group-english",
+   "lang": "en",
+   "surface": "both",
+   "wrong": true,
+   "input": "Net turnover was RON 64,567,890 and interest expense RON 386,102 (margin 11.85%).",
+   "expected": "Net turnover was 64,567,890 RON and interest expense RON 386,102 (margin 11.85%).",
+   "kept": [
+    {
+     "token": "386,102",
+     "reason": "single_group"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "RON 386,102",
+     "rule": "a lone three-digit group is left entirely as written, its code included"
+    }
+   ]
+  },
+  {
+   "id": "r2-code-moves-beside-a-lone-group-romanian",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Cifra de afaceri este RON 64.567.890, iar dobânzile sunt RON 386.102 (marjă 11,85%).",
+   "expected": "Cifra de afaceri este 64.567.890 RON, iar dobânzile sunt RON 386.102 (marjă 11,85%).",
+   "kept": [
+    {
+     "token": "386.102",
+     "reason": "single_group"
+    }
+   ],
+   "allowed": [
+    {
+     "text": "RON 386.102",
+     "rule": "a lone three-digit group is left entirely as written, its code included"
     }
    ]
   }
