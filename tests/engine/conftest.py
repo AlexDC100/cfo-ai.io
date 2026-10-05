@@ -109,6 +109,10 @@ def _one_run_per_document_registries_are_per_test(monkeypatch):
     _pipeline = sys.modules.get("engine.api.pipeline")
     if _pipeline is not None and hasattr(_pipeline, "_STAGED_RERUNS"):
         monkeypatch.setattr(_pipeline, "_STAGED_RERUNS", {})
+    # … and the note that a claimed retry of a period-less document that reads
+    # analysed never takes over another document's month.
+    if _pipeline is not None and hasattr(_pipeline, "_NO_TAKEOVER_RUNS"):
+        monkeypatch.setattr(_pipeline, "_NO_TAKEOVER_RUNS", {})
     yield
 
 

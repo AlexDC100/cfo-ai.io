@@ -14,6 +14,10 @@ it was given through the real app:
   {"op": "lane_model"}                     script the AI lane's model (a non-Romanian document's
                                            re-run re-extracts; `retry` then reports the extractions)
   {"op": "another_documents_run", ...}     another month of the company uploaded and analysed
+  {"op": "same_month_reupload", "org"}     ANOTHER file for the same month uploaded on the card and
+                                           analysed (its narration scripted before this step)
+  {"op": "watchdog"}                       what the dashboard posts when it mounts: the REAL POST
+                                           /api/pipeline/recover-stuck, as the company's member
   {"op": "settle_orphans"}                 the quota sweep's settlement of every reservation the
                                            dead process left outstanding (what the meter was told)
 """
@@ -108,6 +112,16 @@ def test_the_second_process(app, gw, monkeypatch):
             doc = V.run_analysis(gw, out["commit"]["document_id"])
             entry["document"] = {"id": doc["id"], "status": doc["status"], "error": doc.get("error"),
                                  "period_id": doc.get("period_id"), "org_id": doc["org_id"]}
+        elif op == "same_month_reupload":
+            # ANOTHER FILE for the month the dead re-run was replacing: the
+            # other corpus book under the same company's header, uploaded on
+            # the card and analysed — its whole run, takeover included.
+            doc = W._reupload(app, gw, step["org"])
+            entry["document"] = {"id": doc["id"], "status": doc["status"], "error": doc.get("error"),
+                                 "period_id": doc.get("period_id")}
+        elif op == "watchdog":
+            r = V._http(app).post("/api/pipeline/recover-stuck", headers=V._headers(V.USER))
+            entry["status_code"], entry["body"] = r.status_code, r.json()
         elif op == "settle_orphans":
             # The quota ledger's sweep, for every reservation the first
             # process left OUTSTANDING (reserved, never committed or

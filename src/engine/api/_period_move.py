@@ -562,6 +562,10 @@ def make_document_active(
     an attachment. Promoting wipes the period's derived analysis and
     re-points the source; the caller re-runs the promoted document, which
     rebuilds the period through the ordinary pipeline.
+
+    NEVER OVER ANOTHER ANALYSED DOCUMENT'S ANALYSIS: the wipe comes before
+    the re-run has produced anything, so there it is refused before the
+    first write (`_refuse_over_another_documents_analysis`).
     """
     document_id = str(document.get("id") or "")
     org_id = str(document.get("org_id") or "")
@@ -586,6 +590,8 @@ def make_document_active(
             "requeue_document_id": None,
             "orphaned_after": [],
         }
+
+    _refuse_over_another_documents_analysis(client, period, document_id, org_id)
 
     for table in _DERIVED_TABLES:
         _safe_delete(client, table, str(period_id))
@@ -626,6 +632,63 @@ def _refuse_deleted(document: Dict[str, Any]) -> None:
     pinned to its month: the month was emptied for good)."""
     if document.get("deleted_at"):
         raise MoveRefused("document_deleted", "This file was deleted. Restore it first.")
+
+
+#: `make-active` refused: the period holds the analysis of ANOTHER document
+#: that is analysed. The Workspace prints its own sentence for this code
+#: (frontend/components/cfo/workspace/periodFilingStrings.json).
+MONTH_HAS_ANOTHER_ANALYSIS = "month_has_another_analysis"
+
+
+def _refuse_over_another_documents_analysis(
+    client: Any, period: Dict[str, Any], document_id: str, org_id: str
+) -> None:
+    """`make-active` never destroys the analysis of ANOTHER analysed document.
+
+    THE DEFECT (review 2026-10-05, measured end to end; the same on 7ca386ec).
+    Promoting wipes the period's line items, metrics, briefing and
+    valuations and re-points its source BEFORE the promoted document's
+    re-run has produced anything to put in their place. On a month that
+    holds another document's analysis — a superseded upload restored from
+    "Recently deleted", a file a Workspace merge attached, each of them a
+    live attachment with "Make source" enabled — that is: the newer file's
+    statements gone at the click; then, with the narration refused, its last
+    good briefing gone for good and its recommendations left on the older
+    file's statements; or, the re-run failing, an EMPTY month with a failed
+    document over it. It is the retry route's item 1 through the other
+    door, at exactly the state that route's refusal leaves the reader in.
+
+    THE SAFE BEHAVIOUR, UNTIL THE DURABLE ONE IS BUILT: refuse — nothing is
+    written, the month is served as it was — and say what does work:
+    uploading the file again stages beside the month and replaces it only
+    once its own analysis has succeeded (G4), keeping the briefing when the
+    narration fails. The durable form is that same mechanism for a
+    promotion: run the promoted document STAGED beside the month and
+    re-point `source_document_id` only in the takeover; it needs the staged
+    re-run's ownership looks (mint, T0, resume) to accept a promotion, and a
+    reader that says a promotion is under way.
+
+    Refused only for what would be destroyed: the document the period names
+    (its pointer, else its envelope's provenance stamp) must exist in THIS
+    company and be `analyzed` — live, or in "Recently deleted" (restorable
+    for 30 days, and `plan_move` keeps such a period for the same reason).
+    A period whose own document failed, is gone, or that names nobody is
+    promoted as before: there is no good analysis under it to lose."""
+    holder = str(period.get("source_document_id") or "") or (envelope_source_document_id(period) or "")
+    if not holder or holder == document_id:
+        return
+    rows = client.select(
+        "documents",
+        filters={"id": "eq.%s" % holder, "org_id": "eq.%s" % org_id},
+    )
+    rows = [r for r in (rows or []) if str(r.get("org_id") or "") == str(org_id)]
+    if rows and str(rows[0].get("status") or "").lower() == "analyzed":
+        raise MoveRefused(
+            MONTH_HAS_ANOTHER_ANALYSIS,
+            "This month already has an analysis from another file, so this file was "
+            "not made its source and nothing was changed. To use this file for the "
+            "month, upload it again.",
+        )
 
 
 def _period_row(client: Any, period_id: Any, *, org_id: str) -> Optional[Dict[str, Any]]:

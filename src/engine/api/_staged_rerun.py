@@ -24,9 +24,17 @@ That staged row must never be taken for a month by anything that reads
 The marker: `{document_id, served_period_id, staged_at}` from the mint, and
 from the takeover's COMMIT POINT on also `takeover_began_at`,
 `keep_briefing_reason` (the reason the month's kept briefing is stale, or
-null) and `emptied` (the takeover tables the run stored nothing in). A row
+null), `emptied` (the takeover tables the run stored nothing in) and `kept`
+(the tables whose rows the month keeps: never touched by the apply). A row
 WITHOUT `takeover_began_at` never touched the month and is dropped; a row
-WITH it is resumed (`pipeline._resume_staged_rerun`).
+WITH it is applied — by the live takeover, or by whoever finds it after the
+process died (`pipeline._apply_committed_staged_rerun`, the one applier).
+
+THE MARKER IS BROWSER-WRITABLE: a member can insert or update
+`financial_periods` rows of their own company, envelope included. What it
+names (`served_period_id`, `document_id`) is therefore read back under the
+COMPANY's filter before anything is written — that filter is the wall
+between a forged marker and another company's month.
 
 Both readers — the service-role engine and `_period_move` — import this file,
 and the browser's own read of `financial_periods` (frontend/lib/orgPeriods.ts)

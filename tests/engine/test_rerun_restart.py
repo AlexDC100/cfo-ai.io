@@ -349,6 +349,88 @@ def test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents
 
 
 # ══════════════════════════════════════════════════════════════════════
+# T8 / T9 — the next writer on the month, and the next reader of the app
+# ══════════════════════════════════════════════════════════════════════
+
+
+def test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later(
+        app, gw, monkeypatch, tmp_path):
+    """T8 — measured on the stage-3 tip with a real second process (review
+    2026-10-05). The re-run narrated (BODY_B) and died right after the
+    month's briefing was deleted: the month holds NO briefing, the run's
+    good one sits under the committed staged row. BEFORE anything resumes it
+    — inside the fifteen minutes — another file for the same month is
+    uploaded, the provider refusing (production's state). The upload's pass
+    LEFT the committed row ("it may be a live run's"), its takeover found
+    nothing usable on the month and moved its own failure sentinel there,
+    and the later pass dropped the staged row: the last good briefing AND
+    the run's new one gone, `unavailable: true`.
+
+    A committed row whose document is not in flight is a dead process's: it
+    is completed BEFORE the upload stages beside the month. The upload then
+    takes over a month that is whole, and — its narration having failed —
+    KEEPS the re-run's briefing (marked) and its recommendations."""
+    w, store = _killed_after_the_commit_point(app, gw, monkeypatch, tmp_path,
+                                              "5_after_the_months_briefing_was_deleted")
+    (month_at_the_kill,) = [p for p in R.frozen_tables(store)["financial_periods"] if p["id"] == w["month"]]
+    assert [b for b in R.frozen_tables(store)["briefings"] if b["period_id"] == w["month"]] == [],         "the scenario: at the kill the month holds no briefing"
+
+    report = R.second_process(store, [
+        {"op": "provider", "outcomes": [REFUSES]},
+        {"op": "same_month_reupload", "label": "another file for December, minutes later", "org": w["org"]},
+        {"op": "view", "label": "December afterwards", "org": w["org"], "period": w["month"]},
+    ], tmp_path)
+    upload, december = report["steps"]
+
+    doc2 = upload["document"]
+    assert (doc2["status"], doc2["error"], doc2["period_id"]) == ("analyzed", None, w["month"]), doc2
+    (period,) = december["store"]["periods"]
+    assert (period["id"], period["source"], period["marker"]) == (w["month"], doc2["id"], None), period
+    assert all(v == [] for v in december["store"]["strays"].values()), december["store"]["strays"]
+    assert december["empty_live_periods"] == []
+    reader = december["reader"]
+    assert reader["source_document"] == doc2["id"] and reader["revenue"] != w["reader_before"]["revenue"], reader
+    # THE INTERRUPTED RE-RUN'S BRIEFING AND RECOMMENDATIONS CAME THROUGH.
+    assert reader["briefing"]["body"] == W.BODY_B and reader["briefing"]["unavailable"] is False, (
+        "the last good briefing did not survive the restart and the upload: %r" % (reader["briefing"],))
+    assert (reader["briefing"]["stale"] or {}).get("reason") == "provider_error", reader["briefing"]
+    assert sorted(x[1] for x in reader["recommendations"]) == W.TITLES_B, reader["recommendations"]
+    assert all(x[5] == w["month"] for x in period["recommendations"]), period["recommendations"]
+    (d1,) = [d for d in december["store"]["documents"] if d["id"] == w["doc1"]]
+    assert d1["deleted"] is True and d1["error"] == "superseded_by:%s" % doc2["id"], d1
+    assert month_at_the_kill["source_document_id"] == w["doc1"]
+
+
+@pytest.mark.parametrize("point", ["2_after_the_months_line_items_were_deleted",
+                                   "5_after_the_months_briefing_was_deleted"])
+def test_a_rerun_killed_inside_its_apply_is_completed_when_a_member_next_opens_the_app(
+        app, gw, monkeypatch, tmp_path, point):
+    """T9. Nobody uploads anything and nobody clicks "Re-run" again. The
+    month's page is serving a gap (no line items, or no briefing — recorded
+    below). The dashboard's mount posts /api/pipeline/recover-stuck: the
+    interrupted takeover is completed there and then, whatever the row's
+    age — the run's analysis, whole, current."""
+    w, store = _killed_after_the_commit_point(app, gw, monkeypatch, tmp_path, point)
+
+    report = R.second_process(store, [
+        {"op": "view", "label": "after the restart", "org": w["org"], "period": w["month"]},
+        {"op": "watchdog", "label": "a member opens the dashboard"},
+        {"op": "view", "label": "December afterwards", "org": w["org"], "period": w["month"]},
+        {"op": "watchdog", "label": "…and again"},
+    ], tmp_path)
+    restarted, mount, december, again = report["steps"]
+
+    print("\n[%s] served between the kill and the mount: %s" % (point, json.dumps(
+        {k: restarted["reader"][k] for k in ("briefing", "line_items", "metrics", "revenue")},
+        ensure_ascii=False, default=str)[:600]))
+    assert restarted["reader"] != w["reader_before"], "the scenario: the month is mid-replacement"
+    assert mount["status_code"] == 200 and mount["body"]["resumed_reruns"] == 1, mount
+    assert december["empty_live_periods"] == []
+    _assert_the_month_is_the_reruns_analysis_whole(w, december, stale_reason=None)
+    assert again["body"]["resumed_reruns"] == 0, again
+
+
+# ══════════════════════════════════════════════════════════════════════
 # T5 — killed after the apply
 # ══════════════════════════════════════════════════════════════════════
 

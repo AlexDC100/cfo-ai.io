@@ -75,8 +75,10 @@ re-upload laws of the writers file, which run unmodified).
       inside the apply is completed by the handler's own resume; refused
       again, the committed row is LEFT and the row says `interrupted`.
   S14 The company pass (every `stage_persist` of the company): only rows of
-      runs that are dead — not in flight here AND fifteen minutes old or
-      their document gone; a committed one resumed. Never raises.
+      runs that are dead — never one whose document is in flight here
+      (unless the pass is that document's own run); a COMMITTED row resumed
+      at once, an uncommitted one dropped once it is fifteen minutes old or
+      its document is gone. Never raises.
   S19 A first analysis pays ONE light read for it and no write.
   S20 Censuses: no `_RERUN_CARRY` (nor its helpers) in the engine;
       `recommendations` are inserted in the narrative stage only;
@@ -96,6 +98,34 @@ THREE THINGS THE DOUBLE DOES NOT MODEL ARE MODELLED BY HAND:
     a write that would leave two rows with one NON-NULL tuple;
   · the foreign key on INSERT, where a law needs it (`_refuse_children_of_a_
     missing_period`).
+
+  THE REVIEW OF 2026-10-05 (the end of this file) — what the three stages
+  left unheld, each measured on the stage-3 tip first:
+  S23 ONE takeover of a company's months at a time: two REAL threads — a
+      newer upload's takeover waits at the door while a re-run is inside its
+      apply, then takes over a month that is whole.
+  S24 The marker is browser-writable: a committed marker forged in one
+      company never reaches another company's month (every way a staged row
+      is cleaned up, both directions); the applier's reads name the company.
+  S25 A run settles its OWN document's leftover before it writes (an
+      in-place run was later resumed OVER by an older re-run's row); when
+      that cannot be done, it stops before writing.
+  S26 An apply never re-dates its row onto a month that became another
+      row's (two live periods for one month).
+  S27 A staged re-run's alerts replace the month's where the legacy unique
+      (org_id, alert_key) is still on `alerts` — keyed to the staged row
+      while the run goes, re-keyed to the month by the takeover.
+  S28 Five ways to weaken the mechanism that every law let through: one
+      document's cleanup touching another's staged row; a re-run started
+      although its leftovers could not be listed; the handler saying "the
+      previous analysis is still served" over an interrupted takeover it
+      cannot read; the month check gone from the mint; T0 accepting any
+      period of the document's.
+  S29 The page-mount watchdog completes an interrupted re-run of the
+      caller's own company — and of nobody else's.
+  S30 The month's row takes the run's columns only while it still names the
+      document: changed hands mid-apply (a second process), nothing more is
+      written and no marker is erased.
 
 THE MARKER'S KEY AND SHAPE AND THE STORED CODES ARE WRITTEN OUT HERE
 (`MARKER_KEY`, `INTERRUPTED`, …), never read from the code under test.
@@ -127,9 +157,11 @@ CANNOT SEE.
     cascades (modelled), PostgREST's parsing of the json-path select, row
     security, realtime; whether production's `financial_periods` accepts a
     second source-less row for a month (the owner's read-only check).
-  · Two backend processes ALIVE at once, and two documents' takeovers
-    interleaving on one month after a commit point (in-flight is per
-    process; nothing serialises the apply).
+  · Two backend PROCESSES alive at once (the takeover lock and in-flight
+    are per process): a second process's pass can resume a committed row
+    under a live apply of the first. The guarded table loop and S30 narrow
+    what the two can do to each other; only one transaction excludes it.
+    (Two THREADS of one process — production's model — are held by S23.)
   · A kill INSIDE one HTTP statement; the takeover as ONE transaction — the
     window between the commit point and the end of the apply is observable
     (tests/engine/test_rerun_restart.py records what is served there).
@@ -139,7 +171,11 @@ CANNOT SEE.
     REPORT a stranded staged row as a period with no source document until
     it is cleaned up (asserted as such in the restart laws).
   · The AI lane (its own file of this gate: test_rerun_ai_lane.py),
-    make-active / move-period on a live month, the browser after a re-run.
+    move-period filing a document under a month another document holds
+    (the user's explicit command; staged, replaced only on success — G4),
+    the browser after a re-run.
+  · Whether production's `alerts` still carries the legacy unique key (S27
+    models it by hand; with or without it the laws hold).
 
 PLANT LOG: docs/engine_book/gates.md "rerun-data-loss".
 """
@@ -147,6 +183,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import json
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -571,8 +608,10 @@ def _seam_world(variant: str, *, document_error: Optional[str] = None) -> _Killi
                          "title": key, "body": "…", "document_id": DOC_ID})
     if not nothing:
         d.add("valuations", {"id": "valuation-rerun", "period_id": STAGED, "org_id": ORG})
+        # (keyed to the row it is STORED under — the staged one — as the run
+        # writes it; the takeover re-keys it to the month once it sits there)
         d.add("alerts", {"id": "alert-rerun", "org_id": ORG, "period_id": STAGED,
-                         "alert_key": "margin_thin:%s" % PID, "severity": "high", "category": "margin",
+                         "alert_key": "margin_thin:%s" % STAGED, "severity": "high", "category": "margin",
                          "title": "margin_thin", "body": "…", "document_id": DOC_ID})
     d.add("briefings", {"id": "briefing-of-the-month", "period_id": PID, "org_id": ORG, "body": W.GOOD_BODY,
                         "language": "ro", "model": "the-model-of-the-stored-write",
@@ -712,6 +751,12 @@ def test_a_staged_takeover_replaces_its_own_months_analysis_and_leaves_nothing_b
         assert [(r["id"], r["period_id"], r["target_id"]) for r in after["recommendations"]
                 if r["org_id"] == ORG] == [("rec-of-the-rerun", PID, PID)]
         assert mine("alerts") == ["alert-rerun"]
+    # AN ALERT'S KEY NAMES THE PERIOD IT SITS ON: the run's alert, written
+    # under a key that named the staged row, is re-keyed to the month.
+    assert [a["alert_key"] for a in after["alerts"] if a["org_id"] == ORG] == (
+        [] if variant == "the_run_stored_nothing_in_three_tables" else ["margin_thin:%s" % PID]), (
+        "an alert that moved onto the month still names the staged row in its key: %r"
+        % [a["alert_key"] for a in after["alerts"] if a["org_id"] == ORG])
     assert [r["id"] for r in after["benchmark_reports"]] == ["report-of-the-other-tenant"], (
         "the benchmark report cached for the month was not cleared (or another tenant's was)")
     assert after["documents"] == [dict(before["documents"][0], period_id=PID, status="analyzed", error=None)]
@@ -737,6 +782,9 @@ def test_the_commit_point_comes_after_the_staged_only_work_and_before_the_month(
     assert marker["keep_briefing_reason"] == ("provider_error" if variant == "the_narration_failed" else None)
     assert marker["emptied"] == (["alerts", "recommendations", "valuations"]
                                  if variant == "the_run_stored_nothing_in_three_tables" else []), marker
+    # … and which tables the month KEEPS its own rows of (never touched by the apply).
+    assert marker["kept"] == (["recommendations", "briefings"]
+                              if variant == "the_narration_failed" else []), marker
     # the commit write carries the run's envelope too — it is not replaced by the marker alone
     assert writes[commit - 1]["payload"]["assembled_canonical_v1"]["canonical_bs"] == {"run": "rerun"}
     assert writes[commit - 1]["filters"] == {"id": "eq.%s" % STAGED, "org_id": "eq.%s" % ORG}
@@ -820,7 +868,7 @@ def test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result(
             "uninterrupted takeover's result" % (k, total, whole.writes[k - 1]["table"])
         # … and a resume that is run AGAIN finds nothing to do.
         assert P._clear_staged_rerun_rows(double, ORG, document_id=DOC_ID) == {
-            "resumed": 0, "dropped": 0, "left": 0, "unreadable": False}
+            "resumed": 0, "dropped": 0, "left": 0, "unreadable": False, "left_documents": []}
 
 
 def test_a_resume_interrupted_itself_is_resumed_again():
@@ -957,7 +1005,8 @@ def test_a_resume_the_database_refuses_leaves_the_committed_row_and_says_so():
 
     out = P._clear_staged_rerun_rows(double, ORG, document_id=DOC_ID)
 
-    assert out == {"resumed": 0, "dropped": 0, "left": 1, "unreadable": False}, out
+    assert out == {"resumed": 0, "dropped": 0, "left": 1, "unreadable": False,
+                   "left_documents": [DOC_ID]}, out
     (staged,) = [p for p in double.rows("financial_periods") if p["id"] == STAGED]
     assert staged["assembled_canonical_v1"][MARKER_KEY]["takeover_began_at"], "the committed row was dropped"
     double.arm(None)
@@ -974,7 +1023,7 @@ def test_the_cleanup_never_raises_when_the_store_cannot_be_read():
     double = _Unreadable(every_table=True)
     for kwargs in (dict(document_id=DOC_ID), dict(ttl=True), dict(document_id=DOC_ID, resume=False)):
         assert P._clear_staged_rerun_rows(double, ORG, **kwargs) == {
-            "resumed": 0, "dropped": 0, "left": 0, "unreadable": True}
+            "resumed": 0, "dropped": 0, "left": 0, "unreadable": True, "left_documents": []}
     assert double.writes == []
     # No company, nothing to do — and nothing read.
     assert P._clear_staged_rerun_rows(double, "", ttl=True)["unreadable"] is False
@@ -989,30 +1038,42 @@ def _aged(seconds: int) -> str:
 
 
 #: cell -> (staged this many seconds ago, committed, the document exists,
-#:          the document is in flight in this process, what the pass does)
+#:          the document is in flight in this process, the pass is made by
+#:          THIS document's own run (under its claim), what the pass does)
 _COMPANY_PASS = {
-    "young_and_its_run_may_be_alive": (30, False, True, False, "left"),
-    "young_and_in_flight": (30, False, True, True, "left"),
-    "old_but_in_flight_in_this_process": (3600, False, True, True, "left"),
-    "old_and_nobody_runs_it": (3600, False, True, False, "dropped"),
-    "just_over_the_fifteen_minutes": (901, False, True, False, "dropped"),
-    "just_under_the_fifteen_minutes": (880, False, True, False, "left"),
-    "young_and_its_document_is_gone": (30, False, False, False, "dropped"),
-    "committed_and_old": (3600, True, True, False, "resumed"),
-    "committed_and_young": (30, True, True, False, "left"),
-    "committed_old_but_in_flight": (3600, True, True, True, "left"),
+    "young_and_its_run_may_be_alive": (30, False, True, False, False, "left"),
+    "young_and_in_flight": (30, False, True, True, False, "left"),
+    "old_but_in_flight_in_this_process": (3600, False, True, True, False, "left"),
+    "old_and_nobody_runs_it": (3600, False, True, False, False, "dropped"),
+    "just_over_the_fifteen_minutes": (901, False, True, False, False, "dropped"),
+    "just_under_the_fifteen_minutes": (880, False, True, False, False, "left"),
+    "young_and_its_document_is_gone": (30, False, False, False, False, "dropped"),
+    "committed_and_old": (3600, True, True, False, False, "resumed"),
+    # A COMMITTED row does not wait the fifteen minutes: its month is
+    # mid-replacement, and its document is not in flight here — a dead
+    # process's (S24: left to wait, the next upload for the month cost it
+    # the last good briefing).
+    "committed_and_young": (30, True, True, False, False, "resumed"),
+    "committed_young_and_its_document_is_gone": (30, True, False, False, False, "dropped"),
+    "committed_old_but_in_flight": (3600, True, True, True, False, "left"),
+    "committed_young_and_in_flight": (30, True, True, True, False, "left"),
+    # THE PASS OF THE DOCUMENT'S OWN RUN (it holds the claim: no other run of
+    # it is alive here) — its leftover is dead whatever its age (S25).
+    "young_and_the_pass_is_its_own_documents_run": (30, False, True, True, True, "dropped"),
+    "committed_young_and_the_pass_is_its_own_documents_run": (30, True, True, True, True, "resumed"),
 }
 
 
 @pytest.mark.parametrize("cell", sorted(_COMPANY_PASS))
 def test_the_company_pass_clears_only_the_staged_rows_of_dead_runs(cell, monkeypatch):
     """S14. Every analysis of a company first clears the staged rows dead
-    re-runs left in it (`ttl=True`): only a row whose document is NOT in
-    flight in this process and that is fifteen minutes old (or whose
-    document no longer exists). A committed one is RESUMED, any other
-    dropped. Rows of a run that may be alive are left alone."""
+    re-runs left in it (`ttl=True`). A row whose document is in flight in
+    this process may be a live run's and is left — unless the pass is made
+    by that document's OWN run. Otherwise: a COMMITTED row is RESUMED at
+    once; an uncommitted one is dropped once it is fifteen minutes old (or
+    its document no longer exists)."""
     from engine.api import _doc_dedupe
-    age, committed, document_exists, in_flight, expected = _COMPANY_PASS[cell]
+    age, committed, document_exists, in_flight, own_run, expected = _COMPANY_PASS[cell]
     variant = "the_narration_worked"
     double = _seam_world(variant)
     if committed:
@@ -1028,10 +1089,11 @@ def test_the_company_pass_clears_only_the_staged_rows_of_dead_runs(cell, monkeyp
         assert _doc_dedupe.try_mark_in_flight(DOC_ID)
     before = _state(double)
 
-    out = P._clear_staged_rerun_rows(double, ORG, ttl=True)
+    out = P._clear_staged_rerun_rows(double, ORG, ttl=True,
+                                     claimed_document_id=DOC_ID if own_run else "another-documents-run")
 
     assert out == {"resumed": int(expected == "resumed"), "dropped": int(expected == "dropped"),
-                   "left": 0, "unreadable": False}, (cell, out)
+                   "left": 0, "unreadable": False, "left_documents": []}, (cell, out)
     if expected == "left":
         assert _state(double) == before, "%s: the pass touched a row it must leave" % cell
     elif expected == "dropped":
@@ -1284,11 +1346,13 @@ def test_a_first_analysis_pays_one_light_read_for_the_company_pass_and_no_write(
     first = W._first_analysis(app, gw)
 
     ((kwargs, calls, out),) = passes
-    assert kwargs == {"ttl": True}
+    # (the pass is told whose run is making it: that document's own leftover
+    # is dead whatever its age — S25)
+    assert kwargs == {"ttl": True, "claimed_document_id": first["doc"]["id"]}
     assert calls == [("select", "financial_periods",
                       {"org_id": "eq.%s" % first["org_id"], "source_document_id": "is.null"},
                       "id,org_id,source_document_id," + MARKER_SELECT)], calls
-    assert out == {"resumed": 0, "dropped": 0, "left": 0, "unreadable": False}
+    assert out == {"resumed": 0, "dropped": 0, "left": 0, "unreadable": False, "left_documents": []}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -2004,3 +2068,797 @@ def test_the_codes_a_reruns_row_can_carry_are_the_ones_the_docs_panel_knows():
     frontend = (O.REPO / "frontend" / "lib" / "rerunRefusals.ts").read_text(encoding="utf-8")
     for literal in ('"rerun_failed: "', '"interrupted_replacing"', '"rerun_month_taken"'):
         assert literal in frontend, "frontend/lib/rerunRefusals.ts does not hold %s" % literal
+
+
+# ══════════════════════════════════════════════════════════════════════
+# REVIEW OF 2026-10-05 — what the first three stages left unheld
+# ══════════════════════════════════════════════════════════════════════
+#
+# S23 — ONE TAKEOVER OF A COMPANY'S MONTHS AT A TIME: two real threads
+# ──────────────────────────────────────────────────────────────────────
+
+THIRD_BODY = "Al treilea comentariu: cel al fișierului încărcat din nou."
+THIRD_TITLES = ["Recomandarea fișierului nou"]
+
+#: How long the re-run's thread waits, inside its apply, for the other
+#: writer to either FINISH its takeover (no lock: milliseconds on this
+#: store) or stand at the takeover's door (the lock: for ever).
+_GRACE_S = 1.5
+
+
+def _ids_added(db: Any, table: str, call: Any) -> List[str]:
+    before = set(str(r.get("id")) for r in db.rows(table))
+    call()
+    return sorted(set(str(r.get("id")) for r in db.rows(table)) - before)
+
+
+@pytest.mark.parametrize("at", ["the_first_statement_on_the_month", "before_the_months_row_takes_the_columns"])
+def test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply(app, gw, monkeypatch, at):
+    """TWO WRITERS ON ONE MONTH, as production runs them: each run is its own
+    thread (`_enqueue`). doc1's staged re-run is past its last ownership look
+    and INSIDE its apply when doc2 — the same December, another file — is
+    uploaded and its whole run reaches its takeover.
+
+    Unserialised (review 2026-10-05, measured at these two statement
+    boundaries): the month's row named doc2 over doc1's statements, briefing
+    and recommendations (or doc2's rows under doc1's envelope), doc1 archived
+    with its superseded marker erased, no staged row left to resume and
+    nothing saying so.
+
+    The takeover — T0 included — runs under the company's lock: the upload's
+    takeover WAITS at the door (asserted: it was standing there while the
+    re-run was still applying), then takes over a month that is whole. The
+    end state is exactly an upload over a finished re-run: the month is
+    doc2's — its row, its envelope, every line item and metric its run
+    wrote, its briefing and recommendations — and doc1 is archived, the
+    marker naming its replacement."""
+    import threading
+
+    w = O._own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B), W._reply(THIRD_BODY, THIRD_TITLES)])
+    revenue_before = V._served(app, w["org"], w["month"])["revenue"]
+    second = V.one_tap(app, W._corrected_december(), "balanta_corectata.xlsx")   # committed, not yet run
+    doc2 = second["commit"]["document_id"]
+    assert O._retry(app, w["org"], w["doc1"]).status_code == 202
+    month = w["month"]
+    a_in_apply, b_at_its_takeover = threading.Event(), threading.Event()
+    seen = {"paused": False, "b_was_waiting_at_the_door": None, "errors": []}  # type: Dict[str, Any]
+    written_by = {}  # type: Dict[str, List[str]]
+    threads = {}  # type: Dict[str, Any]
+    real_insert, real_delete, real_update = gw.db.insert, gw.db.delete, gw.db.update
+    real_finalize = P._finalize_same_month_takeover
+
+    def pause_the_rerun() -> None:
+        """The re-run's thread, inside its apply, lets the other writer go."""
+        seen["paused"] = True
+        a_in_apply.set()
+        if not b_at_its_takeover.wait(120):
+            seen["errors"].append("the upload's run never reached its takeover")
+            return
+        threads["b"].join(timeout=_GRACE_S)
+        seen["b_was_waiting_at_the_door"] = threads["b"].is_alive()
+
+    def on_thread_a() -> bool:
+        return threading.current_thread() is threads.get("a") and not seen["paused"]
+
+    def delete(table: str, *a: Any, **kw: Any) -> Any:
+        if (at == "the_first_statement_on_the_month" and on_thread_a() and table == "statement_line_items"
+                and (kw.get("filters") or {}) == {"period_id": "eq.%s" % month}):
+            pause_the_rerun()
+        return real_delete(table, *a, **kw)
+
+    def update(table: str, *a: Any, **kw: Any) -> Any:
+        payload = a[0] if a else None
+        if (at == "before_the_months_row_takes_the_columns" and on_thread_a() and table == "financial_periods"
+                and (kw.get("filters") or {}).get("id") == "eq.%s" % month
+                and isinstance(payload, dict) and "assembled_canonical_v1" in payload):
+            pause_the_rerun()
+        return real_update(table, *a, **kw)
+
+    def insert(table: str, *a: Any, **kw: Any) -> Any:
+        if table not in ("statement_line_items", "calculated_metrics") or threading.current_thread() is not threads.get("b"):
+            return real_insert(table, *a, **kw)
+        out = []  # type: List[Any]
+        written_by.setdefault(table, []).extend(_ids_added(gw.db, table, lambda: out.append(real_insert(table, *a, **kw))))
+        return out[0]
+
+    def finalize(doc: Dict[str, Any], period_id: str, **kw: Any) -> Any:
+        if threading.current_thread() is threads.get("b"):
+            b_at_its_takeover.set()
+        return real_finalize(doc, period_id, **kw)
+
+    monkeypatch.setattr(gw.db, "delete", delete)
+    monkeypatch.setattr(gw.db, "update", update)
+    monkeypatch.setattr(gw.db, "insert", insert)
+    monkeypatch.setattr(P, "_finalize_same_month_takeover", finalize)
+
+    def run(name: str, document_id: str, wait_for: Any = None) -> None:
+        try:
+            if wait_for is not None and not wait_for.wait(120):
+                seen["errors"].append("%s: the re-run never reached its apply" % name)
+                return
+            P._run_pipeline_sync(document_id)
+        except BaseException as exc:  # noqa: BLE001 — reported in the main thread
+            seen["errors"].append("%s: %r" % (name, exc))
+
+    threads["a"] = threading.Thread(target=run, args=("the re-run", w["doc1"]))
+    threads["b"] = threading.Thread(target=run, args=("the upload", doc2, a_in_apply))
+    for t in threads.values():
+        t.start()
+    for t in threads.values():
+        t.join(300)
+    assert not any(t.is_alive() for t in threads.values()), "a run never ended (a deadlock?)"
+    assert seen["errors"] == [], seen["errors"]
+    assert seen["paused"], "the scenario never happened: the re-run never reached that statement"
+    # THE UPLOAD'S TAKEOVER WAITED while the re-run was inside its apply.
+    assert seen["b_was_waiting_at_the_door"] is True, (
+        "the upload's takeover ran THROUGH the re-run's apply (it finished while the re-run stood "
+        "between two statements of its own)")
+
+    # THE END STATE: an upload over a finished re-run — the month is doc2's, whole.
+    (period,) = [p for p in gw.db.rows("financial_periods") if p["org_id"] == w["org"]]
+    assert period["id"] == month and period["source_document_id"] == doc2, period
+    envelope = period["assembled_canonical_v1"]
+    assert MARKER_KEY not in envelope and envelope["provenance"]["source_document_id"] == doc2, (
+        "the month's row names the new file over an envelope built from %r"
+        % envelope["provenance"]["source_document_id"])
+    for table in ("statement_line_items", "calculated_metrics"):
+        assert written_by.get(table), "the upload's run wrote no %s: the check is vacuous" % table
+        under_the_month = _rows_by_id(gw, table, month)
+        # (a run replaces one of its own metric rows — the statutory anchor —
+        # so what it WROTE is a superset of what it left)
+        assert under_the_month and set(under_the_month) <= set(written_by[table]), (
+            "%s under the month hold rows the upload's run did not write: %r"
+            % (table, sorted(set(under_the_month) - set(written_by[table]))[:3]))
+    for table in W._PERIOD_CHILD_TABLES:
+        assert [x for x in gw.db.rows(table) if x.get("period_id") != month] == [], table
+    served = V._served(app, w["org"], month)
+    assert served["source_document"] == doc2 and served["revenue"] != revenue_before, served
+    (briefing,) = gw.db.rows("briefings")
+    assert briefing["body"] == THIRD_BODY and briefing["stale_since"] is None, briefing
+    assert sorted(x["title"] for x in gw.db.rows("recommendations")) == THIRD_TITLES
+    (d1,) = gw.docs(id=w["doc1"])
+    assert d1["deleted_at"] is not None and d1["error"] == "superseded_by:%s" % doc2 and \
+        d1["status"] == "analyzed", "the archived document does not say what replaced it: %r" % (
+            (d1["status"], d1["error"], d1["deleted_at"]),)
+    (d2,) = gw.docs(id=doc2)
+    assert (d2["status"], d2["error"], d2["period_id"], d2["deleted_at"]) == ("analyzed", None, month, None), d2
+    assert P._STAGED_RERUNS == {} and P._TAKEOVERS_BY_RUN == {}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# S24 — a marker is browser-writable: a forged one never crosses companies
+# ──────────────────────────────────────────────────────────────────────
+
+FOREIGN_DOC = "f0e16000-0000-4000-8000-00000000d0c1"
+FOREIGN_PID = "f0e16000-0000-4000-8000-00000000f0e1"
+
+
+def _a_month_of_the_other_company(gw) -> None:
+    """A whole month of ANOTHER company (the outsider's), with children."""
+    org = V.WU.ORG_OUTSIDE
+    gw.db.add("documents", {"id": FOREIGN_DOC, "org_id": org, "status": "analyzed", "period_id": FOREIGN_PID,
+                            "scope": "financial", "original_filename": "balanta_lor.xlsx", "deleted_at": None,
+                            "error": None})
+    gw.db.add("financial_periods", {"id": FOREIGN_PID, "org_id": org, "currency": "RON",
+                                    "period_start": "2025-12-31", "period_end": "2025-12-31",
+                                    "source_document_id": FOREIGN_DOC,
+                                    "assembled_canonical_v1": {"provenance": {"source_document_id": FOREIGN_DOC}}})
+    gw.db.add("briefings", {"period_id": FOREIGN_PID, "org_id": org, "body": "Comentariul altei companii.",
+                            "language": "ro"})
+    gw.db.add("statement_line_items", {"period_id": FOREIGN_PID, "statement": "pl", "bucket": "revenue",
+                                       "ro_account_code": "707", "amount": 1.0})
+    gw.db.add("recommendations", {"period_id": FOREIGN_PID, "org_id": org, "title": "A lor", "status": "in_review"})
+    gw.db.add("alerts", {"period_id": FOREIGN_PID, "org_id": org, "alert_key": "x:%s" % FOREIGN_PID,
+                         "document_id": FOREIGN_DOC})
+
+
+def _forge_a_committed_marker(gw, *, in_org: str, row_id: str, document_id: str, served: str) -> None:
+    """What a member can INSERT for their own company (`financial_periods`
+    is member-writable, envelope included): a source-less row whose marker
+    says a takeover of `served` by `document_id` has begun and that the run
+    stored nothing in ANY table — applied, it empties the month."""
+    gw.db.add("financial_periods", {
+        "id": row_id, "org_id": in_org, "currency": "RON", "period_start": "2025-12-31",
+        "period_end": "2025-12-31", "source_document_id": None,
+        "assembled_canonical_v1": {MARKER_KEY: {
+            "document_id": document_id, "served_period_id": served, "staged_at": "2020-01-01T00:00:00+00:00",
+            "takeover_began_at": "2020-01-01T00:00:01+00:00", "keep_briefing_reason": None,
+            "emptied": list(_RUN_TABLES), "kept": []}}})
+
+
+def _everything_of(gw, org_id: str, period_id: str, document_id: str) -> str:
+    return json.dumps({"rows": V._rows_under(gw, period_id),
+                       "period": [p for p in gw.db.rows("financial_periods") if p["id"] == period_id],
+                       "document": [d for d in gw.db.rows("documents") if d["id"] == document_id],
+                       "org": org_id}, sort_keys=True, default=str)
+
+
+@pytest.mark.parametrize("through", ["the_company_pass", "the_page_mount_watchdog", "the_documents_own_cleanup"])
+def test_a_forged_committed_marker_never_reaches_another_companys_month(app, gw, monkeypatch, through):
+    """THE MARKER LIVES IN A COLUMN THE BROWSER WRITES. `served_period_id`
+    and `document_id` of a staged row are, in the worst case, another
+    tenant's input — and the apply deletes by them under the SERVICE ROLE.
+    The company in the applier's two reads (the month, the document) is the
+    whole wall, and no law held it (review 2026-10-05: with `org_id` removed
+    there, every gate stayed green and a marker forged in one company
+    emptied another company's month).
+
+    Both directions: a marker forged in the OUTSIDER's company naming MY
+    month and MY document, and one forged in MINE naming THEIRS. After every
+    way a staged row is cleaned up — a company pass, the page-mount
+    watchdog, a document's own cleanup — the named month, its row and its
+    document are byte-identical, and the forged row is gone (there is
+    nothing to apply it ONTO in the company it sits in)."""
+    w = O._own_month(app, gw, monkeypatch, [])
+    _a_month_of_the_other_company(gw)
+    mine = _everything_of(gw, w["org"], w["month"], w["doc1"])
+    theirs = _everything_of(gw, V.WU.ORG_OUTSIDE, FOREIGN_PID, FOREIGN_DOC)
+    _forge_a_committed_marker(gw, in_org=V.WU.ORG_OUTSIDE, row_id="f0e16000-0000-4000-8000-0000000057a6",
+                              document_id=w["doc1"], served=w["month"])
+    _forge_a_committed_marker(gw, in_org=w["org"], row_id="a9a50000-0000-4000-8000-0000000057a6",
+                              document_id=FOREIGN_DOC, served=FOREIGN_PID)
+
+    if through == "the_company_pass":
+        outcomes = [P._clear_staged_rerun_rows(gw.db, org, ttl=True) for org in (V.WU.ORG_OUTSIDE, w["org"])]
+    elif through == "the_page_mount_watchdog":
+        outcomes = []
+        for user in (V.OUTSIDER, V.USER):
+            r = V._http(app).post("/api/pipeline/recover-stuck", headers=V._headers(user))
+            assert r.status_code == 200, r.text[:300]
+            assert r.json()["resumed_reruns"] == 0, r.json()
+            outcomes.append({"resumed": r.json()["resumed_reruns"]})
+    else:
+        outcomes = [P._clear_staged_rerun_rows(gw.db, V.WU.ORG_OUTSIDE, document_id=w["doc1"]),
+                    P._clear_staged_rerun_rows(gw.db, w["org"], document_id=FOREIGN_DOC)]
+
+    assert all(o["resumed"] == 0 for o in outcomes), "a forged marker was APPLIED: %r" % outcomes
+    assert _everything_of(gw, w["org"], w["month"], w["doc1"]) == mine, \
+        "a marker forged in another company changed MY month"
+    assert _everything_of(gw, V.WU.ORG_OUTSIDE, FOREIGN_PID, FOREIGN_DOC) == theirs, \
+        "a marker forged in my company changed ANOTHER company's month"
+    assert [p["id"] for p in gw.db.rows("financial_periods") if SR.marker_of(p)] == [], \
+        "a forged staged row is still there"
+    # The owner's month is still served, and still re-runs.
+    assert V._served(app, w["org"], w["month"])["source_document"] == w["doc1"]
+
+
+def test_the_appliers_reads_of_the_month_and_the_document_name_the_company():
+    """The same wall, at its own seam: every read the applier makes of the
+    month its marker names and of the document its marker names carries the
+    company of the STAGED row — and so does every write on either."""
+    double = _seam_world("the_narration_worked")
+    double.arm(_commit_index(_uninterrupted("the_narration_worked")) + 2)
+    with pytest.raises(_Kill):
+        _staged_takeover(double, "the_narration_worked")
+    double.arm(None)
+    double.calls[:] = []
+    double.writes[:] = []
+
+    assert P._clear_staged_rerun_rows(double, ORG, document_id=DOC_ID)["resumed"] == 1
+
+    reads = [(table, filters) for op, table, filters, _columns in double.calls
+             if op == "select" and table in ("financial_periods", "documents")]
+    assert len(reads) >= 4, "the applier read the month and the document %d time(s)" % len(reads)
+    for table, filters in reads:
+        assert filters.get("org_id") == "eq.%s" % ORG, "%s was read without the company: %r" % (table, filters)
+    for write in double.writes:
+        if write["table"] in ("financial_periods", "documents"):
+            assert write["filters"].get("org_id") == "eq.%s" % ORG, write
+
+
+# ──────────────────────────────────────────────────────────────────────
+# S25 — a run settles its OWN document's leftover before it writes
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _november(app, gw) -> Dict[str, Any]:
+    out = V.one_tap(app, V.agras_workbook(period_line="Balanta de verificare la data de 30.11.2025"),
+                    "balanta_noiembrie.xlsx")
+    return V.run_analysis(gw, out["commit"]["document_id"])
+
+
+def test_an_in_place_run_first_completes_its_own_documents_interrupted_rerun(app, gw, monkeypatch, tmp_path):
+    """Measured on the stage-3 tip (review 2026-10-05). A document that is
+    `failed` over its period; its staged re-run dies inside its takeover (a
+    committed row is stranded); the failed banner's Retry — POST
+    /api/pipeline/run, a NON-staged run that writes the month in place — is
+    accepted. Its own company pass skipped the stranded row (its document
+    was in flight: this very run) at ANY age; the month became the in-place
+    run's analysis; and the company's next analysis RESUMED the old row over
+    it: the OLDER re-run's briefing on the newer run's statements and
+    recommendations, unmarked.
+
+    The run holds its document's claim, so no other run of that document is
+    alive here: its leftover is settled FIRST — the interrupted takeover is
+    completed, then the run writes. Nothing is left to resume; the month is
+    the in-place run's analysis, whole, and stays so."""
+    w = O._own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B), W._reply(THIRD_BODY, THIRD_TITLES),
+                                           W._reply("Comentariul lunii noiembrie.", ["Pentru noiembrie"])])
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["status"], d1["error"] = "failed", "RuntimeError: an earlier in-place run failed"
+    staged = _a_stranded_committed_row(app, gw, monkeypatch, tmp_path, w)
+    assert gw.docs(id=w["doc1"])[0]["error"] == INTERRUPTED
+    applied = []  # type: List[str]
+    real_apply = P._apply_committed_staged_rerun
+
+    def apply(admin_client: Any, org_id: str, staged_id: str) -> str:
+        outcome = real_apply(admin_client, org_id, staged_id)
+        applied.append("%s:%s" % (staged_id, outcome))
+        return outcome
+
+    monkeypatch.setattr(P, "_apply_committed_staged_rerun", apply)
+
+    r = V._http(app).post("/api/pipeline/run", headers=V._headers(V.USER, w["org"]),
+                          json={"document_id": w["doc1"], "output_language": "ro"})
+    assert r.status_code == 202, (r.status_code, r.text[:300])
+    assert w["doc1"] not in P._STAGED_RERUNS, "the failed banner's Retry is an in-place run"
+    done = V.run_analysis(gw, w["doc1"])
+
+    assert (done["status"], done["error"], done["period_id"]) == ("analyzed", None, w["month"]), done
+    assert applied == ["%s:resumed" % staged], (
+        "the run did not settle its own document's interrupted re-run before it wrote: %r" % applied)
+    assert [p["id"] for p in gw.db.rows("financial_periods") if SR.marker_of(p)] == [], \
+        "the older re-run's committed row is still waiting to be resumed OVER this run"
+
+    def the_month() -> Dict[str, Any]:
+        return {"briefing": [(b["body"], b.get("stale_reason")) for b in gw.db.rows("briefings")
+                             if b["period_id"] == w["month"]],
+                "recommendations": sorted(x["title"] for x in gw.db.rows("recommendations")
+                                          if x["period_id"] == w["month"]),
+                "rows": V._rows_under(gw, w["month"])}
+
+    after_the_run = the_month()
+    assert after_the_run["briefing"] == [(THIRD_BODY, None)], after_the_run["briefing"]
+    assert after_the_run["recommendations"] == THIRD_TITLES
+    # … AND IT STAYS: the company's next analysis, long after, changes nothing of December.
+    monkeypatch.setattr(P, "STAGED_RERUN_TTL_S", -1)
+    november = _november(app, gw)
+    assert november["status"] == "analyzed", (november["status"], november.get("error"))
+    assert the_month() == after_the_run, "a later run of the company changed the month again"
+    assert applied == ["%s:resumed" % staged]
+
+
+def test_a_run_whose_own_interrupted_rerun_cannot_be_completed_stops_before_it_writes(
+        app, gw, monkeypatch, tmp_path):
+    """…and when that leftover CANNOT be completed now (the database refuses
+    a write of the resume), the run does not write its month under it —
+    whatever it wrote would be undone, in part, by the later resume. Refused
+    with a sentence, before the month lookup: no statement of this run names
+    the month, and the committed row is still there to be completed."""
+    w = O._own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B), W._reply(THIRD_BODY, THIRD_TITLES)])
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["status"], d1["error"] = "failed", "RuntimeError: an earlier in-place run failed"
+    staged = _a_stranded_committed_row(app, gw, monkeypatch, tmp_path, w)
+    rows_before = V._rows_under(gw, w["month"])
+    r = V._http(app).post("/api/pipeline/run", headers=V._headers(V.USER, w["org"]),
+                          json={"document_id": w["doc1"], "output_language": "ro"})
+    assert r.status_code == 202, (r.status_code, r.text[:300])
+    with pytest.MonkeyPatch.context() as mp:
+        refused = _refuse_writes(gw, mp, "update", "briefings")      # the resume's move of the briefing
+        spy = W._Spy(gw.db, mp)
+        done = V.run_analysis(gw, w["doc1"])
+
+    assert refused, "the scenario never happened"
+    assert done["status"] == "failed" and "interrupted" in str(done["error"]) and \
+        "Try again" in str(done["error"]), (done["status"], done["error"])
+    assert [p["id"] for p in gw.db.rows("financial_periods") if SR.marker_of(p)] == [staged], \
+        "the committed row was dropped"
+    in_place = [(x["op"], x["table"]) for x in spy.writes
+                if x["op"] == "insert" and x["table"] in ("statement_line_items", "calculated_metrics")]
+    assert in_place == [], "the run wrote its statements under an interrupted takeover: %r" % in_place
+    assert V._rows_under(gw, w["month"])["calculated_metrics"] == rows_before["calculated_metrics"]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# S26 — a re-filed re-run never re-dates its row onto a month that has
+#       become another row's
+# ──────────────────────────────────────────────────────────────────────
+
+_ANOTHER_DECEMBER_2024 = {"id": "december-2024-of-another-upload", "org_id": ORG, "currency": "RON",
+                          "source_document_id": "the-other-uploads-document",
+                          "period_start": "2024-12-31", "period_end": "2024-12-31"}
+
+
+@pytest.mark.parametrize("when", ["while_a_dead_runs_row_waited_to_be_resumed", "between_the_takeovers_look_and_its_row"])
+def test_an_apply_never_re_dates_its_row_onto_a_month_that_became_another_rows(when):
+    """Measured on the stage-3 tip (review 2026-10-05): the re-run read the
+    file as another month, passed its looks (the month was free) and
+    committed; an upload for THAT month then created its own period; the
+    resume re-dated the document's row onto it — two live periods for one
+    month, each with its document. Past the commit point the run's analysis
+    is the only whole one there is, so it is applied — and the row KEEPS the
+    month it had. One period per month, always."""
+    variant = "the_rerun_refiled_the_document"
+    whole = _uninterrupted(variant)
+    expected = _state(whole)
+    (re_dated,) = [p for p in expected["financial_periods"] if p["id"] == PID]
+    assert re_dated["period_end"] == "2024-12-31"                  # control: unobstructed, the row IS re-dated
+    double = _seam_world(variant)
+    if when == "while_a_dead_runs_row_waited_to_be_resumed":
+        double.arm(_commit_index(whole) + 2)
+        with pytest.raises(_Kill):
+            _staged_takeover(double, variant)
+        double.arm(None)
+        double.add("financial_periods", dict(_ANOTHER_DECEMBER_2024))
+        assert P._clear_staged_rerun_rows(double, ORG, document_id=DOC_ID)["resumed"] == 1
+    else:
+        real_update = double.update
+
+        def update(table: str, patch: Dict[str, Any], *, filters: Dict[str, str]) -> Any:
+            out = real_update(table, patch, filters=filters)
+            if table == "documents" and (patch or {}).get("error") == INTERRUPTED:
+                double.add("financial_periods", dict(_ANOTHER_DECEMBER_2024))    # lands right after the commit point
+            return out
+
+        double.update = update  # type: ignore[assignment]
+        assert _staged_takeover(double, variant) == PID
+
+    after = _state(double)
+    months = sorted((p["period_end"], p["id"]) for p in after["financial_periods"] if p["org_id"] == ORG)
+    assert months == [("2024-12-31", _ANOTHER_DECEMBER_2024["id"]), ("2025-12-31", PID)], (
+        "two live periods for one month (or a period lost): %r" % months)
+    (month,) = [p for p in after["financial_periods"] if p["id"] == PID]
+    assert (month["period_start"], month["period_end"]) == ("2025-12-01", "2025-12-31"), month
+    # … and everything ELSE is the uninterrupted takeover's result: the run's analysis, applied.
+    (other,) = [p for p in after["financial_periods"] if p["id"] == _ANOTHER_DECEMBER_2024["id"]]
+    assert dict((k, other[k]) for k in _ANOTHER_DECEMBER_2024) == _ANOTHER_DECEMBER_2024, other
+    for table in _SEAM_TABLES:
+        if table == "financial_periods":
+            assert dict(month, period_start="2024-12-31", period_end="2024-12-31") == re_dated
+        else:
+            assert after[table] == expected[table], table
+
+
+# ──────────────────────────────────────────────────────────────────────
+# S27 — the alerts of a staged re-run, where the legacy unique key is still there
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _the_legacy_alerts_unique(gw, monkeypatch) -> List[List[str]]:
+    """`alerts` as supabase/schema.sql creates it and
+    schema_phase_notes_period_scope.sql deliberately KEEPS it (its drop is a
+    manual step): `unique (org_id, alert_key)` BESIDE the newer
+    `unique (period_id, alert_key)`. A write that would leave two rows of
+    one company with one key on DIFFERENT periods is refused whole, as
+    Postgres refuses it (23505). The council's keys carry no period and are
+    left out of the model: only the keys that name a period are compared."""
+    import httpx
+    refused = []  # type: List[List[str]]
+
+    def clashes(rows: List[Dict[str, Any]], *, ignoring: Any = None) -> List[str]:
+        return [str(r.get("alert_key")) for r in rows
+                if not str(r.get("alert_key")).startswith("ai_council::")
+                and any(x is not ignoring and x.get("org_id") == r.get("org_id")
+                        and x.get("alert_key") == r.get("alert_key")
+                        and x.get("period_id") != r.get("period_id") for x in gw.db.rows("alerts"))]
+
+    real_upsert = gw.db.upsert
+
+    def upsert(table: str, rows: Any, **kw: Any) -> Any:
+        if table == "alerts":
+            hit = clashes(rows if isinstance(rows, list) else [rows])
+            if hit:
+                refused.append(hit)
+                raise httpx.HTTPStatusError(
+                    "409 duplicate key value violates unique constraint \"alerts_org_id_alert_key_key\"",
+                    request=httpx.Request("POST", "https://double.invalid/rest/v1/alerts"),
+                    response=httpx.Response(409, json={"code": "23505"}))
+        return real_upsert(table, rows, **kw)
+
+    monkeypatch.setattr(gw.db, "upsert", upsert)
+    return refused
+
+
+def test_a_staged_reruns_alerts_replace_the_months_where_the_legacy_unique_key_is_still_on_alerts(
+        app, gw, monkeypatch):
+    """Measured on the stage-3 tip with that constraint modelled (review
+    2026-10-05). The staged run keyed its alerts to the MONTH's id while
+    storing them under the STAGED id — the month's own alerts still held
+    those very keys, so the whole alerts write was refused (three keys
+    collided), the run ended `analyzed` with no error, and the month kept
+    the PREVIOUS analysis's alerts on the new statements. A same-month
+    re-upload — keyed to its own staged row — was clean.
+
+    The run's alerts are keyed to the row they are stored under; the
+    takeover re-keys them to the month once they sit on it. No write is
+    refused, none of the previous rows is left, and the keys afterwards are
+    what an in-place run would have written."""
+    refused = _the_legacy_alerts_unique(gw, monkeypatch)
+    w = O._own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B)])
+    assert refused == [] and any(w["month"] in key for key in w["alert_keys"]), w["alert_keys"]
+    for alert in gw.db.rows("alerts"):
+        alert["title"] = "THE PREVIOUS ANALYSIS'S: %s" % alert.get("title")
+    spy = W._Spy(gw.db, monkeypatch)
+
+    assert O._retry(app, w["org"], w["doc1"]).status_code == 202
+    rerun = V.run_analysis(gw, w["doc1"])
+
+    assert (rerun["status"], rerun["error"]) == ("analyzed", None), rerun
+    assert refused == [], "the re-run's alerts write was refused for the legacy unique key: %r" % refused
+    alerts = gw.db.rows("alerts")
+    assert [a for a in alerts if str(a.get("title")).startswith("THE PREVIOUS ANALYSIS'S")] == [], \
+        "the previous analysis's alerts are still on the month"
+    assert sorted(a["alert_key"] for a in alerts) == w["alert_keys"] and \
+        all(a["period_id"] == w["month"] for a in alerts), sorted(a["alert_key"] for a in alerts)
+    # While the run was going, its alerts never claimed the month's keys.
+    (staged,) = _staged_ids(spy)
+    written = [row for x in spy.writes if x["op"] == "upsert" and x["table"] == "alerts"
+               for row in (x["payload"] if isinstance(x["payload"], list) else [x["payload"]])]
+    named = [row["alert_key"] for row in written if not row["alert_key"].startswith("ai_council::")]
+    assert named and all(key.endswith(":%s" % staged) for key in named), named
+
+
+# ──────────────────────────────────────────────────────────────────────
+# S28 — five ways to weaken the mechanism that no law held
+# ──────────────────────────────────────────────────────────────────────
+
+OTHER_DOCUMENT = "another-document-of-the-company"
+OTHER_MONTH = "the-other-documents-own-month"
+OTHER_STAGED = "the-other-documents-staged-row"
+
+
+def _with_another_documents_staged_row(double: _KillingDouble, *, committed: bool) -> None:
+    """ANOTHER document of the same company, with its own month and the
+    staged row of a re-run of it — committed (a takeover that began) or not."""
+    double.add("documents", {"id": OTHER_DOCUMENT, "org_id": ORG, "status": "analyzed", "period_id": OTHER_MONTH,
+                             "deleted_at": None, "error": INTERRUPTED if committed else None,
+                             "scope": "financial"})
+    double.add("financial_periods", {"id": OTHER_MONTH, "org_id": ORG, "source_document_id": OTHER_DOCUMENT,
+                                     "currency": "RON", "period_start": "2025-11-30", "period_end": "2025-11-30",
+                                     "assembled_canonical_v1": {"provenance": {"source_document_id": OTHER_DOCUMENT}}})
+    more = {"takeover_began_at": "2026-10-04T10:00:09+00:00", "keep_briefing_reason": None,
+            "emptied": [], "kept": []} if committed else {}
+    double.add("financial_periods", {
+        "id": OTHER_STAGED, "org_id": ORG, "source_document_id": None, "currency": "RON",
+        "period_start": "2025-11-30", "period_end": "2025-11-30",
+        "assembled_canonical_v1": {"provenance": {"source_document_id": OTHER_DOCUMENT},
+                                   MARKER_KEY: _marker(OTHER_DOCUMENT, OTHER_MONTH,
+                                                       staged_at="2026-10-04T10:00:00+00:00", **more)}})
+    double.add("briefings", {"id": "briefing-of-the-other-documents-rerun", "period_id": OTHER_STAGED,
+                             "org_id": ORG, "body": W.NEW_BODY, "language": "ro"})
+    double.add("briefings", {"id": "briefing-of-the-other-month", "period_id": OTHER_MONTH, "org_id": ORG,
+                             "body": W.GOOD_BODY, "language": "ro"})
+    double.writes[:] = []
+
+
+@pytest.mark.parametrize("committed", [True, False], ids=["a_committed_row", "an_uncommitted_row"])
+@pytest.mark.parametrize("resume", [True, False], ids=["its_next_rerun_or_failure", "its_permanent_delete"])
+def test_one_documents_cleanup_never_touches_another_documents_staged_row(committed, resume):
+    """`_clear_staged_rerun_rows(document_id=A)` is A's next re-run, A's
+    failure handler and A's permanent delete (`resume=False`). Without its
+    document filter each of them would resume — or, for a delete, DROP —
+    ANOTHER document's staged row, committed ones included: the loss this
+    lane exists to end (the month's briefing deleted, the run's own dropped),
+    for a different document. No law held the filter (review 2026-10-05)."""
+    double = _seam_world("the_narration_worked")
+    _with_another_documents_staged_row(double, committed=committed)
+
+    def the_others() -> Any:
+        state = _state(double)
+        return ([p for p in state["financial_periods"] if p["id"] in (OTHER_MONTH, OTHER_STAGED)],
+                [d for d in state["documents"] if d["id"] == OTHER_DOCUMENT],
+                [b for b in state["briefings"] if b["period_id"] in (OTHER_MONTH, OTHER_STAGED)])
+
+    others_before = the_others()
+
+    out = P._clear_staged_rerun_rows(double, ORG, document_id=DOC_ID, resume=resume)
+
+    assert (out["resumed"], out["dropped"], out["left"]) == (0, 1, 0), out       # A's own (uncommitted) row
+    assert the_others() == others_before, "another document's staged row (or its month) was touched"
+    touched = [x for x in double.writes if OTHER_STAGED in json.dumps(x, default=str)
+               or OTHER_MONTH in json.dumps(x, default=str)]
+    assert touched == [], touched
+
+
+def test_a_rerun_is_not_started_when_its_documents_earlier_staged_rows_cannot_be_listed(app, gw, monkeypatch):
+    """The route cleans up what an earlier re-run of the document left before
+    it hands off. When the staged rows cannot even be LISTED (a timeout),
+    nothing is known: a committed row may be there, its month
+    mid-replacement. Not started — 503 `rerun_unavailable`, the claim given
+    back, nothing staged. (The other half of that guard — a committed row
+    that could not be completed — is the law above S20.)"""
+    w = O._own_month(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
+    enqueued_before = list(gw.enqueued)
+    real_list = P._staged_rerun_rows
+    with pytest.MonkeyPatch.context() as mp:
+        def unreadable(admin_client: Any, org_id: str) -> Any:
+            import httpx
+            raise httpx.ReadTimeout("The read operation timed out")
+
+        mp.setattr(P, "_staged_rerun_rows", unreadable)
+        spy = W._Spy(gw.db, mp)
+
+        r = O._retry(app, w["org"], w["doc1"])
+
+    assert r.status_code == 503 and r.json() == O.REFUSED_UNAVAILABLE, (r.status_code, r.text[:300])
+    assert gw.enqueued == enqueued_before and w["doc1"] not in P._STAGED_RERUNS
+    O._claim_writes_only(spy, w["doc1"])
+    assert P._staged_rerun_rows is real_list
+    # A moment later it is readable again and the re-run starts.
+    again = W._docs_panel_rerun(app, gw, dict(w, org_id=w["org"]))
+    assert again["status"] == "analyzed", (again["status"], again.get("error"))
+
+
+def test_a_handler_that_cannot_read_the_staged_rows_never_says_the_previous_analysis_is_still_served():
+    """The row says the takeover was INTERRUPTED (the commit point wrote
+    that), the run then failed, and its handler cannot list the staged rows.
+    It must not write "the re-run did not finish" over it — that sentence
+    tells the reader the previous analysis is still the one served, and the
+    month may be mid-replacement. The interrupted text stays until a resume
+    clears it."""
+    class _Unlistable(_KillingDouble):
+        def select(self, table: str, **kwargs: Any) -> Any:
+            if table == "financial_periods" and (kwargs.get("filters") or {}).get("source_document_id") == "is.null" \
+                    and "id" not in (kwargs.get("filters") or {}):
+                import httpx
+                raise httpx.ReadTimeout("The read operation timed out")
+            return super(_Unlistable, self).select(table, **kwargs)
+
+    double = _Unlistable(every_table=True)
+    for table in _SEAM_TABLES:
+        for row in _seam_world("the_narration_worked", document_error=INTERRUPTED).rows(table):
+            double.add(table, row)
+    double.writes[:] = []
+
+    assert _handle_failure(double) == "failed"
+
+    (doc,) = double.rows("documents")
+    assert doc["error"] == INTERRUPTED and doc["status"] == "analyzed", (
+        "the handler said the previous analysis is still served over an interrupted takeover: %r" % (doc,))
+    assert [x for x in double.writes if x["table"] == "documents"] == [], double.writes
+    # CONTROL: with the rows readable and nothing committed, the same handler does say so.
+    readable = _seam_world("the_narration_worked", document_error=None)
+    assert _handle_failure(readable) == "failed"
+    assert readable.rows("documents")[0]["error"] == "rerun_failed: RuntimeError: compute failed"
+
+
+def test_a_refiled_rerun_whose_new_month_is_taken_is_refused_before_anything_is_staged_or_narrated(
+        app, gw, monkeypatch):
+    """S7's first cell — "the month is taken when the run persists" — passed
+    with the mint-time check REMOVED: the takeover's own look answers the
+    same code, after the whole run (a staged row inserted, every stage run,
+    the provider called). The refusal belongs at the MINT: no period row is
+    inserted, nothing is stored under any id, and the provider is never
+    asked."""
+    w = O._own_month(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
+    (own,) = gw.db.rows("financial_periods")
+    own["period_start"] = own["period_end"] = "2024-12-31"
+    _another_documents_december(gw, w)
+    narrated_before = len(W._ScriptedProvider.narrate_requests)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    assert O._retry(app, w["org"], w["doc1"]).status_code == 202
+    rerun = V.run_analysis(gw, w["doc1"])
+
+    assert rerun["error"] == "rerun_failed: rerun_month_taken" and rerun["status"] == "analyzed", rerun
+    assert [x for x in spy.writes if x["op"] == "insert" and x["table"] == "financial_periods"] == [], \
+        "a staged row was inserted before the month was looked at"
+    assert sorted(set(x["table"] for x in spy.writes)) == ["documents"], sorted(set(x["table"] for x in spy.writes))
+    assert len(W._ScriptedProvider.narrate_requests) == narrated_before, \
+        "the provider was asked to narrate a re-run that could never be applied"
+
+
+def test_a_takeover_is_refused_before_any_write_when_the_month_it_was_staged_beside_is_no_longer_its_own():
+    """T0 asks one question: is THE MONTH THIS RUN WAS STAGED BESIDE still
+    the document's own — not "does the document own a period". The document
+    owns another period now (it was re-filed by a correction while the run
+    was going) and the staged-beside month names another document: refused
+    BEFORE the staged-only deletes and the commit point — nothing is
+    written."""
+    double = _seam_world("the_narration_worked")
+    double.update("financial_periods", {"source_document_id": "a-newer-upload"}, filters={"id": "eq.%s" % PID})
+    double.add("financial_periods", {"id": "the-documents-other-period", "org_id": ORG, "currency": "RON",
+                                     "source_document_id": DOC_ID, "period_start": "2025-06-30",
+                                     "period_end": "2025-06-30", "updated_at": "2026-10-04T11:00:00+00:00"})
+    double.update("documents", {"period_id": "the-documents-other-period"}, filters={"id": "eq.%s" % DOC_ID})
+    before = _state(double)
+    double.writes[:] = []
+
+    with pytest.raises(P.RerunOvertaken):
+        _staged_takeover(double, "the_narration_worked")
+
+    assert double.writes == [] and _state(double) == before, double.writes
+
+
+# ──────────────────────────────────────────────────────────────────────
+# S29 — the page-mount watchdog completes what a dead process interrupted
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_the_page_mount_watchdog_completes_an_interrupted_rerun_of_the_callers_own_company(
+        app, gw, monkeypatch, tmp_path):
+    """Between a commit point and its resume the month's page can serve a
+    table with no rows; a company that uploads nothing would keep that gap
+    until its next analysis (there is no sweep at boot). The dashboard posts
+    /api/pipeline/recover-stuck when it mounts: the first member to open the
+    app completes the takeover — the run's analysis, whole — at any age of
+    the row. Somebody who is NOT a member of the company completes nothing."""
+    w = O._own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B)])
+    staged = _a_stranded_committed_row(app, gw, monkeypatch, tmp_path, w)
+    assert gw.db.rows("briefings") != [] and [b for b in gw.db.rows("briefings") if b["period_id"] == w["month"]] == [], \
+        "the scenario: the month's briefing is gone, the run's own is under the staged row"
+    stranded = gw.state()
+
+    outsider = V._http(app).post("/api/pipeline/recover-stuck", headers=V._headers(V.OUTSIDER))
+    assert outsider.status_code == 200 and outsider.json()["resumed_reruns"] == 0, outsider.text[:300]
+    assert gw.state() == stranded, "somebody outside the company changed it"
+
+    r = V._http(app).post("/api/pipeline/recover-stuck", headers=V._headers(V.USER))
+
+    assert r.status_code == 200 and r.json()["resumed_reruns"] == 1, r.text[:300]
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == w["month"] and staged != w["month"] and MARKER_KEY not in period["assembled_canonical_v1"]
+    (briefing,) = gw.db.rows("briefings")
+    assert (briefing["body"], briefing["period_id"], briefing["stale_reason"]) == (W.BODY_B, w["month"], None)
+    assert sorted(x["title"] for x in gw.db.rows("recommendations")) == W.TITLES_B
+    (doc,) = gw.docs(id=w["doc1"])
+    assert (doc["status"], doc["error"], doc["period_id"]) == ("analyzed", None, w["month"]), doc
+    # … and a second mount finds nothing to do.
+    again = V._http(app).post("/api/pipeline/recover-stuck", headers=V._headers(V.USER))
+    assert again.json()["resumed_reruns"] == 0
+
+
+# ──────────────────────────────────────────────────────────────────────
+# S30 — the month's row takes the run's columns only while it is still
+#       this document's
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_a_month_that_changes_hands_while_its_takeover_is_applied_is_never_written_over_nor_reported_done():
+    """In ONE process the company's lock rules this out (S23). A second
+    process is not serialised — and its takeover of the month can land
+    between two statements of this one's apply. The row's columns were then
+    written over whatever the other takeover had put there, the document
+    reported analysed on a month no longer its own and its row cleared — a
+    superseded marker included.
+
+    The month's row takes the run's columns ONLY WHILE IT STILL NAMES THIS
+    DOCUMENT (the source is in the filter; the row is read back): changed
+    hands, nothing more is written — the row keeps the other takeover's
+    columns, the document's row keeps what it says, the staged row is
+    dropped (there is nothing left to apply it ONTO), and the run is
+    refused as overtaken."""
+    variant = "the_narration_worked"
+    double = _seam_world(variant)
+    real_delete = double.delete
+    landed = []  # type: List[str]
+
+    def delete(table: str, *, filters: Dict[str, str]) -> Any:
+        out = real_delete(table, filters=filters)
+        if not landed and table == "statement_line_items" and filters == {"period_id": "eq.%s" % PID}:
+            # ANOTHER PROCESS's takeover lands here: the month is its document's now.
+            landed.append(table)
+            (row,) = [p for p in double.rows("financial_periods") if p["id"] == PID]
+            row.update({"source_document_id": "a-newer-upload", "methodology_version": "the-newer-uploads",
+                        "assembled_canonical_v1": {"canonical_bs": {"run": "the newer upload's"},
+                                                   "provenance": {"source_document_id": "a-newer-upload"}}})
+            (doc,) = double.rows("documents")
+            doc.update({"error": "superseded_by:a-newer-upload", "deleted_at": "2026-10-05T10:00:00+00:00"})
+        return out
+
+    double.delete = delete  # type: ignore[assignment]
+
+    with pytest.raises(P.RerunOvertaken):
+        _staged_takeover(double, variant)
+
+    assert landed, "the scenario never happened"
+    (month,) = [p for p in double.rows("financial_periods") if p["id"] == PID]
+    assert (month["source_document_id"], month["methodology_version"]) == ("a-newer-upload", "the-newer-uploads") \
+        and month["assembled_canonical_v1"]["canonical_bs"] == {"run": "the newer upload's"}, (
+        "the other takeover's row was written over with this run's columns: %r" % (month,))
+    (doc,) = double.rows("documents")
+    assert doc["error"] == "superseded_by:a-newer-upload" and doc["deleted_at"] is not None, (
+        "the archived document's marker was erased (or it was reported analysed on a month not its own): %r" % (doc,))
+    assert [p["id"] for p in double.rows("financial_periods") if p["id"] == STAGED] == []
+    for table in _RUN_TABLES:
+        assert [r for r in double.rows(table) if r.get("period_id") == STAGED] == [], table
+    after_the_handover = [x for x in double.writes[double.writes.index(
+        [x for x in double.writes if x["op"] == "delete" and x["table"] == "statement_line_items"
+         and x["filters"] == {"period_id": "eq.%s" % PID}][0]) + 1:]
+        if x["table"] in ("financial_periods", "documents")]
+    for write in after_the_handover:
+        if write["table"] == "documents":
+            raise AssertionError("the document's row was written after the month changed hands: %r" % (write,))
+        if write["filters"].get("id") == "eq.%s" % PID:
+            assert write["filters"].get("source_document_id") == "eq.%s" % DOC_ID, (
+                "a write on the month's row did not name the document it must still belong to: %r" % (write,))

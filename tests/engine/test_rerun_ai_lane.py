@@ -306,7 +306,11 @@ def test_census_the_lanes_takeover_is_told_what_the_lane_is():
     narrated run — and the lane's call names all three arguments. Two of them
     are observable (A1, A4: the alerts, the stale reason); `keep_
     recommendations` is not on its own — a run that stores no briefing
-    already keeps the month's recommendations — so it is pinned here."""
+    already keeps the month's recommendations — so it is pinned here.
+    THE ALERTS ARE KEPT ONLY ACROSS A RE-RUN OF THE SAME DOCUMENT (`staged_of`
+    — the id of the document's own month, None for every other run): a
+    same-month re-upload is another FILE, and the archived file's alerts
+    never stay on its statements (A4)."""
     tree = ast.parse((O.ENGINE_SRC / "api" / "pipeline.py").read_text(encoding="utf-8"))
     (stages,) = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_run_pipeline_stages"]
     calls = [dict((k.arg, ast.unparse(k.value)) for k in n.keywords) for n in ast.walk(stages)
@@ -314,7 +318,7 @@ def test_census_the_lanes_takeover_is_told_what_the_lane_is():
              and n.func.id == "_finalize_same_month_takeover"]
     assert len(calls) == 2, calls
     assert {"narration_unavailable": "BRIEFING_STALE_NOT_RENARRATED", "keep_recommendations": "True",
-            "keep_alerts": "True"} in calls, calls
+            "keep_alerts": "staged_of is not None"} in calls, calls
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -735,14 +739,19 @@ def test_a_first_upload_of_a_public_records_summary_and_its_retry_are_what_they_
 # ══════════════════════════════════════════════════════════════════════
 
 
-def test_a_same_month_reupload_through_the_ai_lane_keeps_the_months_alerts_briefing_and_recommendations(
+def test_a_same_month_reupload_through_the_ai_lane_keeps_the_briefing_marked_and_never_the_old_files_alerts(
         app, gw, monkeypatch):
-    """A4. The same company's December uploaded again, and this file goes
-    through the lane. The upload's takeover replaces the month's statements
-    and archives the first file, as every same-month re-upload does — and,
-    because the lane brought no briefing, no recommendations and no alerts,
-    the month's are kept (the briefing marked `not_renarrated`), never
-    replaced by none. An UPLOAD is not told to re-extract."""
+    """A4. The same company's December uploaded again — ANOTHER file — and
+    this file goes through the lane. The upload's takeover replaces the
+    month's statements and archives the first file, as every same-month
+    re-upload does. The lane brought no briefing and no recommendations: the
+    month's are kept, the briefing marked `not_renarrated` (never a
+    narration failure that did not happen). THE ARCHIVED FILE'S ALERTS DO NOT
+    STAY: they cite the old file's figures and carry its document id, and
+    kept they sat unmarked on the new file's statements (review 2026-10-05;
+    what stage 3 first did). They go with the statements they were derived
+    from, as on 7ca386ec — the lane writes none. An UPLOAD is not told to
+    re-extract."""
     w = _a_month_whose_next_run_is_the_lanes(app, gw, monkeypatch)
     meter = _the_non_romanian_meter(monkeypatch)
     line_items_before = _line_item_ids(gw, w["month"])
@@ -759,9 +768,14 @@ def test_a_same_month_reupload_through_the_ai_lane_keeps_the_months_alerts_brief
     assert d1["deleted_at"] is not None and str(d1["error"]).startswith("superseded_by:"), d1
     line_items = _line_item_ids(gw, w["month"])
     assert line_items and not set(line_items) & set(line_items_before)
-    # WHAT THE LANE NEVER WRITES IS KEPT.
-    assert gw.db.rows("alerts") == w["alerts"], (
-        "the lane's upload replaced the month's alerts with %d" % len(gw.db.rows("alerts")))
+    # THE OLD FILE'S ALERTS ARE NOT ON THE NEW FILE'S STATEMENTS — none of
+    # the archived document's rows, under the month or anywhere.
+    assert w["alerts"] and all(a["document_id"] == w["doc1"] for a in w["alerts"]), (
+        "the month held no alerts of the first file: the check is vacuous")
+    assert gw.db.rows("alerts") == [], (
+        "the archived file's alerts stayed on the new file's statements: %r"
+        % sorted(a["alert_key"] for a in gw.db.rows("alerts")))
+    # THE BRIEFING AND THE RECOMMENDATIONS ARE KEPT (the briefing says so).
     assert gw.db.rows("recommendations") == w["recommendations"]
     (briefing,) = gw.db.rows("briefings")
     assert W._sans_marker(briefing) == W._sans_marker(w["briefing"]) and \

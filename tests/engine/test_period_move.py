@@ -662,8 +662,13 @@ def test_the_move_never_writes_a_hint_the_caller_did_not_supply():
 def test_make_active_promotes_an_attachment_to_the_periods_analysis_source():
     """ONE analysis source per period, switchable. The engine's authority
     is `financial_periods.source_document_id`; promoting a sibling
-    re-points it and re-runs that document into the same period."""
+    re-points it and re-runs that document into the same period.
+
+    (The period's own document FAILED here: there is no good analysis under
+    the period to lose. Over another ANALYSED document's analysis the
+    promotion is refused — the next law.)"""
     store = production_store()
+    store.update("documents", {"status": "failed"}, filters={"id": "eq.%s" % DOC_CARNIPROD})
     store.rows["documents"].append(
         {
             "id": "doc-sibling",
@@ -687,6 +692,28 @@ def test_make_active_promotes_an_attachment_to_the_periods_analysis_source():
     assert period["source_document_id"] == "doc-sibling"
     assert period["assembled_canonical_v1"] is None
     assert _period_move.find_orphaned_snapshots(store, org_id=ORG) == []
+
+
+def test_make_active_never_wipes_another_analysed_documents_analysis():
+    """Promoting wipes the period's derived analysis and re-points it BEFORE
+    the promoted document's re-run has produced anything. On a period that
+    holds another ANALYSED document's analysis that destroyed it (measured
+    2026-10-05: the newer file's statements, metrics and briefing gone at the
+    click; the re-run failing, an empty month). Refused before the first
+    write — live owner, or one in "Recently deleted" (restorable)."""
+    for owner_deleted_at in (None, "2026-08-20T00:00:00+00:00"):
+        store = production_store()
+        store.update("documents", {"deleted_at": owner_deleted_at}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+        store.rows["documents"].append(
+            {"id": "doc-sibling", "org_id": ORG, "period_id": PERIOD_2017, "original_filename": "other.xlsx",
+             "status": "analyzed", "scope": "financial", "deleted_at": None,
+             "created_at": "2026-08-03T00:00:00+00:00"})
+        before = json.dumps(store.rows, sort_keys=True, default=str)
+        with pytest.raises(_period_move.MoveRefused) as ei:
+            _period_move.make_document_active(
+                store, document=doc_of(store, "doc-sibling"), now="2026-08-30T12:00:00+00:00")
+        assert ei.value.code == "month_has_another_analysis"
+        assert json.dumps(store.rows, sort_keys=True, default=str) == before, "a refused promotion wrote"
 
 
 def test_make_active_refuses_a_document_that_is_not_in_a_period():
@@ -861,6 +888,8 @@ def test_route_refuses_an_implausible_target_with_a_readable_code(wired):
 
 def test_make_active_route_promotes_and_requeues(wired):
     client, store, rec = wired
+    # (the period's own document failed: nothing good under it to lose)
+    store.update("documents", {"status": "failed"}, filters={"id": "eq.%s" % DOC_CARNIPROD})
     store.rows["documents"].append(
         {
             "id": "doc-sibling",

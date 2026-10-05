@@ -53,6 +53,19 @@ THE LAW.
   O12 Census: every `delete("financial_periods", …)` in the engine is one of
       the sites stated here, each with its ownership rule — and the retry
       route is not one of them.
+  THE REVIEW OF 2026-10-05 (the end of this file), each measured first:
+  O13 An ANALYSED trial balance that holds no period is not "a document
+      with no period" (a restored superseded copy whose pin was lost took
+      the newer document's month over through that door): where the quota
+      ledger shows its analysis, 409 and nothing changes; where only its own
+      row says `analyzed` (a status the browser can write — that /retry is a
+      first, METERED analysis) it starts as a run that NEVER takes over a
+      month that is another document's.
+  O14 A source-less, stamp-less period is the document's only when no OTHER
+      period already names the document (a pin to an empty container left
+      two periods for one document).
+  O15 "Make source" never wipes another analysed document's analysis: 400
+      with the committed body, nothing written, no re-run started.
 
 STAGE 2 OF 3 (design of 2026-10-04). Stage 1 put the ownership rule on
 production's reset; stage 2 REPLACED the reset: the re-run is staged beside
@@ -102,10 +115,12 @@ CANNOT SEE.
     looks and the takeover's commit point are separate statements; a newer
     upload's takeover that lands AFTER the commit point is not serialised
     against the apply (in-flight is per process; stated in gates.md).
-  · `make-active` on a LIVE attachment, which deletes the month's briefing
-    before its own re-run by design (ticket), and an OLDER document's FIRST
-    run replacing a newer document's month through `/api/pipeline/run` or
-    recover-stuck (G4's rule; owner ruling needed).
+  · `make-active` where it still proceeds — a month whose own file FAILED
+    or that names nobody: the wipe still comes before the promoted file's
+    re-run (ticket: a staged promotion) — and an OLDER document's FIRST run
+    replacing a newer document's month through `/api/pipeline/run`,
+    recover-stuck, or a /retry of a document whose status a browser set
+    back to `failed` (G4's rule; owner ruling needed).
   · The Docs panel printing the refusal: gate `rerun-refusal-surfaces`
     (vitest), which reads the same fixture file O1 holds the route to.
   · A restart anywhere in a re-run: tests/engine/test_rerun_restart.py.
@@ -766,7 +781,9 @@ _UNREADABLE = {
 def _is_an_ownership_read(table: str, kwargs: Dict[str, Any]) -> bool:
     filters = kwargs.get("filters") or {}
     if table == "documents":
-        return kwargs.get("columns") == "id,org_id,period_id"
+        # (The pin, and what tells an analysed trial balance that holds no
+        # period from a document that was never analysed — O13.)
+        return kwargs.get("columns") == "id,org_id,period_id,status,scope,detected_type"
     return table == "financial_periods" and str(filters.get("id", "")).startswith("eq.") and "org_id" in filters
 
 
@@ -1058,9 +1075,10 @@ PERIOD_DELETE_SITES = {
         "a re-run's STAGED row whose takeover never began (or whose document is being deleted "
         "for good): the row its own marker names, only while it still names NO source",
         ("id", "org_id", "source_document_id")),
-    ("api/pipeline.py", "_resume_staged_rerun"): (
-        "a re-run's STAGED row, LAST, once its interrupted takeover has been completed; only "
-        "while it still names NO source", ("id", "org_id", "source_document_id")),
+    ("api/pipeline.py", "_apply_committed_staged_rerun"): (
+        "a re-run's STAGED row, LAST, once its committed takeover has been applied — by the "
+        "live takeover or by whoever resumes it; only while it still names NO source",
+        ("id", "org_id", "source_document_id")),
     ("api/pipeline.py", "_maybe_drop_empty_period"): (
         "a period NO document, live or deleted, is pinned to; never in an archived workspace",
         ("id", "org_id")),
@@ -1116,3 +1134,429 @@ def test_census_every_delete_of_a_period_is_a_stated_site_with_its_ownership_rul
             missing = [c for c in columns if "'%s'" % c not in rendered]
             assert not missing, "%s:%d (%s): the DELETE's filter does not name %s" % (
                 key[0], call.lineno, key[1], missing)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# REVIEW OF 2026-10-05 — the doors the three stages left open
+# ══════════════════════════════════════════════════════════════════════
+#
+# O13 — an ANALYSED trial balance that holds no period is not "a document
+#       with no period": its re-run is refused
+# ──────────────────────────────────────────────────────────────────────
+
+CONTAINER_PID = "c0a7a1a0-0000-4000-8000-0000000000c1"   # an empty, source-less row of the month
+PERIODLESS_DOC = "0d0c0000-0000-4000-8000-0000000000e5"  # an analysed document that holds no period
+
+#: What a run that may never take over another document's month stores on
+#: its document's row when the file's month turns out to be taken.
+MONTH_IS_ANOTHER_DOCUMENTS = (
+    "This file's month already has an analysis from another upload, so the file was not "
+    "re-analysed and the month was not changed. To use this file for the month, upload it again.")
+
+
+def _the_ledger_shows_its_analysis(gw, document_id: str) -> bool:
+    """The quota ledger — a table the browser cannot write — holds this
+    document's own COMMIT: the settlement of an analysis that succeeded."""
+    return any(r.get("document_id") == document_id and r.get("committed_at")
+               for r in gw.db.rows("document_quota_ledger"))
+
+
+def _as_if_never_counted(gw, document_id: str) -> None:
+    """…and the same document as the ledger shows a status the browser wrote
+    onto a fresh upload, or an analysis from before the ledger existed
+    (enforcement off): no commit of its own."""
+    gw.db.delete("document_quota_ledger", filters={"document_id": "eq.%s" % document_id})
+    assert not _the_ledger_shows_its_analysis(gw, document_id)
+
+#: The committed body the REAL make-active route answers over another
+#: analysed document's analysis — read by the Workspace's own law too
+#: (vitest, gate rerun-refusal-surfaces).
+MAKE_ACTIVE_REFUSED_FIXTURE = (REPO / "tests" / "engine" / "fixtures" / "rerun"
+                               / "make_active_refused_another_analysis.json")
+MAKE_ACTIVE_REFUSED = {"detail": {
+    "code": "month_has_another_analysis",
+    "message": ("This month already has an analysis from another file, so this file was not made its "
+                "source and nothing was changed. To use this file for the month, upload it again.")}}
+
+
+@pytest.mark.parametrize("how", ["the_pin_was_nulled", "the_pin_was_never_restored_by_the_foreign_key"])
+def test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing(
+        app, gw, monkeypatch, how):
+    """THE HAND-OVER'S ITEM 1 THROUGH THE DOOR THE PIN CHECK LEFT OPEN
+    (review 2026-10-05, measured on the stage-3 tip and on 7ca386ec: 202).
+    doc1 analysed; doc2's same-month upload takes the month; doc1 restored;
+    its `documents.period_id` NULL — one browser PATCH under the member's own
+    row security, and what the period foreign key's ON DELETE SET NULL
+    leaves. Its re-run was accepted "as a document with no period", found
+    the month under doc2, staged beside it and TOOK IT OVER: served revenue
+    48,349,081.59 -> 110,798,309.14, doc2 archived, doc2's briefing and
+    worked recommendation on the older file's statements. An analysed trial
+    balance that holds no period is not linked to an analysis of its own:
+    409 `rerun_period_not_own`, and nothing — no table, no claim, no
+    reservation — changes.
+
+    (That it WAS analysed is read where the browser cannot write: the quota
+    ledger holds the document's own commit. The next law is the document
+    whose `analyzed` nothing but its own row says.)"""
+    w = _superseded_then_restored(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = None
+    if how == "the_pin_was_never_restored_by_the_foreign_key":
+        d1["error"] = None                           # no marker left on the row either
+    assert d1["status"] == "analyzed" and d1["deleted_at"] is None
+    assert _the_ledger_shows_its_analysis(gw, w["doc1"]), "the premise: the plan counted this document's analysis"
+    month_before = _month_view(app, gw, w["org"], w["month"])
+    assert month_before["tiles_and_figures"]["source_document"] == w["doc2"]
+    state_before, enqueued_before = gw.state(), list(gw.enqueued)
+    meter_before = (list(gw.meter.reserved), list(gw.meter.committed), list(gw.meter.released))
+    spy = W._Spy(gw.db, monkeypatch)
+
+    answers = [_retry(app, w["org"], w["doc1"]) for _ in range(2)]     # and a refusal is repeatable
+
+    for r in answers:
+        assert r.status_code == 409 and r.json() == REFUSED_NOT_OWN, (r.status_code, r.text[:300])
+        for leaked in (w["month"], w["doc1"], w["doc2"], w["org"], "message"):
+            assert leaked not in r.text, "the refusal names %r: %s" % (leaked, r.text)
+    assert spy.writes == [], "a refused re-run wrote: %r" % spy.writes
+    assert gw.state() == state_before, "a refused re-run changed the store"
+    assert (list(gw.meter.reserved), list(gw.meter.committed), list(gw.meter.released)) == meter_before
+    _nothing_was_started(gw, w["doc1"], enqueued_before)
+    assert _month_view(app, gw, w["org"], w["month"]) == month_before, \
+        "the newer document's month is not served as it was"
+    (period,) = gw.db.rows("financial_periods")
+    assert period["source_document_id"] == w["doc2"], period
+
+
+def test_an_analysed_document_whose_period_was_cleared_is_not_rerun_through_this_route(app, gw, monkeypatch):
+    """The same rule where nobody superseded anybody: the month's period was
+    deleted (the foreign key unpins the document) and the document is still
+    `analyzed`. It holds no analysis of its own; whether its month is free
+    cannot be known before the file is read — and found taken, the run would
+    replace another document's month. Refused, nothing written; uploading
+    the file again is the entry that may file (or replace) a month."""
+    w = _own_month(app, gw, monkeypatch, [])
+    gw.db.delete("financial_periods", filters={"id": "eq.%s" % w["month"], "org_id": "eq.%s" % w["org"]})
+    (d1,) = gw.docs(id=w["doc1"])
+    assert (d1["status"], d1["period_id"]) == ("analyzed", None), d1      # the modelled foreign key unpinned it
+    assert _the_ledger_shows_its_analysis(gw, w["doc1"])
+    state_before, enqueued_before = gw.state(), list(gw.enqueued)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    r = _retry(app, w["org"], w["doc1"])
+
+    assert r.status_code == 409 and r.json() == REFUSED_NOT_OWN, (r.status_code, r.text[:300])
+    assert spy.writes == [] and gw.state() == state_before, spy.writes
+    _nothing_was_started(gw, w["doc1"], enqueued_before)
+
+
+@pytest.mark.parametrize("ledger", ["holds_no_commit_of_it", "cannot_be_read"])
+def test_a_period_less_document_whose_analysis_only_its_own_row_claims_never_takes_over_another_documents_month(
+        app, gw, monkeypatch, ledger):
+    """`documents.status` is a column the browser writes: `analyzed` on a
+    period-less document may be a PATCH onto a fresh upload — whose /retry
+    is its FIRST analysis and must be METERED, never refused or run free
+    (gate quota-count-once, the metering-bypass law) — or an analysis from
+    before the ledger existed. Where the ledger does not show the analysis
+    the re-run therefore STARTS. But it is the restored superseded copy all
+    the same, as far as anybody can tell — so it starts as a run that NEVER
+    takes over a month that is another document's: found taken, the month
+    is not staged beside, the run stops with a sentence on its row, the
+    reservation is given back, and the newer document's month — row, rows,
+    document, what a reader is served — is exactly what it was."""
+    w = _superseded_then_restored(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = None
+    if ledger == "holds_no_commit_of_it":
+        _as_if_never_counted(gw, w["doc1"])
+    else:
+        from engine.api import _quota_ledger
+        monkeypatch.setattr(_quota_ledger, "committed_ids", lambda ids: None)
+    # One of the month's alerts is a row of doc1's own earlier analysis that
+    # the newer upload's takeover KEPT (a takeover whose run wrote no alerts
+    # keeps the month's: the row still carries doc1's id).
+    assert gw.db.rows("alerts"), "the month holds no alerts: the check below is vacuous"
+    gw.db.rows("alerts")[0]["document_id"] = w["doc1"]
+    month_before = _month_view(app, gw, w["org"], w["month"])
+    (d2_before,) = copy.deepcopy(gw.docs(id=w["doc2"]))
+    (period_before,) = copy.deepcopy(gw.db.rows("financial_periods"))
+    alerts_before = copy.deepcopy(gw.db.rows("alerts"))
+    narrated_before = len(W._ScriptedProvider.narrate_requests)
+    reserved_before, released_before = len(gw.meter.reserved), len(gw.meter.released)
+    committed_before = list(gw.meter.committed)
+
+    r = _retry(app, w["org"], w["doc1"])
+
+    assert r.status_code == 202 and r.json()["status"] == "queued", (r.status_code, r.text[:300])
+    assert P._NO_TAKEOVER_RUNS == {w["doc1"]: True} and w["doc1"] not in P._STAGED_RERUNS, P._NO_TAKEOVER_RUNS
+    assert gw.db.rows("alerts") == alerts_before, "the hand-off deleted alerts that sit on another document's month"
+    ended = V.run_analysis(gw, w["doc1"])
+
+    assert (ended["status"], ended["error"], ended["period_id"]) == ("failed", MONTH_IS_ANOTHER_DOCUMENTS, None), ended
+    assert gw.db.rows("financial_periods") == [period_before], "a period was staged beside (or took over) the month"
+    assert gw.docs(id=w["doc2"]) == [d2_before], "the newer document was archived or re-pinned"
+    assert _month_view(app, gw, w["org"], w["month"]) == month_before, \
+        "the newer document's month is not served as it was"
+    for table in W._PERIOD_CHILD_TABLES:
+        assert [x for x in gw.db.rows(table) if x.get("period_id") != w["month"]] == [], table
+    assert len(W._ScriptedProvider.narrate_requests) == narrated_before, "the refused run was narrated"
+    # Metered like a first analysis where the ledger says "not counted" — and given back, the run having failed.
+    if ledger == "holds_no_commit_of_it":
+        assert (len(gw.meter.reserved) - reserved_before, len(gw.meter.released) - released_before) == (1, 1), (
+            gw.meter.reserved, gw.meter.released)
+    assert list(gw.meter.committed) == committed_before, "a run that analysed nothing was counted"
+    assert P._NO_TAKEOVER_RUNS == {} and empty_live_periods(gw.db.tables) == []
+
+
+def test_such_a_document_whose_month_is_free_is_analysed_into_a_period_of_its_own(app, gw, monkeypatch):
+    """CONTROL: the rule is "never ANOTHER document's month" — not "never".
+    The same kind of document (it reads analysed, holds no period, the
+    ledger shows no analysis of it) whose month nobody holds is analysed
+    and gets its own period, as a first analysis does."""
+    w = _own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B)])
+    gw.db.delete("financial_periods", filters={"id": "eq.%s" % w["month"], "org_id": "eq.%s" % w["org"]})
+    _as_if_never_counted(gw, w["doc1"])
+
+    r = _retry(app, w["org"], w["doc1"])
+    assert r.status_code == 202 and P._NO_TAKEOVER_RUNS == {w["doc1"]: True}, (r.status_code, r.text[:300])
+    done = V.run_analysis(gw, w["doc1"])
+
+    assert (done["status"], done["error"]) == ("analyzed", None), (done["status"], done.get("error"))
+    (period,) = gw.db.rows("financial_periods")
+    assert period["source_document_id"] == w["doc1"] and done["period_id"] == period["id"], period
+    assert str(period["period_end"])[:10] == "2025-12-31" and P._NO_TAKEOVER_RUNS == {}
+
+
+#: cell -> what the period-less document is; every one of them still re-runs
+#: (202), and as an ordinary run — one that may take a month over, as a
+#: first analysis may (G4): the rules above are for a document that READS
+#: as an analysed trial balance.
+_STILL_RERUN = {
+    # its first run failed (never analysed): the re-run is its first analysis
+    "its_first_analysis_failed": dict(status="failed", scope="financial", detected_type="trial_balance"),
+    "it_never_ran": dict(status="queued", scope="financial", detected_type=None),
+    # a sales workbook: no period by scope
+    "a_sales_document": dict(status="analyzed", scope="sku", detected_type="sales_dataset"),
+    # the public-records summary: no period BY KIND — tagged on the row …
+    "a_public_records_summary_by_its_tag": dict(status="analyzed", scope="financial",
+                                                 detected_type="public_records_summary"),
+    # … or (the tag is best-effort: a CHECK constraint may reject it) by its stored summary
+    "a_public_records_summary_by_its_stored_summary": dict(status="analyzed", scope="financial",
+                                                           detected_type="xlsx_workbook", summary=True),
+}
+
+
+@pytest.mark.parametrize("cell", sorted(_STILL_RERUN))
+def test_a_period_less_document_that_never_held_a_months_analysis_still_reruns(app, gw, monkeypatch, cell):
+    """CONTROL of O13 (and its plant's other half): a document whose first
+    run failed or never ran, a sales document, a public-records summary —
+    none of them is "an analysed trial balance that lost its period". Their
+    re-run is accepted as it always was, never as a staged re-run."""
+    shape = dict(_STILL_RERUN[cell])
+    w = _own_month(app, gw, monkeypatch, [])
+    summary = shape.pop("summary", False)
+    gw.db.insert("documents", dict(w["doc"], id=PERIODLESS_DOC, period_id=None, error=None,
+                                   original_filename="alt_fisier.xlsx", content_hash="%064x" % 0xe5e5,
+                                   pipeline_started_at=None, **shape))
+    if summary:
+        gw.db.insert("sku_analyses", {"org_id": w["org"], "document_id": PERIODLESS_DOC,
+                                      "summary": {"kind": "public_records_summary", "year_count": 2},
+                                      "briefing": {"kind": "public_records_summary", "years": []},
+                                      "recommendations": [], "language": "en"})
+    enqueued_before = list(gw.enqueued)
+
+    r = _retry(app, w["org"], PERIODLESS_DOC)
+
+    assert r.status_code == 202 and r.json()["status"] == "queued", (cell, r.status_code, r.text[:300])
+    assert gw.enqueued == enqueued_before + [PERIODLESS_DOC], gw.enqueued
+    assert PERIODLESS_DOC not in P._STAGED_RERUNS, "a document that holds no period was handed off as staged"
+    assert P._NO_TAKEOVER_RUNS == {}, "%s was started as a run that may not take a month over" % cell
+    # … and the month beside it was not touched by the hand-off.
+    assert [p["id"] for p in gw.db.rows("financial_periods")] == [w["month"]]
+
+
+def test_an_analysed_document_whose_stored_kind_is_not_a_summarys_reads_as_an_analysed_trial_balance(
+        app, gw, monkeypatch):
+    """The other half of the control: a stored `sku_analyses` row excuses the
+    document only when its kind IS the period-less one. This one reads as an
+    analysed trial balance: with the ledger showing its analysis it is
+    refused; without, it starts as a run that may not take a month over."""
+    w = _own_month(app, gw, monkeypatch, [])
+    gw.db.insert("documents", dict(w["doc"], id=PERIODLESS_DOC, period_id=None, error=None,
+                                   original_filename="alt_fisier.xlsx", content_hash="%064x" % 0xe5e5,
+                                   pipeline_started_at=None, status="analyzed", scope="financial",
+                                   detected_type="xlsx_workbook"))
+    gw.db.insert("sku_analyses", {"org_id": w["org"], "document_id": PERIODLESS_DOC,
+                                  "summary": {"kind": "sales_dataset"}, "briefing": {}, "recommendations": [],
+                                  "language": "en"})
+    gw.db.insert("document_quota_ledger", {"document_id": PERIODLESS_DOC, "user_id": V.USER,
+                                           "reserved_at": "2026-10-01T10:00:00+00:00",
+                                           "committed_at": "2026-10-01T10:01:00+00:00"})
+    state_before = gw.state()
+
+    r = _retry(app, w["org"], PERIODLESS_DOC)
+
+    assert r.status_code == 409 and r.json() == REFUSED_NOT_OWN, (r.status_code, r.text[:300])
+    assert gw.state() == state_before
+    _as_if_never_counted(gw, PERIODLESS_DOC)
+    r = _retry(app, w["org"], PERIODLESS_DOC)
+    assert r.status_code == 202 and P._NO_TAKEOVER_RUNS == {PERIODLESS_DOC: True}, (r.status_code, r.text[:300])
+
+
+# ──────────────────────────────────────────────────────────────────────
+# O14 — a source-less, stamp-less period is the document's only when no
+#       OTHER period already names the document
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_a_pin_to_an_empty_container_of_the_month_never_leaves_two_periods_for_one_document(
+        app, gw, monkeypatch):
+    """Measured on the stage-3 tip (review 2026-10-05): the document is the
+    source of its December; an empty, source-less container for December
+    exists (legacy placeholders do); the browser pins the document to it.
+    The legacy rule called the container "its own" — nobody else pinned, no
+    stamp — the re-run staged beside it and took IT over, and the document's
+    real period stayed behind with the previous analysis: two periods, one
+    document. (On 7ca386ec the reset deleted the container and the run went
+    in place.) The engine-written pointer is the truth: a pin that
+    contradicts it proves nothing — refused, nothing written."""
+    w = _own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B)])
+    gw.db.add("financial_periods", {"id": CONTAINER_PID, "org_id": w["org"], "currency": "RON",
+                                    "period_start": "2025-12-31", "period_end": "2025-12-31",
+                                    "source_document_id": None})
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = CONTAINER_PID                 # what a browser can write
+    rows_before = V._rows_under(gw, w["month"])
+    state_before, enqueued_before = gw.state(), list(gw.enqueued)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    r = _retry(app, w["org"], w["doc1"])
+
+    assert r.status_code == 409 and r.json() == REFUSED_NOT_OWN, (r.status_code, r.text[:300])
+    assert spy.writes == [] and gw.state() == state_before, spy.writes
+    _nothing_was_started(gw, w["doc1"], enqueued_before)
+    assert V._rows_under(gw, w["month"]) == rows_before
+    assert V._rows_under(gw, CONTAINER_PID) == dict((t, []) for t in rows_before), "the container was written into"
+
+    # CONTROL: pinned back to the period that names it, the re-run is its own
+    # again — one period for the document afterwards, the container untouched.
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = w["month"]
+    again = W._docs_panel_rerun(app, gw, w)
+    assert (again["status"], again["error"], again["period_id"]) == ("analyzed", None, w["month"]), again
+    assert sorted((p["id"], p["source_document_id"]) for p in gw.db.rows("financial_periods")) == \
+        sorted([(w["month"], w["doc1"]), (CONTAINER_PID, None)])
+    assert V._rows_under(gw, CONTAINER_PID) == dict((t, []) for t in rows_before)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# O15 — "Make source" never wipes another analysed document's analysis
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _make_active_route(gw) -> Tuple[Any, List[str]]:
+    """The REAL make-active handler (`_period_move.register_routes`), bound
+    to this world's store — the app's own router binds the service-role
+    client when it is built, before the `gw` fixture replaces it. The write
+    wall is the app's (O9's siblings cover it); here it answers the row.
+    Returns (client, the document ids handed to the correction re-run)."""
+    from fastapi import APIRouter, FastAPI, HTTPException
+    from fastapi.testclient import TestClient
+
+    requeued = []  # type: List[str]
+
+    def verify_owns(jwt: str, document_id: str) -> Dict[str, Any]:
+        rows = gw.docs(id=document_id)
+        if not rows:
+            raise HTTPException(404, "Document not found.")
+        return copy.deepcopy(rows[0])
+
+    router = APIRouter()
+    PM.register_routes(router, require_jwt=lambda authorization: "jwt", verify_owns=verify_owns,
+                       set_status=lambda *a, **kw: None, enqueue=lambda document_id: None,
+                       admin_client=lambda: gw.db,
+                       rerun=lambda jwt, document_id, started_at: requeued.append(document_id))
+    api = FastAPI()
+    api.include_router(router)
+    return TestClient(api, raise_server_exceptions=False), requeued
+
+
+def test_the_fixture_the_workspaces_law_reads_is_the_make_active_answer_stated_here():
+    assert json.loads(MAKE_ACTIVE_REFUSED_FIXTURE.read_text(encoding="utf-8")) == MAKE_ACTIVE_REFUSED
+
+
+@pytest.mark.parametrize("owner", ["the_months_own_file_is_live", "the_months_own_file_is_in_recently_deleted"])
+def test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month(
+        app, gw, monkeypatch, owner):
+    """ITEM 1 THROUGH THE OTHER DOOR (review 2026-10-05, measured end to
+    end; the same on 7ca386ec). The restored superseded copy is a live
+    attachment of the newer document's month, and "Make source" is enabled
+    on it — exactly where the retry route's refusal leaves the reader. The
+    click wiped the month at once (line items 295 -> 0, metrics 70 -> 0, the
+    briefing gone) and re-pointed it at the older file BEFORE that file's
+    re-run had produced anything: the narration refused, the newer
+    document's last good briefing was gone for good with its recommendations
+    left on the older file's statements; the re-run failing, the month was
+    EMPTY under a failed document.
+
+    Refused before the first write: 400 with the committed body, the month
+    served exactly as it was, no re-run started. The month's own file may be
+    live, or in "Recently deleted" (restorable — its analysis is kept, as a
+    move keeps it)."""
+    w = _superseded_then_restored(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
+    if owner == "the_months_own_file_is_in_recently_deleted":
+        r = V._http(app).delete("/api/documents/%s" % w["doc2"], headers=V._headers(V.USER, w["org"]))
+        assert r.status_code in (200, 204), r.text[:300]
+        (d2,) = gw.docs(id=w["doc2"])
+        assert d2["deleted_at"] is not None and d2["status"] == "analyzed", d2
+    rows_before = V._rows_under(gw, w["month"])
+    assert len(rows_before["statement_line_items"]) > 100 and rows_before["briefings"], "the month is not whole"
+    (period_before,) = copy.deepcopy(gw.db.rows("financial_periods"))
+    state_before = gw.state()
+    client, requeued = _make_active_route(gw)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    r = client.post("/api/documents/%s/make-active" % w["doc1"], headers={"Authorization": "Bearer x"})
+
+    assert r.status_code == 400, (r.status_code, r.text[:300])
+    assert r.json() == json.loads(MAKE_ACTIVE_REFUSED_FIXTURE.read_text(encoding="utf-8")) == MAKE_ACTIVE_REFUSED
+    for leaked in (w["month"], w["doc1"], w["doc2"], w["org"]):
+        assert leaked not in r.text, "the refusal names %r: %s" % (leaked, r.text)
+    assert spy.writes == [], "a refused promotion wrote: %r" % spy.writes
+    assert requeued == [], "a refused promotion started a re-run: %r" % requeued
+    assert gw.state() == state_before, "a refused promotion changed the store"
+    assert V._rows_under(gw, w["month"]) == rows_before, "the month's rows changed"
+    assert gw.db.rows("financial_periods") == [period_before]
+    if owner == "the_months_own_file_is_live":
+        served = _month_view(app, gw, w["org"], w["month"])
+        assert served["tiles_and_figures"]["source_document"] == w["doc2"] and \
+            served["briefing"]["body"] == W.BODY_B, served["briefing"]
+
+
+@pytest.mark.parametrize("cell", ["the_months_own_file_failed", "the_month_names_nobody",
+                                  "the_file_is_already_the_source"])
+def test_make_source_still_promotes_where_no_analysed_documents_analysis_would_be_lost(
+        app, gw, monkeypatch, cell):
+    """CONTROL of O15: the refusal is for ANOTHER ANALYSED document's
+    analysis alone. A month whose own file failed (nothing good under it),
+    or that names nobody, is promoted as before and the promoted file's
+    re-run is started; the file that already is the source is a no-op."""
+    w = _superseded_then_restored(app, gw, monkeypatch, [])
+    (period,) = gw.db.rows("financial_periods")
+    if cell == "the_months_own_file_failed":
+        (d2,) = gw.docs(id=w["doc2"])
+        d2["status"] = "failed"
+    elif cell == "the_month_names_nobody":
+        period["source_document_id"] = None
+        period["assembled_canonical_v1"] = None
+    promoted = w["doc2"] if cell == "the_file_is_already_the_source" else w["doc1"]
+    client, requeued = _make_active_route(gw)
+
+    r = client.post("/api/documents/%s/make-active" % promoted, headers={"Authorization": "Bearer x"})
+
+    assert r.status_code == 200, (cell, r.status_code, r.text[:300])
+    (period,) = gw.db.rows("financial_periods")
+    if cell == "the_file_is_already_the_source":
+        assert r.json()["changed"] is False and requeued == [] and period["source_document_id"] == w["doc2"]
+    else:
+        assert r.json()["changed"] is True and requeued == [w["doc1"]], (r.json(), requeued)
+        assert period["source_document_id"] == w["doc1"], period
