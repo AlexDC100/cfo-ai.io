@@ -973,36 +973,51 @@ def test_e15_the_label_grammar_an_id_beside_an_amount_survives_and_a_second_pass
 
 # ══ E19 — never slow ══════════════════════════════════════════════════════
 
-#: One unbroken run of about 20 KB per shape (review 2026-10-05, round 2: the
-#: e-mail alternative and the backward word scans were quadratic — 0.4 to 6.7
-#: seconds for these, inside the request, with the GIL held).
+#: One unbroken run per shape (review 2026-10-05, round 2: the e-mail
+#: alternative and the backward word scans were QUADRATIC in the run's length —
+#: 0.4 to 10 seconds for 20 KB of these, inside the request, with the GIL
+#: held). The unit is repeated to the size asked for.
 SLOW_SHAPES = {
-    "word characters": "a" * 20_000,
-    "letters and digits": "ab_9" * 5_000,
-    "percentages": "1.5%" * 5_000,
-    "dashed decimals": "1.5-" * 5_000,
-    "bare decimals on one line": "1.5 " * 5_000,
-    "link heads": "](a" * 6_700,
-    "word characters and an address": "a" * 20_000 + " x@y.ro",
-    "dashed decimals and an address": "1.5-" * 5_000 + " x@y.ro",
+    "word characters": ("a", ""),
+    "letters and digits": ("ab_9", ""),
+    "percentages": ("1.5%", ""),
+    "dashed decimals": ("1.5-", ""),
+    "bare decimals on one line": ("1.5 ", ""),
+    "word characters and an address": ("a", " x@y.ro"),
+    "dashed decimals and an address": ("1.5-", " x@y.ro"),
 }
-SLOW_LIMIT_SECONDS = 2.0
+#: NOT in the law: "](a](a…" — the link-target pattern reads to the end of the
+#: line by itself (0.3 s for 20 KB before and after; a reply of 2,000 tokens
+#: cannot hold more of them).
+
+
+def _timed(unit: str, tail: str, size: int) -> Tuple[float, str, str]:
+    import time
+
+    text = "Marja este " + unit * (size // len(unit)) + tail + " și 4.5% acum."
+    best, out = None, ""
+    for _ in range(3):                       # (the best of three: the machine is shared)
+        started = time.perf_counter()
+        out, _report = F.normalise_figures(text, "ro")
+        elapsed = time.perf_counter() - started
+        best = elapsed if best is None else min(best, elapsed)
+        if elapsed > 4.0:                    # (already past any limit: do not measure it twice more)
+            break
+    return float(best or 0.0), text, out
 
 
 @pytest.mark.parametrize("shape", sorted(SLOW_SHAPES))
-def test_e19_a_long_unbroken_run_is_formatted_inside_the_time_limit(shape):
-    import time
-
-    text = "Marja este " + SLOW_SHAPES[shape] + " și 4.5% acum."
-    best = None
-    for _ in range(2):                       # (the better of two: the machine is shared)
-        started = time.perf_counter()
-        out, report = F.normalise_figures(text, "ro")
-        elapsed = time.perf_counter() - started
-        best = elapsed if best is None else min(best, elapsed)
+def test_e19_the_time_of_a_long_unbroken_run_grows_with_its_length_not_with_its_square(shape):
+    """10 KB against 40 KB of the same shape: four times the text may cost
+    about four times the time (a quadratic rule costs sixteen) — and never
+    more than a second and a half."""
+    unit, tail = SLOW_SHAPES[shape]
+    small, _text, _out = _timed(unit, tail, 10_000)
+    big, text, out = _timed(unit, tail, 40_000)
     assert out.endswith("și 4,5% acum."), shape
     assert digits(out) == digits(text)
-    assert best < SLOW_LIMIT_SECONDS, "%s: %.2f s" % (shape, best)
+    assert big < 1.5, "%s: 40 KB took %.2f s" % (shape, big)
+    assert big < 0.05 or big / max(small, 1e-6) < 8.0, "%s: 10 KB %.3f s, 40 KB %.3f s" % (shape, small, big)
 
 
 def test_e19_the_shortcuts_change_no_output():

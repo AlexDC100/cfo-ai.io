@@ -2860,6 +2860,48 @@
      "rule": "a lone three-digit group is left entirely as written, its code included"
     }
    ]
+  },
+  {
+   "id": "r2-shared-magnitude-words-apart",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Bugetul este de EUR 1.5 în primul an și de 2.5M în al doilea.",
+   "expected": "Bugetul este de EUR 1.5 în primul an și de 2.5M în al doilea.",
+   "kept": [
+    {
+     "token": "EUR 1.5 în primul an și de 2.5M",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-hedged-list-after-a-full-amount",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Estimăm RON 1.5M, eventual 2.5 milioane.",
+   "expected": "Estimăm RON 1.5M, eventual 2.5 milioane.",
+   "kept": [
+    {
+     "token": "RON 1.5M, eventual 2.5",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r2-code-between-two-amounts-the-first-not-a-year",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Din avansul de 5000 RON 3.5M rămân de plată până la 31.12.2026.",
+   "expected": "Din avansul de 5000 RON 3.5M rămân de plată până la 31.12.2026.",
+   "kept": [
+    {
+     "token": "5000 RON 3.5M",
+     "reason": "open_amount"
+    }
+   ]
   }
  ]
 }
