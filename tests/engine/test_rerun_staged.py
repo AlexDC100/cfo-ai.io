@@ -1327,9 +1327,11 @@ def test_a_takeover_does_not_depend_on_the_benchmark_cache_table():
 # ── S19 — what the company pass costs a first analysis ────────────────
 
 
-def test_a_first_analysis_pays_one_light_read_for_the_company_pass_and_no_write(app, gw, monkeypatch):
-    """The company pass rides on EVERY `stage_persist`. With no staged row
-    in the company it is exactly one read — the source-less rows of the
+def test_a_first_analysis_pays_two_light_reads_for_the_staged_rows_and_no_write(app, gw, monkeypatch):
+    """What the staged-row passes cost a run that has nothing to do with a
+    re-run: one look at its OWN document's leftover before its first stage
+    (S25) and the company pass on its `stage_persist`. With no staged row in
+    the company each is exactly one read — the source-less rows of the
     company, the id and the marker alone (never an envelope) — and no write."""
     W._script_the_provider(monkeypatch, [W._reply(W.BODY_A, W.TITLES_A)])
     real = P._clear_staged_rerun_rows
@@ -1345,14 +1347,16 @@ def test_a_first_analysis_pays_one_light_read_for_the_company_pass_and_no_write(
 
     first = W._first_analysis(app, gw)
 
-    ((kwargs, calls, out),) = passes
-    # (the pass is told whose run is making it: that document's own leftover
-    # is dead whatever its age — S25)
-    assert kwargs == {"ttl": True, "claimed_document_id": first["doc"]["id"]}
-    assert calls == [("select", "financial_periods",
-                      {"org_id": "eq.%s" % first["org_id"], "source_document_id": "is.null"},
-                      "id,org_id,source_document_id," + MARKER_SELECT)], calls
-    assert out == {"resumed": 0, "dropped": 0, "left": 0, "unreadable": False, "left_documents": []}
+    assert [kwargs for kwargs, _calls, _out in passes] == [
+        # before the first stage: this document's own leftover, whatever its age
+        {"document_id": first["doc"]["id"]},
+        # at the persist: the company pass — told whose run is making it
+        {"ttl": True, "claimed_document_id": first["doc"]["id"]}], [k for k, _c, _o in passes]
+    for _kwargs, calls, out in passes:
+        assert calls == [("select", "financial_periods",
+                          {"org_id": "eq.%s" % first["org_id"], "source_document_id": "is.null"},
+                          "id,org_id,source_document_id," + MARKER_SELECT)], calls
+        assert out == {"resumed": 0, "dropped": 0, "left": 0, "unreadable": False, "left_documents": []}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -2387,12 +2391,29 @@ def test_an_in_place_run_first_completes_its_own_documents_interrupted_rerun(app
         return outcome
 
     monkeypatch.setattr(P, "_apply_committed_staged_rerun", apply)
+    # … BEFORE ITS FIRST STAGE: while this run reads its file, every other
+    # document's pass must skip the row (its document is in flight) — and a
+    # same-month upload finishing in that time would take over a month that
+    # is mid-replacement.
+    real_extract = P.stage_extract
+    staged_when_the_file_was_read = []  # type: List[List[str]]
+
+    def extract(doc: Dict[str, Any]) -> Any:
+        staged_when_the_file_was_read.append([str(p["id"]) for p in gw.db.rows("financial_periods")
+                                              if SR.marker_of(p)])
+        return real_extract(doc)
+
+    monkeypatch.setattr(P, "stage_extract", extract)
 
     r = V._http(app).post("/api/pipeline/run", headers=V._headers(V.USER, w["org"]),
                           json={"document_id": w["doc1"], "output_language": "ro"})
     assert r.status_code == 202, (r.status_code, r.text[:300])
     assert w["doc1"] not in P._STAGED_RERUNS, "the failed banner's Retry is an in-place run"
     done = V.run_analysis(gw, w["doc1"])
+
+    assert staged_when_the_file_was_read == [[]], (
+        "the interrupted re-run was still stranded while the run read its file: %r"
+        % staged_when_the_file_was_read)
 
     assert (done["status"], done["error"], done["period_id"]) == ("analyzed", None, w["month"]), done
     assert applied == ["%s:resumed" % staged], (

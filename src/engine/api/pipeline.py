@@ -3256,7 +3256,8 @@ def _own_periods_or_refuse_rerun(document_id: Any, org_id: Any) -> List[Dict[str
 #
 # WHO CLEANS UP. A process that died leaves a staged row behind. It is
 # cleaned by the document's next run of ANY kind (a re-run at the route; an
-# in-place run at its own persist — both under the claim), by this run's own
+# in-place run before its first stage and again at its own persist — all
+# under the claim), by this run's own
 # failure handler, by a hard delete of the document, and — for a document
 # that is never run again — by the company's next analysis of anything
 # (`stage_persist`'s company pass) or the next member to open the app (the
@@ -7812,6 +7813,27 @@ def _run_pipeline_stages(document_id: str) -> str:
             org = org_rows[0] if org_rows else {"id": doc["org_id"], "name": "Unknown", "industry_key": None, "industry_display_name": None}
 
         scope = (doc.get("scope") or "financial").lower()
+
+        if staged_of is None:
+            # THIS DOCUMENT'S OWN LEFTOVER, BEFORE THE FIRST STAGE. A staged
+            # re-run of it that a dead process left mid-replacement is
+            # completed NOW — under this run's claim, while nothing else of
+            # this process can be running the document — not minutes later at
+            # the persist: until then every other document's pass must skip
+            # the row (its document is in flight: this run), and a same-month
+            # upload that finished inside this run's extract stage would take
+            # over a month that is mid-replacement (the measured loss: the
+            # last good briefing and the interrupted run's own, both gone).
+            # (A staged re-run needs no look: the route settled the leftover
+            # under the claim before it handed off.) Never raises; a row that
+            # cannot be completed is met again by the persist's pass, which
+            # refuses to write under it.
+            try:
+                with _supabase.admin() as admin_client:
+                    _clear_staged_rerun_rows(admin_client, doc.get("org_id"), document_id=document_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("[pipeline] %s: its earlier staged rows could not be looked at "
+                                 "(non-fatal here)", document_id)
 
         # RUN JOURNAL — RUN_STARTED (no-op unless ENGINE_JOURNAL_DIR set).
         _journal_hooks.on_run_started(doc, industry=org.get("industry_display_name") or org.get("industry_key"))
