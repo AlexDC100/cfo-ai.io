@@ -141,6 +141,7 @@ import {
 } from "./periodFiling";
 import "./wsSetI18n";
 import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+import { PhoneUploadButton } from "@/components/cfo/upload/PhoneUploadPortal";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -1537,6 +1538,14 @@ function AddPeriodDialogV2({
                 </>
               )}
             </button>
+            {/* The upload portal: the trial balance from a phone. */}
+            <PhoneUploadButton
+              surface="periods"
+              single
+              accept=".pdf,.xlsx,.xls,.csv"
+              onFiles={(files) => setFile(files[0]!)}
+              className="mt-2 w-full"
+            />
           </div>
 
           <DialogFooter className="gap-2">

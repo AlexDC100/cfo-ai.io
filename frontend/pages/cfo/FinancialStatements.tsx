@@ -275,6 +275,7 @@ import {
 // dead-code cleanup (recoverable from git history: frontend/_removed/tabs/).
 import { useToast } from "@/hooks/use-toast";
 import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+import { PhoneUploadButton } from "@/components/cfo/upload/PhoneUploadPortal";
 import { useWorkspaceV2 } from "@/lib/previewFeatures";
 import { NoAnalysisYet } from "@/components/cfo/NoAnalysisYet";
 
@@ -4441,6 +4442,15 @@ function DashboardSourceFiles({
         >
           {activeDoc ? t("srcline.replace") : t("srcline.add")}
         </button>
+        {/* The upload portal: replace / add the source from a phone. */}
+        <PhoneUploadButton
+          variant="icon"
+          surface="sources"
+          single
+          accept={DASHBOARD_UPLOAD_ACCEPT}
+          onFiles={(files) => onAddFile(files[0]!)}
+          className="h-6 w-6"
+        />
         <span aria-hidden className="hidden sm:inline">·</span>
         <Link
           to={periodId ? `/workspace?period=${encodeURIComponent(periodId)}` : "/workspace"}
@@ -4614,6 +4624,14 @@ function DashboardAddMonthZone({
               >
                 {t("dash.import")}
               </button>
+              {/* The upload portal: the next month from a phone. */}
+              <PhoneUploadButton
+                surface="statements"
+                single
+                accept={DASHBOARD_UPLOAD_ACCEPT}
+                onFiles={onDropFiles}
+                className="mt-2"
+              />
             </div>
           ) : (
             <div className="relative text-left" data-testid="dashboard-staged-files">
@@ -4944,6 +4962,14 @@ function UploadAndSamplePanel({
               >
                 {t("dash.import")}
               </button>
+              {/* The upload portal: the next month from a phone. */}
+              <PhoneUploadButton
+                surface="statements"
+                single
+                accept={DASHBOARD_UPLOAD_ACCEPT}
+                onFiles={onDropFiles}
+                className="mt-2"
+              />
               {uploadName && (
                 <div className="mt-3 text-[11.5px] text-ink-mute">
                   {t("dash.received")} <span className="text-ink">{uploadName}</span>

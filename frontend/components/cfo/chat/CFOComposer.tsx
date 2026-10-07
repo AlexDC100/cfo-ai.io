@@ -23,6 +23,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { useTranslation } from "react-i18next";
 import { Paperclip, ArrowUp, Square } from "lucide-react";
 import { FilePickerInput } from "@/components/cfo/upload/UploadDrop";
+import { PhoneUploadButton } from "@/components/cfo/upload/PhoneUploadPortal";
 import { CFOFilePreview } from "./CFOFilePreview";
 import { readDraft, writeDraft } from "./chatDrafts";
 import "./chatDegradedI18n";
@@ -180,7 +181,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
   // app-wide). A new pick REPLACES the current attachment rather than adding
   // to it; the attachments array shape is unchanged so the preview chips and
   // remove button keep working.
-  function onFiles(files: FileList | null) {
+  function onFiles(files: FileList | File[] | null) {
     const f = files?.[0];
     if (!f) return;
     setAttachments([
@@ -292,6 +293,16 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             onChange={(e) => onFiles(e.target.files)}
             className="hidden"
             data-testid="chat-file-input"
+          />
+          {/* The upload portal: attach a file from a phone. */}
+          <PhoneUploadButton
+            variant="icon"
+            surface="chat"
+            single
+            accept={ACCEPT}
+            disabled={hardDisabled}
+            onFiles={onFiles}
+            className="h-9 w-9 shrink-0 mb-0.5"
           />
 
           <textarea

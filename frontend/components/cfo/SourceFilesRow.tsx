@@ -27,6 +27,8 @@ import { ArrowUp, Cloud, FileSpreadsheet, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+import { PhoneUploadButton } from "@/components/cfo/upload/PhoneUploadPortal";
+import type { PortalSurface } from "@/lib/phoneUpload/types";
 
 export interface SourceFileItem {
   /** Stable key. */
@@ -140,6 +142,7 @@ export function AddFileTile({
   title,
   testid = "source-files-add",
   variant = "tile",
+  surface = "sources",
 }: {
   /** `accept` for the hidden input (e.g. ".xlsx,.xls,.csv"). */
   accept: string;
@@ -153,6 +156,8 @@ export function AddFileTile({
   /** "tile" matches a file card's footprint; "wide" stretches across the
    *  row's remaining width as a proper dropzone (Products, 2026-07-26). */
   variant?: "tile" | "wide";
+  /** Which section the upload portal ("From phone") names on the phone. */
+  surface?: PortalSurface;
 }) {
   const { t } = useTranslation();
   const resolvedLabel = label ?? t("files.addFile");
@@ -241,6 +246,16 @@ export function AddFileTile({
           </>
         )}
       </button>
+      {/* The upload portal — beside the tile, never inside it (the tile is
+          itself a button). */}
+      <PhoneUploadButton
+        variant="icon"
+        surface={surface}
+        single
+        accept={accept}
+        onFiles={(files) => onFile(files[0]!)}
+        className="self-center"
+      />
     </>
   );
 }

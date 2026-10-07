@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Upload, Download, FileSpreadsheet, X, Loader2, Cloud, ArrowUp, Info, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+import { PhoneUploadButton } from "@/components/cfo/upload/PhoneUploadPortal";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
 import { VARIANCE_LINES, type ComparisonDataset } from "@/lib/comparison/types";
@@ -199,6 +200,13 @@ export function BudgetUploadCard({ uploaded, onSave, onClear }: Props) {
             <Upload className="w-3.5 h-3.5" />
             {t("budgetX.replaceBudget")}
           </button>
+          <PhoneUploadButton
+            surface="budget"
+            single
+            accept={BUDGET_ACCEPT}
+            onFiles={(files) => void onFile(files[0]!)}
+            className="mt-2"
+          />
         </div>
       ) : (
         <div className="relative flex flex-col items-center">
@@ -216,6 +224,13 @@ export function BudgetUploadCard({ uploaded, onSave, onClear }: Props) {
           >
             {t("files.import")}
           </button>
+          <PhoneUploadButton
+            surface="budget"
+            single
+            accept={BUDGET_ACCEPT}
+            onFiles={(files) => void onFile(files[0]!)}
+            className="mt-2"
+          />
         </div>
       )}
 

@@ -55,6 +55,7 @@ from ._forecast_routes import build_router as create_forecast_router
 from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
 from ._newsletter import build_router as create_newsletter_router
+from ._phone_upload import build_router as create_phone_upload_router
 from ._pricing_routes import build_router as create_pricing_router
 from ._report_pdf import build_router as create_report_pdf_router
 from ._test_mode import build_router as create_test_mode_router
@@ -875,6 +876,11 @@ def create_app(
     # Scheduler-only (ENGINE_API_TOKEN); permanently deletes workspaces
     # whose 30-day recovery window has closed.
     app.include_router(create_workspaces_router())
+    # Upload portal, LOCAL NETWORK route (/api/phone-upload/local/*): the
+    # engine serves the phone page and receives files when it runs on the
+    # user's own computer. Registered always; every route answers 404
+    # `local_disabled` unless PHONE_UPLOAD_LOCAL is set (read per request).
+    app.include_router(create_phone_upload_router())
     # F6.0.4 — per-user dashboard card layout (GET/PUT /api/dashboard/config).
     # Mounted 2026-07-26 per _dashboard.py's own deploy checklist: the FE
     # (frontend/lib/dashboard/configApi.ts) has been calling it on every

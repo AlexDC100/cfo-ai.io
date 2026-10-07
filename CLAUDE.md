@@ -5153,3 +5153,58 @@ comparison "vs prior"; printer conventions on shares (ungrouped
 "17995,1%", an ASCII hyphen on negatives, "+0.0 pp"); `same_close` pairs
 serve verdicts; `statements.subAggregates` is built in hash order (on main
 too).
+
+---
+
+## 38. Upload portal — "From phone" in every upload section (2026-10-07)
+
+Branch `upload-portal` (frontend + engine + Supabase files). Ported from
+DocVex's phone upload (its Files tab Import window, `phoneUploadServer.js`,
+`phone-upload` Edge Function, migrations 040/041). **Nothing applied or
+deployed** — the migration and the function are files in the repo for the
+owner to apply.
+
+**What it is.** Every upload section on a PC (fine pointer, never in the
+native shell) carries a `<PhoneUploadButton>`
+(`frontend/components/cfo/upload/PhoneUploadPortal.tsx`): a window with a QR
+code the phone scans. What the phone sends WAITS in the window, ticked;
+**Import** hands the ticked files to that section's own `onFiles` — the same
+handler its file picker calls — and tells the phone which were imported and
+which left out. Closing with files waiting asks, then rejects them. Wired
+into: the workspace drop zone and year tile (`UploadDrop`), Products (empty
+zone + `AddFileTile`), the budget card, the onboarding step
+(`Workspace.StepUpload`), Add period (`PeriodsSection`), the dashboard's
+add-month zone / empty panel / source line (`FinancialStatements`), and the
+chat composer. The portal builds no file input and no drop target, so gate
+G5 (one upload component) stays green; the phone's picker lives on the phone
+page.
+
+**Two routes**, a switch in the window:
+
+| route | code | how |
+|---|---|---|
+| CFO AI cloud (default) | `lib/phoneUpload/cloud.ts`, `supabase/functions/phone-upload/`, `supabase/schema_phase_phone_upload.sql` | the phone page (`public/phone-upload.html`) SEALS each file (AES-256-GCM, name and type inside, `lib/phoneUpload/seal.ts` is the PC's half) with a key that exists only in the QR code's URL fragment, gets a signed upload URL from the function per file and puts it in the private `phone-upload` bucket (50 MB). The PC hears the row (Realtime + 5 s poll), downloads and opens it; on the decision the object is deleted and `status` written on the row, which the phone reads back through the function. Unsealed files are refused. |
+| Local network | `lib/phoneUpload/local.ts`, `src/engine/api/_phone_upload.py` | the ENGINE serves the phone page (`/api/phone-upload/local/page`) and takes files straight from the phone; nothing leaves the network. Plain http on a LAN address is not a secure context, so these files are not sealed. **Off unless `PHONE_UPLOAD_LOCAL=1`** (read per request; every route answers 404 `local_disabled` otherwise) — set it only where the engine runs on the user's own computer, never on the VPS. In Docker set `PHONE_UPLOAD_LAN_URL=http://<host LAN IP>:8000` (the detected address is the container's). Sessions and staged files live in the process (`PHONE_UPLOAD_DIR`, default the temp dir). |
+
+Both addresses are KEPT per account and upload section (localStorage), so
+the QR code is the same every time; "New code" revokes it. The phone page
+exists twice — `src/engine/api/phone_upload_page.html` (engine) and
+`public/phone-upload.html` (site) — held byte-equal by
+`frontend/lib/phoneUpload/__tests__/phonePage.test.ts`. A PC on localhost
+points phones at `SITE.url`'s copy (`portalPageOrigin`).
+
+**Owner steps (none done):**
+1. Apply `supabase/schema_phase_phone_upload.sql` (§14 two-step: SQL, then
+   Dashboard → Settings → API → Reload schema cache).
+2. `supabase functions deploy phone-upload --project-ref <ref> --use-api --no-verify-jwt`.
+3. Deploy the frontend (the phone page ships in `public/`) and the backend
+   (§14 — the local route is inert there without the env flag).
+4. Optional: schedule the hourly `sweep` (commented at the foot of the
+   migration).
+
+**Gates:** `frontend/lib/phoneUpload/__tests__/{seal,phonePage}.test.ts`,
+`tests/engine/test_phone_upload_local.py`.
+
+**Not ported from DocVex:** Live Photos / the Apple Shortcut, the in-page
+camera recorder, encryption on the local route (DocVex inlines a JS AES-GCM
+for its http page), thumbnails of received files in the window.

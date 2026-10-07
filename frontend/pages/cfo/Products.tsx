@@ -116,6 +116,7 @@ import { PRODUCTS_GUIDE } from "@/components/learning/pageGuides";
 // stays a raw label since it doesn't need explanation.
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
 import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+import { PhoneUploadButton } from "@/components/cfo/upload/PhoneUploadPortal";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1621,6 +1622,7 @@ function DatasetSourceFiles({
             accept={PRODUCTS_UPLOAD_ACCEPT}
             onFile={onUpload}
             variant="wide"
+            surface="products"
             label={t("products.empty.dropHere")}
             hint={t("productsX.sourceFiles.hint", { mb: PRODUCTS_UPLOAD_MAX_MB })}
             title={t("productsX.sourceFiles.addTitle")}
@@ -3316,6 +3318,14 @@ function EmptyState({
               >
                 {t("files.import")}
               </button>
+              {/* The upload portal: a sales file from a phone. */}
+              <PhoneUploadButton
+                surface="products"
+                single
+                accept={PRODUCTS_UPLOAD_ACCEPT}
+                onFiles={(files) => stageFile(files[0]!)}
+                className="mt-2"
+              />
               {/* Single-file only (2026-07-26 per operator). */}
               <FilePickerInput
                 ref={fileRef}

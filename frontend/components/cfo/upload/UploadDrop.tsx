@@ -7,6 +7,9 @@
 //   <UploadDrop variant="zone">    Home — the drop zone above the company cards
 //   <UploadDrop variant="tile">    Company page — the dashed next-year tile
 //   <UploadDropOverlay/>           AppShell — drag-and-drop on any page
+//   <PhoneUploadButton/>           every upload section — files from a phone
+//                                  (the upload portal, ./PhoneUploadPortal),
+//                                  handed to the section's own handler
 //
 // all three hand the file to lib/uploadFlow.startUploadFlow, which runs
 // identify → confirmation card → commit.
@@ -39,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { FINANCIAL_UPLOAD_ACCEPT } from "@/lib/uploadAccept";
 import { uploadGuideView } from "@/lib/coverage";
 import { startUploadFlow, useUploadFlow } from "@/lib/uploadFlow";
+import { PhoneUploadButton } from "./PhoneUploadPortal";
 
 // ── Who else may use the primitives ────────────────────────────────────
 //
@@ -208,6 +212,16 @@ export function UploadDrop({ variant, onScreenOrgId, year, className, children }
           className,
         )}
       >
+        {/* The upload portal: from a phone, into this tile's flow. */}
+        <span className="absolute right-1.5 top-1.5">
+          <PhoneUploadButton
+            variant="icon"
+            surface="company"
+            onFiles={take}
+            accept={FINANCIAL_UPLOAD_ACCEPT}
+            disabled={reading}
+          />
+        </span>
         <span className="grid h-7 w-7 place-items-center rounded-full border border-rule text-ink-soft group-hover:text-ink">
           <Plus size={14} strokeWidth={2} aria-hidden />
         </span>
@@ -245,14 +259,18 @@ export function UploadDrop({ variant, onScreenOrgId, year, className, children }
           <p className="text-[15px] font-semibold text-ink">{t("wsV2.drop.zoneTitle")}</p>
           <p className="mt-1 max-w-[46ch] text-[12.5px] text-ink-soft">{zoneHint}</p>
           {children}
-          <button
-            type="button"
-            onClick={open}
-            data-testid="upload-drop-choose"
-            className="mt-4 inline-flex h-9 items-center justify-center rounded-sm bg-brand px-4 text-[13px] font-medium text-paper transition-colors duration-micro hover:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {t("wsV2.drop.choose")}
-          </button>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={open}
+              data-testid="upload-drop-choose"
+              className="inline-flex h-9 items-center justify-center rounded-sm bg-brand px-4 text-[13px] font-medium text-paper transition-colors duration-micro hover:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("wsV2.drop.choose")}
+            </button>
+            {/* The upload portal: files from a phone take the same flow. */}
+            <PhoneUploadButton surface="workspace" onFiles={take} accept={FINANCIAL_UPLOAD_ACCEPT} />
+          </div>
         </>
       )}
     </div>

@@ -74,6 +74,7 @@ import {
 import { forgetPeriodVerdictFor } from "@/lib/dataPresence";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+import { PhoneUploadButton } from "@/components/cfo/upload/PhoneUploadPortal";
 import { FINANCIAL_UPLOAD_ACCEPT, isAcceptedFinancialUpload } from "@/lib/uploadAccept";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import {
@@ -844,6 +845,14 @@ export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: Fi
             >
               {t("files.import")}
             </button>
+            {/* The upload portal: the workbook from a phone, checked by pick(). */}
+            <PhoneUploadButton
+              surface="workspace"
+              single
+              accept={FINANCIAL_UPLOAD_ACCEPT}
+              onFiles={(files) => pick(files)}
+              className="mt-2"
+            />
           </div>
         )}
       </div>
