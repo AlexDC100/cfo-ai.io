@@ -609,11 +609,22 @@ def _engine_gates() -> List[Gate]:
         # had no law by its effect (plant P-TEN-1 — two laws went red for the
         # wrong reason). Measured 227 (65 + 122 + 25 + 15). Plant log:
         # gates.md "rerun-data-loss — round 2 (2026-10-10)".
+        #
+        # ROUND 2b (2026-10-10, the confirmer's one remaining finding):
+        # make-active read the PIN alone — a document that owned December
+        # by the engine's pointer, pinned by a browser write to a
+        # source-less container of the month, had the container re-pointed
+        # at it and the correction re-run left two periods naming one
+        # document (with the document's own stamp on the container: a
+        # no-op that called it "already the source"). The pointer is read
+        # before the first write; a pin it contradicts is answered as a
+        # pin that names nothing. Measured 229 (67 + 122 + 25 + 15). Plant
+        # log: gates.md "rerun-data-loss — round 2b (2026-10-10)".
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
               "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
               "tests/engine/test_rerun_ai_lane.py", "-q"],
-             work_junit=True, floor=227, units="tests",
+             work_junit=True, floor=229, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing",
                        "test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month",
@@ -621,6 +632,7 @@ def _engine_gates() -> List[Gate]:
                        "test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it",
                        "test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes",
                        "test_a_move_reads_the_period_the_engine_wrote_never_the_pin",
+                       "test_make_source_never_re_points_a_container_while_the_engine_names_another_period_as_the_documents",
                        "test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply",
                        "test_a_forged_committed_marker_never_reaches_another_companys_month",
                        "test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later",

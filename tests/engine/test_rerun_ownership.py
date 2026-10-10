@@ -82,6 +82,12 @@ THE LAW.
   O18 A move leaves the period the ENGINE says is the document's — never
       the pinned one — so a forged same-company pin never leaves one
       document with two periods after the correction's own re-run.
+  ROUND 2b (2026-10-10, the confirmer's one remaining finding):
+  O19 `make-active` reads the period the ENGINE says is the document's
+      before it re-points the pinned one: a pin to a source-less container
+      of the month, while the pointer names the real month, is answered as
+      a pin that names nothing — nothing written, no re-run, the real month
+      the document's only period.
 
 STAGE 2 OF 3 (design of 2026-10-04). Stage 1 put the ownership rule on
 production's reset; stage 2 REPLACED the reset: the re-run is staged beside
@@ -127,7 +133,9 @@ WHAT THESE RED ON, with the defect repaired (TC-11):
     period names the document; make-active reading the pointer alone; a
     period clear writing another company's document; a correction's
     refusal telling a foreign pin from a missing one; a move reading the
-    pin where the engine's pointer names another period.
+    pin where the engine's pointer names another period;
+  · (round 2b) make-active re-pointing the pinned period — or calling the
+    document its source — where the engine's pointer names another period.
 
 CANNOT SEE.
   · Postgres itself: the foreign keys (modelled by hand here), row security,
@@ -1822,3 +1830,73 @@ def test_a_move_reads_the_period_the_engine_wrote_never_the_pin(app, gw, monkeyp
     assert [m for m, _ in own] == ["2025-10-31"], own
     assert done["period_id"] == own[0][1]
     assert V._rows_under(gw, OTHER_PID) == november_before
+
+
+# ──────────────────────────────────────────────────────────────────────
+# O19 — make-active reads the period the ENGINE wrote before it re-points
+#       the pinned one
+# ──────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("container", sorted(_CONTAINER))
+def test_make_source_never_re_points_a_container_while_the_engine_names_another_period_as_the_documents(
+        app, gw, monkeypatch, container):
+    """PRE-EXISTING (the round-2 confirmer, 2026-10-10, measured on a297f32b
+    through this handler): the document is the source of its December by the
+    engine's pointer; a source-less container for December exists (legacy
+    placeholders do; a Workspace merge whose shell delete failed leaves one)
+    and the browser pins the document to it. "Make source" read the PIN
+    alone: it re-pointed the CONTAINER at the document (200, `changed`) and
+    the correction's re-run — finding the document's month by the pointer,
+    which now named two rows — ended with TWO PERIODS NAMING ONE DOCUMENT:
+    the real December whole, the container empty with the document as its
+    source. With the document's own provenance stamp on the container the
+    answer was "already the source" (200, unchanged) — a no-op that was not
+    true either: the document is the source of its December, not of that
+    row.
+
+    The engine-written pointer is the truth; a pin is a hint that must agree
+    with it. A pin that names a period other than the one the engine says is
+    the document's is answered as a pin that names nothing (the one
+    correction answer, `period_missing`), nothing is written, no re-run is
+    started, and the real month stays the document's ONLY period. (Control:
+    pinned to its own period the document is its source as before — a
+    no-op; a document that is the source of NOTHING is still read by its
+    pin — O15's control.)"""
+    w = _own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B)])
+    gw.db.add("financial_periods", {"id": CONTAINER_PID, "org_id": w["org"], "currency": "RON",
+                                    "period_start": "2025-12-31", "period_end": "2025-12-31",
+                                    "source_document_id": None,
+                                    "assembled_canonical_v1": _CONTAINER[container](w["doc1"])})
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = CONTAINER_PID                 # what a browser can write
+    rows_before = V._rows_under(gw, w["month"])
+    periods_before = copy.deepcopy(gw.db.rows("financial_periods"))
+    state_before = gw.state()
+    client, requeued = _make_active_route(gw)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    r = client.post("/api/documents/%s/make-active" % w["doc1"], headers={"Authorization": "Bearer x"})
+    for started in list(requeued):                  # whatever the handler started — nothing, if it refused
+        P._correction_rerun(V.D.mint_jwt(V.USER), started, P._now_iso())
+        V.run_analysis(gw, started)
+
+    own = sorted(p["id"] for p in gw.db.rows("financial_periods") if p["source_document_id"] == w["doc1"])
+    assert own == [w["month"]], "ONE DOCUMENT, TWO PERIODS after make-active: %r" % own
+    assert r.status_code == 400 and r.json() == CORRECTION_REFUSED_MISSING, (r.status_code, r.text[:300])
+    for leaked in (CONTAINER_PID, w["month"], w["doc1"], w["org"]):
+        assert leaked not in r.text, "the refusal names %r: %s" % (leaked, r.text)
+    assert spy.writes == [], "a refused promotion wrote: %r" % spy.writes
+    assert requeued == [], "a refused promotion started a re-run: %r" % requeued
+    assert gw.state() == state_before, "a refused promotion changed the store"
+    assert V._rows_under(gw, w["month"]) == rows_before, "the month's rows changed"
+    assert gw.db.rows("financial_periods") == periods_before, "a period row changed"
+    assert V._rows_under(gw, CONTAINER_PID) == dict((t, []) for t in rows_before), "the container was written into"
+
+    # CONTROL: pinned to the period the engine says is its own, the document
+    # IS its source — the same no-op as before, nothing re-run.
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = w["month"]
+    r = client.post("/api/documents/%s/make-active" % w["doc1"], headers={"Authorization": "Bearer x"})
+    assert r.status_code == 200 and r.json()["changed"] is False, (r.status_code, r.text[:300])
+    assert requeued == [] and gw.db.rows("financial_periods") == periods_before

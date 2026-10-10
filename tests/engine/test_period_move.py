@@ -791,6 +791,56 @@ def test_make_active_on_the_document_that_is_already_the_source_is_a_no_op():
     assert json.dumps(store.rows, sort_keys=True, default=str) == before
 
 
+CONTAINER_2017 = "period-2017-12-container"   # a source-less, stamp-less row of the same month
+
+
+def test_make_active_reads_the_engines_pointer_before_it_re_points_the_pinned_period():
+    """`documents.period_id` is browser-written; `financial_periods.
+    source_document_id` is the engine's. Read by the pin alone, a document
+    that owned 2017-12 and was pinned to a source-less container of the same
+    month had the CONTAINER re-pointed at itself — and its correction re-run
+    then left two periods naming one document (the round-2 confirmer,
+    2026-10-10, measured through the real handler: gate rerun-data-loss O19).
+    The pointer is read before anything is written: a pin that names a period
+    other than the one the engine says is the document's is answered as a pin
+    that names nothing (`period_missing`, the one correction answer), and
+    nothing is written. Where the pointer names the pinned period, or nothing,
+    the promotion is what it was: the document that is its period's source is
+    a no-op; a document that is the source of NO period is promoted into the
+    row it is pinned to."""
+    store = production_store()
+    store.rows["financial_periods"].append(
+        {"id": CONTAINER_2017, "org_id": ORG, "period_end": "2017-12-31", "period_start": "2017-12-31",
+         "source_document_id": None, "assembled_canonical_v1": None})
+    store.update("documents", {"period_id": CONTAINER_2017}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+    before = json.dumps(store.rows, sort_keys=True, default=str)
+    with pytest.raises(_period_move.MoveRefused) as ei:
+        _period_move.make_document_active(
+            store, document=doc_of(store, DOC_CARNIPROD), now="2026-10-10T00:00:00+00:00")
+    assert (ei.value.code, ei.value.message) == ("period_missing", "The file's period no longer exists.")
+    assert json.dumps(store.rows, sort_keys=True, default=str) == before, "a refused promotion wrote"
+    owner = store.select("financial_periods", filters={"id": "eq.%s" % PERIOD_2017})[0]
+    assert owner["source_document_id"] == DOC_CARNIPROD, "the engine's own period changed hands"
+
+    # the pointer names the pinned period: the document IS its source — a no-op, as before
+    store.update("documents", {"period_id": PERIOD_2017}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+    pinned_back = json.dumps(store.rows, sort_keys=True, default=str)
+    record = _period_move.make_document_active(
+        store, document=doc_of(store, DOC_CARNIPROD), now="2026-10-10T00:00:00+00:00")
+    assert record["changed"] is False and json.dumps(store.rows, sort_keys=True, default=str) == pinned_back
+
+    # a document that is the source of NOTHING, pinned to the container: promoted into it, as before
+    store.rows["documents"].append(
+        {"id": "doc-loose", "org_id": ORG, "period_id": CONTAINER_2017, "original_filename": "loose.xlsx",
+         "status": "analyzed", "scope": "financial", "deleted_at": None, "created_at": "2026-08-03T00:00:00+00:00"})
+    record = _period_move.make_document_active(
+        store, document=doc_of(store, "doc-loose"), now="2026-10-10T00:00:00+00:00")
+    assert record["changed"] is True and record["requeue_document_id"] == "doc-loose", record
+    container = store.select("financial_periods", filters={"id": "eq.%s" % CONTAINER_2017})[0]
+    assert container["source_document_id"] == "doc-loose"
+    assert owner == store.select("financial_periods", filters={"id": "eq.%s" % PERIOD_2017})[0]
+
+
 # ── the routes ─────────────────────────────────────────────────────────
 
 

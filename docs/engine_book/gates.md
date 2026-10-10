@@ -22148,3 +22148,77 @@ the handlers to the codes); the toast as rendered; `PeriodsSection`'s own
 toasts (three sites still print `err.message` for its rename / merge /
 delete calls — not the corrections' codes); a sixth refusal code the engine
 adds later (title alone, nothing reds).
+
+### rerun-data-loss — round 2b (2026-10-10): make-active reads the pointer
+
+THE ONE FINDING THE ROUND-2 CONFIRMER LEFT (high by the rubric's letter;
+pre-existing; the round-2 record above carries it under CANNOT SEE as "the
+owner's ruling: a staged promotion"). Reproduced first on the lane's tip
+`a297f32b` through the REAL make-active handler (`_period_move.
+register_routes` bound to the gw store, as O15 is) — the probe is the new
+law's body — and closed with a guard of eight lines:
+
+| found (measured on a297f32b) | the guard | the law |
+|---|---|---|
+| The document is the source of its December by the engine's pointer (`financial_periods.source_document_id`); a source-less, STAMP-LESS container for December exists (legacy placeholders do; a Workspace merge whose shell delete failed leaves one) and the browser pins the document to it (`documents.period_id`, a column a browser can write). `make-active` read the PIN alone: 200 `changed: true`, the CONTAINER re-pointed at the document, its derived tables swept; the correction's in-place re-run — finding the document's month by the pointer, which now named two rows — ended `analyzed` pinned to the real December, and afterwards TWO PERIODS named the document: `['c0a7a1a0-…-0000000000c1', 'financial_periods-000002']` (the real month whole, the container empty with the document as its source). With the document's own provenance stamp on the container the answer was 200 `changed: false` — "already the source", which was not true either. | `make_document_active` reads `_own_period_by_pointer(client, document_id, org_id)` after the pinned row's tenancy check (`_period_row`, whose cross-tenant operator log still fires first) and BEFORE the first write: where the engine names a period and it is not the pinned one, the correction is refused with the ONE answer a pin that names nothing gets — `period_missing` / "The file's period no longer exists." — no new code, no new sentence; the real reason goes to the operator log (a WARNING naming the document, the pin and the owned period). Where the pointer names the pinned period, or nothing, the promotion is what it was (the no-op; the legacy promotion of a document that is the source of nothing; the refusal over another analysed file's analysis). | O19, `test_make_source_never_re_points_a_container_while_the_engine_names_another_period_as_the_documents`, parametrised over the container as O14 is (`stamp_less`, `stamped_with_the_documents_own_provenance`): the real handler; whatever it started is driven through `_correction_rerun` and the real run; ONE period names the document afterwards; 400 with the one answer, no id in the body, no write, no re-run, the store and the month's rows unchanged, the container not written into; control — pinned back to its own period the document is its source (200, unchanged, nothing re-run). `test_period_move.py` `test_make_active_reads_the_engines_pointer_before_it_re_points_the_pinned_period`: `MoveRefused` `period_missing`, the store byte-identical, the engine's own period still the document's; the pointer naming the pinned period is a no-op; a document that is the source of NOTHING, pinned to the container, is promoted into it as before. |
+
+**What a reader sees differently** (the owner's to reverse): "Make source"
+on a file whose month the engine already names elsewhere — pinned, by a
+browser write, to another row of its month — is answered "The file's period
+no longer exists." (the Workspace prints its own EN / RO sentence for the
+code, gate `rerun-refusal-surfaces`), where it used to re-point that row
+(stamp-less) or call the file its source (stamped). The durable form (a
+staged promotion) is still the ticket; this is the safe step the lane's rule
+gives — the engine-written pointer is the truth, a pin is a hint that must
+agree with it; refuse rather than write.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_rerun_ownership.py tests/engine/test_rerun_staged.py tests/engine/test_rerun_restart.py tests/engine/test_rerun_ai_lane.py -q` |
+| work count | junit-xml, floor **229** tests (ownership 67, staged 122, restart 25, the AI lane 15) — measured 229 |
+| canary (added) | `test_make_source_never_re_points_a_container_while_the_engine_names_another_period_as_the_documents` |
+
+`tests/engine/test_period_move.py` measures **56** (55 before); it is run by no
+battery gate, so its new law carries no canary there.
+
+**After the repair it reds on (round 2b):** make-active re-pointing a pinned
+period, or answering "already the source", where the engine's pointer names
+another period of the company; the pointer read moved after the first write;
+the refusal given its own code or sentence; a refusal that writes, re-runs,
+or names an id.
+
+**CANNOT SEE:** `make-active` where it still proceeds — a month whose own file
+FAILED or that names nobody, the document the source of nothing: the wipe
+still comes before the promoted file's re-run (the staged promotion stays the
+ticket); Postgres itself (whether a Workspace merge's shell delete can fail
+and leave the container without a forged write was not measured); the
+Workspace's "Make source" button on such a file (the toast prints the code's
+sentence — gate `rerun-refusal-surfaces` — not driven here).
+
+#### rerun-data-loss — round 2b PLANT / RED / REVERT (2026-10-10, branch `fix/rerun-data-loss`)
+
+In the lane's worktree, the guard's eight lines (`own = _own_period_by_pointer(…)`
+through `raise MoveRefused(PERIOD_MISSING, …)`) removed by an exact-match edit
+asserted to match once, the comment left in place; the guarded file copied
+aside first and its sha256 recorded
+(`eeccf7971e233a550f56bc986fca062f645d9f4ae3eb82b55e6a6d5e61088288`).
+
+**BASELINE** (before the guard — the reproduction on a297f32b, the two new
+laws alone): `3 failed, 120 deselected in 6.11s` — the stamp-less cell RED on
+`ONE DOCUMENT, TWO PERIODS after make-active: ['c0a7a1a0-0000-4000-8000-0000000000c1', 'financial_periods-000002']`,
+the stamped cell on `200 {"changed":false,…}` where 400 was due, the
+period_move law on `DID NOT RAISE MoveRefused`.
+
+| PLANT | result | laws RED |
+|---|---|---|
+| R2b-pointer (O19) make-active's pointer read removed — the pin alone decides again (`tests/engine/test_rerun_ownership.py tests/engine/test_period_move.py tests/engine/test_period_id_tenant_boundary.py tests/engine/test_correction_claims_gates.py` — every file that drives make-active) | `3 failed, 146 passed in 116.73s` | `test_make_source_never_re_points_a_container_while_the_engine_names_another_period_as_the_documents[stamp_less]`, `…[stamped_with_the_documents_own_provenance]`, `test_make_active_reads_the_engines_pointer_before_it_re_points_the_pinned_period` — and NO other law: O15's three owners and three controls, O17's make-active cell, the tenancy gate's `test_make_active_still_works_inside_my_own_workspace` and `test_make_active_refuses_a_period_in_another_workspace`, `test_make_active_of_a_running_document_is_refused` all stayed green, as the guard's "behave as today" arm requires |
+
+**RED** — 1 of 1, exit `1`.
+
+**REVERT** — the guarded file copied back, sha256 asserted equal
+(`eeccf797…8288`, byte-exact); the gate's own command on the restored tree
+exit `0`: `229 passed in 403.50s` (ownership 67, staged 122, restart 25,
+the AI lane 15); `tests/engine/test_period_move.py` `56 passed`;
+`test_period_id_tenant_boundary.py` `19 passed`; `test_gate_canaries.py`
+`13 passed`; `test_route_bindings.py` `3 passed`;
+`generate_engine_book.py --check` clean.

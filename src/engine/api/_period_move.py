@@ -583,7 +583,9 @@ def make_document_active(
 
     NEVER OVER ANOTHER ANALYSED DOCUMENT'S ANALYSIS: the wipe comes before
     the re-run has produced anything, so there it is refused before the
-    first write (`_refuse_over_another_documents_analysis`).
+    first write (`_refuse_over_another_documents_analysis`). AND NEVER A
+    PERIOD OTHER THAN THE ONE THE ENGINE SAYS IS THE DOCUMENT'S: where the
+    pointer names a period, the pin must agree with it (below).
     """
     document_id = str(document.get("id") or "")
     org_id = str(document.get("org_id") or "")
@@ -597,6 +599,30 @@ def make_document_active(
         )
     period = _period_row(client, period_id, org_id=org_id)
     if period is None:
+        raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
+
+    # THE PERIOD THE DOCUMENT IS PROMOTED IN IS THE ONE THE ENGINE SAYS IS
+    # ITS OWN — `financial_periods.source_document_id`, the pointer
+    # `stage_persist` writes — wherever the engine names one; the pin
+    # (`documents.period_id`, which a browser can write) is a hint that must
+    # agree with it. Read by the pin alone, a document that owned December
+    # and was pinned to a source-less container of the same month had the
+    # CONTAINER re-pointed at it, and its correction re-run — finding the
+    # document's month by the pointer, which then named two rows — left two
+    # periods naming one document (round-2 confirmer, 2026-10-10, measured
+    # through this handler; with the document's own stamp on the container
+    # the answer was "already the source", which was not true either).
+    # Refused before the first write, with the one answer a pin that names
+    # nothing gets (`PERIOD_MISSING`, as the move answers a dangling pin);
+    # the real reason goes to the operator log. A document that is the source
+    # of NOTHING is still read by its pin, as before.
+    own = _own_period_by_pointer(client, document_id, org_id)
+    if own is not None and str(own.get("id")) != str(period_id):
+        logger.warning(
+            "[period_move] REFUSED make-active: document %s is pinned to period %s "
+            "while the engine names period %s as its own",
+            document_id, period_id, own.get("id"),
+        )
         raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
 
     if analysis_belongs_to(period, document_id):
@@ -659,8 +685,9 @@ MONTH_HAS_ANOTHER_ANALYSIS = "month_has_another_analysis"
 
 #: The pinned period cannot be acted on: it does not exist — or it is not
 #: this company's, which is answered with the SAME code and sentence (one
-#: answer, on purpose: `_period_row`). The Workspace prints its own
-#: sentence for the code.
+#: answer, on purpose: `_period_row`) — or it is not the period the engine
+#: says is the document's (`make_document_active`, the move's dangling pin).
+#: The Workspace prints its own sentence for the code.
 PERIOD_MISSING = "period_missing"
 PERIOD_MISSING_MESSAGE = "The file's period no longer exists."
 
