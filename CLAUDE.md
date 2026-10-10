@@ -5158,3 +5158,102 @@ the engine's earlier period and offers no later one); printer conventions on sha
 "17995,1%", an ASCII hyphen on negatives, "+0.0 pp"); `same_close` pairs
 serve verdicts; `statements.subAggregates` is built in hash order (on main
 too).
+
+---
+
+## 38. Release r-next (2026-10-10): a re-run never loses a month; model-written figures in the reader's format; a later comparison is not "prior"
+
+Three lanes, one deploy (backend + frontend + a `chat-llm` redeploy). Each was built by a workflow with independent adversarial
+reviewers and shipped only after its last reviewer said SHIP (two to three rounds each; the reports are in the session's
+`specs-durable/rerun_lane/` and `specs-durable/ai_figures/`). Owner order of 2026-10-10: full authority, no questions, every
+decision recorded here and in the final report.
+
+### 38.1 The staged re-run (`fix/rerun-data-loss`) — gates `rerun-data-loss`, `rerun-refusal-surfaces`
+
+**What was wrong (the hand-over's two data-loss tickets).** "Re-run analysis" RESET the document's month first and rebuilt it
+after: a run that failed (the provider refusing a PDF — production, 2026-09-21..10-04), or was killed, left the month EMPTY; and
+a re-run of a restored, superseded document deleted the NEWER upload's month, because the reset read the document's
+browser-writable pin (`documents.period_id`) rather than the engine's own pointer (`financial_periods.source_document_id`).
+
+**The rules now.**
+- **R1 — ownership.** A re-run resets only a period that is the document's OWN: the engine-written source pointer is the truth;
+  the pin is a hint that must agree with it. A pin to a period whose source is another document → `409 document_superseded`
+  ("Another upload has replaced this file for its month" / "O altă încărcare a înlocuit acest fișier…"); a pin to another
+  company's period, to nothing, to a staged row, or to a source-less period while another period of the company names the
+  document → `409 rerun_period_not_own` (ONE answer for all of them: a refusal never tells one company about another). A
+  deleted document → `409 document_deleted`.
+- **R2 — staged.** The re-run runs BESIDE the month (a staged `financial_periods` row, `source_document_id` NULL, marker
+  `assembled_canonical_v1.staged_rerun`) and takes the month over only on success, table by table, after a durable COMMIT
+  POINT (`takeover_began_at` on the marker; the document row carries `error = "rerun_failed: interrupted_replacing"` until
+  the takeover's last statement clears it). A stranded staged row WITHOUT the commit point is dropped (the month was never
+  touched); WITH it, it is RESUMED — by the document's next run, by the company's next analysis once it is 15 minutes old,
+  and by the page-mount watchdog (`POST /api/pipeline/recover-stuck`, `resumed_reruns`). The period id no longer changes on a
+  re-run. The document stays `analyzed` and the month stays served the whole time; a failed re-run prints "The last re-run
+  didn't finish. You're still seeing the previous analysis." / "Ultima reanalizare nu s-a încheiat…" on its Docs-panel row.
+  A run settles its own document's interrupted re-run BEFORE its first stage. Two writers on one month are refused
+  (`rerun_month_taken`); an in-place run whose staged-row listing cannot be read is refused rather than written.
+- **R3 — the AI lane.** A re-run through the non-Romanian lane keeps what the lane never writes (the briefing, marked
+  `stale_reason = not_renarrated`; the recommendations); a document that reads as a public-records summary is refused
+  (`rerun_not_a_trial_balance`). A same-month re-upload of ANOTHER file through the lane no longer keeps the old file's
+  alerts (back to main's behaviour; the briefing is still kept and marked).
+- **"Make source"** is refused wherever the month already holds another analysed file's analysis (live or in Recently
+  deleted): "This month already has an analysis from another file…" / "Luna aceasta are deja o analiză din alt fișier…".
+  Decision taken under the 2026-10-10 authority: data loss beats the menu item; a staged promotion is the feature's future.
+- **Tenancy, pre-existing, fixed with it:** `DELETE /api/period/{id}` soft-deleted ANOTHER company's document whose pin named
+  the cleared period — attached documents are now read and updated under the company filter.
+
+**Production facts read before the deploy (read-only, 2026-10-04 and 2026-10-10):** `financial_periods` unique is the plain
+`(org_id, period_end, source_document_id)` (NULLs distinct — staged rows are allowed); 10 legacy source-less periods, 0
+staged, 0 AI-lane; 0 re-runs newly refused; 0 documents in flight at the switch.
+
+**Not built, ticketed (rerun_lane reports, `TICKETS_2026-10-10.md`):** `reextract` / make-active / move-period still run in
+place; a lane failure stores the provider's sentence on `documents.error`; a staged run writes the row's `detected_*` columns
+before its takeover; the reader is served a gap between a commit point and its resume (the page does not refetch); two
+processes are not serialised (none runs today); a re-filing re-run onto a legacy EMPTY container is refused where main took it
+over; forecast history / sector prior / Capsule context are not guarded against a staged row.
+
+### 38.2 Model-written figures in the reader's format (`fix/ai-figures-reader-language`) — gates `ai-figures-engine`, `ai-figures`
+
+**The order (2026-10-04):** "make chat and briefings write numbers in Romanian format in Romanian text (413.727.560 RON,
+~77,4 mil. EUR), currency after the figure. Use the product's own formatting standard, with a gate." The live chat had
+answered "~EUR 77.4M (convertit din RON 413,727,560 …)" in a Romanian interface.
+
+**The rule.** The §26 standard (locale by language, ISO code AFTER the figure, never a symbol, never "lei") now covers the
+two model-written surfaces. Two twins, byte-identical on every text (held by a composed-set digest both must reproduce):
+`src/engine/ai/figure_format.py` runs over a narration AFTER the numeral guard and BEFORE any writer (`stage_narrate`, every
+caller, the regenerate route — Romanian and English only); `frontend/lib/readerFigures.ts` runs over a chat reply before it
+is stored and shown, over Explain's answer and over the briefing card's body. A figure is rewritten ONLY when its numeric
+reading is unique AND something positive says it is a figure (a currency, a unit, a magnitude, a range partner, a handed
+figure); the separators are swapped character by character and the code moved behind the amount it is read to the end of.
+**No value and no binding (currency, sign, magnitude, unit) can change; in doubt the text stays as the model wrote it and is
+counted** (`left_by_reason`: `single_group`, `open_amount`, `code_before`, `reference`, `possible_date`, `bare_groups`,
+`text_held`…). A LONE group of three digits ("162,365 RON") is ambiguous and never rewritten; a text holding one beside
+figures the pass would reshape is returned WHOLE (`text_held`) — never half a text. Account numbers, dates, note and law
+references, years, clock times are never figures. A text's own words decide its language — never the interface's, never the
+question's; a text that does not show its language is shown as written. f(f(x)) == f(x): stored and shown are one text.
+The chat function's display-currency directive (`supabase/functions/chat-llm/prompt.ts`, Ask CFO AI only — the command bar
+and Explain send no currency and their prompts are byte-identical to before) carries a figure-format section whose examples
+are the product's own prints (`FIGURE_FORMAT_VALUES`, held equal to `lib/money` by `chatLlmFigureFormat.test.ts`; the pins
+in `chatLlmPrompt.test.ts` moved on purpose with their reasons); the engine's narration hint (`figure_format.currency_hint`)
+does the same for ro / en and leaves the seven other languages byte for byte.
+
+**Decisions taken (owner may reverse):** a lone 3–6-digit whole amount in the other notation holds the whole reply — on a
+small company's figures the pass then does nothing and the prompt is what moves the model; a code-first amount the pass
+cannot read to its end ("EUR 1.5-2.5M", "RON 64 567 890", "RON 4.58 mil", a hedged range) stays as written; a bare run of
+groups ("| EBITDA | 18,778,901 |") is rewritten only when the model was handed that figure; "$" is written USD only where
+nothing else names a currency; an own-code range whose bounds carry different magnitudes stays as written; the example
+figures in the prompt, the hint and the fixtures are invented (the owner's company's ratios and a corpus book's turnover were
+replaced; the repository is public). The pass stores U+00A0 between a figure and its magnitude / code (chat search folds it).
+
+**Not built, ticketed:** the engine's insight claims, alert bodies and the exported report still print the code BEFORE the
+figure (§26 left them alone — a separate ruling); the command bar's own percent text; the model's original text is not kept
+beside the stored one; the date guard's word window does not see a date word the MODEL joined to its predecessor with a
+no-break space (three coincidences; a one-line union fix in the lane's round-3 confirmer report); what a model actually
+writes under the new prompt was measured only after the deploy, with the owner-allowed billed messages (see ops_log).
+Three review rounds (eight reviewers in all) preceded the merge; every "do not ship" was fixed and re-reviewed.
+
+### 38.3 "Comparație, <period>" instead of "ANTERIOR" under a later comparison period (`fix/later-comparison-label`)
+
+The ratio cards' eyebrow said "ANTERIOR" whatever the comparison period was. When the document's `direction` is not
+`prior_is_earlier` (§37) the eyebrow reads "Comparison, {label}" / "Comparație, {label}"
+(`statements.ratioCmp.ui.comparisonEyebrow`), three laws in `singleYearShare.test.tsx`. Frontend only.
