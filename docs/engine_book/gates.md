@@ -32778,3 +32778,48 @@ of the brief, and two the widened set forced):
    rewritten with its code moved against the URL (plants E6 / B6).
 6. **The example figure** of the function's section, the corpus and the grid is an invented one
    (258,419.37); the pin moved on purpose.
+
+### rerun-data-loss — addendum 2026-10-10 (branch `fix/rerun-staged-isolation`): a killed run's notes outlived its test, and the gate's file order hid it
+
+THE INCIDENT. The release battery of `release/r-next` 471273f4 went red on its whole-pytest gate
+alone — `2 failed, 11292 passed`: both parameters of
+`test_rerun_staged.py::test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply`
+— while gate `rerun-data-loss` (the same four files) PASSED 229 and the two laws passed alone. The
+red assert was the law's LAST line, `P._STAGED_RERUNS == {} and P._TAKEOVERS_BY_RUN == {}`: six
+records in `pipeline._TAKEOVERS_BY_RUN` keyed by uuid document ids, `rerun: True`, staged
+`financial_periods-000018` over served `financial_periods-000003` — the firm double's counter ids, from runs
+this law never started.
+
+THE STATE. `pipeline._TAKEOVERS_BY_RUN` (and its sibling `_PERIODS_MINTED_BY_RUN`): the per-run
+notes `stage_persist` records in process memory. Every end of a run pops them — the takeover, the
+`except Exception` failure handler, `_staged_rerun_failed` — but the tests' model of a process
+death, `_Kill(BaseException)` (`test_rerun_staged.py`, never caught by `except Exception`), leaves
+them where a real death would have taken them with the process. `_run_pipeline_sync`'s `finally`
+pops the other two notes (`_STAGED_RERUNS`, `_NO_TAKEOVER_RUNS`) even on a kill, and the conftest's
+autouse fixture reset only those two. Not an engine defect: no `Exception` path leaks, and the
+restart child's own `_registries()` names `takeovers` and `periods_minted` as what a restart starts
+without.
+
+THE CULPRIT, by bisection over the 270 files collected before the staged file (each run = the
+candidate files + the two laws, `-k`): files 1–135 → the two laws GREEN (5295 passed; the bench dir
+deselected); files 204–270 → RED (2 failed, 2578 passed, the six records above);
+`tests/engine/test_rerun_restart.py` ALONE → RED (`2 failed, 25 passed in 164 s`): its kills inside
+a staged re-run's takeover. The gate passed because its command ran the staged file SECOND —
+before the file that kills.
+
+THE REPAIR. `tests/engine/conftest.py::_one_run_per_document_registries_are_per_test` hands every
+test a fresh dict for `_TAKEOVERS_BY_RUN` and `_PERIODS_MINTED_BY_RUN` too; the gate's command now
+runs the four files in the suite's collection order (ai_lane, ownership, restart, staged), so the
+staged file's `== {}` laws run after every killer, as in the whole-pytest gate; the law
+`test_suite_hermetic_daemons.py::test_a_killed_run_leaves_its_note_in_every_per_run_registry_PLANT`
++ `test_the_next_test_finds_no_note_of_a_run_it_did_not_start` (two tests in definition order: the
+first leaves a note in all four registries as a killed run does, the second finds none).
+
+PLANT — the two conftest lines removed (`git apply -R` of the hunk), everything else as repaired;
+`test_rerun_restart.py test_suite_hermetic_daemons.py test_rerun_staged.py -k "takeover…"`:
+RED — `3 failed, 29 passed, 120 deselected in 164.83s` — FAILED test_suite_hermetic_daemons.py::test_the_next_test_finds_no_note_of_a_run_it_did_not_start (`_TAKEOVERS_BY_RUN` holding the restart file's records, `rerun: True`, staged financial_periods-000368 over served financial_periods-000002) and both parameters of the staged takeover law (`assert ({} == {}` with the same six records)
+REVERT — the hunk re-applied (26 diff lines, byte-identical); the same command:
+GREEN — `32 passed, 120 deselected in 163.74s` (25 restart + 5 hermetic, the PLANT pair included, + the two takeover laws)
+The gate itself, reordered: `rerun-data-loss` GREEN — `229 passed in 431.55s` (ai_lane, ownership, restart, staged, `-q`, under `-p netblock`) (floor 229). `test_gate_canaries.py`
+GREEN, 13 passed (run before this addendum was appended, and again on the appended file: see the commit). The two files that read the conftest most (`test_no_anonymous_model_call.py`,
+`test_briefing_keep_last_good_writers.py`): GREEN — the three files together `292 passed, 0 failed in 138.53s` (13 + 83 + 196).

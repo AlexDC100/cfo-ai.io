@@ -765,10 +765,16 @@ def _engine_gates() -> List[Gate]:
         # before the first write; a pin it contradicts is answered as a
         # pin that names nothing. Measured 229 (67 + 122 + 25 + 15). Plant
         # log: gates.md "rerun-data-loss — round 2b (2026-10-10)".
+        # The four files in the SUITE'S collection order (ai_lane, ownership,
+        # restart, staged): the staged file's registry laws (`… == {}`) run
+        # after every file that kills a run, as in the whole-pytest gate.
+        # With the staged file second, 2026-10-10's cross-file leak of
+        # `_TAKEOVERS_BY_RUN` (test_rerun_restart.py's kills) passed this
+        # gate (229) and reddened the whole-pytest gate alone.
         Gate("rerun-data-loss",
-             [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
-              "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
-              "tests/engine/test_rerun_ai_lane.py", "-q"],
+             [PY, "-m", "pytest", "tests/engine/test_rerun_ai_lane.py",
+              "tests/engine/test_rerun_ownership.py", "tests/engine/test_rerun_restart.py",
+              "tests/engine/test_rerun_staged.py", "-q"],
              work_junit=True, floor=229, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing",
