@@ -54,7 +54,7 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "annual depreciation rate = charge 1,476,837.65 / closing net book value of property, plant, equipment and intangibles 2,557,631.52. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
+  "text": "annual depreciation rate = charge 1,126,475.93 / closing net book value of property, plant, equipment and intangibles 2,557,631.52. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
  },
  {
   "code": "forecast.depreciation_rate_closing_nbv",
@@ -62,7 +62,7 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
+  "text": "annual depreciation rate = charge 2,819,963.03 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
  },
  {
   "code": "forecast.depreciation_rate_closing_nbv",
@@ -70,7 +70,7 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "annual depreciation rate = charge 3,695,525.59 / closing net book value of property, plant, equipment and intangibles 94,519,044.80. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
+  "text": "annual depreciation rate = charge 3,302,402.43 / closing net book value of property, plant, equipment and intangibles 94,519,044.80. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
  },
  {
   "code": "forecast.depreciation_rate_closing_nbv",
@@ -137,7 +137,14 @@
   "kinds": [
    "summary.runway"
   ],
-  "text": "cash reaches the floor in 2026-08"
+  "text": "cash reaches the floor in 2026-09"
+ },
+ {
+  "code": "runway_exact",
+  "kinds": [
+   "summary.runway"
+  ],
+  "text": "cash reaches the floor in 2026-12"
  },
  {
   "code": "runway_annual_tail",
@@ -152,13 +159,6 @@
    "summary.runway"
   ],
   "text": "cash stays above the floor for every modelled month; the first shortfall falls in FY2028, whose month is not modelled"
- },
- {
-  "code": "runway_annual_tail",
-  "kinds": [
-   "summary.runway"
-  ],
-  "text": "cash stays above the floor for every modelled month; the first shortfall falls in FY2029, whose month is not modelled"
  },
  {
   "code": "packs/forecast/cost_behaviour.yaml#cogs_variable",
@@ -514,21 +514,21 @@
   "kinds": [
    "driver.basis"
   ],
-  "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 1,476,837.65, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
+  "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 1,126,475.93, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
  },
  {
   "code": "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation",
   "kinds": [
    "driver.basis"
   ],
-  "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
+  "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,819,963.03, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
  },
  {
   "code": "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation",
   "kinds": [
    "driver.basis"
   ],
-  "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 3,695,525.59, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
+  "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 3,302,402.43, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
  },
  {
   "code": "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation",
@@ -629,6 +629,13 @@
   "text": "moving tax rate changes no figure in this plan"
  },
  {
+  "code": "net_provisions",
+  "kinds": [
+   "unserved"
+  ],
+  "text": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
+ },
+ {
   "code": "convention_rejected",
   "kinds": [
    "driver.ladder"
@@ -721,14 +728,6 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "other operating income held at this book's own amount of 1,406,221.07: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
- },
- {
-  "code": "other_operating_income_annual",
-  "kinds": [
-   "driver.alternative",
-   "driver.basis"
-  ],
   "text": "other operating income held at this book's own amount of 16,620.28: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
  },
  {
@@ -737,7 +736,7 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
+  "text": "other operating income held at this book's own amount of 386,101.85: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
  },
  {
   "code": "other_operating_income_annual",
@@ -745,7 +744,15 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "other operating income held at this book's own amount of 726,868.64: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
+  "text": "other operating income held at this book's own amount of 648,934.03: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
+ },
+ {
+  "code": "other_operating_income_annual",
+  "kinds": [
+   "driver.alternative",
+   "driver.basis"
+  ],
+  "text": "other operating income held at this book's own amount of 945,903.59: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
  },
  {
   "code": "packs/forecast/cost_behaviour.yaml#classification",
@@ -927,7 +934,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 1,862,503.57 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 1,942,042.79 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -935,7 +942,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 160,391.56 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 111,292.56 on the funding line in 2026-06 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -943,7 +950,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 3,603,050.94 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 3,744,556.09 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -951,7 +958,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 4,834,846.94 on the funding line in FY2027 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 301,896.71 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -959,7 +966,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 735,344.91 on the funding line in FY2027 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 78,481.86 on the funding line in 2026-12 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -967,7 +974,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 82,864.60 on the funding line in 2026-06 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 839,924.35 on the funding line in FY2027 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "convention_rejected",

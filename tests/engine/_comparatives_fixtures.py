@@ -254,10 +254,15 @@ def condense(envelope: Dict[str, Any], revenue_factor: float = 0.97) -> Dict[str
     pl["ebitda_before_stock_variation"] = round(
         pl["revenue"] + pl["other_operating_income"] - pl["cogs"] - pl["opex_total"], 2)
     pl["ebitda"] = round(pl["ebitda_before_stock_variation"] + net_72x + net_711, 2)
-    pl["ebit"] = round(pl["ebitda"] - pl["depreciation"], 2)
+    # Provisions symmetric (owner ruling R2, 2026-09-28): the net of the
+    # ruled charges and reversals stands between EBITDA and the operating
+    # result, beside D&A — EBIT = EBITDA − D&A − net provisions.
+    net_prov = pl["net_provisions"]["value"]
+    pl["ebit"] = round(pl["ebitda"] - pl["depreciation"] - net_prov, 2)
     pl["pretax"] = round(pl["ebit"] + pl["net_financial_result"], 2)
     pl["net_income_operational"] = round(
-        pl["ebitda_before_stock_variation"] - pl["depreciation"] + pl["net_financial_result"] - pl["tax"], 2)
+        pl["ebitda_before_stock_variation"] - pl["depreciation"] - net_prov
+        + pl["net_financial_result"] - pl["tax"], 2)
     pl["net_income_statutory"] = round(pl["pretax"] - pl["tax"] + unexplained, 2)
     return out
 

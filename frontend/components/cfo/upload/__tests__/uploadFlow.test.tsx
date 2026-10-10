@@ -38,9 +38,11 @@ const api = vi.hoisted(() => ({
 vi.mock("@/lib/uploadsApi", async () => {
   class UploadApiError extends Error {
     httpStatus: number;
-    constructor(m: string, s: number) {
+    code: string | null;
+    constructor(m: string, s: number, c: string | null = null) {
       super(m);
       this.httpStatus = s;
+      this.code = c;
     }
   }
   return {
@@ -207,7 +209,7 @@ describe("confirmation card", () => {
     renderHome();
     const file = await dropOnHome();
 
-    // The flow reads the file's bytes (lib/fileKind) before it asks the engine.
+    // The engine is asked straight away: it reads the file's real type.
     await waitFor(() => expect(api.identifyUpload).toHaveBeenCalledWith(file, "scandia"));
     await screen.findByText("Check before we analyse");
     expect(row("upload-card-company-value")).toHaveTextContent("Agras SA");
@@ -351,37 +353,110 @@ describe("confirmation card", () => {
     }
   });
 
-  // The real file type comes from the bytes, never from the name. A Word
-  // document renamed .pdf (a PK container with word/document.xml inside) is
-  // told so on the card, and never leaves the browser.
-  const docxRenamedPdf = () => {
+  // ONE UPLOAD POLICY (2026-10-02). The real file type comes from the bytes
+  // — read by the ENGINE, whose verdict is the pipeline's own
+  // (engine/api/_upload_type). The card used to carry a table of its own
+  // (lib/fileKind) and refused, in the browser, the two files the pipeline
+  // reads: an Excel balance named .pdf and a balance PDF named .xls. It has
+  // none now: every accepted file goes to /api/uploads/identify, and a file
+  // no reader opens comes back refused with the engine's sentence — what the
+  // file really is and what fixes it — which the card prints verbatim.
+  const pkBytes = (inner: string) => {
     const head = new TextEncoder().encode("PK\u0003\u0004");
-    const entry = new TextEncoder().encode("\u0000".repeat(26) + "word/document.xml<w:document/>");
+    const entry = new TextEncoder().encode("\u0000".repeat(26) + inner);
     const bytes = new Uint8Array(head.length + entry.length);
     bytes.set(head, 0);
     bytes.set(entry, head.length);
-    return new File([bytes], "raport.pdf", { type: "application/pdf" });
+    return bytes;
   };
-
-  it("a Word document renamed .pdf is told so on the card, and identify is never called", async () => {
-    api.identifyUpload.mockResolvedValue(identity());
-    renderHome();
+  const docxRenamedPdf = () =>
+    new File([pkBytes("word/document.xml<w:document/>")], "raport.pdf", { type: "application/pdf" });
+  const dropFile = async (file: File) => {
     const zone = await screen.findByTestId("upload-drop-zone");
-    fireEvent.drop(zone, { dataTransfer: { files: [docxRenamedPdf()], types: ["Files"] } });
-    expect(await screen.findByText("This is a Word document, not a PDF")).toBeInTheDocument();
+    fireEvent.drop(zone, { dataTransfer: { files: [file], types: ["Files"] } });
+    return file;
+  };
+  const refusedByType = async (message: string, code = "format_mismatch", status = 422) => {
+    const { UploadApiError } = await import("@/lib/uploadsApi");
+    return new UploadApiError(message, status, code);
+  };
+  const EN_SENTENCE =
+    "This file 'raport.pdf' is named .pdf but its contents are a Word document (.docx), so no reader can open it " +
+    "as .pdf. To fix it: open it and use File → Save as → PDF, or upload the balance as .xlsx or .csv.";
+  const RO_SENTENCE =
+    "Fișierul 'raport.pdf' are extensia .pdf, dar de fapt este un document Word (.docx), așa că nu îl putem " +
+    "deschide ca .pdf. Ca să rezolvi: deschide-l și folosește Fișier → Salvare ca → PDF, sau încarcă balanța ca " +
+    ".xlsx sau .csv.";
+
+  it("a Word document renamed .pdf: the engine refuses it and the card prints the engine's sentence — final, no retry", async () => {
+    api.identifyUpload.mockRejectedValue(await refusedByType(EN_SENTENCE));
+    renderHome();
+    const file = await dropFile(docxRenamedPdf());
+    expect(await screen.findByText("We can't read this file")).toBeInTheDocument();
     expect(card()).toHaveAttribute("data-phase", "error");
-    expect(api.identifyUpload).not.toHaveBeenCalled();
+    const view = within(card()).getByTestId("upload-card-error-view");
+    expect(view).toHaveAttribute("data-error-code", "wrong_kind");
+    expect(view).toHaveTextContent(EN_SENTENCE);
+    // The engine decided — the browser has no table of its own to refuse with.
+    expect(api.identifyUpload).toHaveBeenCalledWith(file, "scandia");
     expect(within(card()).queryByTestId("upload-card-analyse")).toBeNull();
+    expect(within(card()).queryByTestId("upload-card-retry")).toBeNull();
   });
 
-  it("Romanian: 'Acesta este un document Word, nu un PDF'", async () => {
+  it("Romanian: the title and the engine's Romanian sentence, verbatim", async () => {
     await i18n.changeLanguage("ro");
-    api.identifyUpload.mockResolvedValue(identity());
+    api.identifyUpload.mockRejectedValue(await refusedByType(RO_SENTENCE));
     renderHome();
-    const zone = await screen.findByTestId("upload-drop-zone");
-    fireEvent.drop(zone, { dataTransfer: { files: [docxRenamedPdf()], types: ["Files"] } });
-    expect(await screen.findByText("Acesta este un document Word, nu un PDF")).toBeInTheDocument();
-    expect(api.identifyUpload).not.toHaveBeenCalled();
+    await dropFile(docxRenamedPdf());
+    expect(await screen.findByText("Nu putem citi fișierul acesta")).toBeInTheDocument();
+    expect(within(card()).getByTestId("upload-card-error-view")).toHaveTextContent(RO_SENTENCE);
+    expect(within(card()).queryByTestId("upload-card-retry")).toBeNull();
+  });
+
+  it("an empty file is told so in the engine's words, final", async () => {
+    const sentence =
+      "This file 'balanta.xlsx' is an empty file (0 bytes): there is nothing in it to read. To fix it: export or " +
+      "download the balance again and upload the complete file.";
+    api.identifyUpload.mockRejectedValue(await refusedByType(sentence, "empty_file", 400));
+    renderHome();
+    await dropOnHome("balanta.xlsx");
+    const view = await screen.findByTestId("upload-card-error-view");
+    expect(view).toHaveAttribute("data-error-code", "wrong_kind");
+    expect(view).toHaveTextContent(sentence);
+    expect(within(card()).queryByTestId("upload-card-retry")).toBeNull();
+  });
+
+  it("the two files the pipeline reads reach the engine and the confirmation card — the browser refuses neither", async () => {
+    // An Excel balance named .pdf, and a balance PDF named .xls: the old
+    // browser table answered "This is an Excel workbook, not a PDF" and
+    // "This is a PDF, not an Excel workbook" and never asked the engine.
+    const cases = [
+      new File([pkBytes("xl/workbook.xml<workbook/>")], "balanta.pdf", { type: "application/pdf" }),
+      new File([new TextEncoder().encode("%PDF-1.7\n1 0 obj\nendobj\n%%EOF\n")], "balanta.xls", {
+        type: "application/vnd.ms-excel",
+      }),
+    ];
+    for (const file of cases) {
+      api.identifyUpload.mockClear();
+      api.identifyUpload.mockResolvedValue(identity());
+      const { unmount } = renderHome();
+      await dropFile(file);
+      await waitFor(() => expect(api.identifyUpload).toHaveBeenCalledWith(file, "scandia"));
+      await screen.findByText("Check before we analyse");
+      expect(card()).toHaveAttribute("data-phase", "confirm");
+      unmount();
+      __resetUploadFlowForTest();
+    }
+  });
+
+  it("a failed request is not a type refusal: it keeps the retry", async () => {
+    const { UploadApiError } = await import("@/lib/uploadsApi");
+    api.identifyUpload.mockRejectedValue(new UploadApiError("HTTP 500", 500));
+    renderHome();
+    await dropOnHome();
+    const view = await screen.findByTestId("upload-card-error-view");
+    expect(view).toHaveAttribute("data-error-code", "identify");
+    expect(within(card()).getByTestId("upload-card-retry")).toBeInTheDocument();
   });
 
   it("a duplicate is refused: nothing stored, 'Already uploaded — open it' opens that period", async () => {
@@ -672,7 +747,7 @@ describe("confirmation card", () => {
     renderHome();
     await dropOnHome("notes.docx");
     expect(await screen.findByTestId("upload-card-error-view")).toHaveTextContent(
-      "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",
+      "We can't read this kind of file. Use an Excel sheet (.xlsx) or a PDF with a text layer.",
     );
     expect(api.identifyUpload).not.toHaveBeenCalled();
   });

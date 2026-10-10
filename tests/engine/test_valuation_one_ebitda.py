@@ -37,6 +37,10 @@ import test_rebuild_net_income_anchor as ANCHOR
 
 REPO = Path(__file__).resolve().parents[2]
 AUTH = {"Authorization": "Bearer test"}
+#: The EXPLICIT regenerate body (hotfix 2026-10-02). The bodiless shape is
+#: inert — it answers the stored briefing and narrates nothing — so the laws
+#: below about the valuation the narrator is handed need the explicit call.
+EXPLICIT_REGENERATE = {"intent": "user"}
 
 
 def _stub_benchmarks(key):  # noqa: ARG001
@@ -103,7 +107,9 @@ def test_the_measured_net_711_is_inside_the_multiple(monkeypatch):
     apl = st["assembled_pl"]
     net_711 = apl["inventory_variation"]["value"]
     assert net_711 == pytest.approx(1_071_687.03, abs=0.01)
-    assert apl["ebitda"] == pytest.approx(11_848_065.27, abs=0.01)
+    # R2 (2026-09-28): the 7814.01 reversal (3,988.70) is outside EBITDA —
+    # 11,848,065.27 under the 2026-09-26 definition.
+    assert apl["ebitda"] == pytest.approx(11_844_076.57, abs=0.01)
     out = _value(st)
     before = apl["ebitda_before_stock_variation"] + apl["capitalized_own_work"]["value"]
     assert out["ebitda_used"] - before == pytest.approx(net_711, abs=0.01)
@@ -467,11 +473,11 @@ def test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda
         db.tables.setdefault("user_valuation_assumptions", [])
         db.tables["valuations"].append(_stored_row(bk, PRE_RULING_AGRAS_EBITDA))
         resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id,
-                           headers=ANCHOR._member_bearer())
+                           json=EXPLICIT_REGENERATE, headers=ANCHOR._member_bearer())
         assert resp.status_code == 200, resp.text[:400]
         _recompute_fails(monkeypatch)
         resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id,
-                           headers=ANCHOR._member_bearer())
+                           json=EXPLICIT_REGENERATE, headers=ANCHOR._member_bearer())
         assert resp.status_code == 200, resp.text[:400]
     finally:
         ctx.__exit__(None, None, None)
@@ -522,7 +528,7 @@ def test_one_valuation_choice_one_industry_key(book, stored_key, monkeypatch):
         get_keys = list(seen)
         del seen[:]
         resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id,
-                           headers=ANCHOR._member_bearer())
+                           json=EXPLICIT_REGENERATE, headers=ANCHOR._member_bearer())
         assert resp.status_code == 200, resp.text[:400]
         regen_keys = list(seen)
     finally:

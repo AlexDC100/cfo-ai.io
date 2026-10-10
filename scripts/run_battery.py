@@ -129,12 +129,20 @@ class Gate(object):
     ``canaries``    literals the output MUST contain. Missing => the
                     gate's discovery is broken, whatever its exit code.
     ``vacuous_ok``  0 work is reported as PASS(VACUOUS), not green.
+    ``no_skips``    a vitest gate whose run reports ANY skipped test fails.
+                    A canary is a test NAME, and vitest's verbose reporter
+                    prints the name of a skipped test too ("↓ … L2 …"): a
+                    law marked `it.skip` satisfied its own canary and the
+                    gate stayed green (2026-10-02, verified on
+                    `landing-proof`). For a junit gate the equivalent is a
+                    floor equal to the number of laws — skipped tests are
+                    already subtracted from the count.
     """
 
     def __init__(self, name, cmd, floor=0, units="items", canaries=(),
                  work_rx=None, work_sum=False, work_count_rx=None,
                  work_junit=False, work_glob=None, vacuous_ok=False,
-                 external_reason=""):
+                 external_reason="", no_skips=False):
         self.name = name
         self.cmd = cmd
         self.floor = floor
@@ -147,6 +155,7 @@ class Gate(object):
         self.work_glob = tuple(work_glob or ())
         self.vacuous_ok = vacuous_ok
         self.external_reason = external_reason
+        self.no_skips = no_skips
 
     # BACKWARD COMPATIBILITY, DELIBERATE.
     #
@@ -291,10 +300,15 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_service_role_tenant_filter.py",
               "tests/engine/test_cross_org_reads.py", "-q"],
              # + the period-move sibling and sales-rerun laws (tenancy
-             # hotfix 2026-10-02): measured 47, floor 41.
-             work_junit=True, floor=41, units="tests",
+             # hotfix 2026-10-02): measured 47, floor 41. + "Clear period"
+             # soft-deleting only this company's documents, and the ONE
+             # answer for a foreign and a missing pin at both corrections
+             # (rerun-data-loss round 2, 2026-10-10): measured 51, floor 45.
+             work_junit=True, floor=45, units="tests",
              canaries=("test_another_orgs_path_is_refused_for_every_operation",
                        "test_make_active_refuses_a_period_in_another_workspace",
+                       "test_clearing_a_period_soft_deletes_only_this_companys_documents",
+                       "test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction",
                        "test_every_unfiltered_service_role_call_is_declared",
                        "test_a_member_of_another_workspace_cannot_read_org_a1",
                        "test_another_workspaces_document_is_never_a_sibling_of_my_period",
@@ -305,6 +319,203 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
                        "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
                        "test_the_full_openapi_schema_generates")),
+        # THE PUBLIC SAMPLE (owner, 2026-10-01, after the first public review):
+        # a FICTIONAL company linked from the landing page — its trial
+        # balances, the report the product generates, the mapping of every
+        # account and every uncertainty label. The gate rebuilds it through
+        # the production write seam and create_app() (no model, sockets
+        # blocked) and reds when a published file is not byte-identical to the
+        # rebuild, when two rebuilds differ, when the book fails a check the
+        # landing page's proof block lists (balance sheet 0.00, net profit ==
+        # account 121, turnover == the ledger's, EBITDA variants within
+        # 1 RON), when a client label or a fiscal code other than the
+        # fictional one reaches a public file, when the /sample route loses
+        # its nginx location or its place outside the auth wall, and when the
+        # dashboard's example workbooks stop being a consistent, "date
+        # fictive" rebuild. Measured 22 tests. The page and the report's HTML
+        # / PDF are `public-sample-page` and `public-sample-pdf` (frontend).
+        # Plant log: gates.md "public-sample".
+        Gate("public-sample",
+             # -rs: a skipped law prints its reason in the tail the battery shows
+             [PY, "-m", "pytest", "tests/engine/test_public_sample.py", "-q", "-rs"],
+             # floor == the number of laws (measured 32 — S11, the known
+             # issues' ledger arithmetic, added three on 2026-10-02): a skipped
+             # law is a red, because junit work is tests minus skips. S9 skips
+             # where node is absent — the report cannot be rebuilt there, and
+             # that is not a pass.
+             # 33 since the third review's S5 (document properties).
+             work_junit=True, floor=33, units="tests",
+             canaries=("test_s1_the_current_year_opens_with_the_prior_years_closing",
+                       # S5 reads every byte a published file can carry a word
+                       # in (2026-10-02): workbook members and properties, the
+                       # PDF's metadata, public/examples and public/templates
+                       "test_s5_document_properties_carry_the_product_name_only",
+                       "test_s5_the_only_fiscal_code_and_register_number_are_the_fictional_ones",
+                       "test_s11_every_ledger_figure_of_a_known_issue_is_repeated_from_the_published_workbook",
+                       "test_s11_the_known_issues_are_listed_and_the_page_carries_the_published_list",
+                       "test_s6_no_caveat_the_engine_stated_is_left_off_the_label_list",
+                       "test_s6_every_mapped_balance_sheet_account_names_its_served_row",
+                       "test_s6_each_pl_account_names_the_served_line_it_sums_into",
+                       "test_s9_the_report_is_the_same_bytes_under_another_locale_and_timezone",
+                       "test_s10_the_report_says_the_company_is_fictional_and_nothing_false_about_itself",
+                       "test_s2_every_published_engine_file_is_a_byte_identical_rebuild",
+                       "test_s2_the_pages_data_is_the_served_document",
+                       "test_s3_a_second_rebuild_is_byte_identical",
+                       "test_s4_net_profit_is_account_121_and_turnover_is_the_ledgers",
+                       "test_s5_no_client_label_appears_in_a_published_file",
+                       "test_s7_the_route_is_public_and_nginx_hands_it_to_the_app",
+                       "test_s8_both_example_layouts_read_as_one_consistent_book")),
+        # NO-ANONYMOUS-MODEL-CALL (2026-10-04, branch fix/anonymous-model-routes).
+        # THE INCIDENT: `POST /api/financial-statements/parse` was mounted
+        # unconditionally and took no bearer, no dependency, no meter and no
+        # limiter. It sent the caller's PDF (`pdf_b64`) — or fetched a URL the
+        # CALLER named (`pdf_url`, addresses inside the Docker network
+        # included) — to the model on the backend's key. Measured on
+        # production: an anonymous 20-byte POST answered 502 with the model
+        # API's 401 inside; only the key being invalid stopped the spend. The
+        # route is no longer mounted (the pipeline calls the handler
+        # in-process) and the handler fetches only the project's own document
+        # storage, bounded. THE LAW, over EVERY route of the real
+        # create_app() — the route TREE: a mounted sub-application is walked
+        # into — in two flag states (the public markets surface closed, and
+        # open with the filings layer, the cockpit and the AI lanes on):
+        # every method, path parameters filled, a JSON {}, the bodies that
+        # matter (pdf_b64 / pdf_url / messages / document_id / run), every
+        # body the route's own schema accepts (incl. one where every free
+        # string is a caller-named URL), a multipart file, a RAW PDF body
+        # under two media types, and every query / header parameter the route
+        # or a dependency DECLARES filled three ways (by schema; every
+        # boolean and free string as "1"; as "true") — sent with no
+        # Authorization header, with a forged bearer, and with the project's
+        # public anon key as the bearer; a planted model key in the
+        # environment, the anthropic and openai SDKs replaced by recorders,
+        # httpx / urllib / requests replaced by answering recorders over a
+        # socket tripwire. ZERO model clients constructed or called except on
+        # the four DECLARED public market reads (each bounded by the daily
+        # completion ceiling, measured: 3 a day -> exactly 3 sent over 20
+        # cold reads), ZERO outbound requests to a host or URL the caller
+        # supplied, EVERY host contacted declared per state (a model bought
+        # over plain HTTP at another address is a host nobody declared),
+        # every route an APIRoute the sweep ENTERED or one refused by a wall
+        # / an auth dependency (a 404 or 422 before the handler is not
+        # evidence; a plain Starlette route, a websocket route or a mount
+        # with no route list reds by name). And two SOURCE laws for what two
+        # flag states cannot show: no module but the pipeline refers to the
+        # PDF lane's module at all, and no route is registered under a
+        # condition that is not one of the three declared route flags (each
+        # on in the open state, off in the closed one).
+        # THE REVIEW OF 2026-10-04 found the first version green with the
+        # lane mounted through a sub-application, behind a new flag, as a
+        # plain route, and with a model call behind ?ai=true, an optional
+        # header, a raw PDF body, or another host: all seven are plants now.
+        # Measured: 388 routes, 6,356 requests, 83 tests. Plants and what it
+        # cannot see: docs/engine_book/gates.md § no-anonymous-model-call.
+        Gate("no-anonymous-model-call",
+             [PY, "-m", "pytest", "tests/engine/test_no_anonymous_model_call.py", "-q"],
+             work_junit=True, floor=75, units="tests",
+             canaries=("test_no_anonymous_request_constructs_or_calls_a_model_client",
+                       "test_no_anonymous_request_makes_the_backend_fetch_a_host_the_caller_named",
+                       "test_the_backend_contacts_only_declared_hosts_for_an_anonymous_caller",
+                       "test_every_route_a_request_can_reach_is_an_api_route_the_sweep_swept",
+                       "test_the_sweep_enters_every_handler_or_meets_a_wall",
+                       "test_the_sweep_covered_the_whole_route_table_in_both_states",
+                       "test_the_declared_public_reads_stop_at_their_daily_ceiling",
+                       "test_the_legacy_sku_routes_reach_a_model_the_moment_their_wall_is_lifted",
+                       "test_the_pdf_model_lane_is_mounted_on_no_app",
+                       "test_nothing_but_the_pipeline_refers_to_the_pdf_model_lane",
+                       "test_no_route_exists_behind_a_flag_the_sweep_does_not_set",
+                       "test_a_url_that_is_not_this_projects_storage_is_refused_before_any_request",
+                       "test_a_signed_url_of_the_projects_storage_is_fetched_as_written",
+                       "test_the_size_cap_is_enforced_while_reading",
+                       "test_bytes_that_are_not_a_pdf_never_reach_the_model",
+                       "test_the_pipelines_in_process_contract_holds",
+                       "test_the_recorders_see_every_transport_and_both_sdks")),
+        # UPLOAD-REAL-TYPE (hotfix/upload-real-type 31dfce26 + b58bdff8,
+        # landed in release r-rulings2, 2026-10-01): the 2026-09-23 incident —
+        # a Word document named balanta_de_verificare_07.2025.pdf travelled
+        # the whole PDF branch and came back as "Claude extraction failed:
+        # your credit balance is too low". Through the REAL stage_extract with
+        # only the signed URL and the download stubbed, and the Claude lane's
+        # entry point and the Anthropic constructor as tripwires: a Word /
+        # PowerPoint / OpenDocument file reaches NO reader on any branch and
+        # is refused by name (a mismatch sentence, or the unsupported-format
+        # one for an honestly named .docx); an Excel balance named .pdf and a
+        # balance PDF named .xls are READ, as their bytes are (the readers
+        # dispatch on magic bytes); text and unnameable bytes keep today's
+        # behaviour; the guard refetches when the first download failed; the
+        # failure handler stores the sentence without a class name. Measured
+        # 27 tests. The 2026-10-01 review round: a legacy Word .doc / .ppt is
+        # told apart from an .xls by its OLE2 directory and refused under
+        # every name; each branch refuses what none of ITS readers opens
+        # (`_upload_type.refused_on` — text / empty / an archive on the .pdf
+        # branch, a workbook / PDF / OLE2 / archive on the text branches);
+        # a non-PDF the positional reader declined never reaches the Claude
+        # PDF lane; the ODF `mimetype` read is bounded on what is read; the
+        # sentence is in the uploader's language. Measured 88 tests.
+        # ONE UPLOAD POLICY, READ BY REAL TYPE (coordinator ruling
+        # 2026-10-02, review round 3): PDF bytes are read by the .pdf
+        # branch's own readers under EVERY name — the strict text-line
+        # reader first, its refusal final — so a five-pair balanta named
+        # .xls is no longer served with one account or its net profit
+        # sign-flipped (the HIGH finding: three books under ten names,
+        # byte-identical to the .pdf-named read or the identical refusal);
+        # a workbook named .pdf reads as the same bytes named .xlsx; the
+        # spreadsheet branch refuses by name the text / unnameable / archive
+        # bytes none of its readers opens; the upload card's routes
+        # (/api/uploads/identify, /commit) take the pipeline guard's own
+        # verdict and sentence (`_upload_type.upload_refusal`) over a
+        # 198-pair matrix, EN and RO, and at the HTTP seam
+        # (test_workspace_uploads.py, now in this gate); the picker offers
+        # no type the engine refuses by name. Measured 173 tests.
+        # REVIEW ROUND 4 (2026-10-02): read by real type in BOTH directions
+        # and at every layer. A workbook named .pdf leaves the .pdf branch
+        # for the spreadsheet branch (`reads_as_workbook`), so a small
+        # balance and a statutory F30/F10 return read as under .xlsx instead
+        # of being refused late, after the card said "read" (the equality
+        # law now runs four books and the MIME-only claim); the positional
+        # reader's acceptance gate is held from below under every name (a
+        # dialect book without its 121 row); the routes' matrix carries rows
+        # where the declared MIME type alone picks the branch; and the
+        # company IDENTIFIER reads its bytes, not its name (HIGH: a workbook
+        # named .pdf was "unreadable", filed in the company on screen, and
+        # walked through the cross-company wall — see workspace-v2).
+        # Measured 177 tests.
+        # REVIEW ROUND 5 (2026-10-02): the identifier's dispatch IS the
+        # pipeline's label (`sniff_container`), and it is handed the declared
+        # MIME type — two crafted byte shapes ("PK" + bytes + a PDF; a PDF
+        # with bytes at both ends whose branch the MIME type picks) were PDFs
+        # to the pipeline and "unreadable" to the identifier, and walked
+        # through the takeover wall. One law over three bodies x nineteen
+        # (name, MIME) pairs, through the routes' seam too. Measured 178.
+        # Plant log: gates.md "upload-real-type".
+        Gate("upload-real-type",
+             [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py",
+              "tests/engine/test_workspace_uploads.py", "-q"],
+             work_junit=True, floor=178, units="tests",
+             canaries=("test_a_docx_named_pdf_is_refused_before_the_paid_path",
+                       "test_an_excel_balance_named_pdf_is_READ_not_refused",
+                       "test_a_balance_pdf_named_xls_is_READ_not_refused",
+                       "test_pdf_bytes_are_read_by_the_pdf_readers_under_every_name",
+                       "test_the_five_pair_books_of_the_high_finding_under_a_spreadsheet_name",
+                       "test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx",
+                       "test_the_spreadsheet_branch_refuses_by_name_what_none_of_its_readers_opens",
+                       "test_one_upload_policy_the_routes_verdict_is_the_pipeline_guards",
+                       "test_the_owners_three_files_at_the_routes_and_in_the_pipeline",
+                       "test_the_upload_picker_offers_no_type_the_engine_refuses_by_name",
+                       "test_the_two_files_the_pipeline_reads_are_read_by_the_card",
+                       "test_the_refusal_is_in_the_language_the_card_is_read_in",
+                       "test_a_docx_named_xlsx_is_refused_before_the_paid_path",
+                       "test_an_honestly_named_docx_is_refused_through_the_real_branch",
+                       "test_the_guard_still_runs_when_the_first_download_fails",
+                       "test_the_failure_handler_stores_the_sentence_without_a_class_name",
+                       "test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader",
+                       "test_the_pdf_branch_refuses_what_none_of_its_readers_opens",
+                       "test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane",
+                       "test_the_positional_readers_acceptance_gate_holds_under_every_name",
+                       "test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name",
+                       "test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_it_on",
+                       "test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated",
+                       "test_the_real_branch_answers_in_the_language_the_run_carries")),
         # A MEMBER IS NEVER SERVED ANOTHER MEMBER'S VALUATION OVERRIDES
         # (tenancy hotfix 2026-10-02). `user_valuation_assumptions` is a
         # per-USER table; valuation/recompute and briefing/regenerate read
@@ -354,6 +565,322 @@ def _engine_gates() -> List[Gate]:
                        "test_one_orgs_success_never_resolves_another_orgs_dead_letter",
                        "test_the_committed_old_key_journal_is_refused_everywhere",
                        "test_boot_refuses_a_journal_written_under_the_old_key")),
+        # THE WORKSPACE'S PLAN GATES A RE-RUN, AND THE STORED REFUSAL NAMES
+        # NOBODY'S (owner ruling 2026-10-02). A run that holds no document
+        # slot read the subscription of whoever `documents.uploaded_by`
+        # named — a column the browser writes: a non-member's Multi plan
+        # entitled the run, a colleague's Solo plan refused the Multi
+        # owner's workspace, a NULL passed with no check; and
+        # `documents.error` (read by every member) carried `plan_key` and a
+        # plan-named sentence from both branches. Driven through the REAL
+        # `_run_pipeline_sync` -> stage_extract -> the gate -> the failure
+        # handler -> `_admin_set_status`, over a PostgREST double that
+        # records every read: the owner's plan decides and the id on the
+        # row is asked nothing; no owner / no org / an unreadable owner are
+        # refused; the owner is resolved by role, never by sort order; the
+        # stored string is the code alone; the unreachable meter stores its
+        # code, not a ValueError; the first metered run stays gated by its
+        # reserver; a non-member's /retry is 403. Measured 35. Plant log:
+        # docs/engine_book/gates.md "entitlement-workspace-plan".
+        Gate("entitlement-workspace-plan",
+             [PY, "-m", "pytest", "tests/engine/test_entitlement_workspace_plan.py", "-q"],
+             work_junit=True, floor=35, units="tests",
+             canaries=("test_the_workspace_owners_plan_decides_whoever_uploaded_by_names",
+                       "test_a_null_uploader_is_gated_by_the_workspace_not_waved_through",
+                       "test_a_workspace_with_no_owner_row_is_refused",
+                       "test_a_document_with_no_workspace_is_refused",
+                       "test_the_owner_is_resolved_by_role_never_by_sort_order",
+                       "test_a_refused_rerun_stores_the_code_and_no_plan",
+                       "test_a_refused_first_run_stores_the_code_and_no_plan",
+                       "test_an_unreachable_meter_stores_its_code_not_a_value_error",
+                       "test_the_gate_never_reads_uploaded_by",
+                       "test_a_rerun_is_refused_to_a_caller_who_is_not_a_member")),
+        # A BRIEFING A MODEL FAILURE CANNOT DESTROY (owner rulings 2026-10-02
+        # and 2026-10-03). `briefings` holds ONE row per period and no
+        # history. Measured before the hotfix: a failed regenerate answered
+        # 200 ok:true and the stored briefing BECAME "[NARRATIVE_UNAVAILABLE]"
+        # (or the operator sentence); a failed re-run narration did the same
+        # and deleted the period's recommendations; the same-month takeover
+        # and the Docs-panel re-run lost the last good briefing the same
+        # way; the route was unmetered and every deployed bundle fired it
+        # from an effect. This gate was SPECIFIED with the hotfix and never
+        # written: the repair shipped ungated, and when the gate was written
+        # (2026-10-03) it was RED against the hotfix's own code in a dozen
+        # places — the takeover with no staged briefing row, the Docs-panel
+        # re-run, recommendations deleted on a failed narration, a meter
+        # outage answered as a spent allowance, prose read as a provider
+        # error, a reply fragment served as the briefing, the period read
+        # without its tenant. Three files, one per seam, over the REAL
+        # router, the real stage_narrate (only the provider client is
+        # doubled), the real _usage_gate (its wire instrumented), the real
+        # orchestrator for a re-run / a same-month re-upload / a sales
+        # document, and the real GET /api/period: the regenerate route
+        # (legacy shape inert; walls -> inputs -> meter -> model; nothing
+        # written on a failure; `stale` in every answer is what is stored),
+        # the other writers (stage_persist_narrative, the takeover, the
+        # Docs-panel re-run — staged beside its month since 2026-10-04, gate
+        # rerun-data-loss below — the SKU writer), and the served shape with
+        # its predicates and static censuses. Measured 640; 624 since the
+        # seam laws of the re-run's in-memory carry went with the carry
+        # (gates.md, the dated addendum). Plant log (four lists, each plant
+        # alone, byte-exact restore): docs/engine_book/gates.md
+        # "briefing-keep-last-good".
+        Gate("briefing-keep-last-good",
+             [PY, "-m", "pytest",
+              "tests/engine/test_briefing_keep_last_good_route.py",
+              "tests/engine/test_briefing_keep_last_good_served.py",
+              "tests/engine/test_briefing_keep_last_good_writers.py", "-q"],
+             work_junit=True, floor=624, units="tests",
+             canaries=("test_a_failed_regenerate_leaves_the_stored_briefing_byte_identical",
+                       "test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing",
+                       "test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_spent_allowance",
+                       "test_a_language_the_narrator_has_no_instruction_for_is_422_before_the_meter",
+                       "test_stale_in_every_answer_is_what_the_stored_row_holds",
+                       "test_the_body_the_frontend_card_sends_is_accepted_by_the_real_route_on_the_real_app",
+                       "test_prose_is_never_mistaken_for_a_failure_text",
+                       "test_the_tenant_of_the_briefing_read_is_the_periods_own_never_the_requests",
+                       "test_census_no_briefings_upsert_payload_names_a_stale_column",
+                       "test_a_failed_narration_never_deletes_the_periods_recommendations_whatever_the_briefing_row_holds",
+                       "test_a_takeover_whose_staged_run_left_no_briefing_row_keeps_the_months_briefing",
+                       "test_a_docs_panel_rerun_whose_narration_fails_still_serves_the_last_good_briefing",
+                       "test_a_docs_panel_rerun_whose_narrative_write_is_refused_keeps_the_months_briefing",
+                       "test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_leaves_the_month_as_it_was",
+                       "test_a_failed_narration_never_replaces_a_usable_sku_briefing",
+                       "test_the_runs_alerts_are_written_even_when_a_narrative_write_raises")),
+        # A RE-RUN ACTS ONLY ON A PERIOD THAT IS THE DOCUMENT'S OWN (owner
+        # order 2026-10-04, "the two data-loss tickets first"; stage 1 of 3).
+        # Measured on 7ca386ec through the real routes: a document superseded
+        # for its month by a newer upload stays pinned to that month's row;
+        # restored and re-run from the Docs panel, POST /api/pipeline/retry
+        # answered 202, DELETED the newer document's period (by
+        # documents.period_id — browser-written — and company alone), carried
+        # the newer document's briefing and recommendations, and the month
+        # came back as the OLDER file's statements under them; a pin the
+        # company filter rejected, or no pin, ran IN PLACE. The sibling sweep
+        # found make-active / move-period emptying a month for a DELETED
+        # document, move-period deleting a month whose own document was in
+        # the bin, and stage_persist's race-loser rewriting another
+        # document's row. The laws, on the real create_app() routes and the
+        # real run in the gw world: the re-run of a restored superseded
+        # document is 409 with the committed body, writes nothing and leaves
+        # the month served as before; one answer whatever the pin names; the
+        # refusal precedes the claim and the meter, and is repeated under the
+        # claim and (stage 1 only: stage 2 removed the reset) at the DELETE
+        # itself; a document with no pin is found by the engine's own
+        # pointer, never run in place; a source-less
+        # period is never "anyone's"; unreadable ownership is 503; a sales
+        # document pinned to the month by the Products upload never resets
+        # it; a metered re-run refused under the claim gives its reservation
+        # back; the three sibling fixes; an AST census of every delete of a
+        # period. Measured 38. Plant log (15 plants, each alone, byte-exact
+        # restore): docs/engine_book/gates.md "rerun-data-loss".
+        #
+        # STAGE 2 (the same day; hand-over item 2): THE RESET IS GONE. The
+        # reset deleted the period and what it cascaded away — the last good
+        # briefing, the worked recommendations — lived in process memory
+        # (_RERUN_CARRY) until the run had narrated: a restart or a deploy
+        # lost them. The re-run is now STAGED beside the document's own month
+        # (a period row that names no source and carries a marker) and takes
+        # it over on success, with a COMMIT POINT: a staged row whose
+        # takeover never began is dropped, one whose takeover began is
+        # RESUMED, never dropped. test_rerun_staged.py: the mechanism through
+        # the real route and run (twelve failure points, overtaken, re-filed,
+        # deleted mid-run), the readers that must never take a staged row for
+        # a month, and the takeover + resume at their own seam with the
+        # process killed after EVERY write in turn. test_rerun_restart.py: a
+        # REAL restart — the store pickled at the kill, a second python
+        # process (fresh imports of the tree under test, a second
+        # create_app(), empty registries) continuing through the real routes;
+        # and the reservation of a metered re-run that died. O5 / O6 / O7 of
+        # stage 1 restated ("nothing is deleted"). Measured 156 (38 + 96 +
+        # 22). Plant log (66 plants): gates.md "rerun-data-loss", stage 2.
+        #
+        # STAGE 3 (hand-over item 3): THE AI LANE. A non-Romanian document's
+        # run stores the statements and nothing else; its takeover, called
+        # with no arguments, replaced the month's alerts with none and
+        # stamped a kept briefing with a narration failure that never
+        # happened; the lane's cache (the period row, which a staged re-run
+        # leaves in place) answered the re-run of an unchanged file; a
+        # re-run that read as a public-records summary ended "analysed with
+        # no period" over its month. test_rerun_ai_lane.py, through the real
+        # stage_extract, its jurisdiction gate and the real plan gate — the
+        # first run's statements handed back by the lane, and THE REAL LANE
+        # on the Hungarian fixture ledger with only its model scripted: the
+        # briefing (marked `not_renarrated`), the recommendations and the
+        # alerts are the same rows; only a staged re-run re-extracts and
+        # the flag is never stored; the public-records re-run is refused
+        # before any write; the plan refusal leaves the month as it was; the
+        # lane's takeover killed after every write, a re-run whose model
+        # refuses (production's state) leaving the month exactly as it was,
+        # and a REAL restart healed by the next re-run or by another
+        # document's run. Measured 171 (38 + 96 + 22 + 15). Plant log:
+        # gates.md "rerun-data-loss", stage 3.
+        #
+        # THE REVIEW OF 2026-10-05 (three lenses; every finding reproduced on
+        # the stage-3 tip first). What the three stages left open or unheld:
+        # an ANALYSED trial balance that holds no period re-run "as a
+        # document with no period" (item 1 through the null pin: 409 where
+        # the quota ledger shows its analysis; otherwise a run that never
+        # takes over another document's month); a pin to an empty container
+        # leaving two periods for one document; "Make source" wiping another
+        # analysed document's month before its own re-run (refused before
+        # the first write — the safe behaviour, a staged promotion is the
+        # durable one); a newer upload's takeover running THROUGH a re-run's
+        # apply (one takeover of a company's months at a time — two real
+        # threads); a marker forged in one company reaching another's month
+        # had the company left the applier's reads (no law held it); a
+        # committed staged row left waiting fifteen minutes while a
+        # same-month upload cost it the last good briefing (a real second
+        # process); an in-place run resumed OVER by its own document's older
+        # re-run; a re-filed row re-dated onto a month that had become
+        # another's; a staged run's alerts refused whole under the legacy
+        # unique (org_id, alert_key); five weakenings every law let through;
+        # the page-mount watchdog completing what a restart interrupted; the
+        # AI lane keeping the archived file's alerts on another file's
+        # statements. Measured 218 (57 + 121 + 25 + 15). Plant log (80
+        # plants: 38 new — 34 engine, 4 frontend — 10 re-anchored, 32
+        # replayed): gates.md "rerun-data-loss — the review of 2026-10-05".
+        #
+        # THE RE-VERIFICATION OF 2026-10-10 (round 2, three lenses): a pin to
+        # a source-less container CARRYING the document's own provenance
+        # stamp left two full periods for one document (the stamped branch
+        # returned before O14's look); an in-place run whose staged-row
+        # listing could not be read wrote its month and was resumed OVER;
+        # "Clear period" soft-deleted ANOTHER COMPANY's document pinned to
+        # the cleared period (pre-existing); make-active / move-period told a
+        # foreign pin from a missing one; a move read the pin where the
+        # engine's pointer named another period (two periods after the
+        # correction's re-run); the company filter of the pinned-period reads
+        # had no law by its effect (plant P-TEN-1 — two laws went red for the
+        # wrong reason). Measured 227 (65 + 122 + 25 + 15). Plant log:
+        # gates.md "rerun-data-loss — round 2 (2026-10-10)".
+        #
+        # ROUND 2b (2026-10-10, the confirmer's one remaining finding):
+        # make-active read the PIN alone — a document that owned December
+        # by the engine's pointer, pinned by a browser write to a
+        # source-less container of the month, had the container re-pointed
+        # at it and the correction re-run left two periods naming one
+        # document (with the document's own stamp on the container: a
+        # no-op that called it "already the source"). The pointer is read
+        # before the first write; a pin it contradicts is answered as a
+        # pin that names nothing. Measured 229 (67 + 122 + 25 + 15). Plant
+        # log: gates.md "rerun-data-loss — round 2b (2026-10-10)".
+        Gate("rerun-data-loss",
+             [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
+              "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
+              "tests/engine/test_rerun_ai_lane.py", "-q"],
+             work_junit=True, floor=229, units="tests",
+             canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
+                       "test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing",
+                       "test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month",
+                       "test_a_pin_to_another_companys_period_is_refused_whatever_that_period_says",
+                       "test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it",
+                       "test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes",
+                       "test_a_move_reads_the_period_the_engine_wrote_never_the_pin",
+                       "test_make_source_never_re_points_a_container_while_the_engine_names_another_period_as_the_documents",
+                       "test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply",
+                       "test_a_forged_committed_marker_never_reaches_another_companys_month",
+                       "test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later",
+                       "test_the_refusal_is_one_answer_whatever_the_pin_names",
+                       "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
+                       "test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin",
+                       "test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point",
+                       "test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was",
+                       "test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result",
+                       "test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything",
+                       "test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl",
+                       "test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts",
+                       "test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing",
+                       "test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun")),
+        # … AND THE DOCS PANEL SAYS SO. The refusal is a CODE and nothing
+        # else (no sentence, no period id, no document id); the panel used
+        # to discard the body of every failed retry and say "Couldn't start
+        # re-run". The REAL panel and the REAL client call
+        # (`retryPipelineDetailed`) over a fetch that answers with
+        # tests/engine/fixtures/rerun/retry_refused_superseded.json — the
+        # body the engine gate above holds the real route to (an intercepted
+        # route is a route with no gate): each code prints its sentence in
+        # EN and RO, written out in the test and held equal to both locale
+        # files; an answer with no known code shows the title alone; a
+        # server `message` is never read or printed; the module is never
+        # behind import(). Measured 35. Plant log: gates.md
+        # "rerun-refusal-surfaces".
+        #
+        # STAGE 2: a staged re-run leaves its file `analyzed` over the
+        # analysis it had, so the ROW says when the last re-run did not
+        # finish (`documents.error = "rerun_failed: …"`): DocRerunNote prints
+        # one of three sentences by kind, EN and RO, never what the engine
+        # stored after the prefix; and the Workspace tab's own read of
+        # financial_periods drops a re-run's staged row (an empty container
+        # stays). Measured 84 (34 + 16 + 29 + 5). Plant log (14 plants):
+        # gates.md "rerun-refusal-surfaces", stage 2. STAGE 3: the code of a
+        # refused public-records re-run (`rerun_not_a_trial_balance`) prints
+        # the "didn't finish" line and is never printed itself — two cells.
+        # Measured 86 (34 + 16 + 31 + 5). THE REVIEW OF 2026-10-05: "Make
+        # source" refused over another analysed file's analysis
+        # (`month_has_another_analysis`) — the REAL file row and the REAL
+        # client call over a fetch that answers with
+        # tests/engine/fixtures/rerun/make_active_refused_another_analysis.json
+        # (the body the engine gate holds the real handler to): our sentence
+        # for the code in EN and RO, never the server's English; any other
+        # refusal still shows the server's message. Measured 93 (86 + 7).
+        # ROUND 2 (2026-10-10): every refusal code of the two corrections
+        # has OUR sentence (EN + RO) in the Make-source toast and the two
+        # move toasts — `period_missing` being the engine's one answer for
+        # a missing and a foreign pin — and a code the screen does not know
+        # shows the title alone, never the server's English; the bell's
+        # failed notice and the failed banner's "View error" print a
+        # `rerun_failed:` marker as the kind's sentence, never the engine's
+        # remainder. Measured 123 (35 + 16 + 31 + 5 + 16 + 12 + 8).
+        Gate("rerun-refusal-surfaces",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/rerunRefusals.test.ts",
+              "frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx",
+              "frontend/components/cfo/__tests__/docRerunNote.test.tsx",
+              "frontend/lib/__tests__/orgPeriodsStagedRow.test.ts",
+              "frontend/components/cfo/workspace/__tests__/makeSourceRefusal.test.tsx",
+              "frontend/components/cfo/__tests__/FailedUploadBanner.test.tsx",
+              "frontend/components/cfo/__tests__/notificationsRerunMarker.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=123,
+             units="tests",
+             canaries=("the codes are exactly the three the route answers with",
+                       "ro: the real route's answer over another file's analysis",
+                       "ro: period_missing prints OUR sentence, never the server's",
+                       "a refusal with a code this screen does not know shows the title alone",
+                       "ro: kept — the sentence, never the remainder",
+                       "a done notice prints its file",
+                       "ro: document_superseded prints the stated sentence",
+                       "ro: the real route's answer for a superseded file",
+                       "en: a failure with no known code shows the title alone",
+                       "a refusal that also carries a message prints the code's sentence only",
+                       "the prefix and the two codes are the engine's own literals",
+                       "ro: an analysed file whose last re-run was interrupted",
+                       "drops the staged row and keeps the month and the empty container")),
+        # THE PUBLIC DEMO STORE (owner ticket 2026-10-02). engine.db — the
+        # SQLite file create_app() opens through PostgresAdapter — has six
+        # tables and no tenant column on any of them. Anonymous POST
+        # /api/cfo/today wrote the BODY's recommendations into it (the
+        # default), GET /api/cfo/decisions handed every row to anyone, and
+        # POST /decisions/{id}/status let anyone rewrite one. The law, on
+        # the REAL create_app() over a real SQLite file: a customer-shaped
+        # row planted in EVERY table is returned by no route to a caller
+        # without the operator bearer (every route of the app's own table,
+        # token set and token unset); no such request changes any table but
+        # session_log; what one visitor posts never reaches another; the
+        # operator still reads, persists and updates; a seventh table reds
+        # until it is planted; the operator's count tool
+        # (scripts/check_public_store.py) prints no stored value. Measured
+        # 9. Plant log: docs/engine_book/gates.md "public-demo-store".
+        Gate("public-demo-store",
+             [PY, "-m", "pytest", "tests/engine/test_public_demo_store.py", "-q"],
+             work_junit=True, floor=9, units="tests",
+             canaries=("test_no_route_returns_a_stored_row_without_the_operator_bearer",
+                       "test_no_request_without_the_operator_bearer_changes_the_store",
+                       "test_what_one_visitor_posts_never_comes_back_to_another",
+                       "test_the_operator_still_reads_persists_and_updates_the_queue",
+                       "test_the_queue_fails_closed_where_no_operator_token_is_configured",
+                       "test_the_store_has_exactly_the_tables_this_gate_plants")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the
@@ -366,12 +893,32 @@ def _engine_gates() -> List[Gate]:
         # `vitest`; the e2e half needs a hermetic build (gates.md). Floor 29
         # = the measured 24 + 5, exact (2026-09-26: + the same-month takeover
         # gates, the no-CUI refusal, the dead-letter replay, the card's
-        # confirmed extra). Plant log: docs/engine_book/gates.md.
+        # confirmed extra). Review round 4 (2026-10-02): the .pdf-NAMED twins
+        # of G1 and of the G4 cross-company wall — a workbook named .pdf is
+        # identified by its bytes, lands in the company its header names and
+        # never replaces another company's month. Measured 31, floor 31.
+        # Review round 5 (2026-10-02): the PDF twins, in the two byte shapes
+        # the pipeline reads as a PDF and the identifier did not — G1 through
+        # the real routes (5 rows: the declared MIME type is handed to the
+        # identifier), the G4 wall under 8 (shape, name, MIME) rows with a
+        # clean-PDF control, the same company's PDF still replacing the month
+        # (2 — the pipeline READS both shapes), and the month's own document
+        # of a company without a CUI read with its `mime_type` (1); /commit
+        # hands the MIME type over too (a pre-CUI workspace takes the CUI of
+        # its own PDF, 2 rows). Measured 49, floor 49.
+        # Plant log: docs/engine_book/gates.md.
         Gate("workspace-v2",
              [PY, "-m", "pytest", "tests/engine/test_workspace_v2_gates.py",
               "tests/engine/test_no_empty_period_creators.py", "-q"],
-             work_junit=True, floor=29, units="tests",
+             work_junit=True, floor=49, units="tests",
              canaries=("test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras",
+                       "test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_in_agras",
+                       "test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_and_lands_in_agras",
+                       "test_g1_a_workspace_from_before_cuis_takes_the_cui_of_its_own_pdf_whatever_mime_named_it",
+                       "test_g4_a_same_month_file_of_another_company_never_replaces_the_month",
+                       "test_g4_a_same_month_pdf_of_another_company_never_replaces_the_month",
+                       "test_g4_a_same_month_pdf_of_the_same_company_still_replaces_the_month",
+                       "test_g4_the_month_of_a_company_without_a_cui_is_its_own_pdfs_whatever_mime_named_it",
                        "test_g2_a_2017_file_name_whose_period_line_says_2025_is_2025",
                        "test_g3_the_same_file_twice_is_stored_analysed_and_counted_once",
                        "test_g4_the_production_check_finds_the_empty_periods_of_a_snapshot",
@@ -896,7 +1443,9 @@ def _engine_gates() -> List[Gate]:
         # (unstamped) briefing as written under the previous definition,
         # with the note the page hides it behind. The column has its
         # migration ending in the PostgREST NOTIFY. Real create_app and the
-        # real narrate write over the tenancy double. Measured 8 units.
+        # real narrate write over the tenancy double. Measured 8 units; 9
+        # with the generic note pinned on an earlier revision's stamp
+        # (deploy-readiness review of feat/rulings-2, 2026-09-29).
         # Plant log: gates.md "briefing-definition".
         Gate("briefing-definition",
              [PY, "-m", "pytest", "tests/engine/test_briefing_definition.py", "-q", "-s"],
@@ -920,9 +1469,242 @@ def _engine_gates() -> List[Gate]:
         Gate("reprocess-periods-definition",
              [PY, "-m", "pytest", "tests/engine/test_reprocess_periods_definition.py", "-q", "-s"],
              # critic round 3 fixer: the apply reads the valuations row back (56).
-             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=50,
+             # owner rulings R2 / R3 (2026-09-28): a period on the PREVIOUS
+             # definition stamp is reprocessed, the dry run prints the stamp,
+             # net provisions and the 7411 inside turnover, and a turnover move
+             # of exactly the placed 7411 is the ruling (measured 85).
+             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=80,
              units="dry-run / apply / refusal facts checked",
              canaries=("SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed",)),
+        # ── owner rulings 2026-09-28 (R2, R3): provisions-symmetric and
+        # turnover-7411. R2: the 6812 / 6814 charges AND the 7812 / 7814
+        # reversals are OUTSIDE EBITDA, their net its own line between EBITDA
+        # and the operating result, EBIT unchanged to the cent — five
+        # constructed books (both sides, one side each, the analytic / 6-digit
+        # code forms, none) through the offline composition, the real write
+        # path, GET /api/period and the briefing rebuild; the methodology's
+        # reported / strict / operating result and the credit model's rows
+        # beside them; five in-file plants. R3: 7411 inside cifra de afaceri
+        # netă (F20 rd. 05), 7418 outside, EBITDA unmoved, the margin and
+        # FactsGateway on the turnover that holds it — constructed witnesses
+        # (no real, corpus or fixture book posts 7411); three plants.
+        # Measured 117 / 65. Plant logs: gates.md "provisions-symmetric",
+        # "turnover-7411".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29): the pack is
+        # verified at BOOT (boot_verify.verify_pl_definition_pack) — missing,
+        # not YAML, not UTF-8, wrong schema, crossed classes each fail verify_config.
+        Gate("provisions-symmetric",
+             [PY, "-m", "pytest", "tests/engine/test_provisions_symmetric.py",
+              "tests/engine/test_boot_verify_pl_definition.py", "-q", "-s"],
+             work_rx=r"GATE-WORK provisions-symmetric units=(\d+)", floor=100,
+             units="constructed books judged, served seams compared, plants",
+             canaries=("SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)",
+                       "BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-utf8, not-yaml, wrong-schema",
+                       "PROVISIONS-BOOKS: no_provisions, prov_both, prov_charges_only, prov_code_forms, "
+                       "prov_reversals_only",
+                       "PROVISIONS-PLANTS: reversals-back-inside-ebitda, charges-back-inside-da, "
+                       "ebit-forgets-net-provisions, methodology-subtracts-reversals, rebuild-loses-the-ruling")),
+        Gate("turnover-7411",
+             [PY, "-m", "pytest", "tests/engine/test_turnover_7411.py", "-q", "-s"],
+             work_rx=r"GATE-WORK turnover-7411 units=(\d+)", floor=55,
+             units="constructed witnesses judged, served seams compared, plants",
+             canaries=("SCOPE turnover-7411 (owner ruling R3 2026-09-28, F20 rd. 05, packs/ro/pl_definition.yaml)",
+                       "TURNOVER7411-BOOKS: only_7418, subsidy_7411, subsidy_7411_analytic",
+                       "TURNOVER7411-PLANTS: 7411-left-in-other-income, 7418-pulled-into-turnover, "
+                       "rebuild-drops-the-placement")),
+        # ── owner ruling R1 (2026-09-28): credit-stock-build. On a book whose
+        # MEASURED net 711 build reaches the pack's shares of net turnover and
+        # of total operating expense (packs/credit/model.yaml
+        # stock_build_regime), leverage / coverage / DSCR are graded on the
+        # served cash from operations (approximated or refused -> refused,
+        # never 0, never EBITDA; measured <= 0 -> the declared bottom rung),
+        # Altman X3 on EBIT − net 711 − net 72x, the composite on the
+        # regime's weights, and the finding (the owner's sentence, RO
+        # verbatim + EN, high, the served figures) rides the served block,
+        # the attention document and the briefing facts — ONLY where the
+        # served figures say what it states (EBITDA > 0, EBITDA before the
+        # build <= 0, no measured CFO > 0; fixer round 1), else withheld by
+        # name and never handed to the narrator. 14 constructed books, the 4
+        # corpus books through GET /api/period, 3 seams, the pack plant
+        # (thresholds and weights move with it), 11 in-file plants.
+        # Measured 164. Plant log: gates.md "credit-stock-build".
+        Gate("credit-stock-build",
+             [PY, "-m", "pytest", "tests/engine/test_credit_stock_build_regime.py", "-q", "-s"],
+             work_rx=r"GATE-WORK credit-stock-build units=(\d+)", floor=150,
+             units="constructed and real books judged, seams compared, plants",
+             canaries=("SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml "
+                       "stock_build_regime)",
+                       "STOCK-BUILD-BOOKS: agras, at_turnover_threshold, below_opex_threshold, "
+                       "below_turnover_threshold, carniprod, manufacturer, realestate, refused_711, retail, "
+                       "stock_build_approximated, stock_build_cash_negative, stock_build_cash_positive, "
+                       "stock_build_cash_refused, stock_build_debt_free, stock_build_negative_ebitda, "
+                       "stock_build_negative_ebitda_cash_negative, stock_build_profitable_before_build, "
+                       "zero_turnover",
+                       "STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, cash-components-on-ebit, "
+                       "finding-before-build-unchecked, finding-on-measured-positive-cash, finding-paraphrased, "
+                       "finding-sign-unchecked, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
+                       "trigger-threshold-in-code, withheld-names-nothing, x3-keeps-the-stock-build")),
+        # ── fx-feed + fx-browser (2026-10-03): the BNR reference-rate feed on
+        # its REAL bytes, in the three places that read or show it.
+        # TWO FACTS, measured on production, and they are not the same fact.
+        # The ENGINE endpoint served the bundled fallback (4.97 RON per EUR as
+        # of 2026-05-01, stale) while BNR published 5.3447 — 7.5% high on EUR
+        # amounts, reaching /api/fx-rates, /api/health and the EUR/USD briefing
+        # regeneration only. What a READER saw came from the Supabase Edge
+        # Function fx-rates, which served its last cached row marked stale
+        # (5.2489 as of 2026-08-05) for two months, and the browser used it:
+        # EUR amounts 1.8% too high, USD amounts 4.5%. BNR had moved the feed to
+        # curs.bnr.ro and changed its namespace to https://; the old address
+        # answers a web page; nothing read the feed's real bytes.
+        #   fx-feed      the ENGINE: the committed real file parses to BNR's
+        #                figures in any namespace; a page, an oversized body,
+        #                a DOCTYPE / ENTITY, an implausible rate, a Cube that
+        #                is dateless, future-dated or over 10 days old is a
+        #                failure; every address is a candidate and the newest
+        #                date wins; no address answering serves the last rate
+        #                — else the fallback — MARKED STALE; the two memos;
+        #                ?refresh=true for the operator bearer only;
+        #                /api/health says what is served without turning the
+        #                answer red; scripts/check_fx_live.py.
+        #                Round 3: the memo is current only while its DATE
+        #                still is (accepted at ten days, not current at
+        #                eleven); scripts/check_fx_served.py reads what the
+        #                SERVING process answers — the real app behind a
+        #                loopback socket — two plain GETs, exit 0 only on a
+        #                current BNR rate, and a health line that tells an
+        #                outage from a healthy deploy. Measured 83 (14 before
+        #                round 2, 64 before round 3), floor 80.
+        #   fx-browser   the BROWSER's choice (lib/rates.ts: a stale function
+        #                payload makes it ask the engine; the current rate
+        #                wins; nothing stale is ever shown as current), the
+        #                OPEN TAB (stores/currency.tsx: a rate stops being
+        #                current when its day ends, the sources are asked
+        #                again without a reload, never more than two attempts
+        #                in five minutes) and the FUNCTION's reader
+        #                (supabase/functions/fx-rates/bnr.ts, run in Node on
+        #                the same real bytes and on the row production held),
+        #                with the three copies of the bundled fallback held
+        #                equal. Round 3: "current" re-checks the publication
+        #                date in all three; what a browser holds changes only
+        #                for something better. Measured 156 (37 choice + 97
+        #                function + 22 open tab; 105 before round 3), floor 150.
+        # Plant logs: gates.md "fx-feed", "fx-browser", "fx — round 3".
+        Gate("fx-feed",
+             [PY, "-m", "pytest", "tests/engine/test_fx_bnr_feed.py", "-q"],
+             work_junit=True, floor=80, units="tests",
+             canaries=("test_the_real_feed_parses_to_the_figures_bnr_published",
+                       "test_the_pre_2026_namespace_still_parses",
+                       "test_the_feed_is_asked_at_the_address_it_lives_at_first",
+                       "test_a_page_at_the_first_address_is_a_failure_and_the_next_is_tried",
+                       "test_no_address_answering_the_feed_serves_the_fallback_marked_stale",
+                       "test_an_implausible_feed_is_never_served",
+                       # round 2 (review of ca669f15): the seven plants the
+                       # first gate stayed green on, and the new rules
+                       "test_every_fetch_carries_the_timeout",
+                       "test_after_the_window_a_failed_refetch_serves_the_last_rate_marked_stale",
+                       "test_inside_the_window_a_second_call_makes_no_fetch",
+                       "test_the_bundled_fallback_is_within_five_percent_of_bnrs_file",
+                       "test_an_answer_that_is_not_200_is_a_failure_whatever_its_body",
+                       "test_a_cube_without_a_usable_date_is_not_the_feed",
+                       "test_a_cube_is_fresh_for_ten_days_and_never_from_the_future",
+                       "test_a_frozen_first_address_loses_to_a_newer_second",
+                       "test_elements_are_matched_by_local_name_in_any_namespace",
+                       "test_a_body_declaring_a_doctype_or_an_entity_is_refused_before_it_is_parsed",
+                       "test_an_anonymous_refresh_is_ignored_and_costs_no_fetch",
+                       "test_the_operator_bearer_forces_a_refetch",
+                       "test_health_says_not_ok_while_the_fallback_is_served",
+                       "test_a_bnr_outage_does_not_turn_the_whole_health_answer_red",
+                       "test_the_live_check_does_not_pass_on_a_memo",
+                       # round 3 (review of ce129b97): the memo's date on the
+                       # way out, and the reading of the serving process
+                       "test_a_file_accepted_on_its_tenth_day_is_not_served_as_current_on_its_eleventh",
+                       "test_the_served_check_passes_on_a_current_bnr_rate_and_asks_two_plain_gets",
+                       "test_the_served_check_reds_while_the_serving_process_answers_the_fallback",
+                       "test_the_served_check_reads_the_serving_process_memo_not_bnr",
+                       "test_the_served_check_reds_when_the_route_does_not_answer_a_payload",
+                       "test_the_served_check_defaults_to_the_local_engine_and_refuses_a_non_url",
+                       "test_the_served_check_imports_nothing_of_the_engine_and_only_reads")),
+        Gate("fx-browser",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/fxRatesChoice.test.ts",
+              "frontend/lib/__tests__/fxFunctionBnr.test.ts",
+              "frontend/lib/__tests__/fxOpenTab.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=150,
+             units="browser-choice, open-tab and function-reader tests",
+             canaries=("production on 2026-10-03, with this release: the function's August row is stale, "
+                       "the engine has BNR's file of 2 October — the engine's rate is shown, as current",
+                       "a current function payload is used and costs no second request — the engine may be stopped",
+                       "the engine is unreachable and the function's row is newer than anything held: "
+                       "it is kept, MARKED STALE, and the next call asks both again",
+                       "a held payload that is not a current BNR rate never spares the next attempt",
+                       "whatever the two sources answer, nothing but a current BNR rate is ever returned "
+                       "with stale false",
+                       "the real feed parses to the figures BNR published",
+                       "the deployed row + BNR at its new address: the feed is fetched, the fresh row stored, "
+                       "the answer BNR and not stale",
+                       "a stale row does not refetch BNR on every request: once per five minutes, "
+                       "whichever instance asks",
+                       "the engine's, the function's and the browser's fallback are equal, and say the same date",
+                       "index.ts imports ./bnr.ts by its extension and holds no second copy of the feed logic",
+                       # round 3 (review of ce129b97): the open tab, and
+                       # "current" re-checked against the date
+                       "a tab left open for four days — mounted Monday 07:00 with BNR's file of 2 October",
+                       "past its day the rate on screen is marked stale BEFORE anyone answers, "
+                       "and stays stale until a source does",
+                       "no request storm: an hour of `online`, focus and visibility events every two seconds",
+                       "a hidden tab asks nothing",
+                       "a function payload LABELLED current but published two months ago",
+                       "a function payload newer than the engine's current rate that does NOT say it is stale "
+                       "is still returned marked stale",
+                       "an ENGINE that never answers is abandoned after eight seconds of its own",
+                       "what the browser holds changes only for something better",
+                       "a row touched by hand — the August rate under a fetched_at one hour old — "
+                       "is not served as current",
+                       "a body carrying a comment or a CDATA section is refused whole",
+                       "a self-closed Cube is a Cube with no rates",
+                       "the accepted file is stored with EVERY column the reader needs")),
+        # ── plan-meter-routes (2026-10-03): a user cannot move their own document
+        # meter. POST /api/plan/release-document-reservation and
+        # /api/plan/commit-document-usage took the caller's own bearer: an
+        # account on a one-document plan released its own reservation and
+        # reserved again — four documents counted, cap 1 (measured on the real
+        # router and the real meter RPCs). Both are the operator's now: the
+        # engine bearer, fail closed, the account named in the request; without
+        # it the meter functions are not called. Measured 33.
+        # Plant log: gates.md "plan-meter-routes".
+        Gate("plan-meter-routes",
+             [PY, "-m", "pytest", "tests/engine/test_plan_meter_routes.py", "-q"],
+             work_junit=True, floor=33, units="tests",
+             canaries=("test_the_incident_a_user_cannot_release_their_own_reservation",
+                       "test_the_operator_releases_and_commits_for_the_account_it_names",
+                       "test_the_wall_answers_before_any_validation[/api/plan/release-document-reservation]",
+                       "test_neither_route_reads_a_user_token_any_more")),
+
+        # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
+        # Supabase client logs a WARNING and retries ONCE on a read timeout
+        # for its one GET (select), and never retries a write: through the
+        # REAL SupabaseClient over a stubbed transport — a read that times out
+        # once answers on the second GET with one WARNING line (the table and
+        # the parameter NAMES, never a value or the key); twice raises after
+        # exactly two; every write method (insert, upsert, update, delete,
+        # rpc, signed_url, upload_object, delete_object) that times out raises
+        # after ONE request; a connect timeout / connect error / HTTP 500 on a
+        # read is not retried; the AST census holds the client's one raw GET
+        # inside the retrying helper and no write reaching it. Measured 16.
+        # Plant log: gates.md "supabase-read-retry".
+        Gate("supabase-read-retry",
+             [PY, "-m", "pytest", "tests/engine/test_supabase_read_retry.py", "-q", "-s"],
+             work_junit=True, floor=16, units="tests",
+             canaries=("test_a_read_that_times_out_once_is_retried_once_and_logged",
+                       "test_a_read_that_times_out_twice_raises_after_exactly_one_retry",
+                       "test_a_write_that_times_out_is_never_retried",
+                       "test_a_read_failing_otherwise_is_not_retried",
+                       "test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it",
+                       # a junit gate's canaries are its test names (the
+                       # battery reads the junit report, not stdout)
+                       "test_a_write_that_times_out_is_never_retried[insert]",
+                       "test_a_write_that_times_out_is_never_retried[rpc]")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;
@@ -1132,6 +1914,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
               "frontend/lib/__tests__/featuresPreview.test.ts",
               "frontend/lib/__tests__/forecastSentencesRo.test.ts",
+              "frontend/components/forecast/__tests__/forecastNetProvisionsStep.test.tsx",
               "--reporter=verbose"],
              # + forecastSentencesRo (RO + EN): every sentence of the engine's
              # served inventory comes out in Romanian under the digit law and
@@ -1139,13 +1922,19 @@ def _engine_gates() -> List[Gate]:
              # cache (featuresPreview); + the refused DIO driver in its
              # own words, the Romanian mirror held to the pack
              # (feat/inventory-days, 2026-09-28). Measured 73, floor 60.
+             # + the review round of release r-rulings2 (2026-10-01, ruling
+             # R2): the step the plan does not project — net provisions — on
+             # the Forecast appendix (row + sentence, EN and RO), the
+             # not-modelled list and the Scenarios lever rail in the reader's
+             # language, over the engine's captured bytes. Measured 77.
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
              units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in, served-sentence language)",
              canaries=("gate F1: year 0 is the dashboard's headline",
                        "gate F5 on the Forecast statements",
                        "gate F5: no dash and no zero where the engine served a figure",
                        "gate F6: a saved scenario survives reload and belongs to its company",
-                       "comes out in Romanian, digits exactly the served ones, no English left")),
+                       "comes out in Romanian, digits exactly the served ones, no English left",
+                       "the Scenarios lever rail's unserved sentence: Romanian by its served code, English as served")),
         # The engine half of RO + EN: the committed inventory of every
         # sentence the two pages paint (tests/engine/fixtures/forecast/
         # served_sentences.json) IS what the real route serves on the corpus
@@ -1219,7 +2008,10 @@ def _engine_gates() -> List[Gate]:
              canaries=("SCOPE forecast-cockpit (forecast-scenarios-live)",
                        "C-F1 books: agras, carniprod, retail, realestate",
                        "C-F10 agras: 13 levers, scale held across 4 moved answers",
-                       "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route")),
+                       "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route",
+                       # review round 2026-10-01 (ruling R2): the year-0-only
+                       # net-provisions row on the books that carry them
+                       "C-NP books carrying net provisions: agras, carniprod, retail")),
         # MARGIN-MEANING (2026-09-26): ONE rule for when a margin over turnover
         # is not meaningful — turnover negligible against operating activity
         # (packs/ratios/margin_meaning.yaml, engine.ratios.margin_meaning) —
@@ -1268,15 +2060,52 @@ def _engine_gates() -> List[Gate]:
         # net-711-rule captured through the real route (held live by
         # tests/engine/test_one_ebitda_fe_books.py). Measured 58 tests, floor
         # 50. Plant log: gates.md "pl-one-ebitda-page".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29, owner ruling
+        # R2): the net-provisions row prints current, prior and Δ on ONE sign
+        # convention (charge-signed, as D&A) — the committed pair and its
+        # constructed mirror. Measured 63 -> 66.
+        # Pre-deploy review of release/r-rulings2 (2026-10-01): the
+        # reconciliation line under EBITDA prints net provisions on the row's
+        # convention (the row's served figure, no effect sign), EN and RO,
+        # on the pair and its mirror. Measured 66 -> 68, floor 60 -> 66.
+        # Its review round (2026-10-01): the Valuation tab's panel (/report
+        # Section 1 too) prints the bridge after EBITDA as the P&L tab does
+        # (the served charge), and the panel's chain row and the printed P&L
+        # (report + workbook) state the EFFECT's arithmetic beside the effect
+        # they print — the label evaluates to the figure. Measured 68 -> 72,
+        # floor 66 -> 72.
+        # Review round 3 (coordinator ruling D2, 2026-10-02): ONE CONVENTION
+        # PER ROW, EVERYWHERE — on every surface that prints the row (the
+        # P&L tab and its compare cells, the Valuation tab's panel, /report
+        # §1 and §2, the printed report and the workbook read back from the
+        # documents) ANY account arithmetic in the row's FULL TEXT evaluates
+        # to the figure it prints (frontend/test/netProvisionsArithmetic.ts;
+        # the earlier law read one named chip and missed /report §2's charge
+        # label over the effect and the panel row stating both
+        # arithmetics); the P&L tab's served chips ("fără" / "excl.") and
+        # the compare cells' percent, share and points print in the
+        # reader's language. Measured 72 -> 100, floor 72 -> 100.
         Gate("pl-one-ebitda-page",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/lib/__tests__/plOneEbitda.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
-             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy)",
+              "frontend/lib/__tests__/plOneEbitda.test.tsx",
+              "frontend/lib/__tests__/netProvisionsRowSign.test.tsx",
+              "frontend/lib/__tests__/netProvisionsEverySurface.test.tsx",
+              "frontend/pages/cfo/__tests__/comprehensiveReportNetProvisions.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=100,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign on the row, the line, the panel and the printed P&L)",
              canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
-                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English")),
+                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English",
+                       "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own",
+                       "the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO",
+                       "the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's arithmetic is its figure, EN and RO",
+                       "the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge",
+                       "agras (en): the Valuation tab's panel — the chain row states ONE arithmetic, its figure's",
+                       "carniprod: the printed report and the workbook — the row read back from each document",
+                       "agras (ro): §2's row and §1's chain row each print the figure their own text states",
+                       "agras: \"fără\" for a Romanian reader, \"excl.\" for an English one — D&A and other operating income",
+                       "the rendered rows: the net-provisions row's share cell and D&A's Δ% cell, RO and EN")),
         # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
         # gates. Every other frontend surface — deriveTotals, computeRatios,
         # canonicalMetrics, the dashboard headline / canon / configurable
@@ -1290,14 +2119,49 @@ def _engine_gates() -> List[Gate]:
         # books of net-711-rule captured through the real route. Measured 25 /
         # 8 / 10 tests. Plant log: gates.md "one-ebitda", "turnover-
         # denominator", "refusal-carries".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29, owner ruling
+        # R2): the non-cash add-back is the cash flow's (all of 68x), never
+        # the narrowed P&L D&A — the client DCF (Valuation tab, workbook
+        # Valuation sheet) and the Cash Flow tab take it back / add it, and
+        # the row holding the 6812 / 6814 charges is named for them on the
+        # tab (EN / RO), /report §4 and the workbook. Measured 25 -> 40.
+        # Pre-deploy review of release/r-rulings2 (2026-10-01): the Valuation
+        # tab's FCF tile carries the same name over the same add-back (EN /
+        # RO, from fcf_breakdown and the client fallback); the label widens
+        # from the comparison's prior; no D&A-only explainer over the widened
+        # row; the second step of the add-back order; /report's printed
+        # figure; the alert trace hint. Measured 40 -> 53, floor 36 -> 50.
+        # Review round 3 (coordinator rulings D2 / D3, 2026-10-02): Budget
+        # Variance's Actual column READS the served EBITDA -> EBIT chain (it
+        # computed EBIT as EBITDA less all of 68x, short by the 7812 / 7814
+        # reversals since R2 — a hidden page, wrong all the same), with D&A
+        # from assembled_pl and a net-provisions row; the CFO and FCF Learn
+        # popovers name the all-68x add-back for the provision charges it
+        # holds. Measured 53 -> 65, floor 50 -> 65.
         Gate("one-ebitda",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
-             units="surface tests (every browser surface prints the served EBITDA on eight served books)",
+              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx",
+              "frontend/lib/__tests__/provisionsAddBack.test.tsx",
+              "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx",
+              "frontend/lib/comparison/__tests__/varianceServedChain.test.ts",
+              "frontend/lib/__tests__/learnAddBackToken.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=65,
+             units="surface tests (every browser surface prints the served EBITDA on eight served books; the R2 add-back)",
              canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
                        "agras: the printed report, the workbook and the charts",
-                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA")),
+                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA",
+                       "three firm books post 6812 / 6814 charges: the cash flow's add-back exceeds the P&L's D&A by exactly them",
+                       "carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A",
+                       "retail: the row is named for what it sums — the tab (EN, RO) and the workbook",
+                       "carniprod posts 6812 / 6814 charges: the row holding all of 68x names them",
+                       "agras: with assembled_cf.depreciation absent, the builder and runDcf take assembled_pl.depreciation",
+                       "a book posting no charges compared with one that does: the widened name, from the prior column",
+                       "retail: Simple mode's glossary tooltip and the D&A learn popover only over plain D&A",
+                       "carniprod: the tile from the engine's fcf_breakdown and from the client fallback, EN and RO",
+                       "the depreciation fact's hint: the pack's D&A name, none of the ruled provision accounts",
+                       "the witnesses: three books post reversals, so EBITDA − all of 68x is NOT the served operating result",
+                       "agras: EBIT, D&A and net provisions are the served figures, and the rows foot",
+                       "realestate posts none: the token stays plain D&A, and is the P&L's D&A")),
         # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
         # was made vacuous by the 121 bridge — on the four firm books the
         # build-up + the served 711 IS account 121, so a net-income ratio
@@ -1371,6 +2235,64 @@ def _engine_gates() -> List[Gate]:
         # Measured 5 tests; 7 with a refused book equity and a withheld
         # stored row printing their reason (critic fixer round 1).
         # Plant log: gates.md "valuation-refused-override".
+        # ── owner ruling R1 (2026-09-28): credit-regime-surfaces. Every
+        # surface that prints the grade prints the stock-build regime ONCE —
+        # the Risks tab, the dashboard hero (which states the engine's
+        # refusal, never "analysis pending"), /report's CreditScoreCard and
+        # the command bar's rest-state line — with the owner's sentence
+        # verbatim (RO + EN), the cash bases on the three cash components and
+        # the regime's served weights; nothing on a standard book. Over the
+        # route's own bytes (served_credit_regime.json, kept by
+        # test_credit_regime_fe_fixture.py); the exported HTML report and
+        # the workbook state it too. A WITHHELD finding (fixer round 1: the
+        # served figures contradict the sentence) prints the regime once and
+        # the sentence nowhere, the command bar keeping the label, the cash in
+        # the served currency. Measured 14 tests, floor 14.
+        # release r-rulings2 (2026-10-01, the merge with the reader's-language
+        # ruling, CLAUDE.md §26): every regime figure in the SURFACE's
+        # language — the note bound to its own `lang`, the exported report and
+        # workbook English whatever the UI language, the bar's line through a
+        # printer bound to the bar's language; expected strings stated, the
+        # rendered note read by the independent detector
+        # (frontend/test/numberLanguage.ts). Measured 19 tests, floor 19.
+        # Review round (2026-10-01): the Ask CFO AI workspace snapshot is a
+        # regime surface too — the served label, the owner's finding EN + RO
+        # (none where withheld), the cash refusal, the composite / letter or
+        # their refusal through `engineCreditResult`, and the engine's margin
+        # refusal on the margin rows (chatSnapshotCreditRegime). Measured 24,
+        # floor 24.
+        # Review round 4 (2026-10-02): a letter the engine REFUSED is refused
+        # in the engine's words in the exported report too (never the
+        # extraction note, the "no band ladder" sentence or "points of the
+        # composite were given up"), and Altman X3 is labelled with the basis
+        # it was computed on — on the Risks tab, /report's card and the
+        # printed formula the X3 row's stated arithmetic evaluates to the
+        # figure beside it. Measured 33, floor 33.
+        # Plant log: gates.md "credit-regime-surfaces".
+        Gate("credit-regime-surfaces",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx",
+              "frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=33,
+             units="surface tests (the regime once, the owner's sentence, the cash bases, the reader's language, the chat snapshot)",
+             canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
+                       # review round 4 (2026-10-02): the refused letter's
+                       # words, and the X3 basis
+                       "the developer's document: no extraction note, no 'no ladder', no 'points given up' — the served refusal instead",
+                       "the exported report: the Altman formula's X3 term evaluates to the Z″ printed beside it, and the regime sentence states the basis",
+                       "the Risks tab's Altman table (ro): the X3 row's stated arithmetic is the X3 it prints",
+                       "the hero states the refusal, not 'analysis pending', and the regime once",
+                       "/report's credit card prints the regime once, and none for a manufacturer",
+                       "CmdbarList renders it once at rest and not while typing",
+                       "the documents and the command bar: the regime's label, no sentence",
+                       # release r-rulings2: the reader's language
+                       "bound to a language, the amount prints that language whatever the UI language — the code after the figure",
+                       "GATE-WORK credit-regime-ui-language en figures=",
+                       "GATE-WORK credit-regime-ui-language ro figures=",
+                       "the documents are English by contract: under a Romanian UI the regime sentence still prints English figures",
+                       # review round 2026-10-01: the chat snapshot
+                       "the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED",
+                       "the withheld finding: the regime once, the owner's sentence in neither language")),
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
@@ -1402,6 +2324,9 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_credit_model_refusals.py",
               "tests/engine/test_credit_model_rungs_and_ranges.py",
               "tests/engine/test_credit_refusal_fe_fixture.py",
+              # credit model revision 5 (owner ruling R1): the FE regime
+              # fixture is the route's own bytes
+              "tests/engine/test_credit_regime_fe_fixture.py",
               "tests/engine/test_period_route_revised_rows.py", "-q"],
              work_junit=True, floor=60, units="tests",
              canaries=("test_pure_rows_are_the_pre_extraction_rows_byte_for_byte",
@@ -1556,8 +2481,15 @@ def _engine_gates() -> List[Gate]:
              [PY, "-m", "pytest", "tests/engine/test_attention_rules.py", "-q"],
              # release r-rulings (2026-09-28): the served inventory-days block
              # read with its label and policy, no fallback formula (measured 29).
-             work_junit=True, floor=29, units="tests",
+             # Owner ruling R4 (2026-09-28): "Exportă raportul pentru bancă" is
+             # the CFO Report PDF in every action state, never the Forecast;
+             # the composer takes no feature statuses and the pack refuses an
+             # action carrying a feature gate / a target / an unknown name
+             # (measured 31).
+             work_junit=True, floor=31, units="tests",
              canaries=("test_other_equity_is_never_the_biggest_movement_on_the_served_pair",
+                       "test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast",
+                       "test_the_actions_cannot_read_the_feature_registry",
                        "test_no_served_block_is_no_claim_and_no_fallback_formula",
                        "test_the_served_block_is_read_with_its_basis_label_and_its_policy",
                        "test_the_composite_letter_is_never_the_biggest_movement",
@@ -1574,8 +2506,12 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK attention-served-only items=")),
         Gate("attention-route",
              [PY, "-m", "pytest", "tests/engine/test_attention_route_real_app.py", "-q"],
-             work_junit=True, floor=8, units="tests",
+             # owner ruling R4 (2026-09-28): the bank report served as the CFO
+             # Report PDF with the Forecast feature ON and OFF in the served
+             # registry (measured 10).
+             work_junit=True, floor=10, units="tests",
              canaries=("test_the_route_serves_the_company_against_its_same_length_prior",
+                       "test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says",
                        "test_the_route_composes_exactly_what_the_same_app_serves",
                        "test_an_explicit_prior_is_read_inside_the_workspace_only",
                        "test_a_current_period_from_another_workspace_is_not_found")),
@@ -1654,7 +2590,13 @@ def _engine_gates() -> List[Gate]:
              # language): cmdbar-ui-language, three worlds x EN/RO (measured
              # 207); owner rulings 2026-09-29 (every WORD too): a finding in
              # years and an unmeasured one, EN/RO (measured 209).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=209,
+             # Owner ruling R4 (2026-09-28): the bank report opens the CFO
+             # Report PDF, at rest / typed / from a pre-ruling recent, Forecast
+             # OFF and ON (measured 206 on the rulings lineage, +5).
+             # release r-rulings2 (2026-10-01): both lineages merged —
+             # 209 + the five R4 tests (214), + the regime line in the
+             # reader's language, EN/RO (measured 216).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=216,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",
@@ -1720,7 +2662,17 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-ui-language agras/ro figures=",
                        "scandia (en): no figure at rest or typed is in the other language's format; turnover reads 48.3M RON",
                        "agras (ro): no figure at rest or typed is in the other language's format; turnover reads 110,8 mil. RON",
-                       "ro: 12,5 ani and neraportat; no word of the other language in the bar")),
+                       "ro: 12,5 ani and neraportat; no word of the other language in the bar",
+                       # owner ruling R4 (2026-09-28): "Exportă raportul pentru
+                       # bancă" opens the CFO Report PDF — at rest, typed and
+                       # from a pre-ruling recent pick, Forecast OFF and ON
+                       "at rest: \"Exportă raportul pentru bancă\" opens the export tab (Forecast active)",
+                       "typed: every bank word finds ONE export row, the CFO Report PDF (Forecast active)",
+                       "a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF",
+                       # release r-rulings2 (2026-10-01): the R1 regime line
+                       # under the reader's-language ruling
+                       "GATE-WORK cmdbar-ui-language regime/en figures=",
+                       "GATE-WORK cmdbar-ui-language regime/ro figures=")),
         # EVERY FIGURE IN THE READER'S LANGUAGE (owner ticket 2026-09-28: the
         # ENGLISH interface printed "413,7 mil. RON" on the command bar, the
         # workspace cards and the company page, and the report's days
@@ -1761,6 +2713,734 @@ def _engine_gates() -> List[Gate]:
                        "5.2489 in English, 5,2489 in Romanian — the same digits",
                        "compact and full money are lib/money's, in the page's language, cents under one unit",
                        "every bilingual string the engine serves the cockpit and the margin note")),
+        # A COMPARISON THAT IS ON SAYS WHAT IT COMPARES — OR THAT IT COMPARES
+        # NOTHING (production, 2026-10-04: a company's EARLIEST year on screen,
+        # "Previous year (auto)" selected, the Prior / Δ / Δ % / share boxes
+        # ticked, and the P&L, balance sheet and cash flow each showed one
+        # column with no word why — no balance for the year before existed, so
+        # AUTO resolved to nothing and the controls went on implying a
+        # comparison):
+        #   compare-no-prior  the dashboard's comparison controls and notice
+        #                    over the one rule (comparisonChoiceOf): with the
+        #                    comparison ON and no prior, AUTO's option names
+        #                    the balance it looked for as missing (never one
+        #                    that is in the list at another length), a notice
+        #                    below the sticky bar says which balance is
+        #                    missing and offers the upload and up to three
+        #                    EARLIER periods one click away (never a later
+        #                    one), every column box is disabled and unticked,
+        #                    the reader's stored columns are untouched; month
+        #                    names in the reader's language; with a prior, no
+        #                    notice and no disabled box; no document of
+        #                    another pair on screen (the app's own query
+        #                    defaults; ratioSurfacesOf); the page hands both
+        #                    the prior it requests on the same five tabs; the
+        #                    upload links are routed and a finished upload
+        #                    refreshes the period lists. Eight company shapes
+        #                    x period on screen x six stored choices.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("compare-no-prior",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/comparativesNoPrior.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=26,
+             units="comparison-state tests",
+             canaries=("GATE-WORK compare-no-prior states=",
+                       "ro: the picker names the missing balance, the notice says why and what to do, every box is off",
+                       "en: the picker names the missing balance, the notice says why and what to do, every box is off",
+                       "the rule resolves no prior, and does not pick the later year in its place",
+                       "ro: every month in the sentence is a Romanian month",
+                       "the reader's columns survive the no-prior state: off while nothing is compared, back as stored",
+                       "every company shape \u00d7 period on screen \u00d7 stored choice",
+                       "stepping from a compared period to one with no prior: the previous document is gone",
+                       "a document of another pair, or with no request, is no document",
+                       "fed by the choice the request is made with",
+                       "every upload link of the comparison goes to a path the app routes",
+                       "each key, with its placeholders, in both bundles \u2014 and the two differ")),
+        # ── LANE compare-followups (2026-10-04) ─────────────────────────
+        # The display follow-ups the pre-deploy review of the no-prior
+        # hotfix left: three laws over the frontend's SOURCE, each the
+        # class of a defect the review found by reading.
+        #   links-routed     every path literal the frontend's source holds
+        #                    — an attribute, a navigate() call, a nav
+        #                    model's entry, an origin-prefixed template, an
+        #                    href inside an HTML string or a translation, the
+        #                    native shell's home path — is a path App.tsx
+        #                    routes, a request under a prefix the dev server
+        #                    proxies, a file that IS under public/, or a
+        #                    declared non-path; walked over the TypeScript
+        #                    AST (a path named in a comment is not a link).
+        #                    The learning popover's source-account row opens
+        #                    the account view in the period on screen, in
+        #                    the app (it linked to /financials, never a
+        #                    route). Plant log: docs/engine_book/gates.md.
+        Gate("links-routed",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/linksRouted.test.tsx",
+              "--reporter=verbose"],
+             # measured 416 literals over 655 files (2026-10-04)
+             work_rx=r"GATE-WORK links-routed files=\d+ literals=(\d+)", floor=350,
+             units="path literals held to the router",
+             canaries=("GATE-WORK links-routed files=",
+                       "GATE-WORK links-routed account_rows=",
+                       "the router is read: its routes, and the catch-all an unrouted path falls to",
+                       "the walk reads every form a link is written in",
+                       "no path literal in the source is unrouted",
+                       "what is exempt is still what it was exempted as",
+                       "every code of the static map: a routed path, the period and company on screen",
+                       "a click stays in the app: the location becomes the account view",
+                       "the popover hands the row the period on screen and its own close")),
+        #   i18n-parity      English and Romanian carry the same strings:
+        #                    every key in both languages, every plural key
+        #                    with exactly the forms i18next looks up for its
+        #                    language (Romanian one / few / other — read from
+        #                    i18next's resolver), the same {{placeholders}}
+        #                    (a singular may spell the count out), nothing
+        #                    empty — over the two bundle files AND over the
+        #                    store i18next reads once every module that
+        #                    registers strings in code has loaded. Replaces
+        #                    scripts/check-i18n-coverage.ts, which imported
+        #                    paths that do not exist and was run by nothing.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("i18n-parity",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/i18n/__tests__/localeParity.test.ts",
+              "--reporter=verbose"],
+             # measured 4,212 English keys in the store (3,174 in en.json,
+             # 1,038 registered in code by 29 modules), 2026-10-04
+             work_rx=r"GATE-WORK i18n-parity store modules=\d+ en_keys=(\d+)", floor=3800,
+             units="English keys held to Romanian",
+             canaries=("GATE-WORK i18n-parity bundles en_keys=",
+                       "GATE-WORK i18n-parity store modules=",
+                       "i18next's plural categories are the ones the law is written for",
+                       "the laws see each kind of gap",
+                       "the two bundle files: every key in both, every plural form its language needs",
+                       "the store i18next reads, once every module that registers strings in code has loaded",
+                       "the stale checker is gone")),
+        #   period-month-locale  every month label in the reader's language
+        #                    (the dashboard's header said "Dec 2024" in a
+        #                    Romanian interface, beside a breadcrumb saying
+        #                    "dec. 2024"): the two month formatters REQUIRE a
+        #                    locale (no default, not optional); every call —
+        #                    and every call of a helper that passes a locale
+        #                    on — hands them one that comes from the UI
+        #                    language (lib/locale), never a written one;
+        #                    formatDetectedMonth reads the active locale; the
+        #                    formatters read served dates only (a label such
+        #                    as "FY 2024" is not a date). Rendered in RO and
+        #                    EN: the dashboard header (and across a live
+        #                    language switch), the stepper's month and the
+        #                    period-switch overlay's label. Plant log:
+        #                    docs/engine_book/gates.md.
+        Gate("period-month-locale",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/periodMonthLocale.test.tsx",
+              "--reporter=verbose"],
+             # measured 36 calls in 13 files, 4 helper calls (2026-10-04)
+             work_rx=r"GATE-WORK period-month-locale calls=(\d+)", floor=30,
+             units="month-formatter calls held to the UI language",
+             canaries=("GATE-WORK period-month-locale calls=",
+                       "neither formatter declares its locale optional, or with a default",
+                       "the rule sees each way a locale goes missing",
+                       "every call of the month formatters, and of each helper that passes a locale on",
+                       "the upload dialog's month (formatDetectedMonth) is formatted with the active locale",
+                       "ro: the dashboard's header prints the period's month in Romanian",
+                       "en: the same header prints the English month",
+                       "a label that is not a served date is never read as one",
+                       "ro: the stepper's month, and the label it hands the period-switch overlay, are Romanian")),
+        # ── end of lane compare-followups ───────────────────────────────
+        # ── workspace-restore-limit (owner, 2026-10-04) ──────────────────
+        # Since the database's workspace-cap guard, an owner at the plan's
+        # workspace limit who restores an archived workspace is refused —
+        # and both screens that restore answered "couldn't restore", with
+        # no reason and no next step. The gate: the refusal is read where
+        # the RPC answered (lib/org), with the number THE REFUSAL names;
+        # the reader is told the limit is reached and offered the plans,
+        # in English and Romanian; any other failure keeps the plain
+        # sentence; a success or a later failure never repeats the limit.
+        # Blind to: the database guard (gate hole-workspace-cap); the
+        # legacy page rendered (its handler is read from the source).
+        # Plant log: docs/engine_book/gates.md.
+        Gate("workspace-restore-limit",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/workspaceRestoreLimit.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=10,
+             units="restore-refusal tests",
+             canaries=("GATE-WORK workspace-restore-limit checks=",
+                       "the database's sentence is the one the parser reads",
+                       "a limit refusal is recorded with its number; another failure, and a success, record none",
+                       "each limit, sentence for sentence; title and action name the limit and the plans",
+                       "en: a restore the plan's limit refuses says the limit and offers the plans",
+                       "ro: a restore the plan's limit refuses says the limit and offers the plans",
+                       "a failure that is not the limit keeps the plain sentence",
+                       "its restore handler asks for the limit notice before the plain sentence, and opens the plans from it")),
+        # ── chat-period-and-scroll (production, 2026-10-04) ──────────────
+        # One real question on the live chat showed two display defects:
+        # the workspace snapshot's "Period:" line was the COMPANY's name,
+        # else the period's row id (which the assistant printed to the
+        # reader); and the full /chat page scrolled the window to the end
+        # of the DOCUMENT after every message, pushing a short
+        # conversation under the header. The gate: the line is the
+        # statements' period label and the closing date, the row id is
+        # nowhere in the snapshot; the window goes to the end of the chat
+        # column, a short conversation is not scrolled, a reader who
+        # scrolled up is left alone. Blind to: what the model answers;
+        # real layout (the column's box is stated by the test).
+        # Plant log: docs/engine_book/gates.md.
+        Gate("chat-period-and-scroll",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/chatPeriodAndScroll.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=10,
+             units="chat display tests",
+             canaries=("GATE-WORK chat-period-and-scroll checks=",
+                       "is the statements' label and the closing date",
+                       "the id is nowhere in the snapshot",
+                       "the company is never printed as the period, and is still named on its own line",
+                       "a short conversation is not scrolled",
+                       "a long conversation lands on the column's end",
+                       "a reader who scrolled up is left where they are; back at the end, the next message follows",
+                       "the /chat page marks its column")),
+        # ── profile-save-own-row (2026-10-04) ───────────────────────────
+        # Settings saved the profile with an UPSERT. `profiles` has an
+        # own-row select and an own-row update policy and NO insert
+        # policy, and row level security refuses the INSERT half of an
+        # upsert even when the row exists: every save answered
+        # "Couldn't save profile". The gate: the save is one update of
+        # `full_name` filtered to the user's own id, read back; nothing
+        # in the frontend's source inserts or upserts into profiles; the
+        # repository's schema still gives the table no insert policy.
+        # Blind to: the database's own answer (proved once on the
+        # isolated stack — the record is in gates.md).
+        Gate("profile-save-own-row",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/profileSave.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=8,
+             units="profile-save tests",
+             canaries=("GATE-WORK profile-save-own-row checks=",
+                       "nothing else is sent",
+                       "a save that matched no row is not called a saved row",
+                       "every write to profiles in the frontend's source is an update",
+                       "the scan itself: an upsert, an insert and a multi-line chain are seen",
+                       "the repository's schema gives profiles a select and an update policy, and no insert policy")),
+        # ── lane ai-figures (owner order 2026-10-04) ─────────────────────
+        # "Make chat and briefings write numbers in Romanian format in
+        # Romanian text (413.727.560 RON, ~77,4 mil. EUR), currency after
+        # the figure. Use the product's own formatting standard, with a
+        # gate." On screen that day the chat answered, in a Romanian
+        # sentence, in the shape "~EUR 12.3M (convertit din RON 64,567,890
+        # la cursul BNR 0.1905)" — and the function's own prompt taught
+        # that shape; the briefing was right, held by one prompt hint.
+        #
+        # ai-figures-engine — THE BRIEFING'S OUTPUT IS HELD. The engine's
+        # normaliser (engine.ai.figure_format, the Python twin of the
+        # browser's rule set) over the shared reply corpus (expected typed
+        # by hand) and the shared grid of lib/money's prints; its marks
+        # and hint examples held to standard.json; the REAL stage_narrate,
+        # regenerate route, stage_persist_narrative and GET /api/period
+        # with a scripted provider that writes wrong-format replies — what
+        # is returned, stored, answered and served read by the FRONTEND's
+        # detector (compiled from frontend/test/numberLanguage.ts, never
+        # the normaliser itself). No value may change: a lone three-digit
+        # group is never guessed, the digit sequence is proven on every
+        # call. The seven other narration languages byte for byte. Runs
+        # under `-p netblock`; its last law SKIPS without the plugin, and
+        # a junit gate counts tests minus skips — so the floor is the
+        # number of laws (measured 357).
+        #
+        # FIX ROUND (two reviews, 2026-10-05, both "do not ship"): the
+        # gate compared DIGITS and nothing else, so a currency moved onto
+        # the wrong number passed every law — "EUR 1.5-2.5M" came back
+        # "1,5 EUR-2,5 mil.", "RON 4.58 mil" came back "4,58 RON mil",
+        # "EUR 12 300 000" came back "12 EUR 300 000". Now: E11 an
+        # INDEPENDENT reader (tests/engine/_figure_reader.py) reads every
+        # figure's amount, currency, sign and unit before and after —
+        # over the corpus's hand-typed strings, the grid and a grammar of
+        # 152,640 code-first amounts; E12 a text holding a lone
+        # three-digit group is returned WHOLE (never half rewritten); E13
+        # a composed set of 12,000 texts whose sha256 digest the
+        # browser's twin must reproduce; E14 the run-time proof refuses a
+        # changed magnitude, a dropped sign, a code on another number.
+        # Blind to: what a model writes; rows stored before the release;
+        # a non-figure re-spelt because a currency or unit stands beside
+        # it ("Versiunea 2.1 RON"); a text HELD as written (counted — it
+        # still holds the model's notation).
+        #
+        # ROUND 2 (three reviews, 2026-10-05, all "do not ship"): what is
+        # NOT a figure was re-spelt because a figure followed it —
+        # "Contul 5121.01 – 1.234.567,89 RON" came back "5121,01", "Sold
+        # la 31.12 – 5,2 mil. RON" as "31,12", in one pass or in the
+        # second — and both gates were green: no fixture held an id
+        # before a spaced dash, and the reader reads amounts, not whether
+        # a token is one. Now: E15 THE LABEL GRAMMAR (labels.json, 29,263
+        # texts: an account / date / reference / list / plain / period
+        # label x an id x a separator x an amount) — the id's bytes
+        # survive, a second pass changes nothing, the digest is the
+        # browser's; E16 the independent reader over all 12,000 composed
+        # outputs (its flags pinned, each read by hand); E17 one
+        # recommendation is one text, read off the STORED row, and the
+        # pass never changes what a stored briefing is read as; E18 a
+        # code that only changes sides beside a lone group moves, and no
+        # number token changes; E19 the time of a long unbroken run grows
+        # with its length, not its square. The corpus holds 198 cases (a
+        # hedged range, an in-line space the product does not write, a
+        # year-shaped amount before a count, a bare integer beside a
+        # code — each left as written, counted); the grid's 36 bare
+        # integers after a code come back byte-identical. The canary line
+        # prints `mixed=`: corpus outputs that still hold both notations.
+        # Measured 466 tests (round 3: E20 the opener grammar, seven
+        # corpus cases). Blind to: an id of the shape NNN.NNN
+        # outside an account word (a lone group to every reader); a
+        # non-figure with a unit RIGHT beside it and no account word
+        # ("Versiunea 2.1 RON").
+        Gate("ai-figures-engine",
+             [PY, "-m", "pytest", "-p", "netblock",
+              "tests/engine/test_ai_figure_format.py", "-q"],
+             work_junit=True, floor=466, units="tests",
+             canaries=("test_e3_the_detector_is_the_frontends_every_pattern_is_read_out_of_its_file_and_compiles",
+                       "test_e2_the_standard_and_the_hint_examples_are_what_lib_money_prints",
+                       "test_the_corpus_is_what_it_says_it_is",
+                       "test_e1_the_corpus_the_output_is_the_expected_string_and_every_token_left_is_named",
+                       "test_e1_the_grid_every_figure_lib_money_prints_comes_out_as_lib_moneys_print_or_untouched",
+                       "test_e1_a_lone_three_digit_group_is_never_guessed_with_or_without_handed_figures",
+                       "test_e1_handed_figures_change_nothing_but_bare_decimals_and_bare_groups",
+                       "test_e1_the_run_time_proof_refuses_a_result_whose_digits_differ",
+                       "test_e11_the_independent_reader_sees_a_figure_bound_to_something_else",
+                       "test_e11_the_grammar_no_code_first_amount_is_bound_to_anything_else_after_the_pass",
+                       "test_e11_the_reviews_sentences_come_back_as_written_and_counted",
+                       "test_e11_joiners_the_product_did_not_write_are_read_as_spaces_and_kept_as_bytes",
+                       "test_e12_a_text_holding_a_lone_group_is_returned_whole_whatever_else_it_holds",
+                       "test_e17_one_recommendation_is_one_text_a_lone_group_in_any_field_holds_every_field",
+                       "test_e17_the_stored_recommendation_is_never_half_rewritten",
+                       "test_e17_the_pass_never_changes_what_a_stored_briefing_is_read_as",
+                       "test_e18_a_code_that_only_changes_sides_beside_a_lone_group_is_moved_and_no_number_changes",
+                       "test_e15_the_label_grammar_an_id_beside_an_amount_survives_and_a_second_pass_changes_nothing",
+                       "test_e16_the_reader_over_the_composed_set_flags_exactly_what_was_read_by_hand",
+                       "test_e19_the_time_of_a_long_unbroken_run_grows_with_its_length_not_with_its_square",
+                       "test_e19_the_shortcuts_change_no_output",
+                       "test_e7_a_field_the_pass_raised_on_keeps_the_models_text_and_is_counted_and_logged_as_a_defect",
+                       "test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_twin_digest_holds",
+                       "test_e20_an_openers_range_with_a_code_first_second_bound_is_rewritten_at_both_bounds_or_neither_in_one_pass",
+                       "test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_another_number",
+                       "test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_format",
+                       "test_e4_a_ratio_the_model_was_handed_is_proved_a_figure_one_it_was_not_handed_is_left",
+                       "test_e5_the_regenerate_route_stores_answers_and_serves_what_the_narrator_returned",
+                       "test_e5_a_converted_regenerate_is_answered_normalised_and_never_stored",
+                       "test_e6_a_narration_in_another_language_and_its_hint_are_byte_for_byte_what_they_were",
+                       "test_e7_a_pass_that_raises_leaves_the_models_text_usable_and_stored",
+                       "test_e8_the_hint_carries_the_products_own_example_strings_with_the_code_after_the_figure",
+                       "test_e9_a_failed_narration_is_returned_as_it_was_and_the_pass_is_never_run_on_it",
+                       "test_e10_no_socket_was_attempted_and_the_model_was_only_ever_the_stand_in")),
+        # ai-figures — ONE STANDARD, THREE RUNTIMES, AND WHAT THE READER
+        # SEES. frontend/lib/money (and the ratio printer) is the
+        # authority; this gate RUNS it and holds the copies.
+        #   chatLlmFigureFormat   every example string of the chat
+        #       function's figure-format rule and conversion note;
+        #       standard.json and grid.json regenerated on every run and
+        #       compared with the committed bytes (the engine's gate reads
+        #       the same files); the magnitude words against both packs;
+        #       the rule once, inside the display-currency rule — never in
+        #       the command bar's or Explain's prompt — and no currency
+        #       before a digit in any built prompt.
+        #   readerFigures         the BROWSER's normaliser
+        #       (frontend/lib/readerFigures.ts, the twin of
+        #       engine.ai.figure_format) over the shared corpus (expected
+        #       typed by hand) and grid; no value changes — an independent
+        #       reader of every rewritten token, the digit proof planted,
+        #       a lone three-digit group never guessed; the language is
+        #       the TEXT's, never the UI's; no lookbehind (an old iOS
+        #       WebView throws at parse time); imported by five files only.
+        #   chatReplyFigures      the REAL send pipeline, list and bubble
+        #       with a recorder where the model would be: stored = shown =
+        #       expected for every chat case, one request per turn; a
+        #       reply already in the store; history sent as the reader saw
+        #       it; THE COMMAND BAR'S GUARD handed the transport's text
+        #       byte for byte.
+        #   explainFigures        Explain: fresh, cached, cached before
+        #       the release; the template path verbatim.
+        #   briefingCardFigures   the briefing card: a `ro` stamp, an
+        #       untrusted `en` stamp, the seven other languages byte for
+        #       byte, display only, the narration of an explicit
+        #       regenerate (one counted request).
+        # Every output is read by frontend/test/numberLanguage.ts, never
+        # by the normaliser. No test calls a model. The prompt pins are
+        # chat-cap-always's (moved on purpose, no pin value changed).
+        #
+        # FIX ROUND (2026-10-05): a text holding a lone three-digit group
+        # is stored and shown WHOLE, as the model wrote it; the composed
+        # set's digest equals the engine's (a rule changed in one runtime
+        # moves one digest); the run-time proof holds magnitudes, signs
+        # and currency bindings; a Spanish or Portuguese text is not
+        # Romanian for sharing "este" and "dar" (read as Romanian, its
+        # "12,3M" became "12,3 mil." — twelve THOUSAND there); a Romanian
+        # label list is not English for one English gloss; thin evidence
+        # of a text's language is never followed against the question;
+        # the card shows a narration stamped in another language as
+        # served; a figure inside a link label and a reply that is one
+        # bare figure are corpus cases.
+        #
+        # ROUND 2 (2026-10-05): a reply that does not show its own
+        # language was formatted in the language of the QUESTION or of an
+        # earlier turn — a Romanian request for an English table came
+        # back in Romanian notation, a correct "Marja EBITDA este 11,1%."
+        # after one English exchange was stored "11.1%", a Spanish "57,7M
+        # EUR" became "57,7 mil. EUR" — and every language law handed the
+        # text its own language as context. Now the text's OWN words
+        # decide (a caller confirms them, or decides for a text with no
+        # words; Explain and the card pass a language they KNOW), held by
+        # laws that hand every corpus reply the OTHER language's question
+        # and turn, the review's conversations through the real send
+        # pipeline, and the seven other languages after a Romanian and an
+        # English question. The eight corpus replies whose words show no
+        # language are stored as written in a chat — named in the gate.
+        # Also the browser's half of the engine's round: the label
+        # grammar and its digest, a code that only changes sides, the
+        # grid's 36 bare integers, 100 KB runs beside an "@".
+        # Measured 987 tests (round 3: law 15 the opener grammar, seven corpus
+        # cases). Blind to: what a model writes; a text HELD
+        # as written (counted; it still holds the model's notation); a
+        # token left by design; the deployed function's source; the
+        # report page and the exports; a bundle older than the release.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("ai-figures",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/chatLlmFigureFormat.test.ts",
+              "frontend/lib/__tests__/readerFigures.test.ts",
+              "frontend/components/cfo/chat/__tests__/chatReplyFigures.test.tsx",
+              "frontend/lib/__tests__/explainFigures.test.ts",
+              "frontend/components/cfo/__tests__/briefingCardFigures.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=987,
+             units="figure-format tests", no_skips=True,
+             canaries=("GATE-WORK ai-figures-standard grid=984 lone=120 examples=12",
+                       "POSITIVE CONTROL: it sees the shapes the base patterns cannot",
+                       "a lone three-digit group is matched by nothing",
+                       "ro: every example string, from lib/money and the ratio printer",
+                       "en: every example string, from lib/money and the ratio printer",
+                       "each language's line holds no figure of the other language, and the code is after the figure",
+                       "the command bar's and Explain's real requests carry no display currency",
+                       "no built prompt holds a currency before a digit",
+                       "the rule is static text: the same bytes for every request",
+                       "the magnitude words are the packs' money_display",
+                       "the lone groups are exactly the whole amounts of four to six digits",
+                       "standard.json and grid.json are what the product prints now",
+                       # the browser's normaliser (stage 2)
+                       "GATE-WORK ai-figures corpus=",
+                       "its first case is the incident's sentence in shape",
+                       "the independent reader: one value per notation",
+                       "every reason a token can be left for is exercised by the corpus",
+                       "PLANTED HERE, not in the source: a swap that drops a digit",
+                       "does not freeze the render thread",
+                       "ro: a lone three-digit group comes back byte-identical",
+                       "en: a lone three-digit group comes back byte-identical",
+                       "handed figures change nothing but bare decimals and bare groups",
+                       "every figure of it stays as the model wrote it, counted",
+                       "a lone group with nothing to rewrite beside it holds nothing",
+                       "the digest is the one the engine's twin produces",
+                       "the composition is deterministic and varied, and holds the review's shapes",
+                       "the structure reader sees a magnitude read as another, a dropped sign",
+                       "with the proof blinded a rule that loses a sign changes what is shown",
+                       "984 rows: 828 rewritten to the print byte for byte",
+                       "FIGURE_STANDARD equals standard.json",
+                       "de: a narration in another language is not changed by a byte",
+                       "pl: a narration in another language is not changed by a byte",
+                       "a text with NO words takes the language of the question it answers",
+                       "every corpus reply in its RIGHT notation, placed after a question",
+                       "the review's conversations: a short correct reply after an exchange in the other language",
+                       "es: a reply in another language is not changed by a byte after a Romanian or an English question",
+                       "pl: a reply in another language is not changed by a byte after a Romanian or an English question",
+                       "29,263 texts: the id's bytes survive, a second pass changes nothing",
+                       "one pass rewrites both bounds or neither, and a second pass changes nothing",
+                       "the review's sentences, typed here: a label before a spaced dash",
+                       "14 beside a lone group a code still changes sides",
+                       "100 KB runs beside an address, each inside a second",
+                       "an English answer that quotes Romanian terms is English",
+                       "no word Spanish, Portuguese or Italian shares makes a text Romanian",
+                       "with one English gloss, is NOT read as English",
+                       "thin evidence of a text's own language is followed only where the caller does not say otherwise",
+                       "es: a narration in another language is not changed by a byte",
+                       "pt: a narration in another language is not changed by a byte",
+                       "the UI language decides nothing",
+                       "no separator is ever inserted into a plain integer",
+                       "reads the figures the model was handed, skips dates and bare integers",
+                       "no lookbehind",
+                       "imported by exactly five files",
+                       # the chat, and the command bar's guard
+                       "GATE-WORK ai-figures-chat turns=",
+                       "the snapshot's figures reach the pass",
+                       "a reply with NO words takes the QUESTION's language",
+                       "each is a WRONG reply the same pass formats the moment the language is known",
+                       "the review's conversations (round 2)",
+                       "what the pipeline logs about a reply is its language and COUNTS by reason",
+                       "Spanish and Portuguese share words with Romanian, not its format",
+                       "a correct Romanian reply written as labels with one English gloss keeps its right figures",
+                       "figure-in-a-link-label",
+                       "reply-that-is-one-handed-amount",
+                       "lone-group-holds-the-whole-text",
+                       "the incident's reply, alone in a conversation",
+                       "a failed and an interrupted turn holding the SAME digits are not touched",
+                       "a freshly arrived reply TYPES OUT in the reader's format",
+                       "find-in-conversation counts the match",
+                       "a wrong-format reply stored before the release is sent in the reader's format",
+                       "reaches the guard byte for byte",
+                       "its real request carries no display currency",
+                       "no sentinel is an anchor, and the served figures above are",
+                       # Explain
+                       "GATE-WORK ai-figures-explain answers=",
+                       "an answer CACHED BEFORE the release",
+                       "the answer's OWN language wins over the one that was asked for",
+                       "a correct Romanian answer written as labels, with one English gloss, keeps its right figures",
+                       "an empty answer: the template, byte for byte",
+                       "the prompt the function builds for it holds no figure-format rule and no digit example of it",
+                       # the briefing card
+                       "GATE-WORK ai-figures-briefing bodies=",
+                       "stamped ro",
+                       "as every row written before 2026-10-02 is, whatever its language",
+                       "a de narration",
+                       "a failure text is never prose, whatever digits it holds; mounting makes no request",
+                       "the card's own decisions read the SERVED bytes",
+                       "the source: ONE call of the pass",
+                       "an engine that predates the release answers a Romanian narration in EUR",
+                       "the language the engine SAYS it narrated in is trusted",
+                       "a Spanish one too, though it shares words with Romanian")),
+        # ── end of lane ai-figures ───────────────────────────────────────
+        # ── period-verdict-served (production, 2026-10-04) ───────────────
+        # A signed-in reader's dashboard said "nothing analysed here yet"
+        # over a company with two analysed years, and the chat, grounded
+        # in it, said its period was a row id. The browser's remembered
+        # period for the company was one the reader cannot read: it had
+        # been opened once by URL, and useActivePeriodFallback wrote it
+        # down from the URL alone. The gate: a period is remembered for
+        # the active company only when its payload landed and names that
+        # company; one answered "not found" is forgotten everywhere, the
+        # reader is told once and the page re-opens on the company's own
+        # period — once per period, a few per page life (no loop); a
+        # transport error and a period still loading are neither; the
+        # chat is grounded only in a served period. Blind to: the
+        # engine's own answer (stubbed); a `?period=` page outside the
+        # shell. Plant log: docs/engine_book/gates.md.
+        Gate("period-verdict-served",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/hooks/__tests__/periodVerdictKeeper.test.tsx",
+              "frontend/hooks/__tests__/useActivePeriodFallback.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=18,
+             units="period-memory tests",
+             canaries=("GATE-WORK period-verdict-served checks=",
+                       "the bare dashboard recovers to the company's own",
+                       "a stale link is not written down",
+                       "no loop: the lookup answers the same unreadable period",
+                       "the recovery budget of a page life is a number, and it holds",
+                       "a transport error is not 'not found'",
+                       "another company's period is not this company's",
+                       "a period still loading is neither served nor missing",
+                       "not found, or nothing landed: no snapshot",
+                       "the fallback hook remembers only what the engine's lookup answered")),
+        # "% DIN VENITURI" ON ONE YEAR, AND WHICH WAY TIME RUNS (owner ruling
+        # 2026-10-04: "'% din venituri' must work for a single year without a
+        # comparison. Engine change, with a gate." The share column was
+        # painted from the two-period comparatives document, so a company
+        # with one year on file \u2014 or its earliest year on screen \u2014 had none;
+        # and the balance-sheet tab's share was divided in the browser):
+        #   common-size-single  the engine serves ONE period's shares on the
+        #                    period payload (statements.common_size, schema
+        #                    common_size/1: every registry line of net
+        #                    turnover / total assets, and every canonical
+        #                    balance-sheet row, subtotal and total), computed
+        #                    by the function the comparison's two sides run:
+        #                    on every corpus pair, offline and through
+        #                    create_app(), single(current).share ==
+        #                    current_share and single(prior).share ==
+        #                    prior_share for every key, statuses included; one
+        #                    division site; a refused or absent line and a
+        #                    base below the zero floor carry no share (never
+        #                    0 %); the same request twice gives the same
+        #                    bytes and nothing is persisted. And the
+        #                    comparatives document says which way time runs
+        #                    (`direction`): a prior that closes LATER, or an
+        #                    order that cannot be read, serves every figure,
+        #                    delta, bridge and share and NO improved /
+        #                    deteriorated verdict (swap law). The committed
+        #                    frontend fixtures are the engine's bytes; the
+        #                    deploy pre-flight (check_served_periods.py
+        #                    --require-common-size) reads the block.
+        #                    FIX ROUND (the pre-deploy review): a REFUSED
+        #                    figure takes no share — total equity short by a
+        #                    refused result, the canonical equity subtotal and
+        #                    grand total, the net result — and the refusal is
+        #                    read before the value; a result line's share of
+        #                    turnover is a MARGIN and asks the one margin rule
+        #                    (the developer: status margin_not_meaningful, the
+        #                    amount kept, in both documents); the ratio block
+        #                    of a backwards document serves no improved /
+        #                    deteriorated delta, crossing, list or finding
+        #                    (the swap law, every pair); the date order is the
+        #                    dates' (same-year and one-day-apart closes); an
+        #                    incomparable pair serves no share on any row; the
+        #                    zero floor is witnessed at its boundary.
+        #                    SECOND REVIEW ROUND: the deploy pre-flight cannot
+        #                    pass on nothing (a period served without the
+        #                    block is RED unless the operator names it; no
+        #                    lawful block at all is RED whatever is named;
+        #                    the block is held in substance) — driven through
+        #                    main() over a world whose serve-time re-assembly
+        #                    fails; the margin rule's FLOOR reason has a
+        #                    witness; a statement with no base has one
+        #                    reason; the attention document (GET …/attention)
+        #                    judges no statement line and fills no
+        #                    improvement slot under a later or unreadable
+        #                    prior; Piotroski's year-over-year checks are not
+        #                    judged there; the liabilities + equity bridge is
+        #                    refused with a refused total equity.
+        #                    Plant log: docs/engine_book/gates.md.
+        #   single-year-share   the PAGE prints it. With no comparison
+        #                    document on screen — no prior resolves, "No
+        #                    comparison", a one-period company, a refused or
+        #                    failed request — the P&L and the balance sheet
+        #                    offer the share box, enabled, and paint ONE
+        #                    column from statements.common_size: every cell
+        #                    the served fraction through formatShare, in the
+        #                    reader's number shape; the row guard is the
+        #                    comparison's own; a line with no share says why
+        #                    and never prints 0 %; a payload without the block
+        #                    switches the box off and computes nothing; no
+        #                    state writes the stored columns; the document's
+        #                    share IS the block's (one figure per page), on
+        #                    the balance sheet too, where the browser no
+        #                    longer divides. No division, multiplication or
+        #                    rounding in any file on the share path (read off
+        #                    the syntax tree). A later comparison period is
+        #                    said to read backwards, lists no improved /
+        #                    deteriorated line, is never called "prior" and
+        #                    no line is called "new" or "gone" against it;
+        #                    a refused or failed request is said once on each
+        #                    of the five tabs, "try again" asks once more and
+        #                    nothing asks on its own; "no prior" is said one
+        #                    way (the Ratios tab at most once, the cash-flow
+        #                    card in the informal register, naming the month);
+        #                    a pre-deploy persisted payload is not hydrated.
+        #                    compare-no-prior is amended where its law changed
+        #                    (the share box, a one-period company, the
+        #                    refusal note).
+        #                    FIX ROUND (the pre-deploy review): the gate
+        #                    renders the PAGE'S OWN composition
+        #                    (lib/comparisonSurface.ts + ComparisonSurface.tsx,
+        #                    which the page renders too) and holds the page's
+        #                    one call and three elements to their exact text;
+        #                    every share cell prints the period's OWN share in
+        #                    every state — a document adds only its points,
+        #                    when its share IS that share — so a stale
+        #                    document (the month replaced under the same id)
+        #                    paints nothing, and every period reset also resets
+        #                    the comparisons that name it; a pair refusal does
+        #                    not blank the period's share; a refused equity and
+        #                    a refused margin print a word; a tab that cannot
+        #                    paint its share column has none and says why; the
+        #                    Ratios tab lists no verdict under a later prior;
+        #                    a share-path file imports no new local module.
+        #                    SECOND REVIEW ROUND: the gate MOUNTS THE REAL
+        #                    PAGE (pages/cfo/__tests__/singleYearSharePage.
+        #                    test.tsx — FinancialStatements.tsx itself, the
+        #                    network mocked at its two seams, the engine's
+        #                    committed bytes with their line items put back):
+        #                    the first review's page defects planted one
+        #                    wrapper element away left the text laws green.
+        #                    The source laws: every use of Math beyond abs /
+        #                    max / min / sign is arithmetic (a division needs
+        #                    no "/"); no dynamic import, no re-export to an
+        #                    unscanned module and no new package on the share
+        #                    path; every TRUSTED module holds the
+        #                    arithmetic it held when trusted (pinned by text,
+        #                    fixtures/sharePathTrustedArithmetic.json). The
+        #                    Ratios tab reads the DOCUMENT's direction, not
+        #                    the ratio block's flag alone; the P&L's share
+        #                    cell is the period's own on a row the document
+        #                    cannot be held to; the workspace upload card
+        #                    resets the period its file landed on.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("common-size-single",
+             [PY, "-m", "pytest", "tests/engine/test_common_size_single.py",
+              "tests/engine/test_common_size_fe_fixture.py", "-q", "-s"],
+             # measured 2026-10-04 (second review round): 14,548 share cells
+             # over 68 offline pairs (plus 7,748 through the real routes over
+             # 12 periods, 36 pairs; 174 band verdicts and 50 Piotroski
+             # year-over-year checks withheld backwards; 11 backwards
+             # attention documents; 13 periods through the pre-flight's
+             # main() with the re-assembly failing).
+             work_rx=r"GATE-WORK common-size-single rows=(\d+)", floor=12000,
+             units="share cells held equal between the two documents",
+             # One line per law that has a witness of its own: a law that is
+             # removed or skipped takes its line with it.
+             canaries=("GATE-WORK common-size-single rows=",
+                       "GATE-WORK common-size-single served_periods=",
+                       "GATE-WORK common-size-single swaps=",
+                       "band_verdicts=",
+                       "piotroski_yoy_withheld=",
+                       "GATE-WORK common-size-single margin_floor_lines=",
+                       "no_base_lines=",
+                       "GATE-WORK common-size-single zero_floor_lines=",
+                       "GATE-WORK common-size-single refused_lines=",
+                       "refused_equity_bridges=",
+                       "GATE-WORK common-size-single margin_lines_withheld=",
+                       "GATE-WORK common-size-single same_year_crossings_withheld=",
+                       "GATE-WORK common-size-single incomparable_rows=",
+                       "GATE-WORK common-size-single unreadable_close_crossings_withheld=",
+                       "GATE-WORK common-size-single attention_backwards=",
+                       "GATE-WORK common-size-single preflight_unassembled_periods=")),
+        Gate("single-year-share",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/singleYearShare.test.tsx",
+              "frontend/pages/cfo/__tests__/singleYearSharePage.test.tsx",
+              "--reporter=verbose"],
+             # measured 2026-10-04 (second review round): 1,476 share cells
+             # and movers held to the served documents (112 tests, 545
+             # states), and 121 share cells on the REAL page (8 tests).
+             work_rx=r"GATE-WORK single-year-share cells=(\d+)", floor=1300,
+             units="share cells held to the served block and document",
+             canaries=("GATE-WORK single-year-share cells=",
+                       # the real page (the gate's second file)
+                       "GATE-WORK single-year-share page_cells=",
+                       "pl: the controls are visible, the share box alone, on and ticked",
+                       "balance_sheet: the controls are visible, the share box alone, on and ticked",
+                       "one no-prior notice, the comparison boxes off, the share box on, the column printed",
+                       "one sentence under the tab bar, the comparison boxes off, the period's own share column still printed",
+                       "every share cell is the period's OWN share, the document's points only beside a share it describes",
+                       "a document that LISTS band verdicts under a later comparison period is not believed",
+                       # the source laws of the second review round
+                       "no module is reached without an import declaration",
+                       "a share-path file imports values only from the packages it imported before",
+                       "a trusted module holds the arithmetic it held when it was trusted, and no other",
+                       "the Ratios tab does not believe one either (prior_is_later)",
+                       "the share cell is the on-screen book's own",
+                       "the share box is on, the other three are off, and ONE column is printed from the served block",
+                       "every canonical balance-sheet row, subtotal and total on screen prints its served share",
+                       "a row whose amount is not the block's is blank; the rule is the comparison's own guard",
+                       "a book whose EBITDA the engine refused prints the word, with the reason, on every refused line",
+                       "a company with ONE period: no picker, no notice, the share box alone",
+                       "the share box alone is off, unticked, and says why beside it; no column",
+                       "the share a row prints is the same string with the document and without it",
+                       "the reader's stored columns are the same key in every state, and no state writes them",
+                       "no improved / deteriorated list, and the bridge names each period by its own month",
+                       "the code's sentence, once, on each of the five tabs; the comparison boxes off",
+                       "asks the engine once more",
+                       "the Ratios tab says it ONCE on its own, and not at all when the page already does",
+                       "the persisted cache of the previous version is never hydrated, and is removed",
+                       "the share path holds no arithmetic at all",
+                       "a share-path file imports values only from scanned modules",
+                       "the composition is called ONCE, with exactly these inputs",
+                       "the controls: ONE element, the sticky bar's own child",
+                       "the notes: ONE element, below the sticky bar",
+                       "each statement tab's provider is the shared one",
+                       "every share on screen is the on-screen book's own; the stale document adds nothing",
+                       "resetting a period resets every comparison that names it",
+                       "does not blank the share of the period on screen",
+                       "an equity the engine refuses as incomplete prints the word",
+                       "a margin the engine's rule refuses is not printed as a share",
+                       "no column of blank cells, the box off with its reason",
+                       "the share box alone, enabled",
+                       "no ratio is listed improved or deteriorated, none is coloured")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
@@ -1887,6 +3567,42 @@ def _engine_gates() -> List[Gate]:
              work_junit=True, floor=8, units="tests",
              canaries=("test_cron_without_a_configured_token_is_503_never_run",
                        "test_cron_with_a_wrong_bearer_is_refused")),
+        # NO SCHEDULED MAIL REACHES A PERSON WHO IS NOT ENTITLED TO IT,
+        # CARRIES ANOTHER TENANT'S DATA, OR GOES OUT TWICE (owner ticket
+        # 2026-10-02, the audit before the Firm Cockpit flag flips). The
+        # crons and drains read under the SERVICE ROLE — the filter the
+        # code writes is the access control. Through the REAL create_app()
+        # over the tenancy suite's two-firm world, the provider replaced by
+        # a recorder: the renewal reminder goes to the SUBSCRIBER (it went
+        # to the first membership by role.asc — the firm's accountant); a
+        # digest names only what its recipient reads today (no other firm's
+        # request, no archived client, no archived firm); entitlement is
+        # decided again at send time (a removed member, an opt-out, a
+        # revoked request, a cancelled subscription); every queue row is
+        # CLAIMED before the provider is called and every cron claims
+        # before it queues (one run, two runs, two interleaved runs, a
+        # failed mark-sent write: one mail); the drains refuse everyone but
+        # the operator; every function that queues or sends mail is on a
+        # census. cron-auth above holds the crons' 503 / 401. Measured 39.
+        # Plant log: docs/engine_book/gates.md "scheduled-mail-tenancy".
+        Gate("scheduled-mail-tenancy",
+             [PY, "-m", "pytest",
+              "tests/engine/test_scheduled_mail_renewals.py",
+              "tests/engine/test_scheduled_mail_digest.py",
+              "tests/engine/test_scheduled_mail_requests.py",
+              "tests/engine/test_scheduled_mail_census.py",
+              "tests/engine/test_supabase_update_returning.py", "-q"],
+             work_junit=True, floor=39, units="tests",
+             canaries=("test_the_renewal_reminder_goes_to_the_subscriber_never_to_a_teammate",
+                       "test_running_the_renewal_cron_twice_queues_one_reminder",
+                       "test_each_member_is_mailed_their_own_firms_live_clients_and_nothing_else",
+                       "test_a_request_another_firm_minted_never_reaches_this_firms_digest",
+                       "test_an_archived_client_is_in_no_digest",
+                       "test_a_member_removed_between_the_cron_and_the_drain_is_not_mailed",
+                       "test_two_interleaved_runs_queue_one_digest",
+                       "test_no_reminder_for_a_request_whose_firm_no_longer_serves_the_client",
+                       "test_every_function_that_queues_or_sends_mail_is_classified",
+                       "test_update_returning_sends_the_filter_and_asks_for_the_changed_rows")),
         Gate("public-refresh-shield",
              [PY, "-m", "pytest", "tests/engine/test_public_refresh_shield.py", "-q"],
              work_junit=True, floor=20, units="tests",
@@ -2034,6 +3750,101 @@ def _engine_gates() -> List[Gate]:
              # can be satisfied by accident is not a canary.
              canaries=("PM1  no AI-authored numerics in the facts path",
                        "PM7  BVB / public_ro untouched")),
+        # ── ENTITLEMENT HOLES (fix/entitlement-holes, 2026-10-04) ───────
+        # Six restrict-only migrations beside the subscriptions lockdown,
+        # each read before and after by one read-only report
+        # (supabase/preflight/*_preflight_report.sql, "hole_open"):
+        #   hole-workspace-cap     schema_phase_workspace_cap_guard.sql — a
+        #       trial user (cap 1) held 2+ live workspaces by a direct write
+        #       of organizations.archived_at, by archive / create / restore,
+        #       and by two creates at once; the guard refuses the direct
+        #       write and asks create_workspace itself, one request at a time
+        #       per user, on a restore and on a create. No organizations row
+        #       is changed by the file: it says so with a digest.
+        #   hole-dashboard-config  schema_phase_dashboard_config_caller.sql —
+        #       the anon key overwrote any user's dashboard layout through a
+        #       SECURITY DEFINER function that took the user id as an argument.
+        #   hole-public-tables     schema_phase_public_tables_write_revoke.sql
+        #       — twelve tables created without row level security: the anon
+        #       key alone inserted, updated and deleted their rows.
+        #   hole-calibration-queue schema_phase_calibration_queue_write_revoke.sql
+        #       — any signed-in user put a GLOBAL pending rule into the
+        #       operator's calibration review queue (its own file: the table
+        #       exists where the twelve do not; applied on its own decision).
+        #   hole-derived-tables    schema_phase_derived_tables_write_revoke.sql
+        #       — a member rewrote their own organization's statement lines,
+        #       metrics and briefing through the REST API (the rest of the
+        #       same census; applied on its own decision).
+        #   hole-signup-tier       schema_phase_signup_tier_trial.sql — a new
+        #       signup's row carried no tier and the engine read it as the
+        #       Multi-Country allowance; forward only — no existing row, and
+        #       the file says so with a digest of every subscriptions row.
+        # Each gate builds ITS OWN scratch database inside a local Supabase
+        # Postgres from this repository's SQL, shows the hole OPEN, applies
+        # the migration, and shows it closed (twice; re-opened by hand; on
+        # production's shape; on an empty database; on objects another role
+        # owns), with every legitimate path still working.
+        # THEY ADDRESS NO DATABASE BY DEFAULT: without
+        # ENTITLEMENT_HOLES_DB_URL (a loopback URL; anything else is refused,
+        # exit 2) each is VACUOUS — units=0, PASS(VACUOUS), never green. Run
+        # them:  ENTITLEMENT_HOLES_DB_URL=postgresql://postgres:postgres@127.0.0.1:<port>/<db>
+        #        [ENTITLEMENT_HOLES_DB_CONTAINER=<container>] python scripts/run_battery.py
+        # A run over a planted file (HOLE_MIGRATION / HOLE_REPORT, the plant
+        # log's drivers) ends in exit 1 or 3, never 0 — an inherited variable
+        # cannot turn one of these green.
+        # Floors = the measured 145 / 116 / 332 / 76 / 145 / 67 cases,
+        # rounded down.
+        #   entitlement-hole-laws  the source half no database shows: each
+        #       file one batch / one read-only statement, restrict only, the
+        #       two files applied to production MEASURE that no existing row
+        #       changed, the pairs agree, no user-JWT writer of a closed
+        #       table or of a guarded column, no other committed SQL that
+        #       re-opens one, every dynamic statement of a block held to an
+        #       exact list, the engine's answer for the row the signup seeds,
+        #       the gates' own default (66 tests).
+        # Plant log: docs/engine_book/gates.md, "Entitlement holes".
+        Gate("hole-workspace-cap", ["bash", "scripts/check_hole_workspace_cap.sh"],
+             work_rx=r"GATE-WORK hole-workspace-cap units=(\d+)", floor=137,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-WORKSPACE-CAP GATE",)),
+        Gate("hole-dashboard-config", ["bash", "scripts/check_hole_dashboard_config.sh"],
+             work_rx=r"GATE-WORK hole-dashboard-config units=(\d+)", floor=110,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-DASHBOARD-CONFIG GATE",)),
+        Gate("hole-public-tables", ["bash", "scripts/check_hole_public_tables.sh"],
+             work_rx=r"GATE-WORK hole-public-tables units=(\d+)", floor=318,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-PUBLIC-TABLES GATE",)),
+        Gate("hole-calibration-queue", ["bash", "scripts/check_hole_calibration_queue.sh"],
+             work_rx=r"GATE-WORK hole-calibration-queue units=(\d+)", floor=72,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-CALIBRATION-QUEUE GATE",)),
+        Gate("hole-derived-tables", ["bash", "scripts/check_hole_derived_tables.sh"],
+             work_rx=r"GATE-WORK hole-derived-tables units=(\d+)", floor=138,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-DERIVED-TABLES GATE",)),
+        Gate("hole-signup-tier", ["bash", "scripts/check_hole_signup_tier.sh"],
+             work_rx=r"GATE-WORK hole-signup-tier units=(\d+)", floor=62,
+             units="cases in a scratch database", vacuous_ok=True,
+             canaries=("HOLE-SIGNUP-TIER GATE",)),
+        Gate("entitlement-hole-laws",
+             [PY, "-m", "pytest", "tests/engine/test_entitlement_hole_laws.py", "-q"],
+             work_junit=True, floor=62, units="tests",
+             canaries=("test_no_migration_touches_a_row_or_widens_access",
+                       "test_every_dynamic_statement_of_a_migration_is_one_this_law_has_read",
+                       "test_the_two_files_applied_to_production_measure_that_no_existing_row_changed",
+                       "test_a_revoke_file_run_where_none_of_its_tables_exists_says_there_was_nothing_to_do",
+                       "test_each_report_is_one_read_only_statement_returning_one_jsonb_row",
+                       "test_each_report_recognises_exactly_the_body_its_migration_installs",
+                       "test_each_report_names_exactly_the_tables_its_migration_lists",
+                       "test_no_browser_mobile_or_edge_function_code_writes_a_closed_table",
+                       "test_the_engine_census_sees_the_user_jwt_writers_that_exist",
+                       "test_no_user_jwt_client_in_the_engine_writes_a_closed_table",
+                       "test_every_user_jwt_writer_of_organizations_writes_only_columns_the_guard_leaves",
+                       "test_no_other_committed_sql_reopens_a_hole",
+                       "test_the_engine_gives_a_new_signup_the_trial_and_gave_the_shipped_row_multi_country",
+                       "test_each_gate_is_vacuous_unless_it_is_told_which_database",
+                       "test_a_plant_run_is_never_a_pass")),
         # ── FLOOR C6-C8 (wave/floor-c6-public-sku, 2026-09-18) ──────────
         # The owner's rule "absent is never zero and never a floor" over the
         # three non-credit clusters of the floor sweep (scratchpad/specs/
@@ -2082,6 +3893,42 @@ def _engine_gates() -> List[Gate]:
                        "test_classify_rows_refuses_anchor_profit_share_when_profit_nets_to_a_loss",
                        "test_dio_sheet_out_of_range_banner_span_is_not_used",
                        "test_analyze_route_states_refused_roic_and_share_instead_of_500")),
+        # THE PUBLIC PROOF IS WHAT THIS TREE MEASURES (owner, 2026-10-01,
+        # after the first public review found "eight calibration fixtures"
+        # beside "9 / 9" on the landing — both typed by hand, counting
+        # different things, neither dated). frontend/data/engineProof.json is
+        # now the one source of every accuracy number a public page prints;
+        # scripts/build_engine_proof.py writes it by RUNNING the checks and
+        # counting DISTINCT real books. This gate re-runs that script and
+        # compares (every check where the local calibration books are
+        # present; identity, rerun, account 121 and the listing counts where
+        # they are not — never a pass over nothing), and holds the file to
+        # its own rules: full scope, books counted once, no company named,
+        # the engine identity the tree's, no proof written over the committed
+        # subset. The page side is `landing-proof` (frontend gates).
+        # Plant log: docs/engine_book/gates.md "engine-proof".
+        Gate("engine-proof",
+             # -rs: the PARTIAL skip prints its reason in the tail the battery shows
+             [PY, "-m", "pytest", "tests/engine/test_engine_proof.py", "-q", "-rs"],
+             # floor == the number of laws (10). EP7 SKIPS on a checkout
+             # without the local calibration books, where three of the five
+             # checks cannot be re-measured — and junit work is tests minus
+             # skips, so this gate CANNOT print PASS there. It used to: a
+             # hand edit of the three unmeasured checks (6 → 7 of 7, 0.9975
+             # → 0.1) and a pasted engine digest passed it, landing-proof and
+             # public-claims on 2026-10-02. Run the release battery where
+             # files/ is present.
+             # 10 since EP9 (the proof's dates, 2026-10-02).
+             work_junit=True, floor=10, units="tests",
+             canaries=("test_rerunning_the_proof_script_agrees_with_the_committed_file",
+                       "test_the_proofs_dates_are_real",
+                       "test_every_check_was_re_measured_on_this_checkout",
+                       "test_software_is_proven_only_by_a_committed_real_file",
+                       "test_the_committed_file_is_a_full_dated_proof",
+                       "test_books_are_counted_once",
+                       "test_the_public_file_names_no_company_and_no_company_figure",
+                       "test_the_engine_identity_is_this_trees",
+                       "test_the_script_refuses_to_write_a_proof_over_the_committed_subset")),
         Gate("floor-industry-absent",
              [PY, "-m", "pytest",
               "tests/engine/test_industry_classifier_absent_inputs.py", "-q"],
@@ -2092,6 +3939,173 @@ def _engine_gates() -> List[Gate]:
                        # one-EBITDA ruling (stage G1): shares over net turnover
                        "test_every_share_divides_net_turnover_never_total_operating_revenue",
                        "test_without_net_turnover_the_classification_refuses")),
+        # ENTITLEMENT TABLES ARE WRITTEN BY THE SERVICE ROLE ONLY (owner,
+        # 2026-10-03). supabase/schema.sql gave a signed-in user an INSERT and
+        # an UPDATE policy on their own subscriptions row and the default
+        # grants let them use it: a PATCH of {"tier":"multi","status":"active"}
+        # through PostgREST was a paid plan with no payment. Two gates:
+        #   subscriptions-write-lockdown
+        #       supabase/schema_phase_subscriptions_write_lockdown.sql on a
+        #       LOCAL Supabase stack, through real PostgREST and /graphql/v1
+        #       with a real GoTrue session, from FOUR starting states (the
+        #       repository's catalog before the fix — where the attack is
+        #       first shown to SUCCEED — the hand-applied stopgap, the
+        #       migration's own result, and a locked database re-opened by
+        #       hand under other names): 35 named attacks and one write per
+        #       column of the table refused with the row byte-identical, the
+        #       reads, the service role's writes, the reserve / commit RPCs,
+        #       the sibling tables, the catalog laws, the census of SECURITY
+        #       DEFINER functions and triggers, the views, the lock behaviour,
+        #       the error's remedies, and the read-only pre-flight / audit
+        #       files the runbook hands the operator. THE FENCE (owner: a
+        #       migration that only restricts access may not alter a customer
+        #       row): every application is bracketed by a fingerprint of every
+        #       row of every listed table, and the audit's row_fingerprints —
+        #       what an operator reads in production — is held to the same sum.
+        #       IT ADDRESSES NO STACK BY DEFAULT: it creates users and re-opens
+        #       the hole to prove it sees one, and a machine's standard local
+        #       stack is shared. Without SUBS_LOCKDOWN_DB_URL and
+        #       SUBS_LOCKDOWN_API_URL naming an isolated local stack it is
+        #       VACUOUS (units=0, PASS(VACUOUS) — never green); so is it when
+        #       that stack is not running; a non-loopback host is refused.
+        #       Floor 434 = the measured 445 on a stack without
+        #       schema_phase_owner_plan.sql (13 cases SKIPPED there — printed,
+        #       counted apart, never a pass; 464 with it and none skipped),
+        #       less 11: a stack that serves no /graphql/v1 runs 5 fewer (the
+        #       four GraphQL rows and A3b), one whose runner is a superuser 1
+        #       fewer (T7); the other 5 are headroom, not cases to lose.
+        #   entitlement-write-laws
+        #       the source half the stack cannot see: no browser or
+        #       edge-function writer of a listed table, no committed SQL that
+        #       re-opens one, the migration one batch that returns what it
+        #       did and holds no statement that changes a row (the fence),
+        #       the report files one read-only statement each, the console
+        #       probe in a mocked browser, the gate's own default.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("subscriptions-write-lockdown",
+             ["bash", "scripts/check_subscriptions_write_lockdown.sh"],
+             work_rx=r"GATE-WORK subscriptions-write-lockdown units=(\d+)", floor=434,
+             units="cases on the local stack", vacuous_ok=True,
+             canaries=("SUBSCRIPTIONS-WRITE-LOCKDOWN GATE",)),
+        Gate("entitlement-write-laws",
+             [PY, "-m", "pytest", "tests/engine/test_entitlement_write_laws.py", "-q"],
+             work_junit=True, floor=35, units="tests",
+             canaries=("test_the_scanner_sees_the_writer_this_law_exists_for",
+                       "test_no_browser_or_edge_function_code_writes_an_entitlement_table",
+                       "test_the_sql_scanner_sees_the_two_policies_this_law_exists_for",
+                       "test_no_committed_sql_reopens_an_entitlement_table",
+                       "test_each_report_file_is_one_read_only_statement_returning_one_jsonb_row",
+                       "test_the_migration_is_one_batch_that_ends_with_the_row_applied",
+                       "test_the_migration_changes_no_row_and_no_table_shape",
+                       "test_the_stack_gate_is_vacuous_unless_it_is_told_which_stack",
+                       "test_no_user_jwt_client_in_the_engine_names_an_entitlement_table")),
+        # ── ASK CFO AI — THE CAP IS ALWAYS ENFORCED (owner, 2026-10-03: "Fix
+        # the chat function so it enforces its cap on every call, signed in
+        # or not … Only after that will I add the Anthropic key.") The Edge
+        # Function (supabase/functions/chat-llm) answered a caller with no
+        # verified bearer with a model call and no reservation, and put the
+        # reservation for everyone else behind USAGE_LIMITS_ENABLED — unset
+        # in production.
+        #   chat-cap-always  the DECISION (guard.ts, pure, injected) with a
+        #                    recorder where the model would be: no bearer / a
+        #                    bearer that does not verify / an auth server that
+        #                    cannot be asked → no upstream request; reserve →
+        #                    ONE model request → commit, or release on
+        #                    failure, exactly once; the two caps; a dead meter
+        #                    or an unreadable plan row → 503, never "allowed";
+        #                    a plan with no whole-number cap is never sent to
+        #                    the meter (the SQL reads NULL as unlimited);
+        #                    two concurrent calls at cap − 1; the tier → caps
+        #                    table and the row resolution READ from the
+        #                    engine's Python; the function's source (no
+        #                    switch, one fetch, three RPCs, no counter read,
+        #                    the stock-claim rule in the prompt — and, with
+        #                    the rule taken out, every prompt hashing to what
+        #                    main's function sent; the CORS allowlist, and
+        #                    the LAN dev allowance the DEPLOYED function
+        #                    carries, kept byte for byte and executed); the
+        #                    coordinator's preflight report held to the SQL
+        #                    and to the names index.ts calls; the app's
+        #                    sentences from the refusal CODES in EN and RO,
+        #                    and no labelled link in a bubble that a browser
+        #                    would take to another site; one refresh + one
+        #                    retry on a 401. And since the review of
+        #                    2026-10-04: the ONE model request has a deadline
+        #                    (a hung upstream is aborted and released, and
+        #                    the deadlines add up under the platform's 150 s);
+        #                    nothing is remembered between requests and
+        #                    nobody names who is metered (the model request
+        #                    pinned line for line, two request headers, module
+        #                    scope holds constants only); the report's fact
+        #                    about the plan row and the counters; a refusal is
+        #                    never sent to the model as a turn. Measured 191.
+        #   chat-cap-real    the DEPLOYED FILE (index.ts) under Deno on a
+        #                    loopback port against the local stack's real
+        #                    auth server, plan row and reserve / commit /
+        #                    release functions (checked body for body against
+        #                    this repository's SQL), the engine's real
+        #                    get_plan_state executed beside it, a recorder for
+        #                    the model, the process confined to 127.0.0.1; the
+        #                    preflight report run on the stack and on an empty
+        #                    database, and read again while the run's users
+        #                    and counters exist (counts only: no user id, no
+        #                    address; its meter counts the tables', no
+        #                    reservation of the run left open), and its fact
+        #                    about what a browser can write held to what the
+        #                    run's signed-in user DID write and to eleven
+        #                    shapes in a scratch database. A token served and
+        #                    then revoked; a trial user naming a paying user;
+        #                    the deploy's two signed-in checks; an upstream
+        #                    that never answers. VACUOUS — never green —
+        #                    without the stack or Deno; refuses (exit 2, a
+        #                    FAIL here) a non-loopback API and an API that is
+        #                    not that stack's gateway. Measured 100.
+        # Plant log: docs/engine_book/gates.md "chat-cap-always",
+        # "chat-cap-real".
+        Gate("chat-cap-always",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/chatLlmGuard.test.ts",
+              "frontend/lib/__tests__/chatLlmPlans.test.ts",
+              "frontend/lib/__tests__/chatLlmPrompt.test.ts",
+              "frontend/lib/__tests__/chatLlmSignInRetry.test.ts",
+              "frontend/components/cfo/chat/__tests__/chatRefusal.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=180,
+             units="chat-cap laws",
+             canaries=("GATE-WORK chat-cap-always engine-plans=",
+                       "GATE-WORK chat-cap-always function-files=",
+                       "no Authorization header: 401 sign_in_required, the auth server is not even asked, nothing upstream, nothing metered",
+                       "a bearer the auth server does not vouch for: 401 sign_in_required, nothing upstream, nothing metered, the plan row not read",
+                       "under the cap: reserve, call, commit — once each, in that order; never a release",
+                       "at the DAILY cap: 429 chat_cap_reached / daily_cap_reached with the plan's numbers — and no upstream request",
+                       "at the MONTHLY cap: 429 chat_cap_reached / monthly_cap_reached — and no upstream request",
+                       "two concurrent calls at cap − 1: exactly ONE is served — the RPC settles it, the function never pre-checks",
+                       "a reserve that rejects: 503 metering_unavailable, no model call, no commit, no release",
+                       "a plan row that rejects: 503 metering_unavailable — not the trial caps — and nothing reserved, nothing upstream",
+                       "a plan with a NULL daily cap is not 'unlimited': 503 metering_unavailable — the meter is never asked, nothing upstream",
+                       "every tier string the engine knows resolves to the SAME daily and monthly cap here",
+                       "nothing reads USAGE_LIMITS_ENABLED: the cap has no off switch",
+                       "the function's two sentences ARE the frontend's (the snapshot law's words), byte for byte",
+                       "apart from the rule, the system prompt is byte for byte what the function sent before > workspace persona — bare",
+                       "the allowlist — not the caller — decides the origin that is echoed",
+                       "the LAN dev allowance the deployed function carries is kept, byte for byte — a private-range host on :5173 and nothing else",
+                       "its three md5 literals ARE the function bodies in schema_phase_pricing_v3_atomic.sql, and its signatures are that file's",
+                       "401, then a fresh session: ONE refresh, ONE retry with the NEW token — and the answer",
+                       "a refused turn reads as the app's own sentence, from the code — ro > sign_in",
+                       "no labelled link leaves the site",
+                       "a model call that NEVER settles: at the deadline the request is told to abort, the reservation is released once, and the caller gets the sentinel",
+                       "the deadlines ADD UP under the platform's limit",
+                       "the auth server is asked on EVERY call: a bearer it vouched for a moment ago and no longer does is refused",
+                       "WHO is metered is who the auth server named",
+                       "the model request is these lines and nothing else: ONE fetch carrying the guard's deadline",
+                       "index.ts reads two request headers — Origin and Authorization",
+                       "nothing is remembered between requests: module scope holds constants only",
+                       "it says whether a browser's roles can write the plan row or the counters",
+                       "after a metering refusal the next request carries the reader's two questions and NOT the refusal")),
+        Gate("chat-cap-real", [PY, "scripts/check_chat_cap_real.py"],
+             work_rx=r"GATE-WORK chat-cap-real units=(\d+)", floor=95,
+             units="cases on the local stack", vacuous_ok=True,
+             canaries=("CHAT-CAP-REAL GATE",)),
     ]
 
 
@@ -2271,10 +4285,137 @@ def _frontend_gates() -> List[Gate]:
              # measuring the component, which is fewer nodes and a real
              # subject instead of more nodes and a copy.
              canaries=("subjects parsed from", "non-text 3:1")),
+        # 2026-10-01: G3 is now a COVERAGE-TRUTH lint (it was a verb lint that
+        # passed "Any other country accepted" for a month and would have red
+        # on "…is not supported yet"). Its second canary proves the coverage
+        # detector still fires — on the negated not-supported wording.
         Gate("global-positioning", ["node", "scripts/check_global_positioning.mjs"],
              work_rx=r"GATE-WORK global-positioning units=(\d+)", floor=400,
              units="frontend files scanned",
-             canaries=("GLOBAL-POSITIONING GATES",)),
+             canaries=("GLOBAL-POSITIONING GATES",
+                       "G3 coverage-truth lint",
+                       "coverage claims beyond Romania:")),
+        # LANDING-PROOF — every accuracy number a public page prints is the
+        # proof's (owner, 2026-10-01). Mounts the real <Landing /> in English
+        # and Romanian and reads the DOM back: each check's headline "held /
+        # examined" (computed in the gate, independently of the page), the
+        # sentence of what is checked, its date, every number in its caption
+        # and in the FAQ answer — all equal to frontend/data/engineProof.json,
+        # in the reader's number format. Reds on a digit typed into the
+        # accuracy copy, on a typed accuracy claim anywhere in the landing
+        # strings / page meta / manifest, and on a proof measured on a
+        # different engine tree (stale proof: the digest of src/engine + packs
+        # is recomputed here). L8 (2026-10-02, the merge with the public
+        # sample): mounts the real /sample page too and reds when its list of
+        # checks is not the proof block's — same checks, same order, same
+        # words — or when the block's link names a fragment that page does
+        # not carry. Whether the JSON's counts are TRUE is `engine-proof`.
+        # Plant log: docs/engine_book/gates.md "landing-proof".
+        Gate("landing-proof",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/landingProof.test.tsx",
+              "frontend/lib/__tests__/shippedClaimsMatchCode.test.ts",
+              "--reporter=verbose"],
+             # measured 4,365 on 2026-10-02 (L12 reads every text node of five
+             # rendered pages in two languages, and 1,500 raw copy lines)
+             work_rx=r"GATE-WORK landing-proof figures=(\d+)", floor=3500,
+             units="figures, text nodes and copy lines held to the proof",
+             no_skips=True,
+             canaries=("L1 carries five dated checks, each saying what is checked, in both languages",
+                       # L12 (2026-10-02, the third review): the RENDERED text of
+                       # the landing, /pricing, /signup, /sample and
+                       # /contact-sales, and the raw copy behind them
+                       "L12 no accuracy number is rendered outside the proof block unless a proof token supplied it",
+                       "L12 no accuracy claim is typed into a string table, a dictionary or a plan bullet",
+                       "L12 the detector: the sentences a verifier typed are claims; the copy's own sentences are not",
+                       # L6 and L11 could be un-registered with the gate green
+                       # until 2026-10-02: a law that is not a canary is removable
+                       "L6 no token reaches a reader",
+                       "L6 every token resolves in both languages",
+                       "L11 a sentence about your own file promises only the two checks that run on every file",
+                       "L9 a caption uses only its own check's tokens, and leads with that check's held / examined",
+                       "L10 quotes no speed and no ratio count on any public surface",
+                       "L1 names no company and publishes no company's figure",
+                       "L2 the tree digest, parser version and EBITDA definition are the working tree's",
+                       "L3 the proof block prints the JSON: headline, what is checked, date, caption figures",
+                       "L4 the FAQ's proof answer prints only numbers the JSON holds",
+                       "L5 the accuracy block carries tokens, never a digit",
+                       "L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest",
+                       "L7 the listing counts are the JSON's, on the card and in the FAQ",
+                       "L8 the public sample lists the same checks in the same words, and the proof block's link lands on them",
+                       "prints no calibration count that is not a pair the engine proof measured")),
+        # PUBLIC-CLAIMS — no coverage claim stronger than the tests (owner,
+        # 2026-10-01: "any European country" on the headline card, a row of
+        # seven markets under the hero, five accounting systems named on the
+        # dashboard, a Multi-Country plan on sale). frontend/data/coverage.json
+        # is the ONLY source of coverage wording. The gate renders the landing,
+        # the signed-in pricing table, the in-app coverage table, the upload
+        # dialog's country dropdown and the non-Romanian refusal in both
+        # languages, and reads the page title / meta / manifest / runtime meta
+        # / share-image record / upload dictionaries / plan bullets / the
+        # public sample page's copy (/sample), and reds
+        # on: a country or region claimed beyond Romania; an accounting-
+        # software name not in a tested row backed by a real file; an input
+        # format outside the tested rows that is not marked AI-read or
+        # unsupported; a tested row without evidence (a battery gate that
+        # exists, or a dated production measurement) or with a book count the
+        # proof disagrees with; a checkout path for the coming-soon plan; an
+        # upsell on the refusal; a section count the report does not render;
+        # a share image that says something the hero does not. With it: the
+        # report footer law (only what is true for THAT report) and the
+        # rewritten G4 / G5. Plant log: docs/engine_book/gates.md
+        # "public-claims".
+        Gate("public-claims",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/publicClaims.test.tsx",
+              "frontend/lib/__tests__/reportFooter.test.ts",
+              "frontend/lib/__tests__/globalPositioning.test.ts",
+              "--reporter=verbose"],
+             # measured 10,863 on 2026-10-02 (every text node of the rendered
+             # pages, five more namespaces, both dictionaries whole)
+             work_rx=r"GATE-WORK public-claims units=(\d+)", floor=9000,
+             units="copy lines and claims examined",
+             no_skips=True,
+             canaries=("C1 claims no country or region as covered but Romania",
+                       # the third review (2026-10-02)
+                       "C2 no accounting-software name is typed into any component, page or dictionary",
+                       "C3 a guide card lists only formats read on a real book, or says it is not tested on a real file",
+                       "C10 the page title, description and manifest claim Romanian trial balances",
+                       # …and the four laws of the file that were no canary:
+                       # with them, every law of publicClaims.test.tsx is
+                       "C5 renders the same rows in the in-app table",
+                       "C5 the in-app upload zone opens the coverage table and lists no software",
+                       "C6 the signed-in pricing table marks it coming soon; its button cannot start a checkout",
+                       "C6 a ?plan=multi signup link selects nothing, and the bill estimator prices only plans on sale",
+                       "C1 the detector: negation must govern the claim; every country is a country",
+                       "C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported",
+                       "C4 the table prints the denominator: files read, files refused, in the reader's date format",
+                       "F6 who read the document is the served extraction method, never a universal sentence",
+                       # THE REPORT-FOOTER LAW IS POSITIVE (2026-10-02): every
+                       # law is a canary by name, and the count below is printed
+                       # from a counter of laws that RAN — F5 could be
+                       # un-registered with the gate green while "laws=8" was a
+                       # string literal
+                       "F1 a balanced book: the engine's verdict and a zero difference, no tolerance",
+                       "F3 a period with no engine verdict says so, and prints no difference",
+                       "F3 a served verdict without its totals block still prints the served status and difference",
+                       "F4 credits the narrative only when a briefing is shown, and names no model version",
+                       "F5 the report page's closing region is the footer and its three served lines, nothing typed",
+                       "F7 the export's closing templates are the expected ones, and no retired sentence is typed in its source",
+                       "F8 the published sample's closing blocks are exactly the builder's output for the served document",
+                       "F9 no closing block states a percentage or a tolerance, in any words",
+                       "C1b every row but Romania sits in a group that says not supported, and cannot be chosen",
+                       "C2 names no accounting software that is not a tested row's, backed by a real file",
+                       "C3 offers no input format outside the tested rows unless it says AI-read or not supported",
+                       "C4 every tested row has evidence a reader can check, a dated count the proof agrees with",
+                       "C5 renders every row beside the upload step, with what it was tested on and when",
+                       "C6 the landing card is marked coming soon and starts no checkout",
+                       "C7 says other countries are not supported yet, offers the coverage table, sells nothing",
+                       "C8 the section count a plan sells is the count the report renders",
+                       "C9 the share image's text is the hero's; its alt says what the image says",
+                       "GATE-WORK report-footer laws=10 registered=10",
+                       "F2 an imbalanced book: that status and the served difference to the cent",
+                       "lib/markets.ts is gone and nothing imports it")),
         # `npx tsc --noEmit` sat here and CHECKED ZERO FILES. The root
         # tsconfig.json is solution-style — `"files": []` plus references —
         # so without `-b` tsc obeys the empty file list and exits 0 in 0.2s.
@@ -2320,7 +4461,10 @@ def _frontend_gates() -> List[Gate]:
                        "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx: ran",
                        # forecast-scenarios-live: F1 / F5 / F6 on the pages.
                        "frontend/components/forecast/__tests__/forecastYearZero.test.tsx: ran",
-                       "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx: ran")),
+                       "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx: ran",
+                       # landing trust (2026-10-01): the proof and the claims
+                       "frontend/lib/__tests__/landingProof.test.tsx: ran",
+                       "frontend/lib/__tests__/publicClaims.test.tsx: ran")),
         # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
         # byte-matching" as a gate. It also rides `vitest`, and is named on
         # its own because its defect prints a believable figure on one
@@ -2339,10 +4483,101 @@ def _frontend_gates() -> List[Gate]:
                        "B5 the six column headings are one string",
                        "B3 the deteriorated list: the served order and the same cells",
                        "B6 non-vacuity: every named path is extracted whole and is the real served-row path")),
+        # THE PUBLIC SAMPLE, frontend half (engine half: `public-sample`):
+        #   public-sample-page  the /sample page in EN and RO — every money
+        #                    figure and ratio is the COMMITTED served
+        #                    document's (read through the figure's own
+        #                    pointer, printed by an independent formatter),
+        #                    nothing in the page's own voice is a number in
+        #                    the other language's format, every label /
+        #                    bucket / status is named in both languages, each
+        #                    download is a published file at its stated size,
+        #                    the committed report HTML is a byte-identical
+        #                    rebuild by the product's own report builder, the
+        #                    committed PDF prints its headline figures, and
+        #                    the page renders with no session and no fetch.
+        #   public-sample-pdf   re-prints the report through the shipped PDF
+        #                    renderer (headless Chromium) and compares the
+        #                    committed PDF's text layer, page by page.
+        #                    Plant log: gates.md.
+        Gate("public-sample-page",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/publicSample.test.tsx", "--reporter=verbose"],
+             # measured 802 on 2026-10-02 (P11 reads every number of the page's
+             # own words in both languages: 327 + 281; the built figures 194)
+             work_rx=r"GATE-WORK public-sample-page figures=(\d+)", floor=650,
+             units="printed figures held to the served document",
+             no_skips=True,
+             canaries=("GATE-WORK public-sample-page figures=",
+                       "P11 every number the page says in its own voice is the sample's",
+                       "the page prints every issue above the files, each amount a figure of that issue",
+                       "every money figure of both years, printed in the reader's language",
+                       "nothing the page says in its own voice is a number in the other language's format",
+                       "each ratio and composite, both years",
+                       "the committed HTML is a byte-identical rebuild from the committed served documents",
+                       "the committed PDF prints that report's headline figures",
+                       "the report prints the box before the executive summary, in English and Romanian, and the cover points at it",
+                       "renders with no session, no provider and no network call")),
+        Gate("public-sample-pdf",
+             ["node", "scripts/build_public_sample_report.mjs", "--check"],
+             work_rx=r"(\d+) pages, text layer identical to a rebuild", floor=15,
+             units="PDF pages re-printed and compared",
+             canaries=("sample_report_fy2025.html — byte-identical rebuild",
+                       "text layer identical to a rebuild")),
+        # THE BRIEFING CARD MAKES NO MODEL CALL WITHOUT A CLICK, AND A PLAN
+        # REFUSAL IS RENDERED FROM ITS CODE (hotfix 2026-10-02, SPEC D4 /
+        # D10; rulings 2026-10-03). It also rides `vitest`, and is named on
+        # its own because both halves fail SILENTLY: an effect that fires
+        # the regenerate route on a language mismatch or a currency toggle
+        # spends the reader's allowance with no click (every bundle deployed
+        # before the hotfix did exactly that, unmetered), and a humanizer
+        # that prints the server's message shows one member's plan to
+        # another. The card over a recorded fetch: no request on mount, on a
+        # language mismatch, on a currency toggle; ONE per click with the
+        # explicit-intent body (the fixture the engine gate posts to the
+        # real route); an action that creates or replaces the STORED
+        # briefing asks for RON whatever the display currency; a failure
+        # keeps the prose and is shown stale only when the engine says the
+        # row is; a stored regeneration is SHOWN whatever the display
+        # currency; 422 / 429 / 503 print a sentence, never the server's
+        # words. Measured 77. Plant log: gates.md
+        # "briefing-explicit-regenerate".
+        Gate("briefing-explicit-regenerate",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/briefingExplicitRegenerate.test.tsx",
+              "frontend/lib/__tests__/uploadRefusalCodes.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=77,
+             units="tests",
+             canaries=("on mount: no request, and no action offered when language and currency already match",
+                       "on a currency toggle: no request",
+                       "a click sends ONE POST: no query string, the explicit-intent body",
+                       "with the display currency EUR, 'Generate the briefing' asks for RON",
+                       "a stored 'Generate the briefing' is SHOWN at once",
+                       "the same failure with stale:true IS presented as kept",
+                       "a row that still carries a server message never prints it",
+                       "the card's source holds no effect-driven request")),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",
              canaries=("dist/index.html",)),
+        # BUNDLE-LABELS (2026-10-02) — no client book's label in the files
+        # every visitor downloads. The production bundle carried one six
+        # times: developer notes written as CSS comments INSIDE the report's
+        # stylesheet template, which a minifier does not strip. The exported
+        # report was cleaned on 2026-10-01 (`shippedCss`); the bundle was the
+        # other outlet. Runs AFTER npm-build, over dist/; the labels are
+        # derived at run time from the real books' file names
+        # (scripts/client_labels.py), never typed. A missing dist/ is exit 2:
+        # a scan of nothing is not a pass. Plant log: gates.md
+        # "bundle-labels".
+        Gate("bundle-labels", [PY, "scripts/check_bundle_labels.py"],
+             # measured 138 on 2026-10-02: 130 text files and the 8 workbooks
+             # / PDFs under dist/templates, dist/examples and dist/sample,
+             # opened member by member. No identifier is exempt any more.
+             work_rx=r"GATE-WORK bundle-labels files=(\d+)", floor=100,
+             units="built files read (text, workbooks, PDFs)",
+             canaries=("BUNDLE LABELS: PASS", "no identifier is exempt",
+                       "workbook(s) and PDF(s) opened")),
         # PLAYWRIGHT — the last suite outside the net until 2026-09-09, and
         # it had already taken the battery down once by starving vitest of
         # CPU. Baseline measured serially on a quiet machine with the dev
@@ -2443,6 +4678,24 @@ def _extract_work(gate: Gate, out: str, junit: Optional[Path]) -> Tuple[Optional
             return sum(int(x) for x in found), out.splitlines()
         return int(found[-1]), out.splitlines()
     return None, out.splitlines()
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_VITEST_TESTS_LINE = re.compile(r"^\s*Tests\s+(.*)$", re.M)
+
+
+def _skipped_tests(out: str) -> int:
+    """Skipped + todo tests in a vitest run, from its summary line
+    ("Tests  33 passed | 1 skipped (34)") and, failing that, from the
+    reporter's own skip marks."""
+    plain = _ANSI.sub("", out)
+    total = 0
+    for line in _VITEST_TESTS_LINE.findall(plain):
+        for count, kind in re.findall(r"(\d+)\s+(skipped|todo)", line):
+            total += int(count)
+    if total == 0:
+        total = len(re.findall(r"^\s*↓\s", plain, re.M))
+    return total
 
 
 def _missing_canaries(gate: Gate, haystack: List[str]) -> List[str]:
@@ -2637,6 +4890,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                 reasons.append(
                     "DISCOVERY BROKEN — canary absent from the gate's own "
                     "output: %s" % ", ".join(repr(m) for m in missing))
+            skipped = _skipped_tests(out) if g.no_skips else 0
+            if skipped:
+                state = "FAIL"
+                reasons.append(
+                    "SKIPPED LAW — %d test(s) of this gate were skipped (it.skip / "
+                    "it.todo / describe.skip). A skipped law still prints its name, "
+                    "so its canary is satisfied by a test that did not run." % skipped)
 
         results[g.name] = {
             "ok": state != "FAIL",

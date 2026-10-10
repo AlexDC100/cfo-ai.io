@@ -13,7 +13,7 @@
 // emitted by the canonical OMFP-1802 mapping in _ro_coa.py.
 
 import { ApiLineItem, sumByExact, sumByPrefix } from "./plStructure";
-import { bsDelta, numOrNull } from "./bsStructure";
+import { bsDelta, bsRowShareKey, bsSectionShareKey, numOrNull } from "./bsStructure";
 import type { BSLine, BSSection, BSStatement } from "./bsStructure";
 
 /** Give a BSLine array literal its element type before it is filtered.
@@ -275,6 +275,8 @@ function appendPriorOnlyRows(
       label: typeof row.label === "string" && row.label.length > 0 ? row.label : id,
       opening: amount,
       style: "item",
+      // The comparison's share row for this id says "no longer present".
+      shareKey: bsRowShareKey(id),
     };
     const bucket = rowsBySection.get(section);
     if (bucket) bucket.push(line);
@@ -329,6 +331,9 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
           ? { opening: row.opening }
           : {}),
       closing: row.amount,
+      // The engine's own share of total assets is served under the row's id
+      // (statements.common_size / the comparison's common_size).
+      shareKey: bsRowShareKey(row.id),
       // Δ over an absent opening is not 0 — it is unmeasured.
       delta: bsDelta(
         typeof priorOpening === "number" ? priorOpening : row.opening,
@@ -372,6 +377,7 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
       // a comparative date.
       subtotalClosing: sec.subtotal,
       subtotalBucket: meta.subtotalBucket,
+      subtotalShareKey: bsSectionShareKey(sec.id),
       // COMPARATIVES — the prior period's subtotal for the same section id.
       ...(typeof priorSubtotal === "number" ? { subtotalOpening: priorSubtotal } : {}),
     };

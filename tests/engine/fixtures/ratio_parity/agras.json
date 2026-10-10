@@ -128,7 +128,7 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 0.3072402326493936,
+        "value": 0.3073437011729822,
         "printed": "0.31",
         "unit": "x",
         "verdict": "strong",
@@ -193,7 +193,7 @@
         "absence": null
       },
       "dscr": {
-        "value": 4.7819,
+        "value": 4.7802,
         "printed": "4.78",
         "unit": "x",
         "verdict": "strong",
@@ -220,8 +220,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 25.8701,
-        "printed": "25.87",
+        "value": 25.8614,
+        "printed": "25.86",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": true,
@@ -404,7 +404,7 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 0.3072402326493936,
+        "value": 0.3073437011729822,
         "printed": "0.31",
         "unit": "x",
         "verdict": "strong",
@@ -469,7 +469,7 @@
         "absence": null
       },
       "dscr": {
-        "value": 4.7819,
+        "value": 4.7802,
         "printed": "4.78",
         "unit": "x",
         "verdict": "strong",
@@ -496,8 +496,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 25.8701,
-        "printed": "25.87",
+        "value": 25.8614,
+        "printed": "25.86",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": true,
@@ -680,7 +680,7 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 0.3072402326493936,
+        "value": 0.3073437011729822,
         "printed": "0.31",
         "unit": "x",
         "verdict": "strong",
@@ -745,7 +745,7 @@
         "absence": null
       },
       "dscr": {
-        "value": 6.551203000000001,
+        "value": 6.5488740000000005,
         "printed": "6.55",
         "unit": "x",
         "verdict": "strong",
@@ -772,8 +772,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 35.442037000000006,
-        "printed": "35.44",
+        "value": 35.430118,
+        "printed": "35.43",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": true,

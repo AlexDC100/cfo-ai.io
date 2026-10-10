@@ -12,6 +12,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { useActivePeriod } from "@/lib/activePeriod";
+import { useActiveLocale } from "@/lib/locale";
 import { useActiveOrg } from "@/lib/org";
 import {
   fetchWorkspacePeriodsDirect,
@@ -28,7 +29,8 @@ export interface PeriodStepper {
   periods: OrgPeriod[];
   /** The selected period's end date (or null when nothing resolvable). */
   selectedEnd: string | null;
-  /** "Dec 2025"-style label for the selection; null when nothing loaded. */
+  /** "Dec 2025"-style label for the selection, in the UI language ("dec.
+   *  2025" in Romanian); null when nothing loaded. */
   selectedMonth: string | null;
   /** "2025"-style label for the selection; null when nothing loaded. */
   selectedYear: string | null;
@@ -43,6 +45,7 @@ export interface PeriodStepper {
 
 export function usePeriodStepper(): PeriodStepper {
   const period = useActivePeriod();
+  const locale = useActiveLocale();
   const [params, setParams] = useSearchParams();
   const { data: periodsData } = useOrgPeriods();
   // Empty periods too — the engine feed only knows analyzed periods, so a
@@ -97,7 +100,7 @@ export function usePeriodStepper(): PeriodStepper {
     // Not while an analysis is running — see lib/scanGuard.
     if (blockedByScan("period")) return;
     const target = periods.find((p) => p.period_id === periodId);
-    startPeriodSwitch(formatPeriodMonth(target?.period_end) ?? undefined);
+    startPeriodSwitch(formatPeriodMonth(target?.period_end, locale) ?? undefined);
     const sp = new URLSearchParams(params);
     sp.set("period", periodId);
     // Replace, not push — month stepping is substitution; Back should leave
@@ -108,7 +111,7 @@ export function usePeriodStepper(): PeriodStepper {
   return {
     periods,
     selectedEnd,
-    selectedMonth: formatPeriodMonth(selectedEnd),
+    selectedMonth: formatPeriodMonth(selectedEnd, locale),
     selectedYear: formatPeriodYear(selectedEnd),
     prevTarget: showStepper ? prevTarget : null,
     nextTarget: showStepper ? nextTarget : null,

@@ -46,7 +46,10 @@ DRY RUN (the default) prints, per period: anchor status, book state, net
 before (the stored methodology `ebitda.reported` — the pre-ruling figure on
 an unstamped block) and after, the credit composite / letter / Altman
 Z'' before (the stored metric rows) and after (the credit model on the
-fresh statements), and the stored `valuations` row's `ebitda_used` (and
+fresh statements) with the model revision each was composed under, the
+credit regime (owner ruling R1: the stock-build regime's trigger shares,
+its cash status, the refused cash components and the finding), and the
+stored `valuations` row's `ebitda_used` (and
 primary method) against the one the rewrite persists (the one EBITDA, or
 refused). Nothing is written.
 
@@ -61,6 +64,19 @@ saved override is never `current`. User overrides
 (`user_valuation_assumptions`) are the user's and are not touched — GET
 /api/period serves them flagged "salvat sub definiția anterioară a EBITDA"
 when typed under the previous definition.
+
+THE 2026-09-28 REVISION (owner rulings R2, R3). The definition stamp
+moved again: provisions (6812 / 6814 charges and 7812 / 7814 reversals)
+left EBITDA for their own net-provisions line, and 7411 entered net
+turnover. Every period stamped with an earlier revision
+(`EBITDA_DEFINITION_PREVIOUS_REVISIONS`) is NOT current and is reprocessed;
+the dry run prints the stamp it was written under beside the running one,
+and the net provisions and the 7411 placed in turnover of the fresh run. A
+turnover move that equals, to the cent, the 7411 the fresh run placed inside
+turnover on a period written under an earlier definition is the ruling
+itself (`definition_7411`) — and it STILL blocks until the period's filed
+turnover is named with --filed (owner, 2026-09-29: "verify filed-turnover
+matching on any book with 7411"); the named figure then judges the move.
 
 TURNOVER MOVES BLOCK THE DEPLOY (design A10). A period persisted by an older
 parser can read a different turnover now (Carniprod 7c29a71b served
@@ -193,6 +209,9 @@ def _stored_view(period: Dict[str, Any], metric_rows: Sequence[Dict[str, Any]]) 
     by_name = dict((str(m.get("name")), m.get("value")) for m in metric_rows)
     composite = _num(by_name.get("credit_composite"))
     return {
+        # The credit model revision the stored rows were written under
+        # (revision 5: the stock-build regime, owner ruling R1).
+        "credit_model_revision": _num(by_name.get("credit_model_revision")),
         "has_evidence": isinstance(env.get("stock_variation"), dict),
         # G7 (design A10): the serve path folds the 121 residual into 711
         # only when the stored rows were read by the RUNNING trial-balance
@@ -210,6 +229,7 @@ def _stored_view(period: Dict[str, Any], metric_rows: Sequence[Dict[str, Any]]) 
         "dio": _num(by_name.get("dio")),
         "definition": methodology.get("ebitda_definition"),
         "definition_current": methodology.get("ebitda_definition") == EBITDA_DEFINITION_REVISION,
+        "running_definition": EBITDA_DEFINITION_REVISION,
         "turnover": _num(totals.get("revenue_net")),
         "ebitda": _num(ebitda.get("reported")),
         "composite": composite,
@@ -230,6 +250,9 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
         statements, source_data_quality=assembled.get("source_data_quality"))
     by_name = dict((str(m.get("name")), m.get("value")) for m in metrics)
     composite = _num(by_name.get("credit_composite"))
+    # R1 (2026-09-28): the credit regime the fresh rows were composed under —
+    # the stock-build regime names its cash status and the finding.
+    regime = credit_model.stock_build_regime(statements)
     refusal = iv.get("refusal") if isinstance(iv.get("refusal"), dict) else None
     inv = statements.get("inventory_days") if isinstance(statements.get("inventory_days"), dict) else {}
     inv_total = inv.get("total") if isinstance(inv.get("total"), dict) else {}
@@ -245,12 +268,31 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
         "net_711_refusal": (refusal or {}).get("code"),
         "net_72x": _num(cap.get("value")),
         "turnover": _num(pl.get("turnover", pl.get("revenue"))),
+        # R3 (2026-09-28): the 7411 the fresh run placed inside turnover.
+        "turnover_7411": _num(((pl.get("turnover_definition") or {}).get("placed_extra"))
+                              if isinstance(pl.get("turnover_definition"), dict) else None),
+        # R2 (2026-09-28): charges − reversals, outside EBITDA.
+        "net_provisions": _num(((pl.get("net_provisions") or {}).get("value"))
+                               if isinstance(pl.get("net_provisions"), dict) else None),
+        "ebit": _num(pl.get("ebit")),
         "ebitda": _num(pl.get("ebitda")),
         "ebitda_refusal": ((pl.get("ebitda_refusal") or {}).get("code")
                            if isinstance(pl.get("ebitda_refusal"), dict) else None),
         "composite": composite,
         "letter": credit_model.composite_to_letter_grade(composite),
         "altman_z": _num(by_name.get("altman_z_score")),
+        "credit_model_revision": credit_model.CREDIT_MODEL_REVISION,
+        "credit_regime": None if regime is None else {
+            "code": regime["code"],
+            "cash_status": (regime.get("cash") or {}).get("status"),
+            "refused": sorted(k for k in ("leverage", "coverage", "dscr")
+                              if by_name.get("credit_subscore_%s" % k) is None),
+            "finding": (regime.get("finding") or {}).get("text"),
+            # fixer round 1: the sentence withheld where the served figures
+            # contradict it — the failed premise, by name.
+            "finding_withheld": list((regime.get("finding_withheld") or {}).get("failed") or []) or None,
+            "tests": [(t["key"], t["share"], t["at_least"]) for t in regime["trigger"]["tests"]],
+        },
     }, metrics
 
 
@@ -295,14 +337,24 @@ def _same(a: Optional[float], b: Optional[float]) -> bool:
 
 
 def _turnover_verdict(before: Optional[float], after: Optional[float],
-                      filed: Optional[float]) -> Optional[str]:
+                      filed: Optional[float], *, placed_7411: Optional[float] = None,
+                      earlier_definition: bool = False) -> Optional[str]:
     """None when turnover did not move; otherwise 'toward_filed',
-    'away_from_filed' or 'no_filed_figure'."""
+    'away_from_filed', 'definition_7411' or 'no_filed_figure'.
+
+    'definition_7411' (R3, 2026-09-28): no filed figure is named, the period
+    was written under an earlier EBITDA definition, and the move is exactly
+    the 7411 the fresh run placed inside turnover — the ruling, not a
+    reading change. A named filed figure always judges first."""
     if _same(before, after):
         return None
-    if filed is None or before is None or after is None:
-        return "no_filed_figure"
-    return "toward_filed" if abs(after - filed) < abs(before - filed) else "away_from_filed"
+    if filed is not None and before is not None and after is not None:
+        return "toward_filed" if abs(after - filed) < abs(before - filed) else "away_from_filed"
+    if (earlier_definition and before is not None and after is not None
+            and placed_7411 is not None and abs(placed_7411) >= 0.005
+            and _same(after - before, placed_7411)):
+        return "definition_7411"
+    return "no_filed_figure"
 
 
 # ── one period ─────────────────────────────────────────────────────────
@@ -369,7 +421,10 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
 
     after, _metrics = _fresh_view(assembled)
     row["after"] = after
-    row["turnover_move"] = _turnover_verdict(row["before"]["turnover"], after["turnover"], filed_turnover)
+    row["turnover_move"] = _turnover_verdict(
+        row["before"]["turnover"], after["turnover"], filed_turnover,
+        placed_7411=after.get("turnover_7411"),
+        earlier_definition=not row["before"]["definition_current"])
     row["filed_turnover"] = filed_turnover
 
     if str(resolved_end)[:10] != row["period_end"]:
@@ -474,6 +529,10 @@ def _fmt(v: Any) -> str:
     return str(v)
 
 
+def _fmt_rev(v: Any) -> str:
+    return "unstamped" if v is None else "%d" % int(v)
+
+
 def render(rows: Sequence[Dict[str, Any]]) -> str:
     lines = []  # type: List[str]
     for r in rows:
@@ -488,19 +547,44 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
             lines.append("  reader %s -> %s%s" % (
                 b.get("parser_version") or "unstamped", b.get("running_parser_version") or "—",
                 "" if b.get("parser_current") else "  [G7: served as reprocess_required until rewritten]"))
-            lines.append("  turnover %s -> %s%s" % (_fmt(b.get("turnover")), _fmt(a.get("turnover")),
-                                                    ("  [TURNOVER MOVED: %s]" % r["turnover_move"])
-                                                    if r.get("turnover_move") else ""))
+            lines.append("  definition %s -> %s" % (b.get("definition") or "unstamped",
+                                                   b.get("running_definition") or "—"))
+            lines.append("  turnover %s -> %s (7411 inside: %s)%s" % (
+                _fmt(b.get("turnover")), _fmt(a.get("turnover")), _fmt(a.get("turnover_7411")),
+                ("  [TURNOVER MOVED: %s]" % r["turnover_move"]) if r.get("turnover_move") else ""))
             lines.append("  EBITDA %s -> %s%s" % (_fmt(b.get("ebitda")), _fmt(a.get("ebitda")),
                                                  (" (refused: %s)" % a["ebitda_refusal"])
                                                  if a.get("ebitda_refusal") else ""))
+            lines.append("  net provisions (outside EBITDA) %s · EBIT %s" % (
+                _fmt(a.get("net_provisions")), _fmt(a.get("ebit"))))
             lines.append("  inventory days %s -> %s (%s%s)"
                          % (_fmt(b.get("dio")), _fmt(a.get("dio")), a.get("inventory_days_basis") or "—",
                             (", refused: %s" % a["inventory_days_refusal"])
                             if a.get("inventory_days_refusal") else ""))
-            lines.append("  credit %s %s z %s -> %s %s z %s"
+            # A fresh run with no composite is a REFUSAL, printed as one —
+            # never "—", which reads as a re-grade to nothing.
+            after_grade = ("%s %s" % (_fmt(a.get("composite")), a.get("letter") or "—")
+                           if a.get("composite") is not None else "REFUSED (no composite, no letter)")
+            lines.append("  credit %s %s z %s -> %s z %s (model revision %s -> %s)"
                          % (_fmt(b.get("composite")), b.get("letter") or "—", _fmt(b.get("altman_z")),
-                            _fmt(a.get("composite")), a.get("letter") or "—", _fmt(a.get("altman_z"))))
+                            after_grade, _fmt(a.get("altman_z")),
+                            _fmt_rev(b.get("credit_model_revision")), _fmt_rev(a.get("credit_model_revision"))))
+            reg = a.get("credit_regime")
+            if reg:
+                # R1 (2026-09-28): the stock-build regime, its trigger, its
+                # cash basis and the finding — the owner reviews these
+                # before the deploy.
+                lines.append("  credit regime %s: %s · cash %s%s" % (
+                    reg["code"],
+                    ", ".join("%s %s >= %s" % (k, _fmt(v) if v is not None else "—", t)
+                              for k, v, t in reg.get("tests") or []),
+                    reg.get("cash_status") or "—",
+                    (" · refused: %s" % ", ".join(reg["refused"])) if reg.get("refused") else ""))
+                if reg.get("finding"):
+                    lines.append("  finding: %s" % (reg["finding"].get("ro") or "—"))
+                else:
+                    lines.append("  finding withheld (the served figures contradict it): %s"
+                                 % ", ".join(reg.get("finding_withheld") or ["—"]))
             v = r.get("valuation") or {}
             if v.get("has_row"):
                 lines.append("  valuation EBITDA %s (%s) -> %s%s%s" % (
@@ -515,8 +599,12 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
 
 
 def blocking(rows: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The rows whose turnover moved other than toward a known filed figure."""
-    return [r for r in rows if r.get("turnover_move") not in (None, "toward_filed")]
+    """The rows whose turnover moved other than toward a known filed figure.
+    A move of exactly the 7411 the ruling placed in turnover
+    (`definition_7411`) blocks too: the owner asked for filed-turnover
+    matching on any book with 7411, so it waits for its filed figure."""
+    return [r for r in rows
+            if r.get("turnover_move") not in (None, "toward_filed")]
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

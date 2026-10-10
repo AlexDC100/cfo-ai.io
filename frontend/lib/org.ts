@@ -474,11 +474,50 @@ export async function archiveWorkspaceOrg(orgId: string): Promise<string | null>
   return (data as string) ?? null;
 }
 
+/** The number in the database's own refusal — `workspace_cap_reached: your
+ *  <plan> plan allows <n> workspace(s)` — or null when it names none. That
+ *  number is the one the database ENFORCES; the plan card's `max_workspaces`
+ *  can differ from it for an account whose plan row predates the tiers, so
+ *  the sentence a refused reader sees quotes the refusal, not the card. */
+export function workspaceCapOfMessage(msg: string | null | undefined): number | null {
+  const m = /allows\s+(\d{1,4})\s+workspace/i.exec(msg ?? "");
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/** Why the most recent `restoreWorkspaceOrg` was refused. */
+export interface WorkspaceRestoreRefusal {
+  /** The plan's workspace limit refused it (the database's cap guard —
+   *  supabase/schema_phase_workspace_cap_guard.sql). */
+  capReached: boolean;
+  /** The limit the refusal named, when it named one. */
+  cap: number | null;
+}
+
+const NO_RESTORE_REFUSAL: WorkspaceRestoreRefusal = { capReached: false, cap: null };
+let lastRestoreRefusal: WorkspaceRestoreRefusal = NO_RESTORE_REFUSAL;
+
+/** What the last restore attempt was refused for. Reset on every attempt —
+ *  a success, or a failure that is not the limit, reads `capReached: false`.
+ *  The same shape as `lastWorkspaceCreateHitLimit`: the screens that restore
+ *  read it to say "your plan's workspace limit is reached — upgrade" instead
+ *  of a bare "couldn't restore" (2026-10-04: since the cap guard, an owner at
+ *  the limit who restores an archived workspace is refused, and the screen
+ *  gave no reason while the 30-day purge date kept running). */
+export function lastWorkspaceRestoreRefusal(): WorkspaceRestoreRefusal {
+  return lastRestoreRefusal;
+}
+
 export async function restoreWorkspaceOrg(orgId: string): Promise<boolean> {
+  lastRestoreRefusal = NO_RESTORE_REFUSAL;
   const supabase = getSupabase();
   if (!supabase) return false;
   const { error } = await supabase.rpc("restore_workspace", { p_org_id: orgId });
   if (error) {
+    if (isWorkspaceLimitMessage(error.message)) {
+      lastRestoreRefusal = { capReached: true, cap: workspaceCapOfMessage(error.message) };
+    }
     console.warn("[org] restore_workspace failed:", error.message);
     return false;
   }

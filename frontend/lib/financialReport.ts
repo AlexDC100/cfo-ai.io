@@ -45,6 +45,7 @@ export type { FigureAbsence } from "./absentAware";
 // the point: this module holds no scoring model of its own any more, so it
 // cannot answer a credit question without being handed the one answer.
 import type { CreditScoreResult } from "./financialValuation";
+import { regimeDocumentText } from "./creditRegime";
 // VALUE import, and safe: `creditModel.ts` is a leaf that imports nothing,
 // which is why the composer was moved there. This document must spell the
 // ladder with the SAME function the screens do — it had its own inline
@@ -128,6 +129,7 @@ import {
   type Comparatives,
 } from "./reportComparatives";
 import { printCss } from "./reportPrintCss";
+import { basisAuthorshipSentence, reportAuthorship } from "./reportFooter";
 // THE TWO-PERIOD RATIO TABLE, READ — never computed. `ratioTable.ts` is
 // the typed mirror of the block the engine serves on
 // `GET /api/period/{id}/comparatives → ratios` and the ONE formatter that
@@ -258,7 +260,7 @@ export interface PriorPeriod {
    *  prior arrived as a served statements block (the comparatives
    *  document's `prior_statements`). Typed as loosely as the current
    *  period's. Its `net_income_statutory` is account 121 as filed; the
-   *  workbook's "Net income (account 121, as filed)" prior cell and the
+   *  workbook's "Net income (account 121, closing balance)" prior cell and the
    *  Piotroski prior-year checks read it. Absent on priors built from bare
    *  statements (public-company history, demo series). */
   assembled_pl?: Record<string, number>;
@@ -2120,12 +2122,12 @@ export function computeRatios(
       row("net_margin", "Net Margin", "%", netMargin,
         { strong: 15, healthy: 8, watch: 3 }, true,
         "≥ 8% healthy",
-        "net profit as filed (account 121) ÷ revenue",
-        () => `${money(anchoredNetIncome)} net profit as filed, on ${money(anchoredRevenue)} revenue.`),
+        "net profit (account 121, closing balance) ÷ revenue",
+        () => `${money(anchoredNetIncome)} net profit (account 121), on ${money(anchoredRevenue)} revenue.`),
       row("roa", "Return on Assets", "%", roa,
         { strong: 10, healthy: 5, watch: 2 }, true,
         "≥ 5% healthy",
-        "net profit as filed (account 121) ÷ total assets",
+        "net profit (account 121, closing balance) ÷ total assets",
         (v) =>
           v >= 5
             ? "Assets generating solid returns."
@@ -2133,7 +2135,7 @@ export function computeRatios(
       row("roe", "Return on Equity", "%", roe,
         { strong: 20, healthy: 12, watch: 6 }, true,
         "≥ 12% healthy",
-        "net profit as filed (account 121) ÷ total equity",
+        "net profit (account 121, closing balance) ÷ total equity",
         (v) =>
           v >= 12
             ? "Capital deployed efficiently for shareholders."
@@ -2359,10 +2361,19 @@ export function altmanRatio(credit: CreditScoreResult): Ratio {
   // The arithmetic, spelled from the reader's own coefficients rather than
   // re-typed here, so a re-weighted model moves the printed formula with
   // the number it produced.
+  //
+  // THE X3 TERM IS NAMED AS THE ENGINE NAMES IT. Under the stock-build
+  // credit regime X3 is not EBIT ÷ total assets, and the engine serves what
+  // it is (`a.x3Basis`). This printed "(EBIT ÷ total assets)" beside a Z″
+  // computed on another numerator: a reader recomputing the printed formula
+  // from the document's own EBIT and assets got 4.81 (safe) under a printed
+  // 2.43 (grey) — review round 3, 2026-10-02.
+  const x3Term = a.x3Basis ? "X3" : "(EBIT ÷ total assets)";
+  const x3Stated = a.x3Basis ? ` — ${a.x3Basis.en}` : "";
   const formula =
     `6.56 × (working capital ÷ total assets) + 3.26 × (retained earnings ÷ total assets) ` +
-    `+ 6.72 × (EBIT ÷ total assets) + 1.05 × (book equity ÷ total liabilities) ` +
-    `— ${a.variant} emerging-markets variant, computed by ${credit.model}`;
+    `+ 6.72 × ${x3Term} + 1.05 × (book equity ÷ total liabilities) ` +
+    `— ${a.variant} emerging-markets variant, computed by ${credit.model}${x3Stated}`;
   if (a.score === null || a.zone === null) {
     return {
       key: ALTMAN_RATIO_KEY,
@@ -3537,13 +3548,109 @@ export function reportChartBlocks(
   });
 }
 
+/**
+ * THE STYLESHEET AS IT SHIPS — without its comments.
+ *
+ * The CSS assembled below (this file, `reportCharts`, `reportShell`,
+ * `reportPrintCss`) is annotated for whoever edits it: what was measured,
+ * on which test document, why a rule is the way it is. Until 2026-10-01
+ * those notes were written into every exported report — about 18,000
+ * characters of developer commentary in a document a customer forwards to
+ * a bank, six of them naming the test document a measurement was taken on.
+ * Found by the public-sample gate, which scans the published sample report
+ * for the labels of the books this repository was calibrated on and found
+ * one inside the `<style>` block of a fictional company's report.
+ *
+ * A comment is not a rule: removing them changes no selector, no
+ * declaration and therefore no rendering (`reportPrintCss.test.ts` strips
+ * them the same way before it reads the rules). The source keeps every
+ * note; the export carries none.
+ */
+export function shippedCss(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{2,}/g, "\n");
+}
+
+/**
+ * What a caller may say ABOUT the document, as opposed to in it. Every
+ * field has the customer's own export as its default, so the product's
+ * download is unchanged; the public sample (lib/publicSampleReport) is the
+ * one caller that passes any.
+ *
+ * Until 2026-10-02 these were fixed strings: the published sample of a
+ * fictional company was stamped "Confidential — for internal use only"
+ * twice, carried no word that the company does not exist, and printed the
+ * day it was built in the build machine's timezone.
+ */
+export interface ReportOptions {
+  /** Print "Confidential — for internal use only" on the cover and in the
+   *  footer. Default true. A file published for anyone is not confidential. */
+  confidential?: boolean;
+  /** A notice printed on the cover, above the executive summary and in the
+   *  footer (`long`), and at the foot of every printed page (`short`). */
+  notice?: { long: string; short: string } | null;
+  /** The day the report was prepared, as an ISO date (YYYY-MM-DD); printed
+   *  as that calendar day whatever the machine's timezone. Default: today,
+   *  in the reader's own timezone. */
+  generatedOn?: string | null;
+  /** "Known issues in this report" — a box printed before the executive
+   *  summary, and one line on the cover pointing at it. The public sample
+   *  passes the three defects its own report exposes, in English and in
+   *  Romanian (lib/publicSampleKnownIssues); a customer's export passes
+   *  none. Words and figures are the caller's: this renderer only places
+   *  them, escaped. */
+  knownIssues?: ReportKnownIssues | null;
+}
+
+export interface ReportKnownIssues {
+  /** One block per language, in print order. */
+  blocks: Array<{
+    lang: string;
+    title: string;
+    lede: string;
+    items: Array<{ id: string; title: string; body: string }>;
+    closing: string;
+  }>;
+  /** The cover's line. Empty when there is nothing to list. */
+  coverLine: string;
+}
+
+/** The known-issues box. Nothing when there is no issue to list. */
+function knownIssuesHtml(known: ReportKnownIssues | null): string {
+  if (!known || !known.blocks.some((b) => b.items.length > 0)) return "";
+  const blocks = known.blocks
+    .filter((b) => b.items.length > 0)
+    .map(
+      (b) => `
+    <div class="known-issues-block" lang="${escapeHtml(b.lang)}" data-report-known-issues-lang="${escapeHtml(b.lang)}">
+      <h2 class="known-issues-title">${escapeHtml(b.title)}</h2>
+      <p class="known-issues-lede">${escapeHtml(b.lede)}</p>
+      <ol class="known-issues-list">${b.items
+        .map(
+          (item) => `
+        <li data-report-known-issue="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title)}.</strong> ${escapeHtml(item.body)}</li>`,
+        )
+        .join("")}
+      </ol>
+      <p class="known-issues-closing">${escapeHtml(b.closing)}</p>
+    </div>`,
+    )
+    .join("");
+  return `
+  <section class="known-issues" id="known-issues" data-report-known-issues="${known.blocks[0]?.items.length ?? 0}" aria-label="Known issues in this report">${blocks}
+  </section>`;
+}
+
 export function renderReportHtml(
   s: Statements,
   credit: CreditScoreResult,
   // The engine metric map THE SAME reader was built over. Compose the two
   // in one place — `financialExports.buildReportHtml` — never by hand.
   metricsByName?: Record<string, number | null>,
+  options: ReportOptions = {},
 ): string {
+  const confidential = options.confidential !== false;
+  const notice = options.notice ?? null;
+  const knownIssues = options.knownIssues ?? null;
   const t = deriveTotals(s);
   // servedFacts gateway — the report's BS totals + the balance-status
   // footer read the served envelope; this renderer never branches on
@@ -4265,14 +4372,20 @@ export function renderReportHtml(
     }
     ${chartCss()}
     ${shellCss()}
-    ${printCss({ company: s.companyName, period: s.periodLabel })}
+    ${printCss({ company: s.companyName, period: s.periodLabel, notice: notice?.short ?? null })}
   `;
 
-  const today = new Date().toLocaleDateString("en-GB", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  // A stated day is printed as THAT calendar day (UTC both ways); today is
+  // the reader's own.
+  const today = options.generatedOn
+    ? new Date(`${options.generatedOn}T00:00:00Z`).toLocaleDateString("en-GB", {
+        year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+      })
+    : new Date().toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
 
   // ── THE TOP LINE READS THE WHOLE PAGE, NOT ONE THIRD OF IT ──────────
   //
@@ -4611,6 +4724,14 @@ export function renderReportHtml(
   //   · the ranking is `src/engine/insights/rank.py`'s, consumed in the
   //     order the block arrives in. This renderer never re-sorts.
   const insightsBlock: InsightsBlock | null = readInsights(s);
+  // WHO READ THE DOCUMENT, AND WHO WROTE THE WORDS — from the served
+  // envelope, never a fixed sentence. "This document is AI-assisted" was
+  // printed on every export until 2026-10-02, including the public sample,
+  // which is built with no model at all (lib/reportFooter).
+  const authorship = reportAuthorship(s);
+  const authorshipSentence = basisAuthorshipSentence(s, {
+    aiNarrative: (insightsBlock?.insights ?? []).some((i) => i.narrative.source === "ai"),
+  });
   const insightCurrency = insightsBlock?.currency || s.currency;
 
   // ── ONE NAME, TWO VALUES — NOW THAT BOTH SURFACES ARE IN ONE FILE ───
@@ -4898,7 +5019,12 @@ export function renderReportHtml(
     const rows = summary.tiles
       .map((tile) => {
         const line = tile.line;
-        const label = tile.key === "revenue" ? "Operating revenue" : tile.label;
+        // The figure in this row is NET TURNOVER (class 70 − 709), the same
+        // one the card above prints under that name. It was labelled
+        // "Operating revenue" here until 2026-10-02 — a wider concept (it
+        // would add other operating income and the stock variation) over the
+        // narrower figure.
+        const label = tile.key === "revenue" ? "Net turnover" : tile.label;
         // A RATIO TILE reads its change off the served two-period row — the
         // engine's delta, in turns or points, printed by the one formatter.
         // Nothing here subtracts two ratios.
@@ -5231,6 +5357,12 @@ export function renderReportHtml(
           ? `<div class="risk" data-report-credit-composite-refusal><strong>Composite and letter grade: refused.</strong> ${escapeHtml(credit.compositeRefusal.sentence)} <span class="meta">${escapeHtml(credit.model)} &mdash; ${escapeHtml(credit.modelLabel)}</span></div>`
           : `<div class="risk"><strong>Letter grade: ${escapeHtml(UNREPORTED_WORD)}.</strong> ${escapeHtml(VERDICT_UNAVAILABLE_NOTE)}</div>`
         : `<div class="commentary"><strong>Scoring model:</strong> ${escapeHtml(credit.model)} &mdash; ${escapeHtml(credit.modelLabel)}</div>`;
+    // THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling R1):
+    // the stock-build regime the grade was composed under, with the finding
+    // and its served figures — off the reader's `regime`, never recomputed.
+    const regimeBlock = credit.regime
+      ? `<div class="risk" data-report-credit-regime data-regime="${escapeHtml(credit.regime.code)}">${escapeHtml(regimeDocumentText(credit.regime))}</div>`
+      : "";
     // THE LADDER, SPELLED — so a re-band is visible on the page and not
     // only inside the letter. It comes off the reader's `letterBands`, so
     // this document never reaches past the reader into a raw envelope.
@@ -5249,23 +5381,49 @@ export function renderReportHtml(
         </tr>`,
       )
       .join("");
+    // A REFUSED COMPOSITE ON A COMPARED PERIOD: the card's headline is the
+    // served reason — the very string its current cell prints — never
+    // "not reported" above a table that states why (the §4 law; the
+    // stock-build regime's refused composite, credit model revision 5, was
+    // the first on a corpus pair). With no served compare row, the bare
+    // word stays.
+    const refusedHeadline = (key: string): string | null => {
+      const row = ratioCmpWanted ? ratioCmpRows.get(key) : undefined;
+      if (!row || row.current.value_q !== null) return null;
+      return printRatioCompareRow(row, servedRatioLabel(key, null, null)).current;
+    };
+    const scoreHeadline = credit.score === null
+      ? (refusedHeadline("credit_composite") ?? creditScoreFigure) : creditScoreFigure;
+    const letterHeadline = credit.rating ?? refusedHeadline("letter_grade") ?? UNREPORTED_WORD;
+    // WHY THERE IS NO LETTER, under the card's headline. A composite the
+    // ENGINE refused states the engine's reason — the regime's own cash
+    // refusal when that is the reason (the stock-build regime grades only on
+    // measured cash), else the served composite refusal. Only a period the
+    // engine never scored prints the extraction note: that note says "a
+    // limit of the extraction", which is false of a book the engine read
+    // whole and refused to grade (review round 3, 2026-10-02 — the letter
+    // card said so directly above the block stating the refusal).
+    const letterAbsentNote = credit.compositeRefusal?.stated
+      ? (credit.regime?.cash?.refusal?.text.en ?? credit.compositeRefusal.sentence)
+      : VERDICT_UNAVAILABLE_NOTE;
     return `
     <div class="grid grid-3">
       <div class="ratio-card">
         <div class="label">${escapeHtml(servedRatioLabel("credit_composite", null, null))}</div>
-        <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(creditScoreFigure)}</div>
+        <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(scoreHeadline)}</div>
         <div class="meta">${escapeHtml(credit.model)}</div>
         ${ratioCmpCardTable("credit_composite", servedRatioLabel("credit_composite", null, null), creditScoreFigure, "Not banded")}
       </div>
       <div class="ratio-card">
         <div class="label">${escapeHtml(servedRatioLabel("letter_grade", null, null))}</div>
-        <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(credit.rating ?? UNREPORTED_WORD)}</div>
-        <div class="meta">${escapeHtml(credit.rating === null ? VERDICT_UNAVAILABLE_NOTE : credit.modelLabel)}</div>
+        <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(letterHeadline)}</div>
+        <div class="meta" data-report-credit-letter-note>${escapeHtml(credit.rating === null ? letterAbsentNote : credit.modelLabel)}</div>
         ${ratioCmpCardTable("letter_grade", servedRatioLabel("letter_grade", null, null), credit.rating ?? UNREPORTED_WORD, credit.rating ?? UNREPORTED_WORD)}
       </div>
       ${ratioCard(altman)}
     </div>
     ${letterBlock}
+    ${regimeBlock}
     ${creditMovementBlock()}
     ${ladderBlock}
     <div class="${altman.verdict === "critical" ? "risk" : "commentary"}" data-report-altman-verdict data-zone="${escapeHtml(credit.altman.zone ?? "none")}">
@@ -5433,7 +5591,7 @@ export function renderReportHtml(
       }
       ${
         hasBridge
-          ? `<div class="commentary" data-report-pl-bridge><strong>Built from the accounts &rarr; filed accounts.</strong> The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7 accounts; it ends on account 121&rsquo;s closing balance (${money(netIncomeStatutory, s.currency)}) &mdash; the figure the company filed, and the one every ratio in this document is built on. The ${money(bridgeTo121, s.currency)} step is <strong>not explained</strong> by any line on this statement. It is printed with its amount rather than folded into the stock variation or a plug, because a build-up that foots on an invented component is worse than one that names its gap. Reconciling the two needs the source ledger, not this extract.</div>`
+          ? `<div class="commentary" data-report-pl-bridge><strong>Built from the accounts &rarr; account 121.</strong> The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7 accounts; it ends on account 121&rsquo;s closing balance (${money(netIncomeStatutory, s.currency)}) &mdash; the figure every ratio in this document is built on. The ${money(bridgeTo121, s.currency)} step is <strong>not explained</strong> by any line on this statement. It is printed with its amount rather than folded into the stock variation or a plug, because a build-up that foots on an invented component is worse than one that names its gap. Reconciling the two needs the source ledger, not this extract.</div>`
           : ""
       }
     `;
@@ -5481,7 +5639,7 @@ export function renderReportHtml(
           attr: "pl-view",
           label: "Reconciliation to 121",
           options: [
-            { value: "filed", label: "Filed close", hint: "The headline figure is account 121's closing balance — what the company filed, and what every ratio here is built on. It does not change." },
+            { value: "filed", label: "Account 121", hint: "The headline figure is account 121's closing balance, which every ratio here is built on. It does not change." },
             { value: "reconstructed", label: "Show the build-up", hint: "Also state the result built from the revenue and expense accounts (the stock variation included) beside it. The two differ on this book by a step no account explains; neither is recomputed here." },
           ],
         }
@@ -5489,7 +5647,7 @@ export function renderReportHtml(
           attr: "pl-view",
           label: "Reconciliation to 121",
           options: [],
-          unavailableReason: "nothing to reconcile — the result built from the accounts equals the filed close on this book",
+          unavailableReason: "nothing to reconcile — the result built from the accounts equals account 121's closing balance on this book",
         },
     {
       attr: "voice",
@@ -5569,7 +5727,7 @@ export function renderReportHtml(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(s.companyName)} — Financial Analysis ${escapeHtml(s.periodLabel)}</title>
-  <style>${css}</style>
+  <style>${shippedCss(css)}</style>
 </head>
 <body data-pl-view="filed" data-voice="pro" data-ccy="base" data-ic="with">
   ${toggleBar(toggles)}
@@ -5585,6 +5743,9 @@ export function renderReportHtml(
     verdict: overallVerdict,
     generated: today,
     statusLine: bsStatusLine,
+    confidential,
+    notice: notice?.long ?? null,
+    knownIssuesLine: knownIssues?.coverLine || null,
   })}
 
   ${contentsPage(SECTIONS)}
@@ -5600,6 +5761,8 @@ export function renderReportHtml(
     <p>Report generated: ${escapeHtml(today)}</p>
     ${industryDisputeNote}
   </div>
+  ${notice ? `<div class="doc-notice" data-report-notice="body">${escapeHtml(notice.long)}</div>` : ""}
+  ${knownIssuesHtml(knownIssues)}
 
   ${section(
     "sec-exec",
@@ -5610,8 +5773,8 @@ export function renderReportHtml(
     <strong>Overall verdict:</strong> ${escapeHtml(overallVerdict)}
   </div>
   ${voiced(
-    `<strong>How to read this document.</strong> Every figure is traceable: hover any ratio for its formula, the accounts behind it and the snapshot it came from. Charts never carry a number their own table does not print, and a figure the filing did not report is stated as a gap rather than shown as zero.`,
-    `<strong>How to read this.</strong> Every number here comes from your own books, and you can check any of them: hover a number to see the sum behind it. If something is missing from the filing, we say so instead of putting a zero in its place.`,
+    `<strong>How to read this document.</strong> Every figure is traceable: in the HTML version of this report, hover any ratio for its formula, the accounts behind it and the snapshot it came from. Charts never carry a number their own table does not print, and a figure the ${authorship.documentWord} did not carry is stated as a gap rather than shown as zero.`,
+    `<strong>How to read this.</strong> Every number here comes from the uploaded ${authorship.documentWord}, and you can check any of them: in the HTML version of this report, hover a number to see the sum behind it. If something is missing from the ${authorship.documentWord}, we say so instead of putting a zero in its place.`,
   )}
   <div class="grid grid-4">
     <div class="ratio-card">
@@ -5643,9 +5806,9 @@ export function renderReportHtml(
       ${marginNote ? `<div class="meta" data-margin-note="1">${escapeHtml(marginNote.display.en)}</div>` : ""}
     </div>
     <div class="ratio-card">
-      <div class="label">Net Income (account 121, as filed)</div>
+      <div class="label">Net Income (account 121, closing balance)</div>
       <div class="value" ${provAttrs({
-        label: "Net income (account 121, as filed)",
+        label: "Net income (account 121, closing balance)",
         value: money(netIncomeStatutory, s.currency),
         formula: "account 121 closing balance",
         accounts: "121",
@@ -5654,8 +5817,8 @@ export function renderReportHtml(
       })}>${money(netIncomeStatutory, s.currency)}</div>
       ${
         hasBridge
-          ? `<div class="meta"><span data-variant="pl-filed">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</span><span data-variant="pl-reconstructed">built from the accounts: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on the filed close</span></span></div>`
-          : `<div class="meta">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</div>`
+          ? `<div class="meta"><span data-variant="pl-filed">account 121, closing balance &mdash; ${escapeHtml(marginLine("net_margin"))}</span><span data-variant="pl-reconstructed">built from the accounts: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on account 121's closing balance</span></span></div>`
+          : `<div class="meta">account 121, closing balance &mdash; ${escapeHtml(marginLine("net_margin"))}</div>`
       }
     </div>
     <div class="ratio-card">
@@ -5751,10 +5914,10 @@ export function renderReportHtml(
     `
   <aside class="basis-note">
     <strong>Basis of preparation</strong>
-    Figures reflect the period&rsquo;s statutory financial statements as ingested by the CFO AI engine. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. This document is AI-assisted; final analytical judgement and any onward decisions remain with management.${provenanceNote}
+    Figures are computed from the ${authorship.documentWord} uploaded for the period. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. <span data-report-authorship="${authorship.readBy}">${escapeHtml(authorshipSentence)}</span>${provenanceNote}
   </aside>
   ${voiced(
-    `<strong>Charts.</strong> Every chart is generated with this document, from the same served figures the statements above print, and carries its own table &mdash; no chart is the only place a number appears. A chart whose inputs the filing did not carry is replaced by a card naming the missing input, never by an empty axis.`,
+    `<strong>Charts.</strong> Every chart is generated with this document, from the same served figures the statements above print, and carries its own table &mdash; no chart is the only place a number appears. A chart whose inputs the ${authorship.documentWord} did not carry is replaced by a card naming the missing input, never by an empty axis.`,
     `<strong>About the charts.</strong> Each chart comes with the table of numbers behind it, so nothing is only in a picture. If we did not have the data for a chart, we say what is missing instead of drawing an empty one.`,
   )}
   `,
@@ -5764,7 +5927,9 @@ export function renderReportHtml(
 
   <footer class="footer">
     <span class="lhs"><strong>CFO AI</strong> &nbsp;·&nbsp; Financial Statement Intelligence</span>
-    <span class="rhs">Generated ${escapeHtml(today)} &nbsp;·&nbsp; Confidential &mdash; for internal use only</span>
+    <span class="rhs">Generated ${escapeHtml(today)}${
+      confidential ? " &nbsp;·&nbsp; Confidential &mdash; for internal use only" : ""
+    }${notice ? ` &nbsp;·&nbsp; <span data-report-notice="footer">${escapeHtml(notice.long)}</span>` : ""}</span>
   </footer>
   <script>${shellScript()}</script>
 </body>

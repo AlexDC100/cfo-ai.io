@@ -144,13 +144,24 @@ describe("DOD4 — the lede copy", () => {
     expect(pcmRo.lede).not.toMatch(/bursa de valori/i);
   });
 
-  it("keeps the deterministic-grade claim OUT of the global lede", () => {
-    // Romania's grade is Romania's. Claiming it in a sentence that also
-    // covers markets with no feed at all would be the loudest untruth on
-    // the page.
+  it("makes no deterministic-grade claim — not in the lede, not in Romania's note", () => {
+    // 2026-10-02: the Romania note used to say "every figure is read from
+    // the official published filing, machine-verified, and reconciles to
+    // the statutory statement". The main-index rows are annual-report
+    // figures entered by hand and most listings carry no financials. The
+    // note is now the landing card's sentence, and its counts are tokens
+    // the page fills from engineProof.json — never a typed number.
     expect(pcmEn.lede).not.toMatch(/machine-verified|deterministic/i);
-    expect(pcmEn.ro.grade).toMatch(/deterministic home market/i);
-    expect(pcmRo.ro.grade.length).toBeGreaterThan(0);
+    for (const [lang, grade] of [["en", pcmEn.ro.grade], ["ro", pcmRo.ro.grade]] as const) {
+      expect(grade, `ro.grade[${lang}]`).not.toMatch(
+        /every figure|fiecare cifr|machine-verified|verificat[ăa] mecanic|reconcil|determinist/i,
+      );
+      expect(grade, `ro.grade[${lang}] takes its counts as tokens`).toContain("{{listings}}");
+      expect(grade, `ro.grade[${lang}] takes its counts as tokens`).toContain("{{withFinancials}}");
+      expect(grade, `ro.grade[${lang}] types no number`).not.toMatch(/\d/);
+    }
+    expect(pcmEn.ro.grade).toMatch(/annual-report figures for the main index/);
+    expect(pcmRo.ro.grade).toMatch(/rapoartele anuale pentru indicele principal/);
   });
 
   it("ships in Romanian too", () => {

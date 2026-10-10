@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { uploadGuideView } from "@/lib/coverage";
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -59,6 +60,7 @@ import { WorkspaceSettingsV2 } from "@/components/cfo/workspace/WorkspaceSetting
 import { OrgIndustryPills, orgIndustryDisplayLabel, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { toast } from "@/components/ui/sonner";
 import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
+import { useActiveLocale } from "@/lib/locale";
 import {
   deleteEmptyPeriod,
   fetchWorkspacePeriodsDirect,
@@ -83,6 +85,7 @@ import {
 import type { DecisionRulesState } from "@/lib/decisionRules";
 import { lastWorkspaceCreateHitLimit, updateActiveOrg } from "@/lib/org";
 import { usePlanState, workspaceCapReached } from "@/lib/planState";
+import { workspaceRestoreLimitNotice } from "@/lib/workspaceRestoreNotice";
 import { readWorkspaceName, writeWorkspaceName } from "@/lib/workspaceName";
 import { setPref, usePrefSync } from "@/lib/prefs";
 import { useWorkspaces, type Workspace } from "@/lib/workspaces";
@@ -778,7 +781,7 @@ function StepRules() {
 // route needs an authenticated workspace (engine PUBLIC_TEST_MODE), which
 // the battery does not run with, so this is where that path is gated.
 export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -832,7 +835,7 @@ export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: Fi
             <h3 className="text-[14px] font-semibold text-ink">
               {dragOver ? t("files.dropToUpload") : t("ws.dropWorkbook")}
             </h3>
-            <p className="text-[12px] text-ink-soft mt-1">{t("ws.uploadFormats")}</p>
+            <p className="text-[12px] text-ink-soft mt-1">{uploadGuideView(i18n.language).formatsLine} {t("dash.sizeLimit")}</p>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
@@ -932,6 +935,7 @@ function SelectedWorkspacePanel({
 // fetched per org and cached so a grid of cards costs one request each.
 function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
   const { t } = useTranslation();
+  const locale = useActiveLocale();
   const { data } = useQuery({
     queryKey: ["org-periods", orgId],
     queryFn: () => fetchWorkspacePeriodsDirect(orgId),
@@ -954,7 +958,7 @@ function WorkspaceMonthsPills({ orgId }: { orgId: string }) {
         const seen = new Set<string>();
         const clean = periods
           .filter((p) => !isImplausiblePeriod(p.period_end))
-          .map((p) => ({ p, label: formatPeriodMonth(p.period_end) ?? p.period_label }))
+          .map((p) => ({ p, label: formatPeriodMonth(p.period_end, locale) ?? p.period_label }))
           .filter(({ label }) => {
             if (!label || seen.has(label)) return false;
             seen.add(label);
@@ -1059,6 +1063,18 @@ function WorkspaceHub({
 
   async function restoreWorkspace(id: string, name: string) {
     const ok = await restore(id);
+    if (!ok) {
+      // The plan's workspace limit refused it: say so, and where to upgrade —
+      // not a bare "couldn't restore".
+      const limit = workspaceRestoreLimitNotice(t);
+      if (limit) {
+        toast.error(limit.title, {
+          description: limit.description,
+          action: { label: limit.cta, onClick: () => navigate(limit.href) },
+        });
+        return;
+      }
+    }
     toast[ok ? "success" : "error"](
       ok
         ? t("ws.workspaceRestored", { name: name || t("ws.workspaceFallback") })

@@ -1,4 +1,8 @@
 {
+  "period": {
+    "unavailableTitle": "That period isn't available",
+    "unavailableBody": "It was deleted or belongs to another account. We opened this company's own data instead."
+  },
   "sidebar": {
     "workspaces": "Workspaces",
     "workflow": "Workflow",
@@ -47,18 +51,10 @@
     "signIn": "Sign in"
   },
   "upload": {
-    "hero_title": "Upload your trial balance to begin",
-    "hero_subtitle": "We'll extract financials, compute 22 ratios, flag risks, and produce a board-ready analysis. Language and accounting format are auto-detected.",
     "choose_file": "Choose a file",
     "uploading": "Uploading…",
-    "paste_text_button": "Paste trial balance",
-    "paste_text_dialog_title": "Paste a trial balance",
-    "paste_text_dialog_description": "Paste any chart of accounts — language and format are auto-detected.",
-    "paste_text_placeholder": "Paste your trial balance text here — any language, any chart of accounts.",
-    "accepted_formats": "PDF · XLSX · CSV · JPG · PNG",
     "drop_or_click": "Drop a file or click to browse",
     "drop_here": "Drop your file here",
-    "tagline": "Detect · OCR · extract · ratios · Opus 4.7 narrative — end-to-end",
     "size_limit": "Up to 25 MB",
     "template": {
       "title": "Start from the official template",
@@ -76,8 +72,8 @@
         "trading": "SKU-level sales rows. One row per SKU × channel × period.",
         "dio": "Days inventory outstanding per category. Region 2 (rows 28-52) is the canonical source.",
         "trialBalance": "Romanian chart of accounts. Only needed for Dashboard reports.",
-        "exampleMultiCol": "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
-        "exampleSaga": "The compact SAGA export: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances."
+        "exampleMultiCol": "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column trial-balance layout.",
+        "exampleSaga": "The compact layout: account code + account name with Debit/Credit column pairs for opening balances, period movements and cumulative totals. It has no closing-balance pair: the closing balances are derived from the totals."
       },
       "fallbackNote": "Your own .xlsx files still work — the template is the recommended path because it removes ambiguity.",
       "insideExamples": "Inside the example files",
@@ -92,7 +88,6 @@
     "hero_pre": "Upload your",
     "hero_highlight": "trial balance",
     "hero_post": "to unlock the full CFO analysis.",
-    "hero_subtitle": "XLSX or PDF, exported from your accounting system — SAGA, WinMentor, SmartBill, NEXTUP, CIEL. This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is auto-checked — clean trial balances reconcile within 0.1% of source.",
     "kpi": {
       "revenue": "Revenue",
       "ebitda": "EBITDA",
@@ -195,6 +190,8 @@
   },
   "settings": {
     "language": "Language",
+    "profile_saved": "Profile saved",
+    "profile_save_failed": "Couldn't save your profile",
     "language_description": "Choose the language for the interface and AI-generated analysis.",
     "title": "Account",
     "subtitle": "Your profile, language, industry and plan — all in one place. Changes save to your account and apply across every tab instantly.",
@@ -287,7 +284,7 @@
     "unauthorized": "Session expired. Please sign in again.",
     "serverError": "Something went wrong on our side. Our team has been notified.",
     "fileTooLarge": "File too large. Maximum size: {{max}}.",
-    "unsupportedFormat": "Unsupported file format. Use XLSX, PDF, or CSV.",
+    "unsupportedFormat": "Unsupported file format. Use an Excel sheet (.xlsx) or a PDF with a text layer.",
     "parseError": "Could not read this file.",
     "uploadFailed": "Upload failed.",
     "saveFailed": "Could not save changes.",
@@ -365,7 +362,7 @@
     "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> are optional but unlock per-SKU <c3>turnover days</c3>;",
     "rollup": "the company-level <c1>CCC</c1> roll-up additionally uses the period trial balance for DSO / DPO.",
     "downloadExample": "Download example (XLSX)",
-    "exampleCaption": "Anonymized example — match these columns; fictional data.",
+    "exampleCaption": "Fictional example — match these columns.",
     "exampleFooter": "Placeholder rows for illustration only — replace with your real export. The third row deliberately omits <c1>Inventory value</c1> & <c2>COGS</c2> to demonstrate the \"DIO not available\" rendering: rows without both inputs show \"—\", never 0, and are excluded from the company DIO aggregate."
   },
   "workingCapital": {
@@ -384,163 +381,6 @@
     "cccExplain": "CCC is computed only when DIO, DSO and DPO are all available.",
     "exclusionNote": "Rows without inventory + COGS show DIO as \"—\" in the table above and are excluded from the company DIO aggregate (never treated as zero).",
     "days": "days"
-  },
-  "landing": {
-    "hero": {
-      "headline": "The first benchmark tool built for private businesses.",
-      "subhead": "Upload your trial balance. We match you with public companies your size, in your sector. See exactly how you compare on margin, growth, leverage, and cash — with named comparisons, not vague industry averages.",
-      "quickTry": "Quick try",
-      "upload": {
-        "eyebrow": "Your data",
-        "title": "Upload a trial balance or P&L",
-        "description": "Bilanț, balance sheet, or any standard format. Parsed in 90 seconds — same engine that powers the public-company analysis.",
-        "cta": "Try free",
-        "hint": "No card · 90s"
-      },
-      "markets": {
-        "eyebrow": "Public companies",
-        "title": "Analyze Hain Celestial in 10 seconds",
-        "description": "5,000+ NASDAQ + NYSE companies. SEC EDGAR + Nasdaq Sharadar data. Same engine as your own analysis.",
-        "cta": "Pick a company",
-        "hint": "No signup · 10s"
-      },
-      "eyebrow": "Built for private businesses",
-      "workflowLabel": "The full workflow",
-      "step1": {
-        "title": "Upload your books",
-        "sub": "Bilanț, P&L, any format · 90s"
-      },
-      "step2": {
-        "title": "Get peer matches",
-        "sub": "Public companies your size in your sector"
-      },
-      "step3": {
-        "title": "See yourself in context",
-        "sub": "Named peers, not vague averages"
-      },
-      "primaryCta": "Start free — no card required",
-      "noCard": "No credit card",
-      "fast": "90 seconds",
-      "cancel": "Cancel anytime",
-      "alreadyExploring": "Just exploring? Researching a public company first?",
-      "browsePublicCompanies": "Browse the public-company library",
-      "disclaimer": "AI-assisted analysis. Final decisions remain with your management team."
-    },
-    "publicCo": {
-      "eyebrow": "Public Company Intelligence",
-      "headline": "Read 5,000+ public companies the way a CFO does.",
-      "subhead": "No upload. No signup. Pick a ticker, see the full analysis in under 10 seconds.",
-      "tryAnother": "Try another",
-      "openFull": "Open full {{ticker}} analysis",
-      "samplePreview": "Sample preview",
-      "previewCaption": "Snapshot · 12-quarter trend · peer benchmark — all live in the full hub. Sign in not required.",
-      "transition": "Want to compare your own business?",
-      "uploadOwnData": "Upload your trial balance",
-      "cards": {
-        "coverage": {
-          "label": "Tickers covered",
-          "detail": "All NASDAQ + NYSE-listed companies, latest 10-K and 10-Q filings."
-        },
-        "source": {
-          "label": "SEC EDGAR data",
-          "detail": "Direct from the regulator's XBRL feed via Nasdaq Sharadar — always current."
-        },
-        "engine": {
-          "label": "Same as your data",
-          "detail": "What you see for Apple is what you'll see for your own trial balance — same engine."
-        }
-      }
-    },
-    "bridge": {
-      "headline": "Pick public peers your size. Compare your numbers to theirs.",
-      "subhead": "Not Apple. Not Microsoft. Actual mid-market public companies in your actual sector — companies you could realistically aspire to.",
-      "step1": {
-        "title": "Upload your trial balance",
-        "body": "Romanian bilanț, P&L, or any standard format. Parsed in 90 seconds."
-      },
-      "step2": {
-        "title": "Pick public peers",
-        "body": "We suggest public companies in your sector and size. Add 3–5 of them."
-      },
-      "step3": {
-        "title": "See yourself in context",
-        "body": "Your numbers, your peers, your industry range — all on one chart."
-      }
-    },
-    "realPeers": {
-      "eyebrow": "Real peers, not mega-caps",
-      "headline": "Browse 5,000+ public companies. Find the 5 that look like you.",
-      "subhead": "Filter by size, sector, geography. Add peers one at a time. They join your Benchmark page as named comparison anchors.",
-      "notMegaCaps": "These companies actually look like yours — $50M to $5B market cap, not trillion-dollar tech.",
-      "moreInSector": "More in this sector",
-      "browseAll": "Browse all 5,000+ public companies",
-      "categories": {
-        "consumer": {
-          "label": "Consumer goods / Food",
-          "description": "Packaged foods, beverages, household products"
-        },
-        "energy": {
-          "label": "Energy / Industrials",
-          "description": "Resource extraction, equipment, logistics"
-        },
-        "manufacturing": {
-          "label": "Manufacturing",
-          "description": "Industrial equipment, components, specialty"
-        },
-        "healthcare": {
-          "label": "Healthcare / Services",
-          "description": "Specialty clinics, home care, devices"
-        },
-        "retail": {
-          "label": "Retail / E-commerce",
-          "description": "Specialty stores, online, distribution"
-        },
-        "software": {
-          "label": "Software / Tech services",
-          "description": "SaaS, IT services, software distribution"
-        }
-      }
-    },
-    "demo": {
-      "sectionHeadline": "This is what you'll see, in 90 seconds.",
-      "sectionSubhead": "Your numbers as a private business, side-by-side with real public peers and the industry range. No more guessing where you stand.",
-      "frameLabel": "This is what you'll see",
-      "revenue": "revenue",
-      "companySector": "Consumer goods",
-      "samplePrivate": "Sample private business",
-      "peersAdded": "Peers you've added",
-      "insightLabel": "Insight",
-      "insightBody": "Below peer EBITDA, above growth median. Investment in margin = leverage point.",
-      "tryWithMine": "Try with my own data",
-      "vsPeers": "vs peers",
-      "you": "You",
-      "median": "Median",
-      "metrics": {
-        "ebitdaMargin": "EBITDA margin",
-        "revenueGrowth": "Revenue growth YoY"
-      }
-    },
-    "learn": {
-      "badge": "CFO AI Learn",
-      "headline": "Every number, traceable. Every formula, walkable.",
-      "subhead": "Most dashboards hand you a number and trust you to believe it. This one lets you tap any value and walk it back — definition, formula, then the actual trial-balance accounts behind it.",
-      "footnote": "108 concepts in the glossary today — RAS / GAAP cross-references, plain-English explanations, and per-industry benchmarks. Press Cmd-K inside the app to search them all.",
-      "layer1": {
-        "label": "Definition",
-        "title": "Tap any number",
-        "body": "A plain-English explanation pops up. No CFA charter required — every concept reads at smart-business-user level."
-      },
-      "layer2": {
-        "label": "Formula",
-        "title": "Trace the calculation",
-        "body": "See exactly how the value was computed. Tap any operand to keep drilling — EBITDA opens to EBIT + D&A, EBIT opens to Revenue − OpEx, all the way down."
-      },
-      "layer3": {
-        "label": "Source",
-        "title": "Back to your trial balance",
-        "body": "At the bottom of every chain are the raw RAS accounts — 701, 602, 5121. Click through to see the actual debit / credit movements from your upload."
-      }
-    }
   },
   "statements": {
     "pl": {
@@ -568,8 +408,17 @@
       "compareWith": "Compare with",
       "auto": "Previous year (auto)",
       "none": "No comparison",
+      "autoMissing": "{{label}} missing",
+      "columnsDisabled": "No comparison period — the columns appear once one is chosen.",
+      "noPriorTitle": "No automatic comparison.",
+      "noPriorBody": "This company has no analysed {{prior}} trial balance, so {{current}} is shown without a comparison.",
+      "noPriorBodyUnnamed": "This company has no earlier analysed period of the same length, so this period is shown without a comparison.",
+      "noPriorUpload": "Upload the {{prior}} balance",
+      "noPriorUploadUnnamed": "Upload an earlier balance",
+      "noPriorCompareWith": "Compare with {{label}}",
       "columns": "Columns",
       "colPrior": "Prior",
+      "colComparison": "Comparison",
       "colDelta": "Δ",
       "colDeltaPct": "Δ %",
       "colShare": "% of revenue",
@@ -579,6 +428,7 @@
       "gone": "no longer present",
       "notAtLevel": "not disclosed at this detail level",
       "noBase": "no base",
+      "notMeaningful": "not meaningful",
       "definitionDiffers": "This row is built from the book's own buckets; the engine's comparative line for it is defined differently, so no prior is shown beside it.",
       "levelSynthetic": "condensed (synthetic accounts)",
       "levelAnalytic": "detailed (analytic accounts)",
@@ -608,7 +458,33 @@
       "refusedNotInWorkspace": "The comparison period belongs to another company.",
       "refusedNotServable": "The comparison period has no analysed figures to compare.",
       "refusedGeneric": "These two periods can't be compared.",
-      "refused": "refused"
+      "refused": "refused",
+      "columnsRefused": "The comparison is unavailable, so these columns have nothing to show.",
+      "columnsFailed": "The comparison could not be loaded — these columns appear once it is.",
+      "baseRevenue": "revenue",
+      "baseAssets": "total assets",
+      "bridgePeriod": "{{label}} — {{period}}",
+      "onlyCurrent": "only in this period",
+      "onlyComparison": "only in the comparison",
+      "failedTitle": "The comparison could not be loaded.",
+      "failedBody": "The request failed (HTTP {{status}}), so this period is shown on its own.",
+      "failedBodyNoResponse": "No response arrived, so this period is shown on its own.",
+      "failedRetry": "Try again",
+      "backwardsLater": "The comparison period ({{prior}}) closes after the period on screen ({{current}}), so every change reads backwards in time and nothing is called improved or deteriorated.",
+      "backwardsLaterPlain": "The comparison period ({{prior}}) closes after the period on screen ({{current}}), so every change reads backwards in time.",
+      "backwardsUnknown": "The order of the two periods could not be read (a closing date is missing), so nothing is called improved or deteriorated.",
+      "backwardsUnknownPlain": "The order of the two periods could not be read (a closing date is missing), so a change may read backwards in time.",
+      "share": {
+        "notServed": "Shares are not available for this period.",
+        "noBasePl": "Net turnover is zero or missing in this period, so no line has a share of it.",
+        "noBaseBs": "Total assets are zero or missing in this period, so no line has a share of them.",
+        "absent": "This line is not reported in this period — absent, which is not zero.",
+        "refused": "The engine refused this figure, so it has no share.",
+        "notAtLevel": "Not disclosed at this detail level, so it has no share.",
+        "marginNotMeaningful": "Turnover is too small a part of this company's activity for a margin on it to mean anything, so this line has no share.",
+        "unavailable": "No share is served for this line.",
+        "definitionDiffers": "This row is built from the book's own buckets; the engine's line for it is defined differently, so no share is shown beside it."
+      }
     },
     "ratioCmp": {
       "unit": {
@@ -718,8 +594,12 @@
         "malformed_value": "Not printed: the served figure is not a readable value for its unit.",
         "unrecognised": "Not printed: the served {{field}} is {{value}}, a value this reader does not recognise.",
         "ebitda_refused": "Not computed: EBITDA and the operating result are refused for this period, because the stock variation (Variația stocurilor de produse) could not be measured.",
+        "cash_from_operations_approximated": "Not scored: under the stock-build credit regime this component is graded on cash from operations, which is approximated for this period (no prior-year trial balance); there is no composite and no letter.",
+        "cash_from_operations_refused": "Not scored: under the stock-build credit regime this component is graded on cash from operations, which is refused for this period; there is no composite and no letter.",
         "inventory_days_refused": "Not computed: inventory days split by stock type are refused for this period — the reason is shown with the figure.",
-        "basis_differs": "Not compared: the two periods' inventory days are measured on different stock bases, so neither a change nor a band movement is printed — it would be the change of basis, not of the stock."
+        "basis_differs": "Not compared: the two periods' inventory days are measured on different stock bases, so neither a change nor a band movement is printed — it would be the change of basis, not of the stock.",
+        "prior_is_later": "No direction given: the comparison period closes after the period on screen, so the change reads backwards in time.",
+        "period_order_unknown": "No direction given: the order of the two periods could not be read."
       },
       "label": {
         "current_ratio": "Current ratio",
@@ -787,6 +667,9 @@
         "movementsTitle": "Band movement, {{prior}} to {{current}}",
         "movementsCounts": "{{improved}} improved and {{deteriorated}} deteriorated; {{unchanged}} held their band and {{notComparable}} could not be compared, of {{bothSides}} valued in both periods. Without a figure in at least one period: {{refused}}.",
         "nothingCrossed": "No ratio crossed a band between {{prior}} and {{current}}.",
+        "movementsTitlePlain": "Band movement",
+        "verdictsWithheldLater": "No ratio is listed as improved or deteriorated: the comparison period closes after the period on screen. Both periods' bands are in the table below.",
+        "verdictsWithheldUnknown": "No ratio is listed as improved or deteriorated: the order of the two periods could not be read. Both periods' bands are in the table below.",
         "rankBasisLead": "Order: {{sentence}}",
         "noComparison": "No comparison period is loaded, so this table shows {{current}} only and states no prior, change or band movement.",
         "comparisonRefused": "No comparison: {{message}}",
@@ -796,6 +679,7 @@
         "comparisonFailedNoResponse": "The comparison period was requested but no response arrived, so this table shows {{current}} only and states no prior, change or band movement. This is a failed request, not a refusal by the engine.",
         "currentDiffers": "Not printed: this period's figure is {{table}} in the ratio table and {{compare}} in the comparison, so a change against the prior would not tie.",
         "priorEyebrow": "Prior, {{label}}",
+        "comparisonEyebrow": "Comparison, {{label}}",
         "ladderRungHigher": "{{band}} from {{value}}",
         "ladderRungLower": "{{band}} up to {{value}}",
         "ladderFloorHigher": "{{band}} below",
@@ -824,6 +708,7 @@
         "header": "OPERATING ACTIVITIES",
         "netProfit": "Net profit",
         "depreciation": "+ Depreciation & amortization",
+        "depreciationAndProvisionCharges": "+ Depreciation, amortisation and provision charges (68x)",
         "cfBeforeWc": "Operating CF before WC changes",
         "wcChanges": "Working capital changes:",
         "cashFromOperating": "Cash from operating activities"
@@ -851,10 +736,10 @@
     "ebitdaRecon": {
       "eyebrow": "EBITDA reconciliation · one definition",
       "title": "How EBITDA is built — from net turnover to account 121",
-      "lead": "One EBITDA: the stock variation (711) and own work capitalised (72x) sit inside it, beside the costs; discounts received (767) are financial. Net turnover — the base of every margin — includes none of the three.",
+      "lead": "One EBITDA: the stock variation (711) and own work capitalised (72x) sit inside it, beside the costs; provisions and impairment adjustments — charges and reversals alike — sit outside it, on their own line before the operating result; discounts received (767) are financial. Net turnover — the base of every margin — includes the operating subsidies related to turnover and none of the others.",
       "coreHeading": "EBITDA → Core EBITDA (valuation basis)",
       "less758": "Less other operating income",
-      "less781": "Less provision reversals",
+      "less781": "Less provision reversals still inside EBITDA",
       "coreTotal": "Core EBITDA",
       "notServed": "The engine served no EBITDA reconciliation for this period.",
       "notAnchored": "account 121 is not in the trial balance",
@@ -1103,7 +988,6 @@
     "badgeStarter": "Best for owners",
     "badgePro": "Most popular",
     "perMonth": "/ month",
-    "trialThen": "7-day free trial, then {{price}} / month",
     "aboveQuota": "Above quota: {{copy}}",
     "extraDoc": "{{price}} per extra document, shown and confirmed before processing",
     "currentPlan": "Current plan",
@@ -1127,21 +1011,45 @@
     "oneTime": "one-time",
     "accessUntil": "Access until {{date}}",
     "badgeSolo": "Romanian essentials",
-    "badgeMulti": "Cross-border",
+    "badgeMulti": "Coming soon",
     "startPlan": "Start {{name}}",
-    "extraNonRoDoc": "Non-RO: {{included}}/month included, then {{price}} per extra document.",
-    "nonRoBlockedTitle": "This document needs Multi-Country",
-    "nonRoBlockedDesc": "This looks like a non-Romanian filing. Analysing documents from other jurisdictions is included on the Multi-Country plan.",
-    "nonRoBlockedCta": "See Multi-Country",
-    "nonRoBlockedDismiss": "Not now",
+    "nonRoBlockedTitle": "Documents from other countries are not supported yet",
+    "nonRoBlockedDesc": "This looks like a document from outside Romania. Today CFO AI reads Romanian trial balances only; other countries are not supported yet, on any plan.",
+    "nonRoBlockedCta": "See what is supported",
+    "nonRoBlockedDismiss": "Close",
+    "nonRoQuotaExhausted": "This company has reached this month's limit for documents from outside Romania.",
+    "meteringUnavailable": "We couldn't check the plan just now. Nothing was charged — try again in a few minutes.",
     "workspaceLimitTitle": "Workspace limit reached",
     "workspaceLimitDesc": "Your plan includes {{max}} workspace(s). Upgrade to add another company.",
     "workspaceLimitCta": "View plans",
+    "workspaceRestoreLimitDesc_one": "Your plan includes {{count}} workspace, so this one can't be restored yet. Upgrade your plan to restore it.",
+    "workspaceRestoreLimitDesc_other": "Your plan includes {{count}} workspaces, so this one can't be restored yet. Upgrade your plan to restore it.",
+    "workspaceRestoreLimitDescNoCount": "Your plan's workspace limit is reached, so this one can't be restored yet. Upgrade your plan to restore it.",
     "usageDocs": "Documents",
     "usageChat": "Ask CFO AI",
     "usageNonRo": "Non-RO documents",
     "usageToday": "today",
-    "usageThisMonth": "this month"
+    "usageThisMonth": "this month",
+    "multiComingSoonBlurb": "Coming soon — international coverage is not available yet. Today CFO AI reads Romanian trial balances only.",
+    "notOnSaleYet": "Not on sale yet",
+    "comingSoonCta": "Coming soon",
+    "chargedFrom": "Charged from the day you subscribe. The free trial is separate: one document, 7 days, no card.",
+    "blurb": {
+      "solo": "{{count}} Romanian documents a month; each extra one is {{extra}}.",
+      "pro": "{{count}} Romanian documents a month; each extra one is {{extra}}."
+    },
+    "est": {
+      "eyebrow": "Estimate your monthly bill",
+      "title": "See what each plan costs for your volume.",
+      "sub": "Move the slider to the number of documents you upload in a month. These are estimates; an extra document is charged only after you confirm it.",
+      "sliderLabel": "Financial documents per month",
+      "docs_one": "{{count}} document",
+      "docs_other": "{{count}} documents",
+      "base": "Base ({{count}} included)",
+      "extras_one": "{{count}} extra document × {{price}}",
+      "extras_other": "{{count}} extra documents × {{price}}",
+      "noExtras": "0 extra documents"
+    }
   },
   "account": {
     "fallbackName": "Account",
@@ -1167,9 +1075,9 @@
   "authX": {
     "tagline": "Financial Intelligence",
     "subtitle_sign_in": "Sign in to continue. Your decisions and uploads are scoped to your workspace.",
-    "subtitle_sign_up": "Create your workspace. Free tier — no credit card.",
+    "subtitle_sign_up": "Create your workspace. 7-day trial with one document — no credit card.",
     "subtitle_sign_in_page": "Sign in to your CFO AI workspace.",
-    "subtitle_sign_up_page": "Create your CFO AI workspace. Free tier — no credit card.",
+    "subtitle_sign_up_page": "Create your CFO AI workspace. 7-day trial with one document — no credit card.",
     "not_configured": "Authentication isn't configured on this build.",
     "selected_plan": "Selected plan",
     "change_plan": "Change",
@@ -1230,11 +1138,11 @@
     "hero_eyebrow": "Free 7-day trial — no credit card",
     "hero_title_pre": "See your",
     "hero_title_highlight": "first analysis",
-    "hero_title_post": "in minutes.",
-    "hero_sub": "Upload one trial balance, balance sheet, or P&L. CFO AI builds the full financial model, ratios, valuation, and strategic recommendations — in minutes. No card required to start.",
+    "hero_title_post": "before you pay.",
+    "hero_sub": "Upload one Romanian trial balance (balanță de verificare). CFO AI builds the statements, the ratios, a credit score and ranked recommendations from it. No card required to start.",
     "hero_cta": "Start your 7-day free trial",
     "trust_no_card": "No credit card required",
-    "trust_full_report": "Full report — not a sample",
+    "trust_full_report": "One document, analysed in full",
     "trust_cancel_anytime": "Cancel anytime",
     "hero_compliance": "AI-assisted financial recommendations. Final decisions remain with your team.",
     "current_plan": "Current plan",
@@ -1256,7 +1164,12 @@
     "cancel_scheduled_title": "Cancellation scheduled",
     "cancel_scheduled_body": "You'll keep access until the end of the current period.",
     "cancel_failed_title": "Couldn't cancel",
-    "cancel_failed_body": "Please try again or contact support."
+    "cancel_failed_body": "Please try again or contact support.",
+    "cycle_aria": "Billing cycle",
+    "cycle_monthly": "Monthly",
+    "cycle_annual": "Annual",
+    "cycle_coming_soon": "Coming soon",
+    "cycle_annual_hint": "Annual pricing is not available yet"
   },
   "files": {
     "sourceFiles": "Source files",
@@ -1272,7 +1185,7 @@
     "officialTemplateDesc": "Exact sheet names, column headers, and row offsets the parser expects.",
     "salesExample": "Sales analysis example",
     "formatMultiCol": "Multi-column format",
-    "formatSaga": "Standard SAGA format",
+    "formatSaga": "Compact 6-column layout",
     "previewSubtitle": "upload template",
     "previewSalesSubtitle": "sales analysis example (fictional data)",
     "previewLoading": "Loading preview…",
@@ -1479,8 +1392,8 @@
     "financialAnalysisEyebrow": "Financial Analysis",
     "heroSuffix": "the full financial picture",
     "heroFallbackSubtitle": "Every statement rebuilt from your trial balance — P&L, balance sheet and cash flow — with ratios, valuation, a credit-risk score and ranked recommendations. Explore each in the tabs below.",
-    "heroBodyExported": "exported from your accounting system",
-    "heroBodyTail": "This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is auto-checked — clean trial balances reconcile within 0.1% of source.",
+    "heroBodyExported": "exported from your accounting software as a Romanian trial balance",
+    "heroBodyTail": "This is the document the full analysis is built for: the P&L, the balance sheet, a cash-flow estimate, ratios, valuation, risk and recommendations are all built from it.",
     "askCfoAiPrompt": "What will CFO AI do with my trial balance? Walk me through the analysis I'll get after uploading — P&L, balance sheet, ratios, valuation, risks.",
     "invoiceRegister": "Invoice register",
     "loadedPeriod": "Loaded period",
@@ -1522,12 +1435,12 @@
     "sourceTbTooltip": "Source: trial balance. Full account-level granularity.",
     "sourceStatutoryBadge": "Source: statutory statement (Formular F30 + F10)",
     "noRecsTitle": "No recommendations yet",
-    "noRecsBody": "Upload a balance sheet, P&L, or trial balance to receive prioritized recommendations.",
+    "noRecsBody": "Upload a Romanian trial balance to receive prioritized recommendations.",
     "nothingToExportTitle": "Nothing to export yet",
     "nothingToExportBody": "Load a sample or upload a financial statement to enable HTML and Excel exports.",
     "pickSampleOrUpload": "Pick a sample or upload",
     "exportHtmlTitle": "HTML financial analysis report",
-    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 22 ratios with verdicts, the Altman Z″ row, the credit grade and distress assessment (naming the model that produced them), and prioritized recommendations.",
+    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, the ratios with their verdicts, the Altman Z″ row, the credit grade and distress assessment (naming the model that produced them), and prioritized recommendations.",
     "exportXlsxTitle": "Excel workbook",
     "exportXlsxBody": "9-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow, valuation (WACC + DCF + Graham), credit & risk, recommendations, and the chart data behind every figure the document draws.",
     "exportPdfTitle": "PDF report",
@@ -1561,8 +1474,17 @@
     "cfoBriefingEyebrow": "CFO briefing — Opus 4.7",
     "displayedIn": "displayed in {{currency}}",
     "regeneratingIn": "Regenerating in {{currency}}…",
-    "regenFailed": "Couldn't regenerate in {{currency}} ({{error}}). Showing RON version.",
-    "briefingDisclaimer": "Generated from automated trial-balance extraction — accuracy auto-measured per upload (clean uploads reconcile within 0.1%). Cross-check headline numbers against your source on critical decisions.",
+    "regenerating": "Writing the briefing…",
+    "regenFailed": "Couldn't regenerate — the previous briefing was kept.",
+    "generateFailed": "Couldn't generate the briefing — try again in a few minutes.",
+    "regenerateInLanguage": "Regenerate in English",
+    "regenerateInCurrency": "Regenerate in {{currency}}",
+    "generateBriefing": "Generate the briefing",
+    "regenerateCost": "Uses one Ask CFO AI message.",
+    "regenCapDaily": "You've used {{used}} of {{cap}} Ask CFO AI messages today, so the briefing wasn't written.",
+    "regenCapMonthly": "You've used {{used}} of {{cap}} Ask CFO AI messages this month, so the briefing wasn't written.",
+    "regenCapNoCounts": "Your plan's Ask CFO AI messages are used up, so the briefing wasn't written.",
+    "briefingDisclaimer": "Generated from automated trial-balance extraction — the balance check is measured on each upload and shown on the report. Cross-check headline numbers against your source on critical decisions.",
     "topCustomerShare": "Top customer share",
     "dsoSub": "Days sales outstanding",
     "paidOnTime": "Paid on time",
@@ -1573,7 +1495,7 @@
     "qualityPassedLink": "Quality checks passed · About data accuracy",
     "accCleanTitle": "Quality checks passed.",
     "accCleanPre": "Extraction reconciles within",
-    "accCleanPost": "on this document (target: under 0.1%). Balance sheet balances; source debits and credits agree. Headline figures (revenue, EBITDA, net profit, debt, equity) are safe to use — cross-check on board-level / external decisions out of habit.",
+    "accCleanPost": "on this document. {{checks}} Cross-check the headline figures (revenue, EBITDA, net profit, debt, equity) against your source before a board-level or external decision.",
     "accWatchTitle": "Verify before external use.",
     "accSrcImbalancePre": "Your source trial balance has a",
     "accImbalanceBold": "{{pct}}% debit / credit imbalance",
@@ -1587,7 +1509,7 @@
     "accProblemBsTail": "— accounts may be missing or misclassified.",
     "accProblemTail": "Headline numbers below (revenue, EBITDA, net profit, debt, equity) may not match your source. Resolve the source-data issue before any external use.",
     "accUnknownTitle": "About data accuracy.",
-    "accUnknownBody": "Each upload is auto-checked against its source trial balance. Clean uploads pass with under 0.1% drift; if anything is off, you'll see a specific warning here naming the issue (source imbalance, account misclassification, etc.). Headline numbers are always safe to cross-check against your source.",
+    "accUnknownBody": "{{checks}} If anything is off, you'll see a specific warning here naming the issue (source imbalance, account misclassification, etc.). Headline numbers can always be cross-checked against your source.",
     "statutoryDetected": "Statutory format detected (Formular F30 + F10).",
     "statutoryBody": "Headline figures (revenue, EBITDA, debt, equity) extracted from your filed financial statements.",
     "statutoryWhatsNot": "What's not available with this format",
@@ -1616,18 +1538,16 @@
     "jumpToNotes": "Jump to Notes & recommendations",
     "replaceOrAdd": "Replace or add files",
     "dropTrialBalanceHere": "Drop your trial balance here",
-    "dropHint": "PDF · XLSX · CSV · image",
     "addTbTitle": "Add a trial balance to this workspace — click to browse or drop one here",
     "documentFallback": "document",
     "exampleTrialBalances": "Example trial balances",
     "exampleMultiCol": "Multi-column format",
-    "exampleSaga": "Standard SAGA format",
+    "exampleSaga": "Compact 6-column layout",
     "fictionalData": "Fictional data; demonstrates the required structure.",
     "view": "View",
     "debugSimulate": "Debug: simulate scan",
     "dropFileToUpload": "Drop your file to upload",
     "dropNextMonth": "Drop next month's trial balance",
-    "formatsLimit": "XLSX · CSV · PDF · up to 25 MB",
     "import": "Import",
     "uploadedFiles": "Uploaded files",
     "previewFile": "Preview {{name}}",
@@ -1651,14 +1571,14 @@
     "statusComputing": "Computing ratios…",
     "statusNarrating": "Generating insights…",
     "docTb": "Trial balance (balanță de verificare)",
-    "docTbShows": "Per-account drilldown, full P&L + BS + cash flow reconciliation, 22 ratios, valuation, credit score, peer benchmarks",
-    "docTbWhere1": "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)",
-    "docTbWhere2": "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)",
+    "docTbShows": "Per-account drilldown, P&L, balance sheet, a cash-flow estimate, ratios, valuation, credit score and peer benchmarks",
+    "docTbWhere1": "Your accounting software",
+    "docTbWhere2": "Export → Balanță de verificare → XLSX or PDF (10-column layout)",
     "docPublicRecords": "Public records summary",
     "docPublicRecordsShows": "Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history.",
     "pdfOnly": "PDF only",
     "docStatutory": "Statutory ANAF filing",
-    "docStatutoryShows": "Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers.",
+    "docStatutoryShows": "Aggregate P&L and balance sheet from the annual filing, with less detail than a trial balance (no account-level drilldown) — accepted by the uploader, with no real-file test yet.",
     "docStatutoryWhere1": "Spațiul privat virtual (ANAF) → Bilanț contabil → download XLSX",
     "docStatutoryWhere2": "Your accountant's archive — the annual filing they sent to ANAF",
     "docSales": "Sales / trading analysis",
@@ -1732,6 +1652,7 @@
     "notServed": "not served",
     "netIncome": "Net income",
     "plusDa": "+ D&A",
+    "valuationOverrideDefinitionFlag": "Your saved figures were {{flag}} — they still apply; re-check the EBITDA you typed against today's definition.",
     "minusWc": "− ΔWorking capital",
     "eqCfo": "= CFO",
     "minusCapex": "− CapEx",
@@ -1807,10 +1728,11 @@
     "previewSheetCaption": "{{file}} · sheet \"{{sheet}}\" (example — fictional data)",
     "previewLoadFailed": "Couldn't load preview: {{msg}}.",
     "downloadInstead": "Download instead",
-    "narrativeUnavailable": "The AI briefing is temporarily unavailable — the analysis numbers below are unaffected. It will regenerate automatically on the next scan or currency/language switch.",
+    "narrativeUnavailable": "The AI briefing is unavailable for this period — the analysis figures are unaffected.",
     "notAvailableShort": "—",
     "zoneNotComputable": "Not computable",
-    "creditNotComputable": "Not enough of the source book was recognised to compute a rating."
+    "creditNotComputable": "Not enough of the source book was recognised to compute a rating.",
+    "sizeLimit": "Up to 25 MB."
   },
   "tabs": {
     "pl": "P&L",
@@ -1820,14 +1742,14 @@
     "valuation": "Valuation",
     "risks": "Risks & credit",
     "export": "Export",
-    "hint_pl": "Needs a P&L, trial balance, or annual report — ",
-    "hint_balance_sheet": "Needs a balance sheet, trial balance, or annual report — ",
-    "hint_cash_flow": "Needs a balance sheet + P&L (or trial balance) — ",
-    "hint_ratios": "Needs a balance sheet, P&L, or trial balance — ",
-    "hint_valuation": "Needs a balance sheet AND P&L — ",
-    "hint_risks": "Needs a balance sheet, P&L, or trial balance — ",
-    "hint_recommendations": "Needs a balance sheet, P&L, or trial balance — ",
-    "hint_suffix": "upload a financial statement or load a sample to enable this view."
+    "hint_pl": "Needs a Romanian trial balance — ",
+    "hint_balance_sheet": "Needs a Romanian trial balance — ",
+    "hint_cash_flow": "Needs a Romanian trial balance — ",
+    "hint_ratios": "Needs a Romanian trial balance — ",
+    "hint_valuation": "Needs a Romanian trial balance — ",
+    "hint_risks": "Needs a Romanian trial balance — ",
+    "hint_recommendations": "Needs a Romanian trial balance — ",
+    "hint_suffix": "upload one to enable this view."
   },
   "ws": {
     "settingsEyebrow": "Workspace settings",
@@ -1850,17 +1772,16 @@
     "skipForNow": "Skip for now — open the dashboard",
     "stepNameTitle": "Name your workspace",
     "stepNameBody": "Give this workspace a name so you can recognize it — usually the company or entity you're analyzing.",
-    "namePlaceholder": "e.g. Scandia Food SRL",
+    "namePlaceholder": "e.g. Conserve Exemplu SRL",
     "industryHint": "Pick the closest match — CFO AI applies industry-appropriate benchmarks. A 4× Debt/EBITDA is normal in real estate and alarming in B2B SaaS.",
     "stepRulesTitle": "Set your decision rules",
     "stepRulesBody": "These rules classify every product into Protect / Watch / Wind down. Pick a preset or tune the thresholds — you can always change them later from Products.",
     "stepUploadTitle": "Upload your data",
-    "stepUploadBody": "Drop your trial balance (balanță de verificare) or financial statements. CFO AI parses the accounts and builds the period's analysis.",
+    "stepUploadBody": "Drop your Romanian trial balance (balanță de verificare). CFO AI reads the accounts and builds the period's analysis.",
     "unsupportedFile": "Unsupported file",
-    "unsupportedFileDesc": "Drop a PDF, Excel (.xlsx / .xls) or .csv file.",
+    "unsupportedFileDesc": "Drop an Excel sheet (.xlsx) or a PDF with a text layer.",
     "importing": "Importing your workbook…",
     "dropWorkbook": "Drop your workbook here",
-    "uploadFormats": "PDF · XLSX · XLS · CSV · up to 25 MB",
     "notSignedIn": "Not signed in.",
     "cantDeleteFile": "Couldn't delete \"{{name}}\".",
     "currentMonthUndeletable": "{{label}} is the current month — it can't be deleted.",
@@ -2503,6 +2424,12 @@
     "cantGenerateLink": "Couldn't generate download link",
     "rerunningAnalysis": "Re-running analysis",
     "cantStartRerun": "Couldn't start re-run",
+    "rerunSuperseded": "Another upload has replaced this file for its month, so it was not re-analysed and the month was not changed. To use this file for the month again, upload it again.",
+    "rerunPeriodNotOwn": "This file isn't linked to an analysis of its own, so it was not re-analysed and nothing was changed. To analyse it, upload the file again.",
+    "rerunUnavailable": "We couldn't read this file's analysis just now, so the re-run didn't start. Nothing was changed — try again in a moment.",
+    "rerunFailedKept": "The last re-run didn't finish. You're still seeing the previous analysis.",
+    "rerunInterrupted": "The last re-run was interrupted while it was replacing the analysis. Run it again.",
+    "rerunMonthTaken": "The last re-run was not applied: the file now reads as a month that already has its own analysis. Nothing was changed.",
     "markedInactive": "Marked inactive",
     "markedActive": "Marked active",
     "cantUpdate": "Couldn't update",
@@ -3077,9 +3004,9 @@
       "title": "Filter the universe",
       "searchPillDesc": "Companies matching your search — click to clear",
       "gainers": "Top gainers",
-      "gainersWhy": "Largest day-over-day price gains among live-quoted companies",
+      "gainersWhy": "Largest day-over-day price gains among companies with a daily closing price",
       "losers": "Top losers",
-      "losersWhy": "Largest day-over-day price drops among live-quoted companies",
+      "losersWhy": "Largest day-over-day price drops among companies with a daily closing price",
       "value": "Value plays",
       "valueWhy": "P/E below 15 and profitable — priced cheaply next to earnings",
       "distressed": "Distressed",
@@ -3148,7 +3075,7 @@
       "cta": "Compare",
       "clear": "Clear",
       "title": "Side-by-side comparison",
-      "subtitle": "Figures as loaded on this page — statutory FY figures plus live prices.",
+      "subtitle": "Figures as loaded on this page — the latest annual figures plus the last daily closing price.",
       "includeYou": "Include your company",
       "limit": "You can compare at most 3 companies.",
       "row": {
@@ -3167,7 +3094,7 @@
     "footer": {
       "loading": "Loading sources…",
       "demo": "Source: bundled sample data — the live market feed isn't configured on this deployment, so every figure on this page is illustrative.",
-      "sources": "Sources: Bursa de Valori București listing data, issuer annual reports and ANAF statutory filings (bilanț) for {{bvb}} BVB listings. Fundamentals are annual statutory filings. Prices are the last daily close, re-checked every 5 minutes — not live quotes."
+      "sources": "Sources: Bursa de Valori București listing data for {{bvb}} BVB listings. {{withFinancials}} of them carry summary financial figures today — issuer annual reports for the main index, the latest statutory filing (bilanț) for the others. Prices are the last daily close, re-checked every 5 minutes — not live quotes."
     }
   },
   "pending": {
@@ -3202,7 +3129,7 @@
     },
     "public_companies": {
       "title": "Public companies",
-      "description": "Listed-company filings, ratios and peer comparison, read straight from the regulator's own filings.",
+      "description": "Listed-company figures, ratios and peer comparison, from published annual reports and statutory filings.",
       "requirement": "Enabled after launch"
     },
     "comprehensive_report": {
@@ -3445,7 +3372,8 @@
       "avg_personnel_cost": "average personnel cost is not served: it needs a headcount the book does not carry",
       "segment_growth": "growth by segment is not served: revenue is not split by segment in the book",
       "policy_rate_shift": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate",
-      "stock_variation": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+      "stock_variation": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them",
+      "net_provisions": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
     },
     "formula": {
       "cumulativeFcf": "sum of operating and investing cash over the served periods",
@@ -3835,7 +3763,7 @@
   "wsV2": {
     "home": {
       "title": "Your companies",
-      "subtitle": "Drop a trial balance or a set of financial statements. We read the company, the period and the industry from the document itself.",
+      "subtitle": "Drop a Romanian trial balance (balanță de verificare). We read the company, the period and the industry from the document itself.",
       "empty": "No companies yet. Drop your first document above.",
       "cui": "CUI {{cui}}",
       "noCui": "No CUI yet",
@@ -3851,13 +3779,14 @@
     },
     "drop": {
       "zoneTitle": "Drop a file here",
-      "zoneHint": "or choose one from your computer · PDF, Excel, CSV or a photo",
+      "zoneHint": "or choose one from your computer · {{formats}}",
       "choose": "Choose a file",
       "overlayTitle": "Let go to analyse it",
       "overlayHint": "We check which company it belongs to before anything is saved.",
       "nextYear": "Add {{year}}",
       "nextYearHint": "Drop the {{year}} file here",
-      "busy": "Reading the document…"
+      "busy": "Reading the document…",
+      "zoneHintAi": "A scan or a photo needs the AI reader — {{status}}."
     },
     "card": {
       "readingTitle": "Reading the document…",
@@ -3923,34 +3852,12 @@
       "upgrade": "View plans"
     },
     "errors": {
-      "unsupported": "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",
+      "unsupported": "We can't read this kind of file. Use an Excel sheet (.xlsx) or a PDF with a text layer.",
       "identify": "We couldn't read the file.",
       "commit": "We couldn't save the file. Nothing was analysed.",
       "cancelled": "The analysis didn't start.",
       "offline": "The analysis service isn't answering. Try again in a minute.",
-      "wrongKindHint": "The file's name says one thing and its contents another. Export the trial balance again from your accounting software, or pick the original file.",
-      "kind": {
-        "docx_not_pdf": "This is a Word document, not a PDF",
-        "xlsx_not_pdf": "This is an Excel workbook, not a PDF",
-        "pptx_not_pdf": "This is a PowerPoint presentation, not a PDF",
-        "pdf_not_xlsx": "This is a PDF, not an Excel workbook",
-        "pdf_not_xls": "This is a PDF, not an Excel workbook",
-        "docx_not_xlsx": "This is a Word document, not an Excel workbook",
-        "docx_not_xls": "This is a Word document, not an Excel workbook",
-        "generic": "This is {{actual}}, not {{declared}}"
-      },
-      "kindNames": {
-        "pdf": "a PDF",
-        "docx": "a Word document",
-        "xlsx": "an Excel workbook",
-        "xls": "an Excel workbook",
-        "pptx": "a PowerPoint presentation",
-        "ppt": "a PowerPoint presentation",
-        "zip": "a ZIP archive",
-        "ole": "an older Office document",
-        "image": "an image",
-        "csv": "a CSV file"
-      }
+      "wrongKindTitle": "We can't read this file"
     },
     "progress": {
       "title": "Analysing {{company}}",
@@ -4039,5 +3946,70 @@
   },
   "roundedDays": {
     "note": "rounded days — the rounded terms can differ from the total by a day"
+  },
+  "coverage": {
+    "open": "What can CFO AI read today?",
+    "sampleLink": "See a complete sample: a fictional company's trial balance and the report generated from it"
+  },
+  "pricingFaq": {
+    "eyebrow": "FAQ",
+    "title": "Questions, answered.",
+    "aria": "Frequently asked questions",
+    "aiReaderAvailable": "available",
+    "whatCounts": {
+      "q": "What counts as a document?",
+      "a": "A document is one uploaded file that CFO AI analyses. Today the engine reads Romanian trial balances (balanță de verificare) in the tested layouts — the coverage table on the home page lists them. A balance sheet, a P&L, an annual report or a scan is not read by the engine: it needs the AI reader, which is {{aiStatus}}. Invoice and inventory files are not read in this release."
+    },
+    "quotaHit": {
+      "q": "What happens when I hit my included document quota?",
+      "a": "You will see the extra-document price before processing. CFO AI never charges silently."
+    },
+    "introSubscription": {
+      "q": "Is the {{introPrice}} Intro Unlock a subscription?",
+      "a": "No. It is a one-time 7-day unlock for one extra document."
+    },
+    "rollover": {
+      "q": "Do unused documents roll over?",
+      "a": "No. Included documents reset each billing period."
+    },
+    "movePlans": {
+      "q": "Can I move between plans?",
+      "a": "Yes. You can upgrade or downgrade from Billing."
+    },
+    "chatCap": {
+      "q": "Are Ask CFO AI messages capped?",
+      "a": "Yes. Each plan carries a daily and a monthly message cap, shown on its card and in the app. Chat is capped rather than metered — it is never billed per message. Its answers are written by an AI model.{{chatStatus}}"
+    }
+  },
+  "contactSales": {
+    "eyebrow": "Contact sales",
+    "navPricing": "Pricing",
+    "navHome": "Home",
+    "title": "Let's talk about a larger rollout",
+    "sub": "Tell us how you work. We reply by email with a proposal — no high-pressure pitch.",
+    "doneTitle": "Got it — talk soon",
+    "doneBody": "We've logged your inquiry and sent you a confirmation email. In the meantime, you're welcome to try RO Solo or Pro. There is also a one-time {{introPrice}} unlock that opens a single document for 7 days — it is not a subscription and not a first month.",
+    "backToPricing": "Back to pricing",
+    "name": "Your name",
+    "email": "Work email",
+    "company": "Company",
+    "role": "Your role",
+    "rolePlaceholder": "Partner, CFO, Senior accountant…",
+    "numCompanies": "How many companies do you analyze regularly?",
+    "choose": "Choose…",
+    "useCase": "What's your main use case?",
+    "useCasePlaceholder": "e.g., monthly reporting for several SME clients, due diligence on acquisition targets, a family-group view…",
+    "preferred": "Preferred contact",
+    "byEmail": "Email",
+    "byPhone": "Phone call",
+    "byVideo": "Video call (Google Meet)",
+    "phone": "Phone",
+    "send": "Send",
+    "sending": "Sending…",
+    "consent": "By submitting, you agree we'll email you about plans and pricing. We don't sell your data.",
+    "missingTitle": "Missing fields",
+    "missingBody": "Please share your name and a valid email so we can reply.",
+    "failedTitle": "Couldn't send",
+    "failedBody": "Please email {{email}} directly."
   }
 }

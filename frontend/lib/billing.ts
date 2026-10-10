@@ -185,8 +185,6 @@ export function useSubscription(): {
   loading: boolean;
   refresh: () => Promise<void>;
   setPlan: (planId: PlanId, cycle?: BillingCycle) => Promise<Subscription | null>;
-  cancel: () => Promise<Subscription | null>;
-  reactivate: () => Promise<Subscription | null>;
 } {
   const local = useLocalSubscription();
   // Naive cache: a global mutable sub kept in sync via emit() so multiple
@@ -278,53 +276,18 @@ function useSubscriptionInternal(local: Subscription | null) {
     return fresh;
   }
 
-  async function cancel(): Promise<Subscription | null> {
-    const sb = getSupabase();
-    const userId = (await sb?.auth.getSession())?.data.session?.user?.id;
-    if (!sb || !userId) return null;
+  // `cancel()` and `reactivate()` used to sit here. Deleted 2026-10-03: both
+  // UPDATED the `subscriptions` row straight from the browser —
+  // `reactivate()` wrote `status: "active"`, with no payment anywhere in the
+  // path. Neither had a caller: Settings cancels through
+  // `POST /api/billing/cancel` (lib/stripeBilling.ts `cancelAtPeriodEnd`),
+  // which asks Stripe, and the webhook writes the row. The database now
+  // refuses the write as well
+  // (supabase/schema_phase_subscriptions_write_lockdown.sql), and
+  // tests/engine/test_entitlement_write_laws.py reds if a browser writer of
+  // an entitlement table comes back.
 
-    // TODO: when Stripe is wired, also call stripe.subscriptions.update(id,
-    //   { cancel_at_period_end: true }) so the customer portal stays in sync.
-
-    const { data, error } = await sb
-      .from("subscriptions")
-      .update({ cancel_at_period_end: true })
-      .eq("user_id", userId)
-      .select()
-      .single();
-    if (error) {
-      console.warn("[billing] cancel failed:", error.message);
-      return null;
-    }
-    const next = rowToSubscription(data as SubscriptionRow);
-    setRemote(next);
-    return next;
-  }
-
-  async function reactivate(): Promise<Subscription | null> {
-    const sb = getSupabase();
-    const userId = (await sb?.auth.getSession())?.data.session?.user?.id;
-    if (!sb || !userId) return null;
-
-    // TODO: when Stripe is wired, also call stripe.subscriptions.update(id,
-    //   { cancel_at_period_end: false }) so the customer portal matches.
-
-    const { data, error } = await sb
-      .from("subscriptions")
-      .update({ cancel_at_period_end: false, status: "active" })
-      .eq("user_id", userId)
-      .select()
-      .single();
-    if (error) {
-      console.warn("[billing] reactivate failed:", error.message);
-      return null;
-    }
-    const next = rowToSubscription(data as SubscriptionRow);
-    setRemote(next);
-    return next;
-  }
-
-  return { subscription, loading, refresh, setPlan, cancel, reactivate };
+  return { subscription, loading, refresh, setPlan };
 }
 
 // ─── Helpers used by Settings / pricing UI ──────────────────────────────────

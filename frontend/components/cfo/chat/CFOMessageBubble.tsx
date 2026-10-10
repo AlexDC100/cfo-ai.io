@@ -18,13 +18,26 @@
 // as plain text inside a <p>. Figures inside an answer stay PLAIN
 // TEXT on purpose: parsing free-text numbers into <Amount> would fake
 // provenance the payload doesn't carry.
+//
+// THE READER'S FORMAT (owner order 2026-10-04). An assistant answer is
+// shown with its figures in the format of the language it is WRITTEN in
+// ("~12,3 mil. EUR (convertit din 64.567.890 RON …)" in a Romanian
+// sentence), through lib/readerFigures: notation only — separators, the
+// magnitude word, the ISO code after the figure — never a value, and a
+// token with two readings is left as the model wrote it. A new reply is
+// already stored that way (chatTurns.ts); doing it again HERE is what
+// repairs a reply stored before the release, one written under an older
+// function's prompt, and a thread handed over from the command bar. The
+// reader's own turns, a refusal (the app's notice), a failed and an
+// interrupted turn are never touched.
 
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RotateCcw } from "lucide-react";
 import { Panel } from "@/components/instrument/Panel";
 import { AI_FAILURE_REASON_KEY } from "@/lib/aiDegraded";
+import { displayModelText, type FigureLang } from "@/lib/readerFigures";
 import "./chatDegradedI18n";
 import type { ChatMessage } from "./types";
 
@@ -41,9 +54,13 @@ interface Props {
    *  failed turn through the normal send pipeline. Older failed turns
    *  render the panel without the button. */
   onRetry?: () => void;
+  /** The language of the nearest earlier turn whose language can be read
+   *  (the list computes it) — used only when the answer's own prose does not
+   *  say which language it is written in. Never the UI language. */
+  languageHint?: FigureLang | null;
 }
 
-export function CFOMessageBubble({ message, animate = false, onType, onRetry }: Props) {
+export function CFOMessageBubble({ message, animate = false, onType, onRetry, languageHint = null }: Props) {
   const isUser = message.role === "user";
   if (isUser) return <UserBubble message={message} />;
   // Stop pressed mid-generation — a muted marker in the assistant slot
@@ -51,7 +68,7 @@ export function CFOMessageBubble({ message, animate = false, onType, onRetry }: 
   if (message.interrupted) return <InterruptedMarker />;
   // A2 degraded state — the calm panel replaces the answer body.
   if (message.failed) return <FailedTurnPanel kind={message.failed} onRetry={onRetry} />;
-  return <AssistantBubble message={message} animate={animate} onType={onType} />;
+  return <AssistantBubble message={message} animate={animate} onType={onType} languageHint={languageHint} />;
 }
 
 // ─── Failed turn (A2) ────────────────────────────────────────────
@@ -172,12 +189,19 @@ function UserBubble({ message }: Props) {
 }
 
 // ─── Assistant bubble ────────────────────────────────────────────
-function AssistantBubble({ message, animate = false, onType }: Props) {
+function AssistantBubble({ message, animate = false, onType, languageHint = null }: Props) {
   // Freeze the animate decision at mount. The list flips `animate` back to
   // false on the very next render (once it's marked the id as seen); without
   // this latch that flip would snap the reveal to full text instantly.
   const animateAtMount = useRef(animate);
-  const { shown, done } = useTypewriter(message.content, animateAtMount.current, onType);
+  // What the reader is shown — computed BEFORE the typewriter, so nothing
+  // flickers from one notation to the other while the answer types out. A
+  // refusal is the app's own sentence in the UI language: not a model's text.
+  const content = useMemo(
+    () => (message.refused ? message.content : displayModelText(message.content, { fallback: languageHint }).text),
+    [message.content, message.refused, languageHint],
+  );
+  const { shown, done } = useTypewriter(content, animateAtMount.current, onType);
   const typing = !done;
 
   return (
@@ -266,16 +290,23 @@ function MiniMarkdown({ text }: { text: string }) {
 }
 
 function renderInline(text: string): React.ReactNode {
-  // Tokenise on **bold**, `code`, and bare URLs. Order matters —
+  // Tokenise on **bold**, `code`, bare URLs, and a labelled link to a page
+  // of THIS app — `[See plans →](/pricing)`, which the app's own messages
+  // (the plan cap, "sign in again") carry and which used to print as raw
+  // brackets. Only a same-site path gets a label: a labelled link to
+  // another host is left as text with its URL in view. The path is a
+  // closed set of characters — no backslash: a browser reads `/\host` as
+  // `//host`, another site behind an innocent label. Order matters —
   // codespans win over bold so we don't accidentally bold ``...``.
-  const tokens: Array<{ kind: "text" | "bold" | "code" | "link"; v: string }> = [];
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(https?:\/\/[^\s)]+)/g;
+  const tokens: Array<{ kind: "text" | "bold" | "code" | "link" | "applink"; v: string; label?: string }> = [];
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|\[([^\]\n]+)\]\((\/(?!\/)[A-Za-z0-9\-._~/?=&%#]*)\)|(https?:\/\/[^\s)]+)/g;
   let i = 0; let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     if (m.index > i) tokens.push({ kind: "text", v: text.slice(i, m.index) });
     if (m[1]) tokens.push({ kind: "code", v: m[1].slice(1, -1) });
     else if (m[2]) tokens.push({ kind: "bold", v: m[2].slice(2, -2) });
-    else if (m[3]) tokens.push({ kind: "link", v: m[3] });
+    else if (m[3] && m[4]) tokens.push({ kind: "applink", v: m[4], label: m[3] });
+    else if (m[5]) tokens.push({ kind: "link", v: m[5] });
     i = m.index + m[0].length;
   }
   if (i < text.length) tokens.push({ kind: "text", v: text.slice(i) });
@@ -283,6 +314,7 @@ function renderInline(text: string): React.ReactNode {
   return tokens.map((t, k) => {
     if (t.kind === "bold") return <strong key={k} className="font-semibold text-ink">{t.v}</strong>;
     if (t.kind === "code") return <code key={k} className="px-1 py-0.5 rounded-sm text-[12.5px] font-mono bg-bg-2/70 text-ink break-all">{t.v}</code>;
+    if (t.kind === "applink") return <a key={k} href={t.v} className="font-medium text-brand-dark dark:text-brand-light underline underline-offset-2 hover:text-brand">{t.label}</a>;
     if (t.kind === "link") return <a key={k} href={t.v} target="_blank" rel="noreferrer" className="text-brand-dark dark:text-brand-light underline underline-offset-2 hover:text-brand break-all">{t.v}</a>;
     return <span key={k}>{t.v}</span>;
   });

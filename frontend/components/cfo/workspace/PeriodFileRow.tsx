@@ -38,7 +38,12 @@ import {
 import { toast } from "@/components/ui/sonner";
 import { formatDateOnly, useActiveLocale } from "@/lib/locale";
 import { formatPeriodMonth, formatPeriodMonthLoose } from "@/lib/orgPeriods";
-import { makeDocumentSource, type PeriodDetection } from "./periodFiling";
+import {
+  FilingRefused,
+  makeDocumentSource,
+  makeSourceRefusalKey,
+  type PeriodDetection,
+} from "./periodFiling";
 import "./periodFilingI18n";
 
 export interface PeriodFile {
@@ -103,9 +108,11 @@ export function PeriodFileRow({
         onChanged();
       }
     } catch (err) {
-      toast.error(t("pf.sourceFailed"), {
-        description: err instanceof Error ? err.message : undefined,
-      });
+      // A refusal this screen has a sentence for is said in OUR words, in
+      // the reader's language — never the server's English; a failure with
+      // no code it knows shows the title alone.
+      const ours = makeSourceRefusalKey(err instanceof FilingRefused ? err.code : null);
+      toast.error(t("pf.sourceFailed"), { description: ours ? t(ours) : undefined });
     } finally {
       setBusy(false);
     }

@@ -204,6 +204,48 @@ export interface MakeSourceResult {
   orphaned_after: unknown[];
 }
 
+/** A correction the engine REFUSED, with the refusal's code when it sent
+ *  one. The message is the server's own sentence (English); a caller that
+ *  holds a sentence of its own for the code prints that instead. */
+export class FilingRefused extends Error {
+  readonly code: string | null;
+
+  constructor(message: string, code: string | null) {
+    super(message);
+    this.name = "FilingRefused";
+    this.code = code;
+  }
+}
+
+/** The month already holds the analysis of ANOTHER analysed file: "Make
+ *  source" changes nothing there (the engine's `make-active` refuses before
+ *  its first write — it used to wipe that analysis and only then re-run the
+ *  promoted file). The same literal as `_period_move.MONTH_HAS_ANOTHER_ANALYSIS`. */
+export const MONTH_HAS_ANOTHER_ANALYSIS = "month_has_another_analysis";
+
+/** The refusal codes of the two corrections (`_period_move.MoveRefused`,
+ *  and the route's own `analysis_in_progress`) this screen has a sentence
+ *  for — code → i18n key. `period_missing` is ONE answer on purpose: the
+ *  engine gives it for a pin that names nothing AND for a pin that names
+ *  another company's period (re-verification 2026-10-10). */
+const FILING_REFUSAL_KEYS: Readonly<Record<string, string>> = {
+  [MONTH_HAS_ANOTHER_ANALYSIS]: "pf.sourceHasAnalysis",
+  document_deleted: "pf.refusedDocumentDeleted",
+  period_missing: "pf.refusedPeriodMissing",
+  not_in_a_period: "pf.refusedNotInAPeriod",
+  analysis_in_progress: "pf.refusedAnalysisInProgress",
+};
+
+/** The key of OUR sentence for a refused correction ("Make source", a
+ *  move) — null for a code this screen has no sentence for, or no code: the
+ *  toast then shows its title alone, never the server's English. */
+export function filingRefusalKey(code: string | null | undefined): string | null {
+  return code ? (FILING_REFUSAL_KEYS[code] ?? null) : null;
+}
+
+/** The same, under the name the "Make source" law reads. */
+export const makeSourceRefusalKey = filingRefusalKey;
+
 async function post<T>(path: string, orgId: string, body?: unknown): Promise<T> {
   const headers = await authHeaders(orgId);
   if (!headers) throw new Error("Not signed in.");
@@ -214,17 +256,19 @@ async function post<T>(path: string, orgId: string, body?: unknown): Promise<T> 
   });
   if (!res.ok) {
     let message = `${res.status}`;
+    let code: string | null = null;
     try {
       const detail = (await res.json()) as { detail?: unknown };
       if (typeof detail.detail === "string") message = detail.detail;
       else if (detail.detail && typeof detail.detail === "object") {
-        message =
-          ((detail.detail as { message?: string }).message as string) ?? message;
+        const refusal = detail.detail as { message?: unknown; code?: unknown };
+        if (typeof refusal.message === "string") message = refusal.message;
+        if (typeof refusal.code === "string") code = refusal.code;
       }
     } catch {
       /* keep the status code */
     }
-    throw new Error(message);
+    throw new FilingRefused(message, code);
   }
   return (await res.json()) as T;
 }

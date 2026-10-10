@@ -139,11 +139,16 @@ describe("cellForRow — the parity guard", () => {
 // (72x) lines of their own. A prior assembled under another definition is
 // not the same line: those rows carry the engine's cells only while the
 // PRIOR's served block names the definition the CURRENT period is served
-// on. Every other row is untouched by it.
+// on. The owner's R2 ruling of 2026-09-28 moved D&A (the 6812 / 6814
+// charges out) and gave net provisions a line of their own: those rows are
+// held to the definition too. Every other row is untouched by it.
 describe("cellForRow — the one-EBITDA definition guard", () => {
-  const DEF = "ebitda/2026-09-26:711-72x-inside,767-financial";
+  const DEF = "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover";
   const cells = new Map<string, ComparativeCell>([
     ["pl.revenue", cell({})],
+    ["pl.cogs", cell({ key: "pl.cogs", current: 40, prior: 30 })],
+    ["pl.depreciation", cell({ key: "pl.depreciation", current: 7, prior: 6 })],
+    ["pl.net_provisions", cell({ key: "pl.net_provisions", current: -3, prior: 2 })],
     ["pl.ebitda", cell({ key: "pl.ebitda", current: 50, prior: 40 })],
     ["pl.inventory_variation", cell({ key: "pl.inventory_variation", current: 5, prior: 4 })],
   ]);
@@ -163,8 +168,20 @@ describe("cellForRow — the one-EBITDA definition guard", () => {
     expect(cellForRow(cells, "ebitda", 50, { currentDefinition: DEF, priorStatements: undefined }).kind).toBe("definition_differs");
   });
   it("net turnover is the same line under either definition: never held to it", () => {
+    // R3 (2026-09-28) moved turnover only on a book that posts 7411 — none
+    // is known — and a prior's stamp cannot say whether its book did.
     expect(cellForRow(cells, "revenue", 100, { currentDefinition: DEF, priorStatements: prior("old") }).kind).toBe("cell");
     expect(cellForRow(cells, "revenueTurnover", 100, { currentDefinition: DEF, priorStatements: prior("old") }).kind).toBe("cell");
+  });
+  it("D&A and net provisions moved with the R2 ruling: held to the definition", () => {
+    const previous = "ebitda/2026-09-26:711-72x-inside,767-financial";
+    for (const [row, amount] of [["depreciationAmortization", 7], ["netProvisions", -3]] as const) {
+      expect(cellForRow(cells, row, amount, { currentDefinition: DEF, priorStatements: prior(previous) }).kind, row).toBe("definition_differs");
+      expect(cellForRow(cells, row, amount, { currentDefinition: DEF, priorStatements: prior(DEF) }).kind, row).toBe("cell");
+    }
+  });
+  it("a line the rulings did not move is never held to the definition", () => {
+    expect(cellForRow(cells, "cogs", 40, { currentDefinition: DEF, priorStatements: prior("old") }).kind).toBe("cell");
   });
   it("a payload with no current definition (not an engine period) is held by the parity guard alone", () => {
     expect(cellForRow(cells, "ebitda", 50, { currentDefinition: null, priorStatements: prior("old") }).kind).toBe("cell");
@@ -200,7 +217,8 @@ const FIELD: Record<string, string> = {
   "pl.other_operating_income": "other_income_758",
   "pl.capitalized_own_work": "capitalized_own_work.value",
   "pl.inventory_variation": "inventory_variation.value",
-  "pl.depreciation": "depreciation", "pl.ebitda": "ebitda", "pl.ebit": "ebit",
+  "pl.depreciation": "depreciation", "pl.net_provisions": "net_provisions.value",
+  "pl.ebitda": "ebitda", "pl.ebit": "ebit",
   "pl.financial_income": "financial_income", "pl.interest_income": "interest_income",
   "pl.interest_expense": "interest_expense", "pl.opex_third_party": "opex_third_party",
   "pl.net_financial_result": "net_financial_result", "pl.pretax": "pretax", "pl.tax": "tax",

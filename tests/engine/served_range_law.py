@@ -22,6 +22,16 @@ their domain and must refuse. Until the ruling this law rebuilt EBIT from
 the incomeStatement leaves WITHOUT 711 / 72x — a second definition. A block
 assembled before the ruling (no `ebitda_definition`) is read from the
 leaves plus 72x, and absent where the book posts to 711.
+
+THE STOCK-BUILD REGIME (credit model revision 5, owner ruling R1,
+2026-09-28). A measured net 711 build reaching 1.0 x net turnover AND 0.10 x
+total operating expense (literals copied here ON PURPOSE, like the X4
+share) moves leverage, coverage and DSCR onto the served cash from
+operations: their domain is then "cash measured" (`assembled_cf.
+is_approximated` exactly False with a figure), or net cash for leverage —
+an approximated or refused cash figure puts them OUT of their domain (they
+must refuse, with a cash code). Altman's X3 is EBIT − net 711 − net 72x,
+and the Z'' bound is derived with that X3.
 """
 from __future__ import annotations
 
@@ -31,6 +41,12 @@ from typing import Any, Callable, Dict, List, Mapping, Optional
 #: The share of total assets total liabilities must reach for X4 to be
 #: defined (R-D4; CLAUDE.md §3 Step 5 Gate 2 balance-sheet materiality).
 X4_MATERIALITY_SHARE = 0.01
+
+#: The stock-build trigger (owner ruling R1; coordinator decision
+#: design_2026-09-28_rulings2.md): net 711 >= these shares of net turnover
+#: and of total operating expense. Copied on purpose — a pack move reds.
+STOCK_BUILD_TURNOVER_SHARE = 1.0
+STOCK_BUILD_OPEX_SHARE = 0.10
 
 _CL = ("accountsPayable", "shortTermDebt", "otherCurrentLiabilities")
 _NCL = ("longTermDebt", "otherNonCurrentLiabilities")
@@ -56,6 +72,13 @@ def operands(statements: Mapping[str, Any]) -> Dict[str, Any]:
     revenue = _f(pl.get("revenue"))
     ebit, ebitda = _one_ebit_ebitda(statements)
     interest = _f(pl.get("interestExpense"))
+    stock_build, x3_numerator, cash = _stock_build(statements, ebit)
+    if stock_build:
+        # Altman X3 on the operating result before the stock variation and
+        # own work (revision 5): the Z'' bound is derived with it.
+        ebit_for_x3 = x3_numerator
+    else:
+        ebit_for_x3 = ebit
     return {
         "total_assets": ta, "current_liabilities": cl, "total_liabilities": tl,
         "total_equity": eq, "total_debt": debt, "net_debt": debt - _f(bs.get("cash")),
@@ -65,8 +88,37 @@ def operands(statements: Mapping[str, Any]) -> Dict[str, Any]:
         "cash": _f(bs.get("cash")), "inventory": _f(bs.get("inventory")),
         # the two unbounded Altman terms, from the leaves, for the Z'' bound
         "x2": (_f(bs.get("retainedEarnings")) / ta) if ta > 0 else None,
-        "x3": (ebit / ta) if ta > 0 and ebit is not None else None,
+        "x3": (ebit_for_x3 / ta) if ta > 0 and ebit_for_x3 is not None else None,
+        "x3_operand": ebit_for_x3,
+        # revision 5: the stock-build regime and its cash (None unless
+        # measured)
+        "stock_build": stock_build,
+        "cash_measured": cash,
     }
+
+
+def _stock_build(statements: Mapping[str, Any], ebit: Optional[float]):
+    """(regime applies, X3 numerator, measured cash or None) — read off the
+    served assembled P&L and cash flow, with this file's own literals."""
+    apl = statements.get("assembled_pl") or {}
+    if "ebitda_definition" not in apl or apl.get("ebitda_refusal"):
+        return False, None, None
+    inv = apl.get("inventory_variation") or {}
+    net = inv.get("value") if isinstance(inv, Mapping) else None
+    if not isinstance(net, (int, float)) or isinstance(net, bool) or not net > 0:
+        return False, None, None
+    turnover = _f(apl.get("turnover", (statements.get("incomeStatement") or {}).get("revenue")))
+    toe = _f(apl.get("total_operating_expense"))
+    if not (net >= STOCK_BUILD_TURNOVER_SHARE * turnover and net >= STOCK_BUILD_OPEX_SHARE * toe):
+        return False, None, None
+    cap = apl.get("capitalized_own_work") or {}
+    net72 = _f(cap.get("value")) if isinstance(cap, Mapping) else 0.0
+    numerator = None if ebit is None else ebit - net - net72
+    cf = statements.get("assembled_cf") or {}
+    value = cf.get("cash_from_operating")
+    cash = (float(value) if isinstance(value, (int, float)) and not isinstance(value, bool)
+            and cf.get("is_approximated") is False else None)
+    return True, numerator, cash
 
 
 def _one_ebit_ebitda(statements: Mapping[str, Any]):
@@ -92,7 +144,7 @@ def _model_runs(o: Mapping[str, Any]) -> bool:
 
 
 def _altman_defined(o: Mapping[str, Any]) -> bool:
-    return _model_runs(o) and o["total_liabilities"] > 0 and o["ebit"] is not None and \
+    return _model_runs(o) and o["total_liabilities"] > 0 and o["x3_operand"] is not None and \
         o["total_liabilities"] >= X4_MATERIALITY_SHARE * o["total_assets"]
 
 
@@ -113,12 +165,21 @@ def _d1_rung(o: Mapping[str, Any]) -> bool:
 
 
 def _coverage_defined(o: Mapping[str, Any]) -> bool:
+    if o["stock_build"]:
+        # revision 5: on MEASURED cash only; cash <= 0 is the declared
+        # bottom rung (defined); debt-free with cash > 0 is R-D1 on cash
+        cash = o["cash_measured"]
+        return _model_runs(o) and cash is not None and (
+            cash <= 0 or o["interest"] > 0 or (o["total_debt"] == 0 and o["interest"] == 0))
     return _model_runs(o) and o["ebit"] is not None and o["ebitda"] is not None and \
         (o["interest"] > 0 or _d1_rung(o))
 
 
 def _leverage_defined(o: Mapping[str, Any]) -> bool:
     # net cash scores whatever EBITDA is; net debt needs the one EBITDA
+    # (revision 5, the stock-build regime: measured cash in its place)
+    if o["stock_build"]:
+        return _model_runs(o) and (o["cash_measured"] is not None or o["net_debt"] <= 0)
     return _model_runs(o) and (o["ebitda"] is not None or o["net_debt"] <= 0)
 
 
@@ -177,7 +238,9 @@ class Row:
 #: as this law reads it; a code outside it is a defect).
 COMPONENT_CODES = ["current_liabilities_not_positive", "total_liabilities_below_materiality",
                    "revenue_not_positive", "interest_expense_not_positive", "credit_out_of_range",
-                   "ebitda_refused"]
+                   "ebitda_refused",
+                   # revision 5: the stock-build regime's cash components
+                   "cash_from_operations_approximated", "cash_from_operations_refused"]
 COMPOSITE_CODES = ["credit_component_undefined", "credit_out_of_range", "credit_inputs_absent"]
 
 SUBSCORE_SOURCE = "CLAUDE.md Appendix A §7: seven sub-scores on a 0-100 scale"

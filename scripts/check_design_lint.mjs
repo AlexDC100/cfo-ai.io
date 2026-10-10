@@ -64,7 +64,7 @@ const isTestFile = (f) =>
 const HEX_ALLOWED_FILES = new Set([
   "frontend/index.css", // THE token sheet — hex is defined here
   "frontend/styles/marketing-tokens.css", // marketing --m-* token namespace
-  "frontend/styles/eeiBoard.css", // --eei-* board token namespace
+  "frontend/styles/controllerBoard.css", // --ctrl-* board token namespace
   "frontend/theme/tokens.ts", // TS mirror of the token sheet
   // Documented escape hatch: static palettes for canvas / SVG generation /
   // email — surfaces that cannot read CSS vars. NOTE it still carries the

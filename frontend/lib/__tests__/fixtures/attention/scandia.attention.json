@@ -18,11 +18,11 @@
     "en": "Export the bank report",
     "ro": "Exportă raportul pentru bancă"
    },
-   "requires_feature": "forecast",
    "target": {
-    "kind": "forecast_bank_export",
+    "kind": "report_pdf",
     "period_id": "5ea50000-0000-4000-8000-0000000051f5",
-    "route": "/dashboard/forecast"
+    "route": "/dashboard",
+    "tab": "export"
    }
   }
  ],
@@ -47,7 +47,7 @@
      "level": "high",
      "measure": "served_insight_rank",
      "served_rank": 1,
-     "share": 0.469729
+     "share": 0.474424
     },
     "reason": null
    },
@@ -61,7 +61,7 @@
      "level": "medium",
      "measure": "served_insight_rank",
      "served_rank": 2,
-     "share": 0.137234
+     "share": 0.12861
     },
     "reason": null
    },
@@ -227,6 +227,7 @@
   ],
   "statement_lines": []
  },
+ "credit_regime": null,
  "deduped": [],
  "items": [
   {
@@ -278,7 +279,7 @@
     "level": "high",
     "measure": "served_insight_rank",
     "served_rank": 1,
-    "share": 0.469729
+    "share": 0.474424
    },
    "rank": 1,
    "severity": {
@@ -307,7 +308,7 @@
     "basis": "ebitda_positive",
     "basis_label": "EBITDA",
     "level": "high",
-    "materiality": 0.469729
+    "materiality": 0.474424
    },
    "slot": "finding",
    "source": {
@@ -423,7 +424,6 @@
      "758805",
      "758807",
      "758804",
-     "781401",
      "758891",
      "758301",
      "758802",
@@ -442,7 +442,7 @@
      "key": "non_trading",
      "label": "Other operating income and provision reversals",
      "unit": "money",
-     "value": 753070.01
+     "value": 698765.03
     }
    },
    "identity": "earnings_quality",
@@ -452,7 +452,7 @@
     "level": "medium",
     "measure": "served_insight_rank",
     "served_rank": 2,
-    "share": 0.137234
+    "share": 0.12861
    },
    "rank": 3,
    "severity": {
@@ -481,7 +481,7 @@
     "basis": "ebitda_positive",
     "basis_label": "EBITDA",
     "level": "medium",
-    "materiality": 0.137234
+    "materiality": 0.12861
    },
    "slot": "finding",
    "source": {

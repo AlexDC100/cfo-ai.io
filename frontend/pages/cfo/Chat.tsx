@@ -31,6 +31,9 @@ import {
 import { STOCK_SLOW_CLAIM_RULE, printInventoryDays, readInventoryDaysSplit } from "@/lib/inventoryDays";
 import { factsFrom } from "@/lib/servedFacts";
 import type { Statements } from "@/lib/financialReport";
+import { engineCreditResult, type CreditEnvelope, type PiotroskiEnvelope } from "@/lib/financialValuation";
+import { printRegimeAmount } from "@/lib/creditRegime";
+import { MARGIN_CONCEPT_KEYS, marginRefusalOf } from "@/lib/marginMeaning";
 
 export default function Chat() {
   // 2026-05-24 — auto-resolve active period so the chat has workspace
@@ -109,12 +112,51 @@ export default function Chat() {
 // Read-only: this function does NOT recompute, derive, or transform
 // any engine value; it formats values the engine already emitted.
 
+/** The period as a reader names it: the statements' own label and the
+ *  closing date. NEVER the period's row id — the line used to be
+ *  `p.label ?? p.id`, and `label` is the COMPANY's name, so the assistant
+ *  was handed the company as its period, or (no name) the raw id, which it
+ *  then printed to the reader as "the period is <uuid> (an internal
+ *  identifier)" (production, 2026-10-04). With neither a label nor a date
+ *  the line says so, and the assistant can ask. */
+export function snapshotPeriodLine(
+  p: Pick<ReturnType<typeof useActivePeriod>, "periodEnd" | "statements">,
+): string {
+  const stated = p.statements?.periodLabel?.trim() ?? "";
+  const end = /^\d{4}-\d{2}-\d{2}/.test(p.periodEnd ?? "") ? (p.periodEnd as string).slice(0, 10) : "";
+  if (stated && end) return `${stated} (period ending ${end})`;
+  if (stated) return stated;
+  if (end) return `period ending ${end}`;
+  return "not stated in the workspace";
+}
+
 export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string | undefined {
   if (!p.id) return undefined;
+  // A period the engine did not serve is no grounding: one it answered "not
+  // found", and one whose payload has not landed (no statements, no metric).
+  // The chat then says it has no workspace loaded — it used to call itself
+  // grounded on a bare "Period:" line and answer about a row id.
+  if (p.notFound) return undefined;
+  if (!p.statements && !(p.metrics && p.metrics.length > 0)) return undefined;
 
   const lines: string[] = [];
-  lines.push(`Period: ${p.label ?? p.id}`);
-  if (p.statements?.companyName) lines.push(`Company: ${p.statements.companyName}`);
+  // THE ENGINE'S CREDIT READ — the one reader the Risks tab, the hero and
+  // /report use (`engineCreditResult`), so the assistant is handed the
+  // grade the dashboard prints, or its refusal, and the regime it was
+  // composed under. Null when the engine said nothing about credit.
+  const am = (p as { assembled_metrics?: Record<string, unknown> | null }).assembled_metrics ?? null;
+  const creditRead = am && am.credit && typeof am.credit === "object"
+    ? engineCreditResult(
+        am.credit as CreditEnvelope,
+        (am.piotroski && typeof am.piotroski === "object" ? am.piotroski : undefined) as PiotroskiEnvelope | undefined,
+        Object.fromEntries(((p.metrics ?? []) as PeriodMetric[]).map((m) => [m.name, m.value ?? null])),
+      )
+    : null;
+  lines.push(`Period: ${snapshotPeriodLine(p)}`);
+  // `label` is the company's name as the header prints it (the statements'
+  // name, else the workspace's) — the fallback when the statements carry none.
+  const company = p.statements?.companyName?.trim() || p.label?.trim() || "";
+  if (company) lines.push(`Company: ${company}`);
   if (p.industry) lines.push(`Industry: ${p.industry}`);
 
   if (p.metrics && p.metrics.length > 0) {
@@ -125,15 +167,31 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
     // it is stated refused, with the engine's reason.
     const niRefusal = netIncomeRefusalOf(p.statements);
     const eqRefusal = equityRefusalOf(p.statements);
+    // The engine's margin verdict (engine.ratios.margin_meaning): a margin
+    // over a turnover too small to describe the company is refused on every
+    // surface, the snapshot included (review 2026-10-01: the developer's
+    // ebitda_margin row reached the assistant as a figure the dashboard
+    // refuses).
+    const marginRefusal = marginRefusalOf(p.statements);
     const refusalOfRow = (name: string) =>
       (niRefusal && NET_RESULT_REFUSED_METRICS.includes(name) ? niRefusal : null)
-      ?? (eqRefusal && EQUITY_INCOMPLETE_METRICS.includes(name) ? eqRefusal : null);
+      ?? (eqRefusal && EQUITY_INCOMPLETE_METRICS.includes(name) ? eqRefusal : null)
+      ?? (marginRefusal && MARGIN_CONCEPT_KEYS.has(name) ? { text: marginRefusal } : null);
     lines.push("");
     lines.push("Headline metrics (server-computed):");
     for (const m of p.metrics as PeriodMetric[]) {
       const refused = refusalOfRow(m.name);
       if (refused) {
         lines.push(`  · ${m.name}: REFUSED — ${refused.text.en}`);
+        continue;
+      }
+      // A composite the engine REFUSED is stated refused, with the reason
+      // the Risks tab prints — never skipped as if no grade existed (review
+      // 2026-10-01: the developer's null composite vanished from the
+      // snapshot while its sub-scores reached the assistant).
+      if (m.name === "credit_composite" && (m.value === null || m.value === undefined)
+          && creditRead?.compositeRefusal?.stated) {
+        lines.push(`  · ${m.name}: REFUSED — ${creditRead.compositeRefusal.sentence}`);
         continue;
       }
       if (m.value === null || m.value === undefined) continue;
@@ -158,7 +216,12 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
     // and own work capitalised (72x) are inside it; turnover is 70x − 709.
     // A refused EBITDA is stated with the engine's reason — the assistant
     // must never be handed a number where the dashboard prints a refusal.
-    pushIf(lines, "Net turnover (cifra de afaceri netă, 70x − 709)", canonical.headline.revenue);
+    // The accounts turnover holds are the engine's (70x − 709 + 7411 since
+    // the owner's R3 ruling, 2026-09-28), read off the served block.
+    const turnoverDef = (assembledPlOf(p.statements) as { turnover_definition?: { accounts?: unknown } } | undefined)
+      ?.turnover_definition;
+    const turnoverAccounts = typeof turnoverDef?.accounts === "string" ? turnoverDef.accounts : "70x − 709";
+    pushIf(lines, `Net turnover (cifra de afaceri netă, ${turnoverAccounts})`, canonical.headline.revenue);
     if (canonical.ebitda.reported === null) {
       lines.push(
         `  · EBITDA: REFUSED — ${canonical.ebitda.refusal?.text.en ?? "the engine served no EBITDA for this period"} ` +
@@ -186,6 +249,12 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
       }
     } else {
       lines.push("  (no 758/781 movements on file — Reported = Core for this period)");
+    }
+    // Net provisions — OUTSIDE EBITDA, between it and EBIT (owner ruling
+    // R2, 2026-09-28), under the engine's own label.
+    if (canonical.headline.netProvisions) {
+      pushIf(lines, `${canonical.headline.netProvisions.label.en} — outside EBITDA, between it and EBIT`,
+        canonical.headline.netProvisions.value);
     }
     pushIf(lines, "EBIT",                                      canonical.headline.ebit);
     if (canonical.netProfit.refusal) {
@@ -282,6 +351,49 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
     );
     if (!inventorySplit.maySlowClaim) {
       lines.push(`  · Rule: ${STOCK_SLOW_CLAIM_RULE.en} (RO: ${STOCK_SLOW_CLAIM_RULE.ro})`);
+    }
+  }
+
+  // CREDIT — the composite and letter as the Risks tab prints them, or the
+  // engine's refusal; and THE STOCK-BUILD REGIME (owner ruling R1) when the
+  // grade was composed under it: its label, the owner's finding when the
+  // engine serves it (never when it WITHHELD it), the cash basis and why the
+  // cash components refuse. Both languages, the engine's words (review
+  // 2026-10-01: the regime rode only the briefing facts, and every briefing
+  // is hidden after the no-model reprocess, so the assistant had neither the
+  // owner's sentence nor why there was no letter).
+  if (creditRead) {
+    lines.push("");
+    lines.push("Credit (the engine's grade, as the Risks tab prints it):");
+    if (creditRead.score !== null && creditRead.rating) {
+      lines.push(`  · Composite: ${fmtNum(creditRead.score)} / 100 — letter ${creditRead.rating}`);
+    } else if (creditRead.compositeRefusal?.stated) {
+      lines.push(`  · Composite and letter: REFUSED — ${creditRead.compositeRefusal.sentence}`);
+    }
+    const regime = creditRead.regime ?? null;
+    if (regime) {
+      // The served label names itself ("Credit regime: stock build — …").
+      lines.push(`  · ${regime.label.en} (RO: ${regime.label.ro})`);
+      for (const [component, basis] of Object.entries(regime.componentBases)) {
+        lines.push(`  · ${component} graded on: ${basis.en} (RO: ${basis.ro})`);
+      }
+      if (regime.cash) {
+        if (regime.cash.refusal) {
+          lines.push(
+            `  · ${regime.cash.label.en}: REFUSED — ${regime.cash.refusal.text.en} (RO: ${regime.cash.refusal.text.ro})`,
+          );
+        } else if (regime.cash.value !== null) {
+          lines.push(`  · ${regime.cash.label.en}: ${printRegimeAmount(regime.cash.value, regime.currency, "en")}`);
+        }
+      }
+      if (regime.finding) {
+        lines.push(`  · Finding (${regime.finding.severity}): ${regime.finding.text.en} (RO: ${regime.finding.text.ro})`);
+        for (const f of regime.finding.figures) {
+          lines.push(
+            `    · ${f.label.en}: ${f.value === null ? `not measured (${f.status})` : printRegimeAmount(f.value, f.unit, "en")}`,
+          );
+        }
+      }
     }
   }
 

@@ -18,6 +18,8 @@ import { AlertTriangle } from "lucide-react";
 
 import type { UploadDoc } from "@/lib/uploadStore";
 import { formatDateTime } from "@/lib/locale";
+import { rerunFailedRemainder, rerunFailedSentenceKey } from "@/lib/rerunRefusals";
+import { documentRefusalKey } from "@/lib/uploadRefusals";
 
 const ACTION =
   "inline-flex items-center justify-center h-8 px-3 rounded-lg border border-rule bg-surface " +
@@ -49,6 +51,17 @@ export function FailedUploadBanner({
   const when = (() => {
     try { return formatDateTime(new Date(upload.updatedAt || upload.startedAt).toISOString()); } catch { return ""; }
   })();
+  // The recorded error, as stored — unless a staged re-run wrote it
+  // (`rerun_failed: …`): then the app's own sentence for its kind, with the
+  // plan refusal's sentence after it when the remainder carries that code,
+  // and never the remainder itself (a RuntimeError's text, a model id).
+  const rerunKey = rerunFailedSentenceKey(upload.error);
+  const planKey = rerunKey ? documentRefusalKey(rerunFailedRemainder(upload.error)) : null;
+  const errorText = rerunKey
+    ? `${t(rerunKey)}${planKey ? ` ${t(planKey)}` : ""}`
+    : upload.error?.trim()
+      ? upload.error
+      : t("scan.failedErrorNone");
 
   return (
     <section
@@ -102,8 +115,14 @@ export function FailedUploadBanner({
               data-testid="failed-upload-error"
               className="mt-3 rounded-lg border border-rule bg-surface px-3 py-2.5 text-[12px] text-ink-2"
             >
-              <p className="whitespace-pre-wrap break-words font-mono text-[11.5px] text-ink">
-                {upload.error?.trim() ? upload.error : t("scan.failedErrorNone")}
+              <p
+                className={rerunKey
+                  ? "whitespace-pre-wrap break-words text-[12px] text-ink"
+                  : "whitespace-pre-wrap break-words font-mono text-[11.5px] text-ink"}
+                data-testid="failed-upload-error-text"
+                data-kind={rerunKey ? "rerun" : "stored"}
+              >
+                {errorText}
               </p>
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[11px]">
                 {upload.filename && (<><dt>{t("scan.failedDetailFile")}</dt><dd className="break-all">{upload.filename}</dd></>)}

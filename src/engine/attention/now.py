@@ -10,7 +10,8 @@ WHAT IT READS — AND NOTHING ELSE
   * the served period body (`GET /api/period/{id}`): period facts, the
     account-121 anchor status, `statements.insights` (the deterministic
     findings; their model-authored `narrative` is never read), and — through
-    `sources` only — EBITDA and inventory days;
+    `sources` only — EBITDA, inventory days and the credit envelope's regime
+    (`assembled_metrics.credit.regime`, served verbatim as `credit_regime`);
   * the served comparatives document (`GET /api/period/{id}/comparatives`)
     with the same company's previous period of the same length;
   * the served sector-benchmark document
@@ -33,7 +34,17 @@ WHAT IT NEVER DOES
     read only the pack's statutory results;
   * let the composite letter stand in for a movement: it is eligible only
     as a band crossing, with the rung it crossed and the finding stating it;
-  * call stock slow or fast on the filed basis or on a year-end snapshot.
+  * call stock slow or fast on the filed basis or on a year-end snapshot;
+  * judge a movement the comparatives document serves no verdict for. The
+    document says which way time runs (`direction`): when the comparison
+    period closes LATER than the one on screen, or the order of the two
+    closes cannot be read, no statement line is "improved" or
+    "deteriorated", no ratio-band candidate is read, and the improvement
+    slot stays empty with that reason. The movement slot still ranks by
+    size — a size is not a verdict. (Until 2026-10-04 the ratio side read
+    the document's withheld lists and the statement side judged every
+    delta itself: on an earlier period compared with a later one, a
+    turnover that FELL over time was the period's "improvement".)
 
 Pure over its inputs: no clock, no I/O beyond the pack read, no model.
 Python 3.9 — no `match`, no `X | Y`.
@@ -50,7 +61,7 @@ from engine.comparatives.lines import ZERO_FLOOR
 from . import sources as S
 from .pack import load_pack
 
-__all__ = ["SCHEMA", "EXCLUDED_SOURCES", "compose_attention"]
+__all__ = ["SCHEMA", "EXCLUDED_SOURCES", "DIRECTION_UNREADABLE", "verdicts_withheld_of", "compose_attention"]
 
 SCHEMA = "attention/1"
 
@@ -63,9 +74,6 @@ EXCLUDED_SOURCES = (
     "statements.insights[].narrative",
     "statements.insights[].claim",
 )
-
-_FEATURE_ACTIVE = "active"
-
 
 def _num(value: Any) -> Optional[float]:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -96,10 +104,30 @@ def _prior_payload_view(comparatives: Mapping[str, Any]) -> Dict[str, Any]:
     return {"statements": st if isinstance(st, Mapping) else {}}
 
 
+#: The reason an attention document gives for serving no verdict when the
+#: comparatives document carries no readable `direction` at all.
+DIRECTION_UNREADABLE = "period_order_unknown"
+
+
+def verdicts_withheld_of(comparatives: Optional[Mapping[str, Any]]) -> Optional[str]:
+    """Why this comparatives document serves no improved / deteriorated
+    verdict — its own `direction.reason` — or None when it serves them
+    (`direction.verdicts_served is True`). The ENGINE read the two closes
+    (`engine.comparatives.analysis.time_direction`); nothing is re-derived
+    from the dates here. A document that does not say which way time runs
+    is not believed to run forwards."""
+    direction = comparatives.get("direction") if isinstance(comparatives, Mapping) else None
+    if isinstance(direction, Mapping) and direction.get("verdicts_served") is True:
+        return None
+    reason = direction.get("reason") if isinstance(direction, Mapping) else None
+    return reason if isinstance(reason, str) and reason else DIRECTION_UNREADABLE
+
+
 def _statement_candidates(pack: Mapping[str, Any], current_payload: Mapping[str, Any],
                           comparatives: Mapping[str, Any]) -> List[Dict[str, Any]]:
     columns = {c.get("key"): c for c in comparatives.get("columns") or []
                if isinstance(c, Mapping)}
+    withheld = verdicts_withheld_of(comparatives)
     bases = (comparatives.get("movers") or {}).get("bases") or {}
     prior_view = _prior_payload_view(comparatives)
     anchor_ok = set(pack["anchor_statuses"])
@@ -144,7 +172,9 @@ def _statement_candidates(pack: Mapping[str, Any], current_payload: Mapping[str,
             "basis": base_key, "basis_value": base_value, "share": share,
             "floor": MATERIALITY_FLOOR,
         }
-        cand["verdict"] = line_verdict(key, float(col["delta"]))
+        # The adjective is a statement about time: none under a comparison
+        # the document serves no verdict for.
+        cand["verdict"] = None if withheld is not None else line_verdict(key, float(col["delta"]))
         if share < MATERIALITY_FLOOR:
             cand["reason"] = _reason("below_materiality_floor", share, MATERIALITY_FLOOR)
             continue
@@ -472,8 +502,7 @@ def _considered(cands: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _actions(pack: Mapping[str, Any], facts: Mapping[str, Any], prior: Mapping[str, Any],
-             mode: str, sector_reason: Optional[Mapping[str, Any]],
-             features: Mapping[str, Any]) -> List[Dict[str, Any]]:
+             mode: str, sector_reason: Optional[Mapping[str, Any]]) -> List[Dict[str, Any]]:
     labels = pack["actions"]
     out = []
     # A comparison is offered when one is being shown, or when the reader
@@ -494,16 +523,14 @@ def _actions(pack: Mapping[str, Any], facts: Mapping[str, Any], prior: Mapping[s
         out.append({"key": "add_prior_year", "label": dict(labels["add_prior_year"]["label"]),
                     "target": {"kind": "upload", "org_id": facts.get("org_id"),
                                "period_end": S.year_back(facts.get("period_end"))}})
-    bank_feature = labels["bank_export"].get("feature")
-    if bank_feature and features.get(bank_feature) == _FEATURE_ACTIVE:
-        out.append({"key": "bank_export", "label": dict(labels["bank_export"]["label"]),
-                    "requires_feature": bank_feature,
-                    "target": {"kind": "forecast_bank_export", "route": "/dashboard/forecast",
-                               "period_id": facts.get("id")}})
-    else:
-        out.append({"key": "cfo_report_pdf", "label": dict(labels["cfo_report_pdf"]["label"]),
-                    "target": {"kind": "report_pdf", "route": "/dashboard", "tab": "export",
-                               "period_id": facts.get("id")}})
+    # Ruling R4 (owner, 2026-09-28): "Exportă raportul pentru bancă" is the
+    # CFO Report PDF — the dashboard's export tab, whose PDF card posts the
+    # report to the renderer (/api/report/pdf) — and never the Forecast page,
+    # whatever the Forecast feature's status. The Forecast cockpit's own bank
+    # export is reachable from the Forecast page only.
+    out.append({"key": "bank_export", "label": dict(labels["bank_export"]["label"]),
+                "target": {"kind": "report_pdf", "route": "/dashboard", "tab": "export",
+                           "period_id": facts.get("id")}})
     if isinstance(sector_reason, Mapping) and sector_reason.get("code") == "caen_absent":
         out.append({"key": "set_industry", "label": dict(labels["set_industry"]["label"]),
                     "target": {"kind": "route", "route": "/benchmark",
@@ -519,7 +546,6 @@ def compose_attention(current_payload: Mapping[str, Any], *,
                       comparatives: Optional[Mapping[str, Any]] = None,
                       comparatives_reason: Optional[Mapping[str, Any]] = None,
                       sector: Optional[Mapping[str, Any]] = None,
-                      features: Optional[Mapping[str, Any]] = None,
                       pack: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The attention/1 document.
 
@@ -529,17 +555,22 @@ def compose_attention(current_payload: Mapping[str, Any], *,
     available_period_id, available_period_end}. `comparatives` is the served
     comparatives document for that pair (None when there is no pair or it
     was refused, with `comparatives_reason`). `sector` is the served
-    sector-benchmark document. `features` maps feature keys to their served
-    status (the registry `GET /api/features/status` serves)."""
+    sector-benchmark document. No action reads a feature's status (ruling
+    R4, 2026-09-28): the bank report is the CFO Report PDF whether or not the
+    Forecast feature is on."""
     pack = pack or load_pack()
-    features = features or {}
     facts = S.period_facts(current_payload)
     prior = dict(prior or {})
     usable_cmp = isinstance(comparatives, Mapping) and isinstance(comparatives.get("columns"), list)
     mode = "with_prior" if usable_cmp else "single_period"
 
+    # WHICH WAY TIME RUNS, as the comparatives document says it. Withheld:
+    # no statement line carries a verdict, no ratio-band candidate is read
+    # (its item says "improved"), and the improvement slot has no pool.
+    withheld = verdicts_withheld_of(comparatives) if usable_cmp else None
     statement = _statement_candidates(pack, current_payload, comparatives) if usable_cmp else []
-    ratio = _ratio_candidates(pack, current_payload, comparatives) if usable_cmp else []
+    ratio = (_ratio_candidates(pack, current_payload, comparatives)
+             if usable_cmp and withheld is None else [])
     sector_ok, sector_reason = _sector_state(sector)
     sector_cands = _sector_candidates(pack, sector)
     insight_cands, insights_reason = ((_insight_candidates(pack, current_payload))
@@ -588,6 +619,10 @@ def compose_attention(current_payload: Mapping[str, Any], *,
                 items.append(_sector_item(slot, cand, pack, sector))
             else:
                 why = sector_reason if not sector_ok else _reason("no_ratio_worse_than_sector")
+        elif slot == "improvement" and withheld is not None:
+            # Nothing is an improvement under a comparison that serves no
+            # verdict: the slot is empty and says why.
+            why = _reason("verdicts_withheld", withheld)
         elif slot == "improvement":
             for family in pack["improvement_family_order"]:
                 pool = improved_statement_pool if family == "statement_line" else ratio_pool
@@ -631,11 +666,14 @@ def compose_attention(current_payload: Mapping[str, Any], *,
         "period": facts,
         "mode": mode,
         "prior": prior,
+        # The credit model's regime for this period (revision 5, owner
+        # ruling R1), the served envelope's block verbatim — the command bar
+        # prints it ONCE, with its finding. None under the standard model.
+        "credit_regime": S.credit_regime(current_payload),
         "items": items,
         "unfilled": unfilled,
         "deduped": deduped,
-        "actions": _actions(pack, facts, prior, mode, sector_reason if not sector_ok else None,
-                            features),
+        "actions": _actions(pack, facts, prior, mode, sector_reason if not sector_ok else None),
         "caveats": caveats,
         "sources": {
             "comparatives": cmp_source,

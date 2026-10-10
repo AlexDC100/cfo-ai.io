@@ -117,6 +117,15 @@ export interface ReportingMetrics {
   ebitda?: number;
   depreciation?: number;
   amortization?: number;
+  /** D&A on the P&L chain as the engine serves it — since the owner's R2
+   *  ruling (2026-09-28) WITHOUT the 6812 / 6814 provision charges.
+   *  `depreciation` above stays the income statement's whole 68x (the
+   *  non-cash add-back the cash-flow formulas read). */
+  plDepreciation?: number;
+  /** Net provisions (R2): 6812 + 6814 − 7812 − 7814, signed as a charge,
+   *  OUTSIDE EBITDA — EBITDA = EBIT + plDepreciation + netProvisions.
+   *  Absent on a period assembled before the ruling. */
+  netProvisions?: number;
   netFinancialResult?: number;
   interestExpense?: number;
   pretaxProfit?: number;
@@ -176,9 +185,11 @@ export interface AccountTrace {
   amount: number;
   /** Side hint — debit ("D") or credit ("C"). */
   side?: "D" | "C";
-  /** Optional override for the deep-link route. Defaults to
-   *  `/financials?account=<code>`. Used when a non-RAS source (e.g.
-   *  public-company dataset row) wants to drive the user elsewhere. */
+  /** Reserved, and read by nothing: the popover's row always opens the
+   *  account view (`/dashboard?…&account=<code>`, evidenceLink
+   *  accountEvidenceHref). A non-RAS source that wants to drive the user
+   *  elsewhere needs the row to read this first — and the path to be one
+   *  App.tsx routes (gate links-routed). */
   route?: string;
 }
 

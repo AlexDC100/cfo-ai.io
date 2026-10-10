@@ -26,7 +26,9 @@ WHAT IT REDS ON, AFTER THE REPAIR (TC-11):
     (not 403), a current period of another workspace (not 404);
   * a single-period company served anything but its own findings and sector
     position;
-  * any outbound network call (a model call) during the request.
+  * any outbound network call (a model call) during the request;
+  * (ruling R4) the bank report served anywhere but the CFO Report PDF, or
+    moving with the Forecast feature's status in the served registry.
 
 WHAT IT CANNOT SEE: whether the ranking is right (test_attention_rules.py),
 the sentinel law (test_attention_served_only.py), row-level security (the
@@ -145,17 +147,37 @@ def test_the_route_composes_exactly_what_the_same_app_serves(app, world):
     """No second composition: the document is `compose_attention` over the
     period body, the comparatives document for the chosen prior and the
     sector document — each fetched here through its OWN route."""
-    from engine.api import _features
     from engine.attention import compose_attention
 
     doc = _served(app)
     body = _get(app, "/api/period/%s" % CUR).json()
     cmp = _get(app, "/api/period/%s/comparatives?prior=%s" % (CUR, PRI)).json()
     sector = _get(app, "/api/period/%s/sector-benchmark" % CUR).json()
-    features = {k: v.get("status") for k, v in _features.served_registry().items()}
-    again = compose_attention(body, prior=doc["prior"], comparatives=cmp, sector=sector,
-                              features=features)
+    again = compose_attention(body, prior=doc["prior"], comparatives=cmp, sector=sector)
     assert json.dumps(doc, sort_keys=True) == json.dumps(again, sort_keys=True)
+
+
+@pytest.mark.parametrize("forecast", ["active", "coming_soon"])
+def test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says(
+        app, world, monkeypatch, forecast):
+    """Ruling R4 (owner, 2026-09-28): "Exportă raportul pentru bancă" is the
+    CFO Report PDF (the dashboard's export tab), not the Forecast page — on
+    the served route, with the Forecast feature ON and OFF in the registry
+    the same app serves."""
+    from engine.api import _features
+
+    monkeypatch.delenv("CFO_FEATURES_ACTIVE", raising=False)
+    monkeypatch.setitem(_features.FEATURES["forecast"], "status", forecast)
+    assert _features.served_registry()["forecast"]["status"] == forecast  # the switch is live
+    doc = _served(app)
+    exports = [a for a in doc["actions"] if a["key"] == "bank_export"]
+    assert len(exports) == 1, [a["key"] for a in doc["actions"]]
+    assert exports[0]["label"]["ro"] == "Exportă raportul pentru bancă"
+    target = exports[0]["target"]
+    assert (target["kind"], target["route"], target["tab"], target["period_id"]) == \
+        ("report_pdf", "/dashboard", "export", CUR), target
+    for a in doc["actions"]:
+        assert "forecast" not in json.dumps(a, sort_keys=True).lower(), a
 
 
 def test_prior_none_switches_the_comparison_off_and_keeps_the_way_back(app, world):

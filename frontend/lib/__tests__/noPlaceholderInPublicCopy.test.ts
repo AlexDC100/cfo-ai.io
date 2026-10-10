@@ -52,6 +52,12 @@ import { LANDING_STRINGS } from "@/pages/cfo/landingStrings";
 const SUBSTITUTED = new Set([
   "year", "company", "count", "price", "n",
   "privacy", "terms", "cookiePolicy",
+  // `defensible.proof.measured` — "measured {when}". Landing.tsx's
+  // proofStrip() replaces it with each check's own date from
+  // engineProof.json; `landing-proof` L6 asserts it never reaches a reader.
+  // (The dotted `{rerun.books}`-style tokens are filled by
+  // landingStringsFor() and do not match this file's token pattern.)
+  "when",
 ]);
 
 const PLACEHOLDER_PATTERNS: Array<{ name: string; re: RegExp }> = [

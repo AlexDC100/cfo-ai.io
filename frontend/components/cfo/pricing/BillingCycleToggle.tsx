@@ -13,6 +13,7 @@
 // — purely informational.
 
 import { Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export type BillingCycle = "monthly" | "annual";
 
@@ -26,11 +27,14 @@ interface Props {
 }
 
 export function BillingCycleToggle({ value, onChange, annualEnabled = false }: Props) {
+  // The four words here were typed in English and stayed English on the
+  // Romanian pricing page until 2026-10-02.
+  const { t } = useTranslation();
   return (
     <div
       data-testid="billing-cycle-toggle"
       role="tablist"
-      aria-label="Billing cycle"
+      aria-label={t("pricingX.cycle_aria")}
       className="
         inline-flex items-center gap-0.5 p-1
         rounded-full border border-rule/70
@@ -42,24 +46,24 @@ export function BillingCycleToggle({ value, onChange, annualEnabled = false }: P
         onClick={() => onChange("monthly")}
         testId="billing-cycle-monthly"
       >
-        Monthly
+        {t("pricingX.cycle_monthly")}
       </Segment>
       <Segment
         active={value === "annual" && annualEnabled}
         disabled={!annualEnabled}
         onClick={() => annualEnabled && onChange("annual")}
         testId="billing-cycle-annual"
-        title={!annualEnabled ? "Annual pricing is on the roadmap" : undefined}
+        title={!annualEnabled ? t("pricingX.cycle_annual_hint") : undefined}
       >
         <span className="inline-flex items-center gap-1.5">
-          Annual
+          {t("pricingX.cycle_annual")}
           {!annualEnabled && (
             <span
               data-testid="billing-cycle-annual-coming-soon"
               className="inline-flex items-center gap-1 rounded-full bg-brand/12 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-brand-d"
             >
               <Sparkles size={9} strokeWidth={2} />
-              Coming soon
+              {t("pricingX.cycle_coming_soon")}
             </span>
           )}
         </span>

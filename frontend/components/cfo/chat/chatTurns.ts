@@ -16,8 +16,8 @@
 //     cap survives tab switches instead of resetting with the shell.
 
 import { useSyncExternalStore } from "react";
-import i18n from "@/i18n";
-import { CfoApiError, cfoApi } from "@/lib/cfoApi";
+import { cfoApi } from "@/lib/cfoApi";
+import { chatRefusalCopy, chatRefusalMarkdown, chatRefusalOf } from "@/lib/chatRefusal";
 import {
   classifyUpstreamAnswer,
   clearAiDegraded,
@@ -37,6 +37,7 @@ import {
 } from "./useChatStore";
 import type { ChatAttachment } from "./types";
 import type { RatesPayload } from "@/lib/rates";
+import { anchorsOfSnapshot, displayModelText, languageHints, leftByReason } from "@/lib/readerFigures";
 
 type ChatLlmRequest = Parameters<typeof cfoApi.chatLlm>[0];
 
@@ -124,9 +125,22 @@ export function startChatTurn(ctx: ChatTurnContext): void {
   //    so the conversation already contains the just-appended user turn —
   //    no React-flush race to defend against anymore.
   const conv = getChatConversation(ctx.orgId, conversationId);
-  const payloadMessages = (conv?.messages ?? [])
-    .filter((m) => !m.pending && m.content && !m.interrupted)
-    .map((m) => ({ role: m.role, content: m.content }));
+  //    A REFUSED turn (sign in again / the cap / "could not check your plan")
+  //    is the app's own notice, not something the assistant said: it is left
+  //    out, as a failed turn always was (those carry no content).
+  const usable = (conv?.messages ?? [])
+    .filter((m) => !m.pending && m.content && !m.interrupted && !m.refused);
+  //    An earlier ANSWER rides as the reader was shown it: its figures in the
+  //    format of the language it is written in (lib/readerFigures — notation
+  //    only, never a value). A reply stored before 2026-10-04, or written
+  //    under an older function's prompt, would otherwise go back to the model
+  //    as "~EUR 12.3M (… RON 64,567,890 …)" and teach it that shape again.
+  //    The reader's own turns are never touched.
+  const hints = languageHints(usable.map((m) => m.content));
+  const payloadMessages = usable.map((m, i) => ({
+    role: m.role,
+    content: m.role === "assistant" ? displayModelText(m.content, { fallback: hints[i] }).text : m.content,
+  }));
 
   // 3. Register the in-flight turn. `beginChatReply` keeps the nav rail's
   //    "Ask CFO AI" item showing a thinking spinner anywhere in the app;
@@ -183,10 +197,27 @@ export function startChatTurn(ctx: ChatTurnContext): void {
         });
         return;
       }
+      // THE READER'S FORMAT (owner order 2026-10-04). The reply is stored —
+      // and so shown, written to history and sent back as a turn — with every
+      // figure PROVEN to be in the other language's notation rewritten into
+      // the notation of the language the reply is written in: its own prose,
+      // else the question's, else the nearest earlier turn's. Never the UI
+      // language. The snapshot's figures are evidence that a bare "1.16" IS
+      // a figure; they never choose a value. A failure, "(no response)", a
+      // refusal and an interrupted turn take their own paths, untouched.
+      const shown = displayModelText(answer, {
+        context: [ctx.text, ...usable.map((m) => m.content).reverse()],
+        anchors: anchorsOfSnapshot(ctx.workspaceSnapshot),
+      });
+      if (shown.rewritten || shown.left.length) {
+        // Counts by reason only — never a token, never a figure.
+        // eslint-disable-next-line no-console
+        console.debug("[figures] chat reply", { lang: shown.lang, rewritten: shown.rewritten, left: leftByReason(shown.left) });
+      }
       chatCompleteAssistantTurn(ctx.orgId, {
         conversationId,
         assistantId,
-        content: answer,
+        content: shown.text,
         groundedPeriod: ctx.groundedLabel,
       });
       // A2 auto-recover — a successful turn releases the degraded lock.
@@ -207,42 +238,34 @@ export function startChatTurn(ctx: ChatTurnContext): void {
         // Aborted by deletion: the conversation is gone — nothing to render.
         return;
       }
-      // Pricing V3 — render the chat-cap-reached 429 as a friendly
-      // upgrade-CTA message, not as a generic transport error.
-      // Detail shape from backend:
-      //   { code: 'chat_cap_reached', kind: 'daily_cap_reached' |
-      //     'monthly_cap_reached', plan_key, daily_used, daily_cap,
-      //     monthly_used, monthly_cap, message, upgrade_url }
-      if (err instanceof CfoApiError && err.status === 429) {
-        const detail = (err.detail ?? {}) as {
-          code?: string;
-          kind?: string;
-          message?: string;
-          upgrade_url?: string;
-        };
-        if (detail.code === "chat_cap_reached") {
-          // Strings resolve at runtime (the 429 lands mid-session), so the
-          // module-level i18n instance already carries the active language.
-          const headline = i18n.t(
-            detail.kind === "daily_cap_reached"
-              ? "chatX.cap.dailyHeadline"
-              : "chatX.cap.monthlyHeadline",
-          );
-          const body = detail.message ?? i18n.t("chatX.cap.body");
-          const link = detail.upgrade_url ?? "/pricing";
-          chatCompleteAssistantTurn(ctx.orgId, {
-            conversationId,
-            assistantId,
-            content: `**${headline}**\n\n${body}\n\n[${i18n.t("chatX.seePlans")} →](${link})`,
-            error: false,
-          });
+      // THE FUNCTION REFUSED (it never called the model): no verified user
+      // (401), the plan's cap (429), or a meter it could not read (503).
+      // Rendered from the CODE in the reader's language — never the
+      // server's own English sentence (lib/chatRefusal.ts). Strings resolve
+      // at runtime (the refusal lands mid-session), so the module-level
+      // i18n instance already carries the active language.
+      const refusal = chatRefusalOf(err);
+      if (refusal) {
+        const copy = chatRefusalCopy(refusal);
+        chatCompleteAssistantTurn(ctx.orgId, {
+          conversationId,
+          assistantId,
+          content: chatRefusalMarkdown(copy),
+          // The cap message is part of the conversation's history (as it
+          // always was). "Sign in" and "could not check your plan" describe
+          // this moment only: shown, never written to server history.
+          error: refusal.code !== "chat_cap_reached",
+          // …and none of the three is ever sent to the model as a turn.
+          refused: true,
+        });
+        if (refusal.code === "chat_cap_reached") {
           // Lock the composer for the rest of the session (spec §14
-          // "disable + message if blocked"). The thread already shows
-          // the long-form 429 card; the composer banner is the short
-          // form + a hard input-disable so users can't keep retrying.
-          setCapBlock({ headline, body, href: link });
-          return;
+          // "disable + message if blocked"). The thread already shows the
+          // long-form card; the composer banner is the short form + a hard
+          // input-disable so users can't keep retrying.
+          setCapBlock({ headline: copy.headline, body: copy.body, href: copy.link?.href ?? "/pricing" });
         }
+        return;
       }
       // A2 — EVERY other AI failure funnels through the one mapper. The
       // raw payload (status, request_id, JSON body) goes to console.debug

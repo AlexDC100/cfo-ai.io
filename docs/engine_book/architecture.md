@@ -34,18 +34,18 @@ import the target package.
 ```mermaid
 graph LR
     pkg__root_["(root) (16 modules)"]
-    pkg_ai["ai (9 modules)"]
+    pkg_ai["ai (10 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (112 modules)"]
+    pkg_api["api (114 modules)"]
     pkg_attention["attention (4 modules)"]
     pkg_benchmarks_ro["benchmarks_ro (5 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
-    pkg_comparatives["comparatives (6 modules)"]
+    pkg_comparatives["comparatives (7 modules)"]
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
-    pkg_country_packs["country_packs (20 modules)"]
+    pkg_country_packs["country_packs (21 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
@@ -59,7 +59,7 @@ graph LR
     pkg_intelligence["intelligence (4 modules)"]
     pkg_interp["interp (6 modules)"]
     pkg_ir["ir (4 modules)"]
-    pkg_journal["journal (7 modules)"]
+    pkg_journal["journal (6 modules)"]
     pkg_methodology["methodology (3 modules)"]
     pkg_obs["obs (5 modules)"]
     pkg_packs["packs (5 modules)"]
@@ -76,7 +76,7 @@ graph LR
     pkg_workspaces["workspaces (6 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
-    pkg__root_ -->|1| pkg_journal
+    pkg__root_ -->|1| pkg_country_packs
     pkg__root_ -->|1| pkg_ratios
     pkg__root_ -->|1| pkg_storage
     pkg_ai -->|3| pkg_ai_lane
@@ -106,7 +106,7 @@ graph LR
     pkg_api -->|3| pkg_journal
     pkg_api -->|1| pkg_obs
     pkg_api -->|1| pkg_passes
-    pkg_api -->|2| pkg_public
+    pkg_api -->|5| pkg_public
     pkg_api -->|1| pkg_public_market
     pkg_api -->|3| pkg_public_ro
     pkg_api -->|1| pkg_radar
@@ -120,7 +120,7 @@ graph LR
     pkg_benchmarks_ro -->|1| pkg_public_ro
     pkg_benchmarks_ro -->|1| pkg_ratios
     pkg_benchmarks_ro -->|1| pkg_serving
-    pkg_comparatives -->|1| pkg_ratios
+    pkg_comparatives -->|2| pkg_ratios
     pkg_comparatives -->|2| pkg_serving
     pkg_consensus -->|1| pkg_core
     pkg_consensus -->|1| pkg_frontends
@@ -210,6 +210,7 @@ graph LR
         engine_ai_breaker["breaker"]
         engine_ai_evals["evals"]
         engine_ai_evals_run_baseline["run_baseline"]
+        engine_ai_figure_format["figure_format"]
         engine_ai_finding_sharpen["finding_sharpen"]
         engine_ai_numerals["numerals"]
         engine_ai_registry["registry"]
@@ -247,7 +248,6 @@ graph LR
         engine_journal_events["events"]
         engine_journal_hooks["hooks"]
         engine_journal_journal["journal"]
-        engine_journal_layout["layout"]
         engine_journal_resume["resume"]
         engine_journal_store["store"]
     end
@@ -287,6 +287,7 @@ graph LR
     engine_api__reconcile --> engine_serving
     engine_api_pipeline --> engine_ai
     engine_api_pipeline --> engine_ai_advisory
+    engine_api_pipeline --> engine_ai_figure_format
     engine_api_pipeline --> engine_ai_numerals
     engine_api_pipeline --> engine_ai_registry
     engine_api_pipeline --> engine_ai_unit_sanity
@@ -340,14 +341,11 @@ graph LR
     engine_ir_schema --> engine_ir_money
     engine_journal --> engine_journal_events
     engine_journal --> engine_journal_journal
-    engine_journal --> engine_journal_layout
     engine_journal --> engine_journal_resume
     engine_journal --> engine_journal_store
     engine_journal_hooks --> engine_journal_events
     engine_journal_hooks --> engine_journal_journal
-    engine_journal_hooks --> engine_journal_layout
     engine_journal_journal --> engine_journal_events
-    engine_journal_journal --> engine_journal_layout
     engine_journal_journal --> engine_journal_store
     engine_journal_resume --> engine_api_pipeline
     engine_journal_resume --> engine_journal
@@ -384,7 +382,7 @@ declaration is the supply-chain lock's job to reject).
 | `api` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), openai (openai), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), pydantic (pydantic), sentry_sdk (sentry-sdk), sqlalchemy (sqlalchemy), stripe (stripe), xlrd (xlrd), yaml (pyyaml) |
 | `attention` | yaml (pyyaml) |
 | `briefing` | anthropic (anthropic) |
-| `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber) |
+| `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), yaml (pyyaml) |
 | `firm` | yaml (pyyaml) |
 | `forecast` | yaml (pyyaml) |
 | `forecast_drivers` | yaml (pyyaml) |

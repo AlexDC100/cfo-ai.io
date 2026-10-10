@@ -122,6 +122,17 @@ RUNNER_SCRIPTS = {
     "playwright": REPO / "scripts" / "check_playwright.mjs",
 }
 
+#: The literal a plan entry's canary takes in the BATTERY gate's canaries,
+#: per runner. The runner's CANARIES array holds the bare path; the vitest
+#: gate's canary is the line the runner prints for it, "<path>: ran" (owner
+#: ruling 2026-09-29, CLAUDE.md §26: the bare path also matched "<path>:
+#: NEVER RAN", so a retired file stayed a "seen" canary for a week). The
+#: census asks for the form the battery actually reads; a runner absent here
+#: keeps the bare literal.
+RUNNER_GATE_CANARY = {
+    "vitest": "%s: ran",
+}
+
 SCHEMA = "plan_gates/2"
 FINAL_BATCH = "B21"
 BATCHES = tuple(["B%d" % i for i in range(0, 22)] + ["B4a", "B4b"])
@@ -373,9 +384,10 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
                                 "canaries; the runner's own existence is not this "
                                 "batch's gate (TC-3)" % (where, gate_name))
             for canary in entry.get("canaries") or []:
-                if canary not in gate.canaries:
+                in_gate = RUNNER_GATE_CANARY.get(gate_name, "%s") % canary
+                if in_gate not in gate.canaries:
                     failures.append("%s: canary %r is not among battery gate %r's "
-                                    "canaries" % (where, canary, gate_name))
+                                    "canaries" % (where, in_gate, gate_name))
                 runner = RUNNER_SCRIPTS.get(gate_name)
                 if runner is not None:
                     try:

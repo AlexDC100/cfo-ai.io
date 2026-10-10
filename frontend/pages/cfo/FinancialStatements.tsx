@@ -35,7 +35,7 @@ import { RadarStrip } from "@/components/cfo/RadarStrip";
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
-import { formatDateTime } from "@/lib/locale";
+import { activeLocale, formatDateTime, useActiveLocale } from "@/lib/locale";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { Money } from "@/components/ui/Money";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -54,17 +54,25 @@ import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
 // COMPARATIVES — two periods side by side (engine document, FE cells).
 import { ComparativesViewProvider, useComparativesView } from "@/stores/comparativesView";
-import { bsOpeningFill, useComparatives, useComparisonChoice } from "@/lib/comparatives";
-import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import {
-  ComparativesControls,
-  ComparativesRefusedNote,
-  ComparativesSummary,
-  RatioCompareCtx,
-} from "@/components/cfo/ComparativesPanel";
+  bsOpeningFill,
+  comparativesQueryKey,
+  useComparatives,
+  useComparisonChoice,
+} from "@/lib/comparatives";
+import { comparisonSurfaceOf, documentPredatesDirection } from "@/lib/comparisonSurface";
+import { resetPeriodAnswers } from "@/lib/periodReset";
+import { answeredBeforeThisSession } from "@/lib/queryPersist";
+import { ComparativesSummary, RatioCompareCtx } from "@/components/cfo/ComparativesPanel";
+import {
+  ComparisonControlsBar,
+  ComparisonNotes,
+  StatementComparison,
+} from "@/components/cfo/ComparisonSurface";
 import { SectorBenchmarkCtx, useSectorBenchmark } from "@/components/cfo/benchmark/SectorBenchmarkSection";
 import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
 import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
+import { CreditRegimeNote } from "@/components/cfo/CreditRegimeNote";
 import { useRatioSurfaces } from "@/lib/useRatioSurfaces";
 import { notesJumpTarget } from "@/lib/notesJumpTarget";
 import { MONEY_MISSING } from "@/lib/money";
@@ -96,6 +104,7 @@ import { resolveHeadlineNetProfit } from "@/lib/headlineFigures";
 import { canonicalMarginsFrom, computeDashboardHeadline } from "@/lib/dashboardHeadline";
 import { FigureProvenanceProvider, type FigureProvenanceMap } from "@/lib/figureProvenanceContext";
 import { CFOBriefingCard } from "@/components/cfo/CFOBriefingCard";
+import type { BriefingStale } from "@/lib/briefingDefinition";
 import "@/components/cfo/dashInstrumentI18n";
 import { isNativeShell } from "@/lib/nativeShell";
 import { buildMultiYearSeries, seriesForConcept } from "@/lib/learning/multiPeriodSeries";
@@ -113,6 +122,11 @@ import {
   JurisdictionSelect,
   jurisdictionHintFromSelection,
 } from "@/components/cfo/JurisdictionSelect";
+import { CoverageDisclosure } from "@/components/cfo/CoverageTable";
+// The checks that run on every upload — ONE sentence, shared with the
+// landing (lib/uploadChecks): the two surfaces used to name different pairs.
+import { uploadChecksSentence } from "@/lib/uploadChecks";
+import { uploadGuideView } from "@/lib/coverage";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { EvidenceDrawer } from "@/components/cfo/evidence/EvidenceDrawer";
 import { NavValuationView } from "@/components/cfo/NavValuationView";
@@ -123,7 +137,7 @@ import {
 } from "@/components/cfo/EbitdaMultiplePrimaryCard";
 import { pickPLBuilder, buildPLStatementFromAggregates } from "@/lib/buildPlStatement";
 import { buildBSStatement } from "@/lib/buildBsStatement";
-import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
+import { addBackHoldsProvisionCharges, buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
 import { buildNavCascade } from "@/lib/buildNavCascade";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -755,7 +769,7 @@ function FinancialStatementsInner() {
   // rows are withheld (see `servedCreditEnvelopes`). One selection, passed
   // to all three readers, so no two surfaces score a period with
   // different models.
-  const { cmpDoc, cmpRefused, ratioCompareView, statementsForExport, creditEnvelopes } = useRatioSurfaces({
+  const { cmpDoc, cmpRefused, comparison: cmpOutcome, ratioCompareView, statementsForExport, creditEnvelopes } = useRatioSurfaces({
     assembledMetrics: remotePeriod.assembled_metrics,
     statements,
     metricsByName,
@@ -765,6 +779,70 @@ function FinancialStatementsInner() {
     comparatives: cmpQuery,
     sector: sectorQuery.data ?? null,
   });
+
+  // ── THE SHARE COLUMN, AND WHAT THE COMPARISON ON SCREEN IS ──────────
+  // "% of revenue" / "% of total assets" is not a comparison column (owner
+  // ruling 2026-10-04): with no document the P&L and the balance sheet paint
+  // it from the period's OWN served block, `statements.common_size`.
+  //
+  // EVERYTHING THE PAGE SHOWS ABOUT THE COMPARISON IS COMPOSED ONCE, in
+  // `comparisonSurfaceOf` (lib/comparisonSurface.ts): the share block and
+  // what the tab on screen can paint from it, the one sentence about the
+  // request's outcome, the no-prior state, which notes show. The controls,
+  // the two notes and each statement's provider are rendered from it by
+  // components/cfo/ComparisonSurface.tsx — the same code the gate renders
+  // (singleYearShare.test.tsx), so no condition lives only in this page.
+  // Nothing here computes a figure.
+  const cmpLocale = useActiveLocale();
+  const cmpSurface = useMemo(
+    () =>
+      comparisonSurfaceOf({
+        tab: activeTab,
+        statements,
+        rendersCanonicalBs: (remotePeriod.lineItems?.length ?? 0) > 0 && !!statements?.canonical_bs,
+        periods: cmpPeriods,
+        currentId: remotePeriod.id,
+        currentEnd: remotePeriod.periodEnd,
+        autoPick: cmpAutoPick,
+        priorId: cmpPriorId,
+        stored: cmpView.view.priorPeriodId,
+        columns: cmpView.view.columns,
+        doc: cmpDoc,
+        outcome: cmpOutcome,
+      }),
+    [activeTab, statements, remotePeriod.lineItems, remotePeriod.id, remotePeriod.periodEnd, cmpPeriods, cmpAutoPick, cmpPriorId, cmpView.view.priorPeriodId, cmpView.view.columns, cmpDoc, cmpOutcome],
+  );
+  // A PAYLOAD THAT OUTLIVED THE ENGINE THAT SERVED IT. A period answer
+  // hydrated from disk and carrying no share block is asked of the engine
+  // once more — the reader must not be told "shares are not available" over
+  // a payload the engine no longer serves. Once: the refetched answer is
+  // this session's own, and an engine that really serves no block is then
+  // believed (lib/queryPersist.ts).
+  useEffect(() => {
+    if (!remotePeriod.id || remotePeriod.source !== "upload" || !statements || cmpSurface.commonSize) return;
+    const key = periodQueryKey(remotePeriod.id);
+    if (!answeredBeforeThisSession(queryClient, key)) return;
+    void queryClient.invalidateQueries({ queryKey: key });
+  }, [remotePeriod.id, remotePeriod.source, statements, cmpSurface.commonSize, queryClient]);
+  // …and the same for a COMPARISON off the disk that carries no `direction`
+  // (an engine older than the one answering now): the page could not say
+  // which way time runs, and would stay silent until the blob expired.
+  // (At most twice, never in a loop: when the hydrated answer is also older
+  // than the comparison's own five-minute stale time, the query library has
+  // already asked once as the pair became enabled; the answer that comes
+  // back is this session's own and is believed.)
+  useEffect(() => {
+    if (!cmpCompanyId || !remotePeriod.id || !cmpPriorId || !documentPredatesDirection(cmpDoc)) return;
+    const key = comparativesQueryKey(cmpCompanyId, remotePeriod.id, cmpPriorId);
+    if (!answeredBeforeThisSession(queryClient, key)) return;
+    void queryClient.invalidateQueries({ queryKey: key });
+  }, [cmpCompanyId, remotePeriod.id, cmpPriorId, cmpDoc, queryClient]);
+  // The balance the company lacks for the previous year, as the notice names
+  // it — the cash-flow card's call to action asks for THAT one.
+  const cmpMissingPriorLabel = useMemo(
+    () => formatPeriodMonth(cmpSurface.missingPriorEnd, cmpLocale),
+    [cmpSurface.missingPriorEnd, cmpLocale],
+  );
 
   // The Overview's four key figures for the prior period — the same
   // builders as the tiles', over the prior's own served block (lib/
@@ -1382,7 +1460,10 @@ function FinancialStatementsInner() {
           //     with active observers — the observer can keep serving its
           //     in-memory data without refetching. resetQueries is the
           //     API documented to reset AND refetch active observers.
-          void queryClient.resetQueries({ queryKey: periodQueryKey(next.period_id) });
+          // The comparisons that name this period are reset with it
+          // (lib/periodReset.ts): the document of (period, prior) describes
+          // the book that was here before.
+          resetPeriodAnswers(queryClient, next.period_id);
           // …and the month's Source-files tiles, so the file that just
           // landed shows up there immediately instead of a staleTime
           // later. Prefix key — matches the scoped
@@ -1827,6 +1908,10 @@ function FinancialStatementsInner() {
                 onReset={resetWorkspace}
                 briefing={remotePeriod.briefing}
                 briefingHiddenNote={remotePeriod.briefingHiddenNote ?? null}
+                briefingUnavailable={remotePeriod.briefingUnavailable === true}
+                briefingStale={remotePeriod.briefingStale ?? null}
+                briefingLanguage={remotePeriod.briefingLanguage ?? null}
+                briefingOrgId={remotePeriod.organizationId}
                 briefingPeriodId={remotePeriod.id}
                 trustBand={accuracyRead.band}
                 onExport={() => onTabChange("export")}
@@ -1896,14 +1981,13 @@ function FinancialStatementsInner() {
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
                   {" "}{t("common.or")}{" "}
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
-                  , {t("dash.heroBodyExported")} —{" "}
-                  {["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"].map((sys, i, arr) => (
-                    <span key={sys}>
-                      <span className="font-semibold text-brand-d">{sys}</span>
-                      {i < arr.length - 1 ? ", " : ""}
-                    </span>
-                  ))}
-                  . {t("dash.heroBodyTail")}
+                  , {t("dash.heroBodyExported")}. {t("dash.heroBodyTail")} {uploadChecksSentence(i18n.language)}{" "}
+                  {/* The five accounting-software names that used to be
+                      listed here (SAGA, WinMentor, SmartBill, NEXTUP, CIEL)
+                      are gone: no real export proves any of them. What is
+                      tested, and on how many real books, is the coverage
+                      table — frontend/data/coverage.json. */}
+                  <CoverageDisclosure />
                 </p>
                 {/* Ask CFO AI (same secondary style as the Products hero's
                     button). The Import button that used to lead this row was
@@ -2065,19 +2149,27 @@ function FinancialStatementsInner() {
             {/* COMPARATIVES — which prior, which columns. On the Overview
                 and the statement tabs (every view that compares); the
                 picker lists every other period of THIS company and AUTO
-                names the period it resolves to — the default. */}
-            {(activeTab === "overview" || activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
-              && cmpPeriods.length > 1 && statements && (
-              <ComparativesControls
-                periods={cmpPeriods}
-                currentId={remotePeriod.id}
-                autoPick={cmpAutoPick}
-                currency={statements.currency}
-                columns={activeTab !== "overview"}
-              />
-            )}
+                names the period it resolves to — the default. When AUTO
+                resolves to none (the company's earliest year on screen) the
+                picker names the balance that is missing and the comparison
+                boxes are off. The share box follows what the tab can paint
+                from the period's own block, and a company with ONE period —
+                or one whose periods are not known yet — gets that box alone.
+                Composed in lib/comparisonSurface.ts. */}
+            <ComparisonControlsBar surface={cmpSurface} />
           </div>
           )}
+          {/* …and, BELOW the sticky bar (they scroll away with the page): the
+              sentence for a comparison that is on and compares nothing, and
+              the comparison REQUEST's outcome — refused, failed (with "try
+              again"), still on its way, or a comparison period that is the
+              LATER one. */}
+          <ComparisonNotes
+            surface={cmpSurface}
+            uploadHref={remotePeriod.id ? `/workspace?period=${encodeURIComponent(remotePeriod.id)}` : "/workspace"}
+            onRetry={() => { void cmpQuery.refetch(); }}
+            retrying={cmpQuery.isFetching}
+          />
 
         {/* OVERVIEW ─────────────────────────────────────────────────────── */}
         <TabsContent value="overview" className="mt-6 space-y-6">
@@ -2360,7 +2452,7 @@ function FinancialStatementsInner() {
         {/* P&L ──────────────────────────────────────────────────────────── */}
         {enabled.pl && statements && (
           <TabsContent value="pl" className="mt-6 space-y-8 min-h-[400px]">
-            <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="PL" currency={statements.currency}>
+            <StatementComparison surface={cmpSurface} statement="pl">
               <PLStatementView
                 hideGuide
                 statement={pickPLBuilder(
@@ -2377,8 +2469,7 @@ function FinancialStatementsInner() {
                   statements,
                 )}
               />
-            </ComparativeProvider>
-            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} />}
+            </StatementComparison>
             {/* Server-emitted, period-keyed notes & recommendations
              *  rendered as part of the P&L tab. Honest empty-state when
              *  the engine produced none for this period — never filler. */}
@@ -2395,7 +2486,7 @@ function FinancialStatementsInner() {
         {enabled.balance_sheet && statements && (
           <TabsContent value="balance_sheet" className="mt-6 space-y-8 min-h-[400px]">
             {remotePeriod.lineItems && remotePeriod.lineItems.length > 0 ? (
-              <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="BS" currency={statements.currency}>
+              <StatementComparison surface={cmpSurface} statement="balance_sheet">
               <BSStatementView
                 hideGuide
                 periodId={remotePeriod.id ?? searchParams.get("period")}
@@ -2438,11 +2529,10 @@ function FinancialStatementsInner() {
                   priorCanonicalBs: cmpDoc?.prior_canonical_bs ?? null,
                 })}
               />
-              </ComparativeProvider>
+              </StatementComparison>
             ) : (
               <BalanceSheetTable statements={statements} />
             )}
-            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} />}
             <StatementNotes
               recommendations={remotePeriod.recommendations}
               alerts={remotePeriod.alerts}
@@ -2455,10 +2545,12 @@ function FinancialStatementsInner() {
         {/* CASH FLOW ──────────────────────────────────────────────────── */}
         {enabled.cash_flow && statements && (
           <TabsContent value="cash_flow" className="mt-6 space-y-8 min-h-[400px]">
-            <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="PL" currency={statements.currency}>
+            <StatementComparison surface={cmpSurface} statement="cash_flow">
             <CashFlowStatementView
               hideGuide
               prior={priorCf}
+              uploadHref={remotePeriod.id ? `/workspace?period=${encodeURIComponent(remotePeriod.id)}` : "/workspace"}
+              missingPriorLabel={cmpMissingPriorLabel}
               statement={buildCashFlowStatement({
                 pl: (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl,
                 bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,
@@ -2474,7 +2566,7 @@ function FinancialStatementsInner() {
                 })(),
               })}
             />
-            </ComparativeProvider>
+            </StatementComparison>
             <StatementNotes
               recommendations={remotePeriod.recommendations}
               alerts={remotePeriod.alerts}
@@ -2492,6 +2584,7 @@ function FinancialStatementsInner() {
                 ratios={ratios}
                 statements={statements}
                 altman={heroCredit ? altmanRatio(heroCredit) : null}
+                comparisonSaidByPage={cmpSurface.saidByPage}
               />
             </RatioCompareCtx.Provider>
             </SectorBenchmarkCtx.Provider>
@@ -3326,20 +3419,18 @@ function PeriodConfirmDialog({
 // ExtractionConfidenceBanner removed in the 2026 redesign — unmounted since
 // 2026-07-25 (header briefing carries the source context) and EN-only.
 
-// ─── CFO Briefing card — currency-aware ─────────────────────────────────
-// The briefing prose is generated by Opus 4.7 with numbers baked into the
-// text ("8,121,590 RON revenue"). The top-bar currency toggle can't reformat
-// baked text, so we re-POST to /briefing/regenerate?currency=X whenever the
-// toggle changes. Server FX-converts briefing_facts before the LLM call,
-// LLM re-narrates in the new currency. Loading state shows the cached RON
-// briefing greyed out + a spinner so the user knows fresh prose is incoming.
-// A briefing body that is actually an ERROR (the engine's old behavior
-// persisted raw provider failures verbatim — "Narrative unavailable:
-// Error code: 400 … credit balance is too low…"). Never render these as
-// prose; show the localized fallback instead.
-// CFOBriefingCard + isUnusableNarrative moved to
-// components/cfo/CFOBriefingCard.tsx (Instrument migration) so the A4
-// header policy — no model ids in primary DOM — is testable in isolation.
+// ─── CFO Briefing card ───────────────────────────────────────────────────
+// The briefing prose is generated by the model with numbers baked into the
+// text ("8,121,590 RON revenue"), in one language. The top-bar currency
+// toggle and a language switch can't reformat baked text — and they no
+// longer re-narrate it either (owner ruling 2026-10-02): the card performs
+// NO automatic model call. It offers ONE explicit, metered action
+// ("Regenerează în română" / "Regenerate in EUR" / "Generate the briefing")
+// that the reader presses. A stored body that is actually a failure text is
+// never prose: `briefingVisibility` serves it as unavailable.
+// CFOBriefingCard lives in components/cfo/CFOBriefingCard.tsx (Instrument
+// migration) so the A4 header policy — no model ids in primary DOM — and the
+// no-automatic-call law are testable in isolation.
 
 // ── Accuracy band — ONE computation for every trust surface ─────────────
 // The header trust chip and the accuracy line both read this; they can't
@@ -3516,7 +3607,7 @@ interface AccuracyBannerProps {
 }
 
 function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: AccuracyBannerProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // THE DIAL — Simple mode shows the one-time trust hint next to the chip.
   // Hook lives above the early returns (hook-count stability).
   const isSimple = useIsSimple();
@@ -3592,7 +3683,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
           <strong className="font-mono tabular-nums">
             {(Math.floor(worstPct * 100) / 100).toFixed(2)}%
           </strong>{" "}
-          {t("dash.accCleanPost")}
+          {t("dash.accCleanPost", { checks: uploadChecksSentence(i18n.language) })}
         </>
       )}
       {band === "watch" && (
@@ -3635,7 +3726,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
       {band === "unknown" && (
         <>
           <strong className="text-ink">{t("dash.accUnknownTitle")}</strong>{" "}
-          {t("dash.accUnknownBody")}
+          {t("dash.accUnknownBody", { checks: uploadChecksSentence(i18n.language) })}
         </>
       )}
     </div>
@@ -3763,7 +3854,7 @@ function KpiTile({
 
 // ─── Phase F: State B compact header + Replace ▾ dropdown ─────────────────
 
-function CompactPeriodHeader({
+export function CompactPeriodHeader({
   statements,
   invoices,
   activeSampleId,
@@ -3772,6 +3863,10 @@ function CompactPeriodHeader({
   onReset,
   briefing,
   briefingHiddenNote = null,
+  briefingUnavailable = false,
+  briefingStale = null,
+  briefingLanguage = null,
+  briefingOrgId = null,
   briefingPeriodId,
   trustBand,
   onExport,
@@ -3789,6 +3884,15 @@ function CompactPeriodHeader({
   /** The engine's one-line note when the stored briefing was written under
    *  an earlier EBITDA definition and is hidden (design A9). */
   briefingHiddenNote?: { ro: string; en: string } | null;
+  /** The stored briefing row holds no usable narration (a failure text):
+   *  the card mounts in its "generate" state instead of prose. */
+  briefingUnavailable?: boolean;
+  /** The briefing is the last good one, kept after a later narration failed. */
+  briefingStale?: BriefingStale | null;
+  /** The language stamp the route served for the briefing. */
+  briefingLanguage?: string | null;
+  /** The period's company — X-Org-Id of the explicit regenerate action. */
+  briefingOrgId?: string | null;
   briefingPeriodId?: string | null;
   /** Accuracy band for the header trust chip — same computeAccuracyRead()
    *  the accuracy line uses, so the two can't disagree. */
@@ -3806,9 +3910,12 @@ function CompactPeriodHeader({
   // A date-shaped label OUTSIDE the sane window (a corrupt period like
   // 2115-03-31) still formats via the loose path — a raw ISO string in the
   // page title reads as a glitch (operator-reported).
+  // In the reader's language: this header said "Dec 2024" in a Romanian
+  // interface, beside a breadcrumb saying "dec. 2024".
+  const locale = useActiveLocale();
   const periodLabel =
-    formatPeriodMonth(rawPeriodLabel)
-    ?? formatPeriodMonthLoose(rawPeriodLabel)
+    formatPeriodMonth(rawPeriodLabel, locale)
+    ?? formatPeriodMonthLoose(rawPeriodLabel, locale)
     ?? rawPeriodLabel;
 
   // The Replace dropdown also offers "Add ... on top" for samples that
@@ -3850,13 +3957,18 @@ function CompactPeriodHeader({
         }
       />
       {/* The CFO briefing stays the header's description of the loaded
-          workspace — mounted always (its regeneration effects keep
-          running), presented clamped until expanded. Samples have no
-          briefing, so they fall back to the one-line caption. */}
-      {briefing && briefingPeriodId ? (
+          workspace, presented clamped until expanded. The card makes no
+          model call on its own; an unavailable briefing mounts it in its
+          "generate" state. Samples have no briefing, so they fall back to
+          the one-line caption. */}
+      {(briefing || briefingUnavailable) && briefingPeriodId ? (
         <CFOBriefingCard
           periodId={briefingPeriodId}
-          baseBriefing={briefing}
+          baseBriefing={briefing ?? null}
+          baseLanguage={briefingLanguage}
+          unavailable={briefingUnavailable}
+          stale={briefingStale}
+          orgId={briefingOrgId}
           collapsed={!briefingOpen}
           onToggle={() => setBriefingOpen((v) => !v)}
         />
@@ -4079,7 +4191,7 @@ function DashboardDevTools() {
           () => false,
         );
         if (ok) deleted += 1;
-        else failed.push(formatPeriodMonth(p.period_end) ?? p.period_label);
+        else failed.push(formatPeriodMonth(p.period_end, activeLocale()) ?? p.period_label);
       }
       // Repaint from scratch — every period-scoped cache entry is now stale.
       queryClient.removeQueries({ queryKey: ["period"] });
@@ -4440,7 +4552,7 @@ function DashboardAddMonthZone({
   /** Hide the "Add another month" eyebrow (the modal supplies its own title). */
   hideHeader?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const staged = stagedFiles.length > 0;
   const isLocalhost =
@@ -4493,7 +4605,7 @@ function DashboardAddMonthZone({
               <h3 className="text-[15px] font-semibold text-ink">
                 {dragActive ? t("dash.dropFileToUpload") : t("dash.dropNextMonth")}
               </h3>
-              <p className="text-[12px] text-ink-soft mt-1">{t("dash.formatsLimit")}</p>
+              <p className="text-[12px] text-ink-soft mt-1">{uploadGuideView(i18n.language).formatsLine} {t("dash.sizeLimit")}</p>
               <button
                 type="button"
                 onClick={onTriggerFile}
@@ -4616,7 +4728,10 @@ function UploadAndSamplePanel({
    *  complete" card so the user confirms the hand-off into State B. */
   onViewResults: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // The formats this surface names are coverage.json's (tested on real
+  // books / accepted and untested) — never a list typed here.
+  const uploadGuide = uploadGuideView(i18n.language);
   // Drag-over state — drives the dropzone's "file hovering" styling and the
   // "Drop your file to upload" affordance text.
   const [dragActive, setDragActive] = useState(false);
@@ -4691,7 +4806,8 @@ function UploadAndSamplePanel({
       <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="upload-document-guide">
         <DocGuideCard
           title={t("dash.docTb")}
-          format="XLSX · CSV · PDF"
+          format={uploadGuide.testedFormats}
+          note={uploadGuide.untestedLine}
           shows={t("dash.docTbShows")}
           where={[
             { label: t("dash.docTbWhere1"), href: null },
@@ -4716,6 +4832,7 @@ function UploadAndSamplePanel({
         <DocGuideCard
           title={t("dash.docStatutory")}
           format="XLSX (Formular F30 + F10)"
+          note={uploadGuide.untestedDocument}
           shows={t("dash.docStatutoryShows")}
           where={[
             { label: t("dash.docStatutoryWhere1"), href: "https://anaf.ro" },
@@ -4817,7 +4934,7 @@ function UploadAndSamplePanel({
                 {dragActive ? t("dash.dropFileToUpload") : t("dash.dropTrialBalanceHere")}
               </h3>
               <p className="text-[12.5px] text-ink-soft mt-1">
-                {t("dash.formatsLimit")}
+                {uploadGuide.formatsLine} {t("dash.sizeLimit")}
               </p>
               {/* Same treatment as the sidebar's ACTIVE tab: animated
                   teal gradient fill + brand border. */}
@@ -5100,9 +5217,13 @@ function UploadHeroCallout() {
 // Document-guide card. One row in the "what can I upload" expandable.
 // `tone` colors the left border: best (green — most data unlocked), ok
 // (neutral), free (blue — free public source, frictionless onboarding).
-function DocGuideCard({ title, format, shows, where, tone }: {
+function DocGuideCard({ title, format, note, shows, where, tone }: {
   title: string;
   format: string;
+  /** A coverage statement under the format line, from coverage.json
+   *  (lib/coverage.uploadGuideView) — "accepted, not yet tested on a real
+   *  file". Never typed at the call site. */
+  note?: string;
   shows: string;
   where: Array<{ label: string; href: string | null }>;
   tone: "best" | "ok" | "free";
@@ -5125,6 +5246,9 @@ function DocGuideCard({ title, format, shows, where, tone }: {
         </span>
       </div>
       <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1.5">{format}</div>
+      {note ? (
+        <p data-testid="doc-guide-coverage-note" className="text-[11px] text-ink-mute leading-snug mb-1.5">{note}</p>
+      ) : null}
       <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2">{shows}</p>
       <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1">{t("dash.whereToGet")}</div>
       <ul className="space-y-0.5">
@@ -5526,12 +5650,21 @@ export function HeroVerdictCard({
         <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium">
           {t("dashV2.verdictLabel")}
         </div>
-        <div className="mt-2 flex items-center gap-3">
-          <Shield size={28} strokeWidth={1.5} className="text-ink-mute" />
-          <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[560px]">
-            {t("dashV2.verdictPending")}
-          </p>
-        </div>
+        {/* THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling
+            R1): a stock-build book whose cash components refused is not
+            "pending" — the regime note states why there is no score (the
+            engine's words for the cash basis) with the finding, in place of
+            the pending line. Every other absent score keeps it. */}
+        {credit?.regime ? (
+          <CreditRegimeNote regime={credit.regime} testid="hero-credit-regime" />
+        ) : (
+          <div className="mt-2 flex items-center gap-3">
+            <Shield size={28} strokeWidth={1.5} className="text-ink-mute" />
+            <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[560px]" data-testid="hero-verdict-pending">
+              {t("dashV2.verdictPending")}
+            </p>
+          </div>
+        )}
         {footer}
       </section>
     );
@@ -5624,6 +5757,8 @@ export function HeroVerdictCard({
           </p>
         </div>
       </div>
+      {/* The regime the score was composed under, ONCE (revision 5). */}
+      {credit.regime ? <CreditRegimeNote regime={credit.regime} testid="hero-credit-regime" /> : null}
       {footer}
     </section>
   );
@@ -5790,6 +5925,15 @@ export function ValuationPanel({
   const fcfView = fb?.free_cash_flow ?? cfClient.fcf;
   const capexAbs = Math.abs(capexView);
   const fcfNegativeDev = fb?.is_development_phase && fcfView !== null && fcfView < 0;
+  // THE ADD-BACK TILE SAYS WHAT IT SUMS (owner ruling R2, 2026-09-28; review
+  // 2026-10-01). `fcf_breakdown.depreciation` is the engine's DCF add-back —
+  // the cash-flow walk's all-of-68x (`assembled_cf.depreciation`), and the
+  // client fallback (`deriveCashFlow`) is all of 68x too — while the P&L's
+  // `depreciation` is D&A WITHOUT the 6812 / 6814 provision charges. Where
+  // the two differ the tile holds the charges and carries the Cash Flow
+  // tab's own name for that row (one key, so the two surfaces cannot drift),
+  // with no D&A-only explainer over it; plain "+ D&A" otherwise.
+  const depHoldsProvisionCharges = addBackHoldsProvisionCharges(depView, statements.assembled_pl?.depreciation);
 
   const pct = (x: number, d = 1) => `${(x * 100).toFixed(d)}%`;
   // A REFUSED figure (the net result, the walk from it, a WACC on refused
@@ -5810,7 +5954,14 @@ export function ValuationPanel({
         <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.freeCashFlow")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiTile label={t("dash.netIncome")} value={netIncomeView === null ? refusedNode(cfRefusal, "valuation-net-income-refused") : <LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub={t("dash.statutoryView")} />
-          <KpiTile label={t("dash.plusDa")} value={<LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>} />
+          <KpiTile
+            data-testid="valuation-add-back-tile"
+            data-add-back-holds-provision-charges={depHoldsProvisionCharges ? "true" : "false"}
+            label={depHoldsProvisionCharges ? t("statements.cf.operating.depreciationAndProvisionCharges") : t("dash.plusDa")}
+            value={depHoldsProvisionCharges
+              ? fmtMoney(depView, cur)
+              : <LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>}
+          />
           <KpiTile label={t("dash.minusWc")} value={<LearnableNumber conceptKey="working_capital_changes" value={wcView}>{fmtMoney(wcView, cur)}</LearnableNumber>} />
           <KpiTile label={t("dash.eqCfo")} value={cfoView === null ? refusedNode(cfRefusal, "valuation-cfo-refused") : <LearnableNumber conceptKey="operating_cash_flow" value={cfoView}>{fmtMoney(cfoView, cur)}</LearnableNumber>} />
           <KpiTile
@@ -6306,6 +6457,11 @@ export function RisksPanel({
           </div>
           <Shield className="opacity-30 shrink-0 h-12 w-12 sm:h-16 sm:w-16" strokeWidth={1.25} />
         </div>
+        {/* THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling
+            R1): the stock-build regime the grade above was composed under,
+            with its finding and served figures. Absent under the standard
+            model. */}
+        {credit.regime ? <CreditRegimeNote regime={credit.regime} /> : null}
         {creditComparison}
         <div className="mt-3 rounded-2xl border border-rule bg-surface overflow-hidden">
           <div className="overflow-x-auto">
@@ -6462,7 +6618,13 @@ export function RisksPanel({
               <tbody>
                 {altman.weightedComponents.map((c, i) => (
                   <tr key={i} className="border-t border-rule">
-                    <td className="py-2 px-3 text-ink">{c.label}</td>
+                    {/* A label the ENGINE served (X3 under a credit regime
+                        that computes it on another basis) prints in the
+                        reader's language — never the standard literal
+                        over the regime's figure. */}
+                    <td className="py-2 px-3 text-ink" data-testid={`risks-altman-x${i + 1}-label`}>
+                      {c.labelServed ? pickLang(c.labelServed, i18n.language) : c.label}
+                    </td>
                     <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
                     {c.value === null && c.refusal ? (
                       // The engine's reason, in the value and weighted cells —

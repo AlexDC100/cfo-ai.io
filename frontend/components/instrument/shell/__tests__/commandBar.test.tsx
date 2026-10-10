@@ -104,6 +104,8 @@ const H = vi.hoisted(() => ({
   orgs: [] as { id: string; name: string; industry_key: string | null }[],
   periods: [] as { period_id: string; period_end: string | null }[],
   select: (_id: string) => Promise.resolve(),
+  /** The Forecast feature's status in THIS reader's registry. */
+  forecast: "coming_soon" as "coming_soon" | "active",
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "user-under-test" }, status: "signed_in" }) }));
@@ -122,7 +124,7 @@ vi.mock("@/lib/workspaces", () => ({ useWorkspaces: () => ({ select: H.select })
 vi.mock("@/lib/previewFeatures", () => ({ useUploadRoute: (legacy: string) => legacy, useWorkspaceV2: () => false }));
 vi.mock("@/lib/features", async (orig) => ({
   ...(await orig<typeof import("@/lib/features")>()),
-  useFeatureStatus: (k: string) => (k === "forecast" ? "coming_soon" : "active"),
+  useFeatureStatus: (k: string) => (k === "forecast" ? H.forecast : "active"),
 }));
 vi.mock("@/components/cfo/Sidebar", () => ({
   useShellNav: () => [{ key: "core", label: "Core", items: [{ to: "/dashboard", labelKey: "sidebar.dashboard" }] }],
@@ -382,10 +384,72 @@ describe("cmdbar-swap — the empty state is THIS company's", () => {
   it("the actions are the engine's, for this company's state", () => {
     mount(scandiaWorld());
     const labels = rowsOf("now-action").map((el) => el.textContent);
-    // No prior year → "Add the previous year"; the bank export needs the
-    // forecast feature, which is not active here, so it is not offered.
-    expect(labels).toContain(ATT.scandia.actions[0].label.en);
-    expect(labels.some((l) => /bank report/i.test(l ?? ""))).toBe(false);
+    // No prior year → "Add the previous year", then the bank report — the
+    // engine's actions, in its order, in its words, and nothing else.
+    expect(labels).toEqual(ATT.scandia.actions.map((a: { label: { en: string } }) => a.label.en));
+    expect(labels).toContain("Export the bank report");
+  });
+});
+
+// ── ruling R4 (owner, 2026-09-28) ───────────────────────────────────────
+// "«Exportă raportul pentru bancă» → the CFO Report PDF, not the Forecast
+// page (Forecast is still closed)." The CFO Report PDF is the dashboard's
+// export tab (its PDF card posts the report to /api/report/pdf). Held at
+// rest, typed, and from a recent pick saved before the ruling (whose id,
+// "action:bank-export", used to open the Forecast) — with the Forecast
+// feature OFF and ON in this reader's registry. Red on: the row missing or
+// renamed, any click landing on /dashboard/forecast or off the export tab, a
+// second export row for the same document.
+
+function landedOnTheCfoReportPdf(): void {
+  const loc = new URL(screen.getByTestId("location").textContent ?? "", "http://cfo.test");
+  expect(loc.pathname).toBe("/dashboard");
+  expect(loc.searchParams.get("tab")).toBe("export");
+  expect(loc.pathname + loc.search).not.toMatch(/forecast/i);
+}
+
+describe("ruling R4 — the bank report is the CFO Report PDF", () => {
+  afterEach(() => { H.forecast = "coming_soon"; });
+
+  for (const forecast of ["coming_soon", "active"] as const) {
+    it(`at rest: "Exportă raportul pentru bancă" opens the export tab (Forecast ${forecast})`, async () => {
+      H.forecast = forecast;
+      await act(async () => { await i18n.changeLanguage("ro"); });
+      mount(scandiaWorld());
+      const rows = rowsOf("now-action");
+      const bank = rows.find((el) => el.getAttribute("data-row-id") === "now-action:bank_export");
+      expect(bank?.textContent).toBe("Exportă raportul pentru bancă");
+      // ONE export at rest: no retired "Exportă raportul CFO (PDF)" beside it.
+      expect(rows.filter((el) => /Exportă/.test(el.textContent ?? ""))).toHaveLength(1);
+      fireEvent.click(bank!);
+      landedOnTheCfoReportPdf();
+    });
+
+    it(`typed: every bank word finds ONE export row, the CFO Report PDF (Forecast ${forecast})`, () => {
+      H.forecast = forecast;
+      for (const q of ["banca", "bank", "export the bank report", "raportul pentru bancă", "exporta"]) {
+        mount(scandiaWorld());
+        type(q);
+        const exports = rowsOf("action").filter((el) => /^action:(export-pdf|bank-export)$/.test(el.getAttribute("data-row-id") ?? ""));
+        expect(exports.map((el) => el.getAttribute("data-row-id")), `"${q}"`).toEqual(["action:export-pdf"]);
+        fireEvent.click(exports[0]);
+        landedOnTheCfoReportPdf();
+        cleanup();
+      }
+    });
+  }
+
+  it("a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF", () => {
+    H.forecast = "active";
+    const w = scandiaWorld();
+    window.localStorage.setItem(`${RECENTS_KEY_PREFIX}${w.org.id}`, JSON.stringify([
+      { id: "action:bank-export", group: "action", label: "Exportă raportul pentru bancă" },
+    ]));
+    mount(w);
+    const recent = rowsOf("recent").find((el) => (el.textContent ?? "").includes("Exportă raportul pentru bancă"));
+    expect(recent).toBeTruthy();
+    fireEvent.click(recent!);
+    landedOnTheCfoReportPdf();
   });
 });
 
@@ -1208,6 +1272,32 @@ describe("cmdbar-ui-language — a finding measured in years, and one the engine
       const bar = screen.getByTestId("cmdbar-rows").textContent ?? "";
       if (lang === "ro") expect(ENGLISH_UNIT_WORDS.exec(bar), "English words in the Romanian bar").toBeNull();
       else expect(/\b(?:neraportat|ani)\b/.exec(bar), "Romanian words in the English bar").toBeNull();
+    });
+  }
+});
+
+// release r-rulings2 (2026-10-01): the stock-build regime line (owner ruling
+// R1) was written before the reader's-language ruling and no book of the law
+// above carries a regime, so the line's two money figures were never examined
+// by it. CONSTRUCTED: Agras's engine-composed document carrying the corpus
+// developer's served regime block (the committed capture
+// frontend/lib/__tests__/fixtures/served_credit_regime.json) — the regime of
+// one book on the document of another, which no engine serves; the law is
+// the PRINTING of the line, not the regime's figures.
+describe("cmdbar-ui-language — the credit regime line prints its figures in the bar's language", () => {
+  const REGIME = read("frontend/lib/__tests__/fixtures/served_credit_regime.json").attention_developer;
+  for (const lang of LANGS) {
+    it(`${lang}: the regime line's net 711 and net turnover are in the reader's format, each with its code after the figure`, async () => {
+      await useLang(lang);
+      mount(agrasWorld({ attention: { ...structuredClone(ATT.agras), credit_regime: REGIME.credit_regime } }));
+      const line = plainSpaces(screen.getByTestId("cmdbar-credit-regime").textContent);
+      expect(foreignNumber(line, lang), `${lang}: a figure in the other language's format in "${line}"`).toBeNull();
+      // the code AFTER the figure, never before it (and never "lei")
+      const money = line.match(/-?\d[\d.,]*(?: (?:mii|mil\.|mld\.)|[KMBT])? RON/g) ?? [];
+      expect(money.length, "VACUITY: the line's two served money figures").toBe(2);
+      expect(line).not.toMatch(/RON -?\d/);
+      expect(line).not.toMatch(/\blei\b/);
+      console.log(`GATE-WORK cmdbar-ui-language regime/${lang} figures=${money.length}`);
     });
   }
 });

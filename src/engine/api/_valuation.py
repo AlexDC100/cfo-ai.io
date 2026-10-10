@@ -592,7 +592,15 @@ def compute_valuation(
     # Net turnover (cifra de afaceri netă, 70x − 709) — the assembler's
     # `turnover`, the one denominator of every margin and revenue multiple.
     revenue = _safe(_first(pl_canonical.get("turnover"), pl.get("revenue")))
-    depreciation = _safe(pl_canonical.get("depreciation", pl.get("depreciationAmortization")))
+    # The NON-CASH operating charge the cash-based methods add back: the
+    # cash-flow statement's own add-back (all of 68x as classified). Since
+    # the owner's R2 ruling (2026-09-28) the P&L's `depreciation` is D&A
+    # WITHOUT the 6812 / 6814 provision charges (their net is its own line,
+    # outside EBITDA) — still non-cash, so the DCF and the CRE capex test
+    # read the add-back the cash flow uses, never a narrower one.
+    depreciation = _safe(_first(cf_canonical.get("depreciation"),
+                                pl_canonical.get("depreciation"),
+                                pl.get("depreciationAmortization")))
 
     # THE ONE EBITDA (owner ruling 2026-09-26), read from the assembled P&L
     # — net 711 and net 72x inside. The revision-2 code read
@@ -644,7 +652,8 @@ def compute_valuation(
     # working-capital change is not "no change".
     dcf_interest = _first(pl_canonical.get("interest_expense"), pl.get("interestExpense"))
     dcf_tax = _first(pl_canonical.get("tax"), pl.get("taxExpense"))
-    dcf_depreciation = _first(pl_canonical.get("depreciation"), pl.get("depreciationAmortization"))
+    dcf_depreciation = _first(cf_canonical.get("depreciation"), pl_canonical.get("depreciation"),
+                              pl.get("depreciationAmortization"))
     # The pre-tax figure the DCF reads is the reported one, never the
     # `_safe`-built reconstruction above: `pretax - tax` stood in for an
     # absent statutory net income with `tax` read as 0 when it was not

@@ -615,7 +615,13 @@ def detect_earnings_quality(book: Book, spec: DetectorSpec):
         _fact_pl(book, "capitalized_own_work_memo", "Capitalised own work"),
         _fact_pl(book, "free_cash_flow_proxy", "Operating cash proxy"),
     ]
-    accounts = _pl_accounts(book, ("otherIncome",), exclude_prefixes=("711",))
+    # The cited leaves are the ones the non-trading figure sums: never the
+    # 711 memo, and never the provision reversals the engine placed OUTSIDE
+    # EBITDA and other operating income (owner ruling R2, 2026-09-28 — the
+    # served net-provisions block names their prefixes; nothing typed here).
+    np_block = book.pl_block("net_provisions") or {}
+    outside = tuple(str(p) for p in ((np_block.get("reversals") or {}).get("prefixes") or ()))
+    accounts = _pl_accounts(book, ("otherIncome",), exclude_prefixes=("711",) + outside)
     return Detection(abs(non_trading), measures, accounts, facts)
 
 

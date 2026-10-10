@@ -14,9 +14,9 @@
 // guaranteed-shape input.
 //
 // The .xlsx itself lives at /templates/cfo_ai_upload_template.xlsx
-// (committed under scandi-desk-main/public/) and is regenerated on
-// every build by scripts/generate_upload_template.py — so the artifact
-// never drifts from the parser.
+// (committed under public/templates/), written by
+// scripts/generate_upload_template.py from FICTIONAL example values —
+// `--check` compares the committed file with a rebuild.
 //
 // Surfaces that use this card
 // ---------------------------
@@ -63,6 +63,15 @@ interface Props {
 
 const TEMPLATE_HREF = "/templates/cfo_ai_upload_template.xlsx";
 const TEMPLATE_FILENAME = "cfo_ai_upload_template.xlsx";
+// The sales-analysis example. This row pointed at
+// `/examples/example_products_trading.xlsx`, a workbook removed from public/
+// on 2026-07-26: "View" parsed the app's own index.html (nginx's fallback for
+// a missing file) and "Download" saved it under an .xlsx name. The example
+// that IS in public/ — fictional rows under the heading "EXAMPLE SALES
+// ANALYSIS" — is this one (gate links-routed holds every linked asset to a
+// file under public/ — which is why the path is spelled whole here).
+const SALES_EXAMPLE_HREF = "/examples/example_sales_analysis.xlsx";
+const SALES_EXAMPLE_FILENAME = "example_sales_analysis.xlsx";
 
 // Open the template workbook in a NEW TAB as a rendered table — same approach
 // as the dashboard's example-trial-balance "View" button. A plain
@@ -179,14 +188,14 @@ export function TemplateDownloadCard({
                 meta={t("expectedFormat.exampleCaption")}
                 onView={() =>
                   void previewWorkbookInNewTab(
-                    "/examples/example_products_trading.xlsx",
-                    "example_products_trading.xlsx",
+                    SALES_EXAMPLE_HREF,
+                    SALES_EXAMPLE_FILENAME,
                     t("tmpl.previewSalesSubtitle"),
                   )
                 }
                 viewTestid="view-sales-template"
-                href="/examples/example_products_trading.xlsx"
-                downloadName="example_products_trading.xlsx"
+                href={SALES_EXAMPLE_HREF}
+                downloadName={SALES_EXAMPLE_FILENAME}
                 downloadTestid="download-sales-template"
               />
             </div>
@@ -372,14 +381,14 @@ function FormatSummary({
             required: null,
             key: "exampleMultiCol",
             fallback:
-              "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
+              "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column trial-balance layout.",
           },
           {
             name: t("tmpl.formatSaga"),
             required: null,
             key: "exampleSaga",
             fallback:
-              "The compact SAGA export: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances.",
+              "The compact layout: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances.",
           },
         ]
       : [

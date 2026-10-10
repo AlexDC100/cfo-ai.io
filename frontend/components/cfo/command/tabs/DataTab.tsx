@@ -66,14 +66,14 @@ export function DataTab({ onClose: _onClose, onOpenUpload: _onOpenUpload }: Prop
         <Row
           icon={Plug}
           title="ERP connector"
-          hint="SAP · Dynamics · NetSuite · Odoo"
+          hint="Sync from an ERP system"
           featureKey="erp_connector"
           testId="cmd-data-erp"
         />
         <Row
           icon={Plug}
           title="Accounting connector"
-          hint="SAGA · ContabilTM · Xero · QuickBooks"
+          hint="Sync from accounting software"
           featureKey="accounting_connector"
           testId="cmd-data-accounting"
         />

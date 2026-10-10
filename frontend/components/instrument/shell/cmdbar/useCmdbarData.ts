@@ -278,7 +278,7 @@ export function useCmdbarData(opts: { open: boolean }): CmdbarData {
 }
 
 /** The month the header line names for the scope (the stepper's format). */
-export function scopeMonth(scope: CmdbarScope, locale?: string): string | null {
+export function scopeMonth(scope: CmdbarScope, locale: string): string | null {
   return formatPeriodMonth(scope.periodEnd, locale) ?? null;
 }
 

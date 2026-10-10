@@ -119,7 +119,14 @@ def test_forecast_and_scenarios_are_active_in_the_source_with_their_endpoints():
         % STILL_COMING_SOON)
 
 
-def test_the_advertised_endpoints_are_routes_the_real_app_mounts():
+def test_the_advertised_endpoints_are_routes_the_real_app_mounts(monkeypatch):
+    # HERMETIC (2026-10-02): `create_app()` verifies the Supabase variables at
+    # boot. This test read whatever the host's environment held — green in
+    # the container and inside the full suite (where another test leaks the
+    # switch), RED alone on any host without a .env, and so red as its own
+    # battery gate on a clean worktree. The routes the app mounts do not
+    # depend on those variables.
+    monkeypatch.setenv("CFO_AI_SKIP_BOOT_VERIFY", "1")
     app = _app()
     mounted = set()
     for route in app.routes:

@@ -65,6 +65,7 @@ import { UploadDropOverlay } from "./upload/UploadDrop";
 import { useWorkspaceV2State } from "@/lib/previewFeatures";
 import { useActiveOrg } from "@/lib/org";
 import { useDashboardCompanyHold } from "@/lib/companyOnScreen";
+import { usePeriodVerdictKeeper } from "@/hooks/usePeriodVerdictKeeper";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
 import { CommandBarPrefetch } from "@/components/instrument/shell/cmdbar/useCmdbarData";
 
@@ -102,6 +103,10 @@ export function AppShell({ children }: Props) {
   // seconds (P0, 2026-09-26; gate: components/cfo/__tests__/
   // authLockFlood.test.tsx). One screen, one authority.
   const onCompanyPage = useMatch("/workspace/:orgId") !== null;
+  // What the browser remembers as "this company's period" is a period the
+  // reader was served for it; one the engine answers "not found" is forgotten
+  // and the page re-opens on the company's own (hooks/usePeriodVerdictKeeper).
+  usePeriodVerdictKeeper();
   const holdForOrg = useDashboardCompanyHold(
     workspaceV2 && !onCompanyPage,
     workspaceV2Settling && !onCompanyPage,

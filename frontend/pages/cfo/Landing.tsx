@@ -36,7 +36,9 @@ import { getSupabase } from "@/lib/supabase";
 import { pickLanguageWithProfileSync, SUPPORTED_LANGUAGES } from "@/i18n";
 import { LEGAL_ENTITY, legalDocPath, socialLinks } from "@/lib/legalConfig";
 import { openCookieSettings } from "@/components/cfo/CookieBanner";
-import { MARQUEE } from "@/lib/markets";
+import { proofRows } from "@/lib/engineProof";
+import { PLAN_PRICES_EUR, formatPrice } from "@/lib/price";
+import { coverageView, type CoverageCategory } from "@/lib/coverage";
 import { landingStringsFor, type LandingStrings } from "./landingStrings";
 
 type Page = "home" | "pricing" | "contact" | "legal";
@@ -282,14 +284,23 @@ function header(
 // Pricing cards — shared between the home page's #pricing section (footer
 // anchor target) and the standalone pricing page.
 const featureLi = (x: string) => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`;
+// A line that is PLANNED, not included today — a clock-like mark, never the tick.
+const pendingLi = (x: string) => `<li data-pending="true" style="display:flex;gap:10px"><span aria-hidden="true" style="color:var(--ink-mute)">◌</span> ${x}</li>`;
 
 type BillingCycle = "monthly" | "yearly";
 
 // 2026-08 tier restructure: RO Solo / Pro / Multi-Country — must match
 // the in-app /pricing page (backend _pricing_config.py is the source of
-// truth; these are marketing-copy mirrors).
-const SOLO_MONTHLY = 4.99;
-const BUSINESS_MONTHLY = 9.99;
+// truth; lib/price.PLAN_PRICES_EUR is the landing's mirror, held to the
+// backend by shippedClaimsMatchCode).
+const SOLO_MONTHLY = PLAN_PRICES_EUR.solo;
+const BUSINESS_MONTHLY = PLAN_PRICES_EUR.pro;
+
+/** A card's price through THE price printer (lib/price): "4.99 EUR" /
+ *  "4,99 EUR" — the code after the figure, the reader's number format, the
+ *  same string /pricing prints. The landing used to print "€4.99" in
+ *  English and "4,99 €" in Romanian while /pricing printed "€4.99" in both. */
+const cardPrice = (amount: number, langCode: string): string => formatPrice(amount, langCode);
 
 const billingToggle = (cycle: BillingCycle) => `
   <div style="display:flex;justify-content:center;margin-bottom:28px">
@@ -302,11 +313,11 @@ const billingToggle = (cycle: BillingCycle) => `
 // Annual billing intentionally NOT offered on the landing grid: checkout
 // carries monthly Stripe prices only — never promise a price that cannot
 // be purchased. (billingToggle kept above for a future annual launch.)
-const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
+const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly", langCode = "en") => `
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;align-items:stretch;max-width:1320px;margin:0 auto">
     <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.solo.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€${SOLO_MONTHLY}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span data-plan-price="solo" style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cardPrice(SOLO_MONTHLY, langCode)}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.solo.yearly}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.solo.blurb}</p>
       <a href="/signup?plan=solo" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.solo.cta}</a>
@@ -317,7 +328,7 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
     <div class="pricing-card" style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(75,191,168,.5)">
       <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:var(--on-brand);background:var(--brand);padding:4px 12px;border-radius:999px">${L.pricing.business.badge}</span>
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">${L.pricing.business.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€${BUSINESS_MONTHLY}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span data-plan-price="pro" style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cardPrice(BUSINESS_MONTHLY, langCode)}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.business.yearly}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.business.blurb}</p>
       <a href="/signup?plan=pro" data-act="signup:pro" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
@@ -327,16 +338,23 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
         ${L.pricing.business.features.map(featureLi).join("")}
       </ul>
     </div>
-    <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
+    <!-- Multi-Country is COMING SOON (2026-10-01). International coverage
+         is not available — coverage.json row "other_countries" — so the
+         card stays visible but nothing on it starts a checkout: the CTA is
+         a disabled label, not a link to /signup?plan=multi. Its bullets
+         carry a clock, not a tick: a tick is a claim that the line is
+         included today. -->
+    <div class="pricing-card" data-plan="multi" data-plan-state="coming-soon" style="border:1px dashed var(--rule-strong);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative">
+      <span data-plan-badge style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:var(--ink);background:var(--surface-hi);border:1px solid var(--rule-strong);padding:4px 12px;border-radius:999px">${L.pricing.pro.badge}</span>
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.pro.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink)">${L.pricing.pro.price}</span></div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink-mute)">${L.pricing.pro.price}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.pro.priceNote}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.pro.blurb}</p>
-      <a href="/signup?plan=multi" data-act="signup:multi" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.pro.cta}</a>
-      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+      <span role="button" aria-disabled="true" data-plan-cta="disabled" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule);color:var(--ink-mute);font-weight:500;font-size:14px;cursor:not-allowed">${L.pricing.pro.cta}</span>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-soft)">
         ${featureLi(L.pricing.pro.lead[0])}
-        ${featureLi(`<strong>${L.pricing.pro.lead[1]}</strong>`)}
-        ${L.pricing.pro.features.map(featureLi).join("")}
+        ${pendingLi(`<strong>${L.pricing.pro.lead[1]}</strong>`)}
+        ${L.pricing.pro.features.map(pendingLi).join("")}
       </ul>
     </div>
   </div>
@@ -541,27 +559,92 @@ function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
   );
 }
 
-// ── Global-positioning strip (directive 2026-08-29) ──────────────────────
-// One quiet line + the marquee market row, rendered under the hero mock.
-// The row comes STRAIGHT from lib/markets.ts MARQUEE so its order can never
-// drift from the canonical taxonomy (gate G4: US, DE, GB, FR, IT, ES, AE —
-// Hungary never appears in this row). No flags, no country singled out —
-// every name renders in the same quiet mono caps, and the line itself keeps
-// the ACCEPTANCE_LINE phrasing discipline (gate G3: "accepted" /
-// "machine-verified", never "supported / certified / guaranteed" beside a
-// global claim).
-const marqueeMarketRow = (langCode: string) => {
-  const lang: "en" | "ro" = langCode === "ro" ? "ro" : "en";
-  return MARQUEE
-    .map((m) => `<span style="white-space:nowrap">${m.displayName[lang]}</span>`)
-    .join(`<span aria-hidden="true" style="color:var(--rule-strong)">·</span>`);
+// THE GLOBAL STRIP USED TO LIVE HERE. Until 2026-10-01 the hero ended with
+// "Romania at deterministic grade. Any other country accepted — structure
+// read by AI, numbers machine-verified twice." over a row of seven markets
+// (United States, Germany, …). No test in the repository used a real book
+// from any of them, a file from those countries with no country chosen was
+// read as Romanian, and nothing was verified twice. It is deleted, not
+// reworded: what the product reads today is the coverage table below, and
+// its only source is frontend/data/coverage.json (gate public-claims).
+
+// ── Engine proof block ───────────────────────────────────────────────────
+// Every figure here is read from frontend/data/engineProof.json through
+// lib/engineProof — the headline "held / examined" of each check, what the
+// check is, and the date it was measured. The caption is the result in
+// words (landingStrings, tokens only). Nothing is typed: gate
+// `landing-proof` reads these data-proof-* attributes back and compares
+// them with the JSON.
+const proofStrip = (L: LandingStrings, langCode: string) => `
+      <div id="proof-strip" data-proof-source="frontend/data/engineProof.json" style="border:1px solid var(--rule);background:var(--bg-deep);border-radius:18px;padding:24px 26px">
+        <div style="display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">
+          <span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${L.defensible.proof.label}
+        </div>
+        <div style="margin-top:18px;display:flex;flex-direction:column">
+          ${proofRows(langCode).map((r, i) => `
+          <div data-proof-check="${r.id}" style="display:flex;align-items:baseline;gap:16px;padding:12px 0;${i > 0 ? "border-top:1px solid var(--rule-soft)" : ""}">
+            <span data-proof-value style="font-family:var(--mono);font-size:20px;line-height:1.2;color:var(--brand-l);white-space:nowrap;font-variant-numeric:tabular-nums;min-width:64px">${r.value}</span>
+            <span style="display:flex;flex-direction:column;gap:4px">
+              <span data-proof-what style="font-size:13px;line-height:1.5;color:var(--ink-2)">${esc(r.what)}</span>
+              <span data-proof-caption style="font-size:12.5px;line-height:1.55;color:var(--ink-soft)">${L.defensible.proof.captions[r.id]}</span>
+              <time data-proof-date datetime="${r.measuredIso}" style="font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink-mute)">${L.defensible.proof.measured.replace("{when}", r.measured)}</time>
+            </span>
+          </div>`).join("")}
+        </div>
+        <p style="margin:14px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.02em;line-height:1.6;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:12px">${L.defensible.proof.note}</p>
+        <a href="/sample#checks" data-act="sample" data-sample-link="proof" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;font-size:13px">${L.sample.proofCta} →</a>
+      </div>`;
+
+// ── Coverage table — beside the upload step ──────────────────────────────
+// What the product can read today, in three groups: Tested / AI-interpreted
+// / Not supported yet. Every row, count, evidence line and date comes from
+// frontend/data/coverage.json through lib/coverage; this function only
+// lays it out. The same data renders in the in-app upload zone
+// (components/cfo/CoverageTable).
+const COVERAGE_TONE: Record<CoverageCategory, string> = {
+  tested: "var(--brand)",
+  ai_interpreted: "var(--ink-soft)",
+  not_supported: "var(--alert)",
 };
 
-const globalStrip = (L: LandingStrings, langCode: string) => `
-      <div style="margin-top:64px;width:100%;max-width:820px;border-top:1px solid var(--rule-soft);padding-top:26px">
-        <p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-soft)">${L.global.line}</p>
-        <div style="margin-top:16px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:14px;row-gap:8px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-mute)">${marqueeMarketRow(langCode)}</div>
-      </div>`;
+const coverageTable = (L: LandingStrings, langCode: string) => {
+  const v = coverageView(langCode);
+  return `
+    <div id="coverage" data-coverage-source="frontend/data/coverage.json" style="margin-top:56px;border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:28px;scroll-margin-top:88px">
+      ${eyebrow(L.coverage.eyebrow)}
+      <h3 style="margin-top:14px;font-family:var(--serif);font-weight:400;font-size:clamp(22px,3vw,30px);line-height:1.1;letter-spacing:-.015em">${esc(v.title)}</h3>
+      <p style="margin-top:10px;font-size:14px;color:var(--ink-soft);max-width:760px">${esc(v.lede)}</p>
+      <div style="margin-top:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">
+        ${v.groups.map((g) => `
+        <div data-coverage-category="${g.category}" style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:18px">
+          <div style="display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:${COVERAGE_TONE[g.category]}">
+            <span style="width:7px;height:7px;border-radius:50%;background:${COVERAGE_TONE[g.category]};display:inline-block"></span>${esc(g.heading)}
+          </div>
+          <p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-mute)">${esc(g.note)}</p>
+          <ul style="margin:14px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px">
+            ${g.rows.map((r) => `
+            <li data-coverage-row="${r.id}" style="border-top:1px solid var(--rule-soft);padding-top:12px">
+              <div style="font-size:13.5px;line-height:1.5;color:var(--ink)">${esc(r.label)}</div>
+              ${r.availability ? `<div data-coverage-availability style="margin-top:6px;display:inline-block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--alert);border:1px solid var(--alert);border-radius:999px;padding:2px 9px">${esc(r.availability)}</div>` : ""}
+              <div style="margin-top:6px;font-size:12.5px;line-height:1.55;color:var(--ink-soft)">${esc(r.note)}</div>
+              <div style="margin-top:8px;font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--ink-mute)">
+                <span data-coverage-tested-on>${esc(r.testedOn)}</span> · ${esc(v.words.evidence)}: <span data-coverage-evidence>${esc(r.evidence)}</span> · <time datetime="${r.asOfIso}">${esc(v.words.asOf)} ${esc(r.asOf)}</time>
+              </div>
+            </li>`).join("")}
+          </ul>
+        </div>`).join("")}
+      </div>
+      <p style="margin:18px 0 0;font-size:12.5px;color:var(--ink-mute)">${esc(v.untestedNote)}</p>
+      <div data-sample-block style="margin-top:22px;border-top:1px solid var(--rule-soft);padding-top:20px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
+        <div style="max-width:640px">
+          <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">${L.sample.kicker}</div>
+          <div style="margin-top:8px;font-family:var(--serif);font-size:21px;line-height:1.2;color:var(--ink)">${L.sample.title}</div>
+          <p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">${L.sample.body}</p>
+        </div>
+        <a href="/sample" data-act="sample" data-sample-link="upload" class="btn-ghost2" style="display:inline-flex;align-items:center;height:46px;padding:0 22px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;white-space:nowrap">${L.sample.cta} →</a>
+      </div>
+    </div>`;
+};
 
 const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCycle = "monthly", langCode = "en") => `
 <main>
@@ -582,31 +665,26 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
           : `<a href="/login?next=/&mode=sign_up" data-act="getstarted" class="btn-grad" style="display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 28px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:15px;box-shadow:0 10px 30px -10px rgba(75,191,168,.55)">${L.hero.ctaStart}</a>
         <a href="/login?next=/" data-act="signin" class="btn-ghost2" style="display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:15px">${L.hero.ctaSignIn}</a>`}
       </div>
-      <div style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
+      <div data-hero-mock="card" style="margin-top:52px;width:100%;max-width:900px;border-radius:20px;border:1px solid var(--rule);background:var(--surface);overflow:hidden;box-shadow:0 50px 120px -40px rgba(0,0,0,.8);text-align:left">
         <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--rule-soft);background:var(--bg-2)">
           <span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span><span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span><span style="width:10px;height:10px;border-radius:50%;background:var(--rule-strong)"></span>
           <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.hero.mockTitle}</span>
         </div>
         <div class="mock-grid" style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
-          <div class="mock-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">EBITDA margin</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">11.4<span style="font-size:18px;color:var(--ink-soft)">%</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">+1.8pp vs sector</div></div>
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Altman Z″</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">3.12</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Safe zone</div></div>
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Net debt / EBITDA</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">1.8<span style="font-size:18px;color:var(--ink-soft)">×</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Comfortable</div></div>
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">ROIC</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">17.7<span style="font-size:18px;color:var(--ink-soft)">%</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">+2.1pp YoY</div></div>
+          <div class="mock-kpis" data-hero-mock="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
+            ${L.hero.mock.kpis.map((k) => `
+            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">${k.label}</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">${k.value}${k.unit ? `<span style="font-size:18px;color:var(--ink-soft)">${k.unit}</span>` : ""}</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">${k.sub}</div></div>`).join("")}
           </div>
           <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:18px">
-            <div style="display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">✦ AI CFO Briefing</div>
-            <p style="margin-top:12px;font-size:13.5px;line-height:1.6;color:var(--ink-2)">Profitability is above sector median, and the balance sheet is conservatively levered. Two watch-items: receivable days drifting up, and one supplier concentration above 30%.</p>
+            <div style="display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">✦ ${L.hero.mock.briefingTitle}</div>
+            <p style="margin-top:12px;font-size:13.5px;line-height:1.6;color:var(--ink-2)">${L.hero.mock.briefingBody}</p>
             <ul style="margin:10px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:8px">
-              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> DSO up 6 days — tighten collections</li>
-              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> Refinance short-term line before Q3</li>
-              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> Benchmark vs 3 named peers ready</li>
+              ${L.hero.mock.bullets.map((b) => `<li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> ${b}</li>`).join("")}
             </ul>
           </div>
         </div>
       </div>
       <p style="margin-top:22px;font-size:11.5px;color:var(--ink-mute);max-width:520px">${L.hero.mockNote}</p>
-      ${globalStrip(L, langCode)}
     </div>
   </section>
 
@@ -652,6 +730,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
       </div>`;
       }).join("")}
     </div>
+    ${coverageTable(L, langCode)}
   </section>
 
   <section id="trust" style="border-top:1px solid var(--rule-soft);background:var(--bg-2);scroll-margin-top:88px">
@@ -664,23 +743,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
           ${L.defensible.bullets.map((b) => `<li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">${b.strong}</strong> <span style="color:var(--ink-soft)">${b.rest}</span></div></li>`).join("\n          ")}
         </ul>
       </div>
-      <!-- Proof strip — replaces the former decorative peer-bar numbers
-           with REAL measured stats (they mirror the claims in the copy to
-           the left). Terminal register: near-black panel, mono readouts,
-           phosphor values. No animation — proof doesn't perform. -->
-      <div id="proof-strip" style="border:1px solid var(--rule);background:var(--bg-deep);border-radius:18px;padding:24px 26px">
-        <div style="display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">
-          <span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${L.defensible.proof.label}
-        </div>
-        <div style="margin-top:18px;display:flex;flex-direction:column">
-          ${L.defensible.proof.stats.map((s, i) => `
-          <div style="display:flex;align-items:baseline;gap:16px;padding:11px 0;${i > 0 ? "border-top:1px solid var(--rule-soft)" : ""}">
-            <span style="font-family:var(--mono);font-size:20px;line-height:1.2;color:var(--brand-l);white-space:nowrap;font-variant-numeric:tabular-nums">${s.value}</span>
-            <span style="font-size:12.5px;line-height:1.55;color:var(--ink-soft)">${s.caption}</span>
-          </div>`).join("")}
-        </div>
-        <p style="margin:14px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:12px">${L.defensible.proof.note}</p>
-      </div>
+      ${proofStrip(L, langCode)}
     </div>
   </section>
 
@@ -700,7 +763,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
         <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h2>
         <p style="margin-top:14px;font-size:15px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
       </div>
-      ${pricingGrid(L, billingCycle)}
+      ${pricingGrid(L, billingCycle, langCode)}
     </div>
   </section>
 
@@ -737,14 +800,14 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
   </section>
 </main>`;
 
-const pricingMain = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
+const pricingMain = (L: LandingStrings, cycle: BillingCycle = "monthly", langCode = "en") => `
 <main style="max-width:var(--maxw);margin:0 auto;padding:64px 24px 40px">
   <div style="text-align:center;max-width:680px;margin:0 auto 44px">
     ${eyebrow(L.pricing.eyebrow)}
     <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,52px);line-height:1.05;letter-spacing:-.025em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h1>
     <p style="margin-top:16px;font-size:16px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
   </div>
-  ${pricingGrid(L, cycle)}
+  ${pricingGrid(L, cycle, langCode)}
 </main>`;
 
 // THE LEGAL TEXT USED TO LIVE HERE, AND IT NO LONGER DOES.
@@ -1152,6 +1215,16 @@ export default function Landing() {
     if (act === "getstarted") { e.preventDefault(); navigate("/login?next=/&mode=sign_up"); return; }
     if (act === "billing:monthly") { e.preventDefault(); setBillingCycle("monthly"); return; }
     if (act === "billing:yearly") { e.preventDefault(); setBillingCycle("yearly"); return; }
+    // The public sample (a fictional company's trial balance and its full
+    // report) — a real route, reached without a full page load. The link in
+    // the proof block carries the fragment of the sample's own list of these
+    // checks (/sample#checks); the others open the page at its top.
+    if (act === "sample") {
+      e.preventDefault();
+      const href = el.getAttribute("href") ?? "";
+      navigate(href.startsWith("/sample") ? href : "/sample");
+      return;
+    }
     if (act === "signup:solo") { e.preventDefault(); navigate("/signup?plan=solo"); return; }
     if (act === "signup:business") { e.preventDefault(); navigate("/signup?plan=business"); return; }
     if (act.startsWith("scroll:")) { e.preventDefault(); scrollTo(act.slice(7)); return; }
@@ -1191,7 +1264,7 @@ export default function Landing() {
     const main =
       page === "contact" ? contactMain(contactRef.current, contactStatus, L)
       : page === "home" ? homeMain(L, account != null, billingCycle, langCode)
-      : page === "pricing" ? pricingMain(L, billingCycle)
+      : page === "pricing" ? pricingMain(L, billingCycle, langCode)
       : legalMain(L);
     return main
       + footer(year, L, langCode)

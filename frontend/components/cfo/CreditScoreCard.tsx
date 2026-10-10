@@ -26,6 +26,8 @@
 //   2. Altman Z″ value + zone (safe / grey / distress)
 //   3. Component breakdown (sub-scores as horizontal bars)
 
+import { useTranslation } from "react-i18next";
+
 import { formatRON } from "@/lib/formatRon";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import {
@@ -36,6 +38,8 @@ import {
   type CreditModelId,
   type CreditScoreResult,
 } from "@/lib/financialValuation";
+import { regimeLang, type CreditRegime } from "@/lib/creditRegime";
+import { CreditRegimeNote } from "@/components/cfo/CreditRegimeNote";
 
 type SubKey = "altman" | "profitability" | "leverage" | "coverage" | "dscr" | "liquidity" | "equity";
 
@@ -102,6 +106,11 @@ export interface CreditScoreData {
    *  excludes a refused year's result); null beside a value. */
   altmanX2Refusal: string | null;
   altmanX3: number | null;
+  /** What X3 was computed on, AS SERVED, when it is not EBIT ÷ total assets
+   *  (the stock-build regime: the operating result before the stock
+   *  variation and own work). The X3 row is labelled with it — never
+   *  "EBIT / assets" over the regime's figure. NULL: the standard basis. */
+  altmanX3Basis?: { en: string; ro: string } | null;
   /** "refused — <reason>" when the engine refused X3 / X4 (never "not
    *  reported" for a figure the engine refused). */
   altmanX3Refusal?: string | null;
@@ -134,6 +143,10 @@ export interface CreditScoreData {
   weights: Record<SubKey, number | null>;
   /** The reader's refusal sentence per row; NULL on a scored row. */
   refusals: Record<SubKey, string | null>;
+  /** The credit regime the grade was composed under (credit model
+   *  revision 5, owner ruling R1), as the shared reader served it; NULL
+   *  under the standard model. Printed ONCE on the card. */
+  regime?: CreditRegime | null;
 }
 
 // ── `compositeToGrade()` LIVED HERE AND IS DELETED ──────────────────
@@ -241,12 +254,14 @@ export function creditCardData(result: CreditScoreResult | null): CreditScoreDat
     modelLabel: result.modelLabel,
     letterSource: letter === null ? "absent" : ladder ? "letter_grade_bands" : "letter_grade",
     ladder,
+    regime: result.regime ?? null,
     altmanX1: result.altman.components.x1_wc_to_assets,
     altmanX2: result.altman.components.x2_re_to_assets,
     altmanX2Refusal: result.altman.componentRefusals?.x2
       ? `refused — ${result.altman.componentRefusals.x2.text.en}`
       : null,
     altmanX3: result.altman.components.x3_ebit_to_assets,
+    altmanX3Basis: result.altman.x3Basis ?? null,
     altmanX3Refusal: result.altman.componentRefusals?.x3
       ? `refused — ${result.altman.componentRefusals.x3.text.en}`
       : null,
@@ -292,6 +307,10 @@ interface Props {
 }
 
 export function CreditScoreCard({ data }: Props) {
+  // The one served sentence this card prints in the reader's language: the
+  // X3 basis under a credit regime (the regime note beside it does the same).
+  const { i18n } = useTranslation();
+  const x3Lang = regimeLang(i18n.language);
   const grade = data.letter;
   const zone = data.altmanZ === null ? null : altmanZone(data.altmanZ);
   /** The engine's ladder, spelled — by `spellLadder`, the ONE spelling of
@@ -392,6 +411,8 @@ export function CreditScoreCard({ data }: Props) {
               carry, now on the fourth surface. When there is no letter,
               this states why instead. */}
           <CreditModelNote data={data} ladderText={ladderText} className="mt-1.5 max-w-[440px]" />
+          {/* THE CREDIT REGIME, ONCE (revision 5, owner ruling R1). */}
+          {data.regime ? <CreditRegimeNote regime={data.regime} testid="report-credit-regime" /> : null}
         </div>
         <div className="rounded-md border border-rule bg-bg-2/40 p-4 min-w-[220px]">
           <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
@@ -424,7 +445,9 @@ export function CreditScoreCard({ data }: Props) {
             <span className="text-right" data-testid="report-altman-x2">
               {data.altmanX2Refusal ?? fmtComponent(data.altmanX2)}
             </span>
-            <span className="text-ink-mute">X3 (EBIT / assets)</span>
+            <span className="text-ink-mute" data-testid="report-altman-x3-label">
+              {data.altmanX3Basis ? data.altmanX3Basis[x3Lang] : "X3 (EBIT / assets)"}
+            </span>
             <span className="text-right" data-testid="report-altman-x3">
               {data.altmanX3Refusal ?? fmtComponent(data.altmanX3)}
             </span>

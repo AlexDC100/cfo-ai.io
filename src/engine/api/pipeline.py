@@ -3,10 +3,12 @@ financial period the UI can render.
 
 Endpoints:
   POST /api/pipeline/run     { document_id }   → 202 (async kicked off)
-  POST /api/pipeline/retry   { document_id }   → 202 (resets + reruns)
+  POST /api/pipeline/retry   { document_id }   → 202 (re-runs; a document that owns its
+                                                  month is staged beside it — nothing is reset)
   GET  /api/period/:id                          → consolidated payload
 
-Pipeline stages (each updates documents.status as it starts):
+Pipeline stages (each updates documents.status as it starts — except in a
+STAGED re-run, whose document stays `analyzed` over the month it serves):
   queued → extracting → mapping → computing → narrating → analyzed | failed
 
 Stages:
@@ -20,24 +22,29 @@ Stages:
   narrate  — Opus 4.7 → briefing + recommendations + alerts
   finalize — documents.status = 'analyzed'; documents.period_id set
 
-CRITICAL: every stage is idempotent. retry() wipes prior derivatives before
-re-running so the user can re-attempt without ghost data.
+CRITICAL: every stage is idempotent. retry() of a document that holds no
+period wipes its prior derivatives before re-running, so the user can
+re-attempt without ghost data. retry() of a document that OWNS its month wipes
+nothing: the run is staged beside the month and replaces it only once it has
+succeeded (see "The Docs panel's Re-run analysis is STAGED" below).
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
+import re
 import threading
 import time
 import traceback
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from . import _detect
@@ -62,6 +69,9 @@ from . import _period_move
 from . import _quota_ledger
 from . import _ratio_units
 from . import _reconcile
+# THE STAGED RE-RUN'S MARKER — how every reader of `financial_periods` tells
+# a re-run's staged row (never a month) from a period (leaf module).
+from . import _staged_rerun
 from . import _supabase
 from . import _usage_limits
 from . import _valuation
@@ -313,6 +323,55 @@ def balanta_refusal_message(layout: Optional[str], reason: str) -> str:
         "(Sold initial / Rulaj anterior / Rulaj curent / Total rulaj / Sold final), "
         "but it was not read: %s. " % reason + _BALANTA_REFUSAL_NEXT_STEP
     )
+
+
+class UserFacingUploadError(Exception):
+    """Base for failures whose message is WRITTEN FOR THE UPLOADER.
+
+    The failure handler of `_run_pipeline_stages` stores
+    `f"{type(exc).__name__}: {exc}"` in `documents.error`, and
+    `FailedUploadBanner` renders that string verbatim — so a message
+    composed for a non-technical reader arrived with a Python class name in
+    front of it: "UploadedFileTypeMismatchError: This file ... is named .pdf
+    but its contents are a Word document". The prefix is right for an
+    unexpected exception, where the class IS the diagnosis; it is wrong for
+    a sentence deliberately written in plain language. Subclasses are stored
+    as `str(exc)` alone — the same treatment the handler gives a
+    `PlainRefusal` (defined further down, with the same-month takeover).
+    """
+
+
+class UploadedFileTypeMismatchError(UserFacingUploadError):
+    """Raised when a stored upload's BYTES contradict its filename — a
+    Word document named .pdf, a zip, a text file.
+
+    2026-09-23: a prospect's `balanta_de_verificare_07.2025.pdf` was a
+    .docx (PK header). Nothing in the PDF branch looked at the bytes, so
+    the positional ingester failed, the text-line reader failed, and the
+    document reached Claude — which answered "your credit balance is too
+    low". The user was told our billing was the problem when their file
+    had never been a PDF, and with an empty Anthropic balance every such
+    upload spends a request to learn what a four-byte header already says.
+
+    Surfacing as an exception lets the failure handler of
+    `_run_pipeline_stages` mark the document `status='failed'` with `error`
+    set to the message (and `_run_pipeline_sync` then RELEASES the run's
+    quota reservation — nothing counted, nothing billed), which the
+    upload panel renders verbatim — so the reason names the real file type
+    and the action that fixes it. Verbatim is only true because this
+    inherits `UserFacingUploadError`; without it the handler would prefix
+    the class name onto the sentence. See `_upload_type`.
+
+    Refuses only what reaches NO reader on the branch the file is on
+    (`_upload_type.refused_on`: `REACHES_NO_READER` everywhere, plus what
+    that branch's own readers cannot open). It must never refuse a
+    container a reader would have parsed: an Excel balance named .pdf is
+    read as the workbook it is, and PDF bytes are read by the .pdf
+    branch's readers under every name (`_upload_type.reads_as_pdf`). The
+    upload card's routes take the same verdict from the same module
+    (`_upload_type.upload_refusal`). The sentence is in the uploader's
+    language (`documents.detected_language`).
+    """
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -722,22 +781,13 @@ Begin."""
 
 
 def _classify_file(doc: Dict[str, Any]) -> str:
-    """Returns 'pdf' | 'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'."""
-    mime = (doc.get("mime_type") or "").lower()
-    name = (doc.get("original_filename") or "").lower()
-    if mime == "application/pdf" or name.endswith(".pdf"):
-        return "pdf"
-    if "spreadsheet" in mime or name.endswith(".xlsx") or name.endswith(".xls"):
-        return "xlsx"
-    if mime == "text/csv" or name.endswith(".csv"):
-        return "csv"
-    if mime == "image/jpeg" or name.endswith((".jpg", ".jpeg")):
-        return "image_jpeg"
-    if mime == "image/png" or name.endswith(".png"):
-        return "image_png"
-    if mime.startswith("text/") or name.endswith(".txt"):
-        return "text"
-    return "unknown"
+    """Returns 'pdf' | 'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'.
+
+    The branch the upload's NAME and MIME type claim. The rule itself lives
+    in `_upload_type.classify` — the one authority the upload routes read
+    too — so the pipeline and the upload card classify one way."""
+    from . import _upload_type as _ut
+    return _ut.classify(doc.get("original_filename"), doc.get("mime_type"))
 
 
 def _detect_spreadsheet_format(spreadsheet_bytes: bytes) -> str:
@@ -963,52 +1013,71 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
     exact seam where the jurisdiction resolver routes a document into
     the AI lane (jurisdiction != RO).
 
-    · USAGE_LIMITS_ENABLED off (prod today) → strictly inert: returns
-      before any plan/state read.
-    · Plan without non-RO entitlement (trial/intro/solo/pro) → raises
-      NonRoNotIncludedError whose message is the TYPED refusal JSON
-      ({"error": "non_ro_not_included", "upgrade_to": "multi", ...}).
-      The generic failure handler persists it into `documents.error`,
-      the generic release path frees the doc-slot reservation, and the
-      FE matches `non_ro_not_included` to render an upgrade prompt
-      instead of a failure card.
-    · multi → reserves the non-RO meter and stamps the documents row
-      (`nonro_doc`, `nonro_metered_extra`) so `_commit_pipeline_quota`
-      can commit/release the meter from the daemon thread.
+    · USAGE_LIMITS_ENABLED off → strictly inert: returns before any
+      plan/state read. (It is ON in production — measured 2026-09-10,
+      `_usage_gate.reserve_nonro_document`.)
+    · REFUSED → raises NonRoNotIncludedError whose message is a NEUTRAL
+      CODE and nothing else (`_usage_gate.stored_nonro_refusal`):
+          {"error": "non_ro_not_included"}    the plan does not include them
+          {"error": "nonro_quota_exhausted"}  the month's non-RO allowance is used
+          {"error": "metering_unavailable"}   the plan / meter could not be read
+      The generic failure handler persists it into `documents.error`
+      (`NonRoNotIncludedError: {"error": "<code>"}`), the generic release
+      path frees the doc-slot reservation, and each viewer's browser
+      renders the sentence from the code. NEVER `plan_key`, a plan's
+      name, `message` or `upgrade_to` (owner ruling 2026-10-02):
+      `documents.error` is a shared row — every member of the workspace
+      and every firm viewer reads it — and those fields published one
+      person's plan to their colleagues, from BOTH branches below.
+    · ALLOWED on a run that reserves → reserves the non-RO meter and
+      stamps the documents row (`nonro_doc`, `nonro_metered_extra`); the
+      meter is settled by `_commit_pipeline_quota` from the run's ledger
+      entry.
 
-    ONLY THE FIRST, METERED RUN RESERVES (2026-09-21, verifier P-E). The
-    non-RO meter is reserved — and so committed and billed — only when THIS
-    run holds a document-slot reservation in the ledger (a first analysis
-    through /run, a recovery, the firm landing), and under that verified
-    reserver. A run that holds none — /retry, the ai-lane force-reextract,
-    a period-move re-run — re-analyses a document already counted: the plan
-    still gates it (the typed refusal), but nothing is reserved or counted.
-    It used to reserve and register on every run: a retry of an analysed
-    non-RO document on Multi at the included cap moved nonro uploads 8→9 and
-    metered `extra_nonro` again.
+    WHOSE PLAN — two branches, and neither reads `documents.uploaded_by`
+    (a column the browser writes: any member can PATCH it to any user id,
+    or to NULL):
+
+    1. THE RUN HOLDS A DOCUMENT SLOT (a first analysis through /run, a
+       recovery, the firm landing): the verified RESERVER's own plan and
+       meter (`_doc_slot_holder` — the in-process ledger, never the row).
+       Only this run reserves the non-RO meter (verifier P-E, 2026-09-21):
+       it used to reserve on every run, and a retry of an analysed non-RO
+       document on Multi at the included cap moved nonro uploads 8→9 and
+       metered `extra_nonro` again.
+
+    2. THE RUN HOLDS NONE (/retry or a correction of a counted book, the
+       ai-lane force-reextract, /run of a counted book, an operator
+       script): it re-analyses a document already counted, so nothing is
+       reserved or counted — and the WORKSPACE's plan gates it
+       (`_usage_gate.workspace_nonro_refusal`): the plan of the owner of
+       `doc["org_id"]`. The caller's membership in that workspace is the
+       re-run route's own wall (`_verify_user_may_write_document`,
+       `_org.require_org_member`); this thread carries no caller. FAILS
+       CLOSED: a document with no `org_id`, or a workspace with no owner
+       row, is refused.
+
+       Until 2026-10-02 this branch read the subscription of whoever
+       `uploaded_by` named — a non-member's Multi plan entitled the run, a
+       colleague's Solo plan refused the Multi owner's own workspace, and
+       a NULL `uploaded_by` (the uploader's account deleted: `on delete
+       set null`) passed with no plan check at all.
     """
     from . import _usage_gate as _ug
     if not _ug.enforcement_enabled():
         return
     holder = _doc_slot_holder(str(doc.get("id") or ""))
     if holder is None:
-        user_id = doc.get("uploaded_by")
-        if not user_id:
+        code = _ug.workspace_nonro_refusal(doc.get("org_id"))
+        if code is None:
             return
-        refusal = _ug.nonro_entitlement_refusal(str(user_id))
-        if refusal is None:
-            return
-        payload = dict(refusal.refusal or {"error": "non_ro_not_included"})
-        payload["plan_key"] = refusal.plan_key
-        payload["message"] = refusal.message
-        raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
-    user_id = holder
-    decision = _ug.reserve_nonro_document(str(user_id))
+        raise _ug.NonRoNotIncludedError(_ug.stored_nonro_refusal(code))
+    decision = _ug.reserve_nonro_document(str(holder))
     if decision.kind in ("allowed", "disabled"):
         if decision.kind == "allowed":
             # Settled with THIS run by `_commit_pipeline_quota` (the ledger),
             # never from the row stamp a later re-run would still carry.
-            _register_nonro_reservation(str(doc.get("id")), user_id=str(user_id),
+            _register_nonro_reservation(str(doc.get("id")), user_id=str(holder),
                                         was_extra=bool(decision.was_extra))
             try:
                 with _supabase.admin() as ac:
@@ -1024,11 +1093,14 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
                     "commit will be skipped)", doc.get("id"),
                 )
         return
-    # refused (typed upgrade prompt) or blocked (monthly non-RO cap).
-    payload = dict(decision.refusal or {"error": "nonro_quota_exhausted"})
-    payload["plan_key"] = decision.plan_key
-    payload["message"] = decision.message
-    raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
+    # Refused (the reserver's plan does not include non-RO documents, or
+    # the meter could not be reached) or blocked (the monthly non-RO cap).
+    # The decision's `plan_key` and `message` are the RESERVER's own plan:
+    # they are never stored. `decision.refusal` is a dict or a bare string
+    # (`metering_unavailable`) — `nonro_refusal_code` reads both; a
+    # `dict(decision.refusal)` here stored a ValueError's text.
+    raise _ug.NonRoNotIncludedError(
+        _ug.stored_nonro_refusal(_ug.nonro_refusal_code(decision)))
 
 
 def _maybe_route_ai_lane(
@@ -1057,7 +1129,8 @@ def _maybe_route_ai_lane(
         return None
     # 2026-08 tiers — non-RO documents are a plan entitlement (multi
     # only). Inert when USAGE_LIMITS_ENABLED is off; raises the typed
-    # refusal (→ documents.error) when the plan doesn't include non-RO.
+    # refusal (→ documents.error, a neutral code) when the reserver's plan
+    # — or, on a re-run, the WORKSPACE's — doesn't include non-RO.
     _enforce_nonro_plan_gate(doc)
     logger.info(
         "[stage_extract] AI lane engaged: jurisdiction=%s source=%s "
@@ -1177,9 +1250,41 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
       - JPG/PNG  → image content block
       - Plain text → text content block
     Anything else falls back to text after best-effort UTF-8 decoding.
+
+    READ BY REAL TYPE (2026-10-02). The name picks the branch, the BYTES
+    pick the readers: PDF bytes found on any other branch re-enter the
+    .pdf branch of the one body below (`_stage_extract_by_real_type`), so
+    they are read by the very same code a .pdf name runs — the strict
+    text-line balanta reader with its final refusal, the positional reader
+    under the .pdf acceptance gate, the PDF model lane — and yield the
+    same extraction or the same refusal. The mirror holds too: WORKBOOK
+    bytes found on the .pdf branch re-enter the spreadsheet branch, so a
+    workbook named .pdf is read by the code an .xlsx name runs — the
+    statutory F30/F10 detector, the trial-balance reader, the workbook
+    rendered as text for the model — to the same extraction or the same
+    failure. Not a second copy of either branch: the same statements.
     """
+    return _stage_extract_by_real_type(doc, None)
+
+
+def _stage_extract_by_real_type(
+    doc: Dict[str, Any], _pdf_bytes_in_hand: Optional[bytes],
+    _workbook_bytes_in_hand: Optional[bytes] = None,
+) -> Dict[str, Any]:
+    """`stage_extract`'s body. `_pdf_bytes_in_hand` and
+    `_workbook_bytes_in_hand` are set only by this function's own re-entry
+    (PDF bytes found on a non-.pdf branch; workbook bytes found on the .pdf
+    branch) — each selects the branch the BYTES belong to and hands it the
+    stored file already read. At most one is set, and a re-entry never
+    re-enters: PDF bytes are not a workbook and a workbook is not PDF bytes
+    (`_upload_type.reads_as_pdf` / `reads_as_workbook`)."""
     storage_path: str = doc["storage_path"]
-    kind = _classify_file(doc)
+    if _workbook_bytes_in_hand is not None:
+        kind = "xlsx"
+    elif _pdf_bytes_in_hand is not None:
+        kind = "pdf"
+    else:
+        kind = _classify_file(doc)
 
     # PDF still uses the existing parser (it has the canonical RO trial-balance
     # rubric in its system prompt — re-using avoids drift between two prompts).
@@ -1195,14 +1300,19 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # Detection runs locally on extracted text — zero Claude tokens
         # spent on the wrong format.
         try:
-            with _supabase.admin() as admin_client:
-                signed_for_text = admin_client.signed_url(
-                    "documents", storage_path,
-                    org_id=doc.get("org_id"), expires_in=300)
-            with httpx.Client(timeout=30.0) as http:
-                _r = http.get(signed_for_text)
-                _r.raise_for_status()
-                _pdf_bytes = _r.content
+            if _pdf_bytes_in_hand is not None:
+                # PDF bytes that arrived under another name: the branch that
+                # found them already holds the stored file.
+                _pdf_bytes = _pdf_bytes_in_hand
+            else:
+                with _supabase.admin() as admin_client:
+                    signed_for_text = admin_client.signed_url(
+                        "documents", storage_path,
+                        org_id=doc.get("org_id"), expires_in=300)
+                with httpx.Client(timeout=30.0) as http:
+                    _r = http.get(signed_for_text)
+                    _r.raise_for_status()
+                    _pdf_bytes = _r.content
             try:
                 from pypdf import PdfReader  # type: ignore
             except ImportError:
@@ -1306,6 +1416,100 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 f"confidence={_pr_unparseable['confidence']:.2f}, "
                 f"years_found={_pr_unparseable['years_found']}]"
             )
+
+        # ── The bytes must actually BE a PDF ────────────────────────
+        # Placed before the AI lane, both deterministic readers and the
+        # Claude fall-through, because all four are incapable of reading a
+        # file that is not a PDF and only the last one COSTS anything to
+        # find out. A .docx renamed .pdf used to travel the whole path and
+        # come back as "Claude extraction failed: your credit balance is
+        # too low" — our billing blamed for the user's extension.
+        #
+        # REFUSES ONLY WHAT NO READER CAN OPEN UNDER A .pdf NAME, which is a
+        # narrower set than "not a PDF". An .xlsx or legacy .xls balance
+        # stored under a .pdf name is READ — deterministically, anchored
+        # and free (measured: corpus/saga_10_col_carniprod as `balanta.pdf`
+        # yields 367 accounts, account-121 anchor 1,435,533.59) — by the
+        # spreadsheet branch, which this function re-enters with the bytes
+        # just below the guard (`reads_as_workbook`). Refusing those would
+        # delete a working upload and say "no reader can open it" while a
+        # reader does. What is refused is decided
+        # by `_upload_type.refused_on("pdf", …)` — the Office formats
+        # (the incident, legacy .doc / .ppt included), an empty file, a
+        # zip with no Open XML manifest (openpyxl needs one), and text or
+        # unnameable bytes that carry no `%PDF-` anywhere — the one policy
+        # both guard sites read.
+        #
+        # The bytes are normally the ones downloaded above. When THAT
+        # download failed the guard used to be skipped — while the Claude
+        # lane further down fetches its own copy and pays, so one flaky
+        # storage read reproduced the whole incident. Fetch once here
+        # rather than let that happen.
+        try:
+            _pdf_bytes_for_sniff: Optional[bytes] = _pdf_bytes
+        except NameError:
+            _pdf_bytes_for_sniff = None
+        if _pdf_bytes_for_sniff is None:
+            try:
+                with _supabase.admin() as _sniff_admin:
+                    _sniff_url = _sniff_admin.signed_url(
+                        "documents", storage_path,
+                        org_id=doc.get("org_id"), expires_in=300)
+                with httpx.Client(timeout=30.0) as _sniff_http:
+                    _sniff_resp = _sniff_http.get(_sniff_url)
+                    _sniff_resp.raise_for_status()
+                    _pdf_bytes_for_sniff = _sniff_resp.content
+            except Exception:  # noqa: BLE001 — cannot sniff, log and go on
+                logger.info(
+                    "[stage_extract] could not fetch %r for the type check "
+                    "— the branches below run unguarded, as before",
+                    doc.get("original_filename") or "(no filename)",
+                )
+                _pdf_bytes_for_sniff = None
+        if _pdf_bytes_for_sniff is not None:
+            from . import _upload_type as _ut
+            _real = _ut.sniff_container(_pdf_bytes_for_sniff)
+            if _ut.refused_on("pdf", _real, _pdf_bytes_for_sniff):
+                logger.info(
+                    "[stage_extract] %r is named .pdf but its bytes are %s "
+                    "— refusing before any reader or model call",
+                    doc.get("original_filename") or "(no filename)", _real,
+                )
+                # In the uploader's language: /api/pipeline/run writes the
+                # UI language into detected_language before the run.
+                raise UploadedFileTypeMismatchError(
+                    _ut.mismatch_message(
+                        _ut.claimed_extension(doc.get("original_filename"), "pdf"),
+                        _real,
+                        filename=doc.get("original_filename") or None,
+                        language=doc.get("detected_language"),
+                    )
+                )
+            # ── A workbook is read as a workbook, whatever it is named ──
+            # The guard above lets workbook bytes through, because a
+            # workbook named .pdf IS read (the upload card's routes answer
+            # so too — one policy). It is read by the SPREADSHEET branch:
+            # this function re-enters it with the bytes, so the outcome is
+            # the one the same bytes get under their own .xlsx / .xls name.
+            #
+            # WHY (review 2026-10-02, round 3). This branch used to hand a
+            # workbook to its positional reader under the .pdf acceptance
+            # gate ("account 121 or ≥ 50 accounts") and refuse whatever
+            # that declined, late, as "named .pdf but its contents are an
+            # Excel workbook". So a small balanced balance (20 accounts, no
+            # 121) and a statutory F30/F10 return — both READ under their
+            # own names — were refused under a .pdf name, after the card
+            # had said the file is read and the object, the row and the
+            # reservation existed. The statutory detector and the
+            # spreadsheet branch's acceptance lived there only. They still
+            # do: these bytes now GO there.
+            if _ut.reads_as_workbook("pdf", _real):
+                logger.info(
+                    "[stage_extract] %r is named .pdf but its bytes are a "
+                    "workbook (%s) — reading it on the spreadsheet branch",
+                    doc.get("original_filename") or "(no filename)", _real,
+                )
+                return _stage_extract_by_real_type(doc, None, _pdf_bytes_for_sniff)
 
         # ── AI-lane jurisdiction gate (PDF) ─────────────────────────
         # Resolver BEFORE lane selection. Uses the bytes already
@@ -1499,6 +1703,17 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 type(e).__name__,
             )
 
+        # ── The Claude PDF lane reads PDFs only ─────────────────────
+        # What gets this far IS PDF bytes: the type guard above refused
+        # everything no reader on this branch opens, and a workbook left
+        # for the spreadsheet branch (`reads_as_workbook`) before either
+        # reader here ran — so nothing that is not a PDF is ever sent to
+        # Anthropic as `application/pdf` (the 2026-09-23 incident's lane;
+        # until 2026-10-02 a workbook the positional reader declined was
+        # stopped HERE, late, with a refusal the upload card could not
+        # know). The one exception is the guard's own: when the stored
+        # file could not be fetched for the type check, the branches run
+        # unguarded, as before.
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url(
                 "documents", storage_path,
@@ -1523,21 +1738,109 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         return _stamp_llm_extraction(out)
 
     # Everything else: download bytes, build a Claude message, parse the JSON.
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not configured.")
+    if _workbook_bytes_in_hand is not None:
+        # Workbook bytes that arrived under a .pdf name: the .pdf branch
+        # that found them already holds the stored file.
+        file_bytes = _workbook_bytes_in_hand
+    else:
+        with _supabase.admin() as admin_client:
+            signed = admin_client.signed_url(
+                "documents", storage_path,
+                org_id=doc.get("org_id"), expires_in=300)
+        with httpx.Client(timeout=30.0) as http:
+            r = http.get(signed)
+            r.raise_for_status()
+            file_bytes = r.content
 
-    with _supabase.admin() as admin_client:
-        signed = admin_client.signed_url(
-            "documents", storage_path,
-            org_id=doc.get("org_id"), expires_in=300)
-    with httpx.Client(timeout=30.0) as http:
-        r = http.get(signed)
-        r.raise_for_status()
-        file_bytes = r.content
+    # ── PDF bytes are read as a PDF, whatever the file is named ─────
+    # Before anything on this branch reads them — and before this branch's
+    # own preconditions (the model key, the size ceiling), which the .pdf
+    # branch does not have: the read must be the one the same bytes get
+    # under a .pdf name, to the byte, or the same refusal.
+    #
+    # WHY (review 2026-10-02, HIGH). The spreadsheet fast-path below hands
+    # `%PDF` bytes to the positional ingester and accepts on "any rows".
+    # A five-pair balanta PDF named .xls was served with ONE account
+    # (account 121), MATERIAL_IMBALANCE; the credit-first variant with its
+    # net profit sign-flipped (a profit served as a loss); the off-by-a-cent
+    # one partially — all three books the .pdf branch reads whole or
+    # refuses for good (`BalantaPdfRefusedError`). The strict text-line
+    # reader and the "anchor or ≥ 50 accounts" gate lived on the .pdf
+    # branch only. They still do: these bytes now GO there.
+    from . import _upload_type as _ut
+    _real_kind = _ut.sniff_container(file_bytes)
+    if _ut.reads_as_pdf(kind, _real_kind, file_bytes):
+        logger.info(
+            "[stage_extract] %r is classified as %s but its bytes are a PDF "
+            "— reading it on the .pdf branch",
+            doc.get("original_filename") or "(no filename)", kind,
+        )
+        return _stage_extract_by_real_type(doc, file_bytes)
 
     if len(file_bytes) > 25 * 1024 * 1024:
         raise RuntimeError(f"File too large ({len(file_bytes)/1_000_000:.1f} MB) — 25 MB ceiling.")
+
+    # ── An upload that no reader on its path can open ───────────────
+    # The same fault as the .pdf branch above, for every other kind:
+    # `_detect_spreadsheet_format` calls EVERY `PK\x03\x04` file "xlsx",
+    # so a Word document named .xlsx goes to openpyxl, raises, and lands
+    # in the Claude fallback — which on an empty Anthropic balance tells
+    # the user their credit is too low about a file no reader could open.
+    #
+    # COVERS EVERY KIND, not just spreadsheets, because a .docx uploaded
+    # under its OWN name is classified `unknown` and reaches the same
+    # paid call — that is the 2026-09-23 incident file in its natural
+    # form, and guarding only the renamed case would have left it.
+    #
+    # THE REFUSAL SET IS PER-BRANCH, and derived from what that branch's
+    # readers actually accept rather than from the extension — one policy,
+    # `_upload_type.refused_on`, read by both guard sites:
+    #   · Office documents (Word / PowerPoint / OpenDocument, legacy .doc
+    #     and .ppt included), a binary .xlsb and an empty file reach no
+    #     reader anywhere — always refused.
+    #   · PDF bytes never reach this guard: they were sent to the .pdf
+    #     branch above (`reads_as_pdf`), under every name.
+    #   · The xlsx branch reads workbooks — any Open XML zip through
+    #     openpyxl, OLE2 through xlrd — and nothing else: a zip with no
+    #     Open XML manifest, text (a CSV or an HTML export named .xls) and
+    #     unnameable bytes reach no reader there (measured 2026-10-02:
+    #     `parse_trial_balance` and `_xlsx_to_text` both raise, and the
+    #     person was told, in English and under a "RuntimeError:" prefix,
+    #     to "Save As → Excel Workbook" a CSV). They are refused by name,
+    #     with the fix — "rename it to .csv".
+    #   · The csv / text / image / unknown branches read text (or an
+    #     image) only, so a workbook, a legacy Office file or any archive
+    #     is refused there — measured before this: an Excel balance named
+    #     balanta.csv went to the model as 172,681 characters of zip
+    #     bytes. The image branch refuses text too.
+    # Text and unnameable bytes keep today's behaviour on the text
+    # branches (a UTF-16 CSV sniffs "unknown"; every real PNG or JPEG
+    # does too), because those can still succeed downstream and a
+    # refusal here would take away an upload that works. This path
+    # carries every trial balance in production; it is not the place to
+    # guess.
+    if _ut.refused_on(kind, _real_kind, file_bytes):
+        logger.info(
+            "[stage_extract] %r classified as %s but its bytes are %s "
+            "— refusing before any reader or model call",
+            doc.get("original_filename") or "(no filename)", kind, _real_kind,
+        )
+        raise UploadedFileTypeMismatchError(
+            _ut.mismatch_message(
+                _ut.claimed_extension(doc.get("original_filename"), kind),
+                _real_kind,
+                filename=doc.get("original_filename") or None,
+                language=doc.get("detected_language"),
+            )
+        )
+
+    # The model key is this branch's precondition — checked AFTER the type
+    # guard, so a file no reader opens is told what it is, not that a key
+    # is missing, and after the PDF re-entry, whose deterministic readers
+    # need no key (as under a .pdf name).
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY not configured.")
 
     # ── AI-lane jurisdiction gate (xlsx/csv/text/image) ──────────────
     # Resolver BEFORE lane selection: HU/OTHER documents route to the
@@ -2217,6 +2520,41 @@ SUPERSEDED_MARKER_PREFIX = "superseded_by:"
 _TAKEOVERS_BY_RUN: Dict[str, Dict[str, Any]] = {}
 _TAKEOVERS_LOCK = threading.Lock()
 
+# ONE TAKEOVER OF A COMPANY'S MONTHS AT A TIME, IN THIS PROCESS.
+#
+# A takeover is a sequence of statements, not a transaction, and every run is
+# its own daemon thread (`_enqueue`). Two of them on one month — a Docs-panel
+# re-run's apply and a newer upload's takeover — interleaved (review
+# 2026-10-05, measured with the newer upload's whole run landing at one
+# statement boundary of the re-run's apply): the month's row named the NEW
+# file over the OLD file's statements, briefing and recommendations, the old
+# document archived with its superseded marker erased, and nothing left to
+# resume or to say so. Ownership was looked at once, before the apply.
+#
+# So the whole of a takeover — its last ownership look (T0) included — and
+# the whole of a resume or a drop of a staged row run under the company's
+# lock: of two writers, the second waits and then finds the store as the
+# first left it (the upload takes over a month that is whole; the re-run's T0
+# finds the month no longer its document's and refuses, the month untouched).
+# Re-entrant: a takeover's own steps call nothing that takes it again, but a
+# cleanup that runs inside a locked section must not deadlock on itself.
+#
+# IN PROCESS ONLY, like the claim registry (`_doc_dedupe._IN_FLIGHT`): the
+# engine is one process. Two processes still need the takeover to be ONE
+# transaction — a database function, an ADDING migration (ticket).
+_TAKEOVER_SERIAL: Dict[str, Any] = {}
+_TAKEOVER_SERIAL_GUARD = threading.Lock()
+
+
+def _takeover_lock(org_id: Any) -> Any:
+    """The lock every takeover, resume and drop of `org_id`'s months holds."""
+    key = str(org_id or "")
+    with _TAKEOVER_SERIAL_GUARD:
+        lock = _TAKEOVER_SERIAL.get(key)
+        if lock is None:
+            lock = _TAKEOVER_SERIAL[key] = threading.RLock()
+        return lock
+
 
 class PlainRefusal(RuntimeError):
     """A run refused for a reason the user reads as a sentence: the
@@ -2228,15 +2566,25 @@ class SameMonthTakeoverRefused(PlainRefusal):
     """The file's own CUI is not the company's — its month is not replaced."""
 
 
+class StagedPeriodGone(PlainRefusal):
+    """The period a same-month re-upload was staged under was deleted while
+    the run was going — there is nothing to replace the month with, and the
+    month is not touched."""
+
+
 def superseded_marker(replacing_document_id: str) -> str:
     return "%s%s" % (SUPERSEDED_MARKER_PREFIX, replacing_document_id)
 
 
 def _record_takeover(document_id: Any, *, staged: str, served: str,
-                     superseded_document: Optional[str]) -> None:
+                     superseded_document: Optional[str], rerun: bool = False) -> None:
+    """`rerun`: the staged row is a Docs-panel re-run's, beside the
+    document's OWN month (`stage_persist`, staged mode) — the takeover then
+    replaces that row's analysis in place and archives nobody."""
     with _TAKEOVERS_LOCK:
         _TAKEOVERS_BY_RUN[str(document_id)] = {"staged": str(staged), "served": str(served),
-                                               "superseded_document": superseded_document}
+                                               "superseded_document": superseded_document,
+                                               "rerun": bool(rerun)}
 
 
 def _pop_takeover(document_id: Any) -> Optional[Dict[str, Any]]:
@@ -2262,7 +2610,14 @@ def _company_cui_of_org(admin_client: Any, org_id: Any) -> Optional[str]:
 def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
     """The CUI the document's OWN header states (`company_identity`, no
     registry), or None when it states none or its bytes cannot be read.
-    Absent evidence never refuses anything."""
+    Absent evidence never refuses anything.
+
+    The identifier is given the document's name AND its declared MIME type
+    (`mime_type`) — what `_classify_file` picks this run's branch from — so
+    it reads the bytes on the branch `stage_extract` read them on. With the
+    name alone, a PDF stored as `balanta` / application/pdf was analysed by
+    the pipeline and had no CUI here: another company's book replaced a
+    served month (review round 4, 2026-10-02)."""
     try:
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url("documents", doc["storage_path"],
@@ -2272,7 +2627,8 @@ def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
             r.raise_for_status()
             content = r.content
         from engine.workspaces.company_identity import identify_document
-        identity = identify_document(content, str(doc.get("original_filename") or ""), registry=None)
+        identity = identify_document(content, str(doc.get("original_filename") or ""), registry=None,
+                                     mime=doc.get("mime_type"))
         digits = "".join(ch for ch in str(identity.cui or "") if ch.isdigit())
         return digits or None
     except Exception:  # noqa: BLE001
@@ -2291,7 +2647,7 @@ def _served_document_cui(admin_client: Any, served_row: Dict[str, Any], org_id: 
         rows = admin_client.select(
             "documents",
             filters={"id": f"eq.{source_id}", "org_id": f"eq.{org_id}"},
-            columns="id,org_id,storage_path,original_filename",
+            columns="id,org_id,storage_path,original_filename,mime_type",
             limit=1,
         ) or []
     except Exception:  # noqa: BLE001 — unreadable is "cannot prove", not a failure
@@ -2328,7 +2684,10 @@ def _refuse_cross_company_takeover(admin_client: Any, doc: Dict[str, Any], perio
     )
 
 
-def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
+def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str, *,
+                                  narration_unavailable: Optional[str] = None,
+                                  keep_recommendations: bool = False,
+                                  keep_alerts: bool = False) -> str:
     """The run has SUCCEEDED: if it was staged beside an existing month,
     make it that month. Returns the period id the document is pinned to —
     the served row after a takeover, `period_id` itself otherwise.
@@ -2336,26 +2695,133 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
     Order, so that a crash between two steps leaves a state a reader can
     tell apart (the provenance stamp names the document an envelope was
     built from) and never an empty month:
-      1. the run's rows move from the staged row onto the served row;
+      1. the run's rows move from the staged row onto the served row —
+         EXCEPT what a failed narration would cost the month (owner rulings
+         2026-10-02 and 2026-10-03: "A takeover must not delete anything
+         that was good"). The staged run narrated nothing usable when its
+         briefing row holds a failure text OR when it left NO briefing row
+         at all (its narrative write raised — the orchestrator logs that as
+         non-fatal — or the lane never narrates). Then:
+           · the month's usable briefing is KEPT and marked stale
+             (`narration_unavailable` is the run's own code, when the
+             caller has it) — an absent staged row is not a replacement;
+           · the month's recommendations are KEPT with it, whatever the
+             month's briefing row holds — a failed narration brings none;
+           · whatever the staged run left in those two tables is deleted
+             explicitly, the tenant in the filter, so nothing is left under
+             the staged id — EXCEPT recommendations under the staged id when
+             the month holds none: there is nothing of the month's to keep,
+             and they move onto it.
+         `keep_recommendations`: the caller knows the run stored no
+         recommendations to replace the month's with — the narration was
+         usable but its `recommendations` could not be read
+         (`_recommendation_rows`), or the narrative write raised before
+         they were stored. The month's are kept; a usable staged briefing
+         still moves.
+         `keep_alerts`: the run's alerts were not written (the write
+         raised). The month's alerts are kept rather than replaced by
+         none — an empty alert list would read as "nothing to flag".
+         THE STAGED-ONLY WORK COMES FIRST: what is deleted under the
+         staged id is deleted before the first statement that touches the
+         served month, so a failure there leaves the month untouched;
       2. the served row takes the staged row's columns (envelope, currency,
          confidence, detection) — its identity columns untouched;
       3. the staged row gives up the (org, month, document) tuple, the
          served row takes it, the staged row goes;
       4. the document is pinned to the served row; the superseded document
          is archived with a marker naming its replacement — bytes and row
-         kept, restorable."""
+         kept, restorable.
+
+    A DOCS-PANEL RE-RUN (the record says `rerun`) is staged beside the
+    document's OWN month. The same keep decisions and the same staged-only
+    deletes come first; then:
+      T0  the month must still be this document's own (`RerunOvertaken`
+          otherwise — never "the staged row stands": a staged row names no
+          source and is nobody's month), and a re-run that filed the document
+          under another month must find that month free (`RerunMonthTaken`);
+      T2  THE COMMIT POINT: the staged row's marker gets `takeover_began_at`
+          (with the reason the kept briefing is stale, the tables the run
+          stored nothing in and the tables the month keeps), then the
+          document's row says the replacement was interrupted. From here a
+          dead process is RESUMED, never dropped; before it, nothing of the
+          month has been touched;
+      T3–T6  ONE APPLIER, for the live takeover and for the resume alike
+          (`_apply_committed_staged_rerun`, from what the store holds): the
+          guarded table loop; the re-keys (a recommendation's target, an
+          alert's key); the month's row takes the staged row's columns
+          WITHOUT the marker — and the month itself when the re-run re-filed
+          the document and that month is still free — only while the row is
+          still this document's; the document: pinned to its month,
+          analysed, the interrupted marker cleared; and the staged row LAST,
+          so a death before it is resumed and a death after it leaves
+          nothing false.
+
+    EVERY TAKEOVER RUNS UNDER THE COMPANY'S LOCK (`_takeover_lock`), its
+    checks included: two runs of one process never interleave on a month."""
     record = _pop_takeover(doc.get("id"))
     if not record or record.get("staged") != str(period_id):
         return period_id
     staged, served = record["staged"], record["served"]
     org_id = doc.get("org_id")
     superseded = record.get("superseded_document")
-    with _supabase.admin() as admin_client:
-        served_rows = admin_client.select(
-            "financial_periods",
-            filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
-            columns="id,source_document_id", limit=1,
-        ) or []
+    rerun = bool(record.get("rerun"))
+    staged_row: Dict[str, Any] = {}
+    served_row: Dict[str, Any] = {}
+    # One takeover of the company's months at a time (`_takeover_lock`): the
+    # checks below and the writes after them are one section.
+    with _takeover_lock(org_id), _supabase.admin() as admin_client:
+        # THE STAGED ROW MUST STILL BE THERE. A delete of it during the run
+        # (DELETE /api/period, a purge) left nothing to move — and the steps
+        # below would still have deleted the month's rows, archived its
+        # document and re-pointed the row: an EMPTY month, reported analysed.
+        # The month is not touched; the run fails and says so. Checked
+        # BEFORE "the month's row is gone": with both rows gone the run
+        # would otherwise be reported analysed, pinned to a period that
+        # does not exist.
+        # (A re-run's staged row is read WHOLE, once: its columns are what
+        # the commit point re-writes and what the month's row takes.)
+        if rerun:
+            staged_present = admin_client.select(
+                "financial_periods",
+                filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"},
+                limit=1,
+            ) or []
+        else:
+            staged_present = admin_client.select(
+                "financial_periods",
+                filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"},
+                columns="id", limit=1,
+            ) or []
+        if not staged_present:
+            raise StagedPeriodGone(
+                "The period this run was staged under no longer exists — the month "
+                "was not replaced; the analysis already there is unchanged.")
+        if rerun:
+            # T0. THE MONTH IS STILL THIS DOCUMENT'S OWN — the ownership look
+            # of the route and of the mint, made a last time before anything
+            # of the month is written. A newer upload that took the month
+            # over, a period its user cleared, a document deleted for good:
+            # the re-run is overtaken and the month is not touched.
+            staged_row = staged_present[0]
+            try:
+                own = _own_periods_for_rerun(admin_client, doc.get("id"), org_id)
+            except RerunRefused:
+                raise RerunOvertaken()
+            own = [o for o in own if str(o.get("id")) == str(served)]
+            if not own:
+                raise RerunOvertaken()
+            served_row = own[0]
+            if (str(staged_row.get("period_end") or "")[:10] != str(served_row.get("period_end") or "")[:10]
+                    and _month_is_another_rows(admin_client, str(org_id), staged_row.get("period_end"), served)):
+                raise RerunMonthTaken()
+        if rerun:
+            served_rows = [served_row]
+        else:
+            served_rows = admin_client.select(
+                "financial_periods",
+                filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+                columns="id,source_document_id", limit=1,
+            ) or []
         if not served_rows:
             # The month's row went away during the run (a delete, a move):
             # the staged row is simply the month's row now.
@@ -2363,9 +2829,132 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
                         doc.get("id"), served, staged)
             return period_id
         # 1. the run's rows
+        staged_briefing = _stored_briefing_row(admin_client, staged, org_id)
+        served_briefing_row = _stored_briefing_row(admin_client, served, org_id)
+        # No staged row is the least usable briefing there is: the keep
+        # decision must never require one to exist (it did — and a staged
+        # run whose narrative write raised cost the month its briefing).
+        # A run whose narration FAILED — or whose usable narration could not
+        # be stored — brought no briefing either, whatever row sits under the
+        # staged id (a write whose reply was lost can have landed).
+        staged_narration_unusable = (narration_unavailable is not None
+                                     or not _is_usable_stored_briefing(staged_briefing))
+        keep_served_briefing = (staged_narration_unusable
+                                and _is_usable_stored_briefing(served_briefing_row))
+        # Nothing usable to put in its place — or nothing at all: the
+        # month's briefing row stays where it is.
+        briefing_row_stays = keep_served_briefing or staged_briefing is None
+        # A failed narration brings no recommendations; neither does a run
+        # the caller says stored none that may replace the month's. The
+        # month's are kept — WHEN IT HOLDS ANY. A month that holds none has
+        # nothing to keep, and what sits under the staged id is then not
+        # deleted but moved: deleting it "because the month keeps its own"
+        # left the month with none (review 2026-10-04, measured).
+        month_holds_recommendations = bool(admin_client.select(
+            "recommendations",
+            filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+            columns="id", limit=1,
+        ))
+        recommendations_stay = ((staged_narration_unusable or keep_recommendations)
+                                and month_holds_recommendations)
+        alerts_stay = bool(keep_alerts)
+        # The month keeps its own rows in these cases. Whatever the staged
+        # run left goes with the staged id — explicitly, the tenant in the
+        # filter (the deletes run under the service role; the table names
+        # are literals so the tenant censuses read them) — and FIRST: these
+        # touch nothing of the month, so a failure here leaves it whole.
+        stays = set()
+        if briefing_row_stays:
+            stays.add("briefings")
+            admin_client.delete(
+                "briefings",
+                filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+        if recommendations_stay:
+            stays.add("recommendations")
+            admin_client.delete(
+                "recommendations",
+                filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+        if alerts_stay:
+            stays.add("alerts")
+            admin_client.delete(
+                "alerts",
+                filters={"period_id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+        #: Why the month's kept briefing is stale — the run's own code, when
+        #: the caller has it.
+        _reason = ((narration_unavailable
+                    or stored_briefing_failure_code((staged_briefing or {}).get("body"))
+                    or "provider_error") if keep_served_briefing else None)
+        if rerun:
+            # T2. THE COMMIT POINT — after every staged-only delete, before
+            # the first statement that touches the month. Both writes raise
+            # on failure: the month is then untouched and the staged row
+            # (uncommitted, or committed with nothing applied) is cleaned up
+            # by the failure handler.
+            emptied = [t for t in TAKEOVER_TABLES if t not in stays and not admin_client.select(
+                t, filters={"period_id": f"eq.{staged}"}, columns="period_id", limit=1)]
+            envelope = staged_row.get("assembled_canonical_v1")
+            envelope = dict(envelope) if isinstance(envelope, dict) else {}
+            marker = dict(envelope.get(_staged_rerun.MARKER_KEY) or {
+                "document_id": str(doc.get("id")), "served_period_id": str(served),
+                "staged_at": _now_iso()})
+            marker.update({"takeover_began_at": _now_iso(),
+                           "keep_briefing_reason": str(_reason) if _reason else None,
+                           "emptied": emptied,
+                           # What the month KEEPS: the applier never reads,
+                           # deletes, moves or re-keys a row of these tables.
+                           "kept": [t for t in TAKEOVER_TABLES if t in stays]})
+            envelope[_staged_rerun.MARKER_KEY] = marker
+            admin_client.update(
+                "financial_periods", {"assembled_canonical_v1": envelope},
+                filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+            admin_client.update(
+                "documents", {"error": RERUN_FAILED_PREFIX + RERUN_INTERRUPTED},
+                filters={"id": f"eq.{doc.get('id')}", "org_id": f"eq.{org_id}"})
+            if keep_served_briefing:
+                logger.warning("[stage_persist] %s: the staged re-run's narration is unavailable "
+                               "(%s) — the briefing and recommendations of period %s are kept; "
+                               "briefing marked stale", doc.get("id"), _reason, served)
+            # T3–T6. FROM THE COMMIT POINT ON THERE IS ONE APPLIER — the one
+            # that completes a takeover a dead process left
+            # (`_apply_committed_staged_rerun`). It works from what the STORE
+            # holds (the committed marker, the rows still under the staged
+            # id), never from what this function remembers, so the live path
+            # and the resume cannot drift apart: the same guarded table loop,
+            # the same re-keys, the same last look at whose the month is
+            # before its row takes the run's columns, and the same rule for
+            # what may be cleared on the document's row. (They had drifted:
+            # this path cleared ANY error on the document, a superseded
+            # marker included; the resume re-dated a row onto a month that
+            # had become another document's.)
+            if _apply_committed_staged_rerun(admin_client, str(org_id), staged) != "resumed":
+                # The month stopped being this document's between T0 and the
+                # apply — only a second PROCESS can do that (this one holds
+                # the company's takeover lock). Nothing more is written.
+                raise RerunOvertaken()
+            logger.info("[stage_persist] %s: the re-run replaced the analysis of its own period %s "
+                        "(staged %s)", doc.get("id"), served, staged)
+            return served
         for table in TAKEOVER_TABLES:
+            if table in stays:
+                continue
             admin_client.delete(table, filters={"period_id": f"eq.{served}"})
             admin_client.update(table, {"period_id": served}, filters={"period_id": f"eq.{staged}"})
+        if "recommendations" not in stays:
+            # A recommendation about the period points at the period it is
+            # on now — the staged id it named no longer exists after step 3.
+            admin_client.update(
+                "recommendations", {"target_id": served},
+                filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}",
+                         "target_id": f"eq.{staged}"})
+        if keep_served_briefing:
+            logger.warning("[stage_persist] %s: the staged run's narration is unavailable (%s) — "
+                           "the month's briefing and recommendations on period %s are kept; "
+                           "briefing marked stale",
+                           doc.get("id"), _reason, served)
+            _mark_briefing_stale(admin_client, served_briefing_row, served, org_id, str(_reason))
+        # The period keeps its id and its statements have just been replaced:
+        # the benchmark report cached for it compares the previous file's.
+        _bust_benchmark_cache_of(admin_client, served, org_id)
         # 2. the row's own columns
         staged_rows = admin_client.select("financial_periods", filters={"id": f"eq.{staged}"}, limit=1) or []
         patch = dict((k, v) for k, v in (staged_rows[0] if staged_rows else {}).items()
@@ -2394,11 +2983,939 @@ def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
     return served
 
 
-def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
+# ── A re-run acts only on a period that is THIS document's ──────────────
+#
+# THE DEFECT THIS ENDS (hand-over 2026-10-04, measured on the real routes):
+# POST /api/pipeline/retry reset "the period the document is pinned to" —
+# `documents.period_id`, a column the BROWSER writes and that nothing keeps
+# in step with `financial_periods.source_document_id`, the pointer the engine
+# writes. A document superseded for its month by a newer upload stays pinned
+# to that month's row (archived); restored from the shelf and re-run, its
+# reset deleted the NEWER document's period, what it carried across was the
+# newer document's briefing and recommendations, and the month came back as
+# the OLDER file's statements under them. A pin the company filter rejected (or
+# no pin at all) matched nothing, and the run then found the document's real
+# period by its own tuple and ran IN PLACE — the withdrawn design's path.
+#
+# THE RULE. Before anything is staged, replaced or written, the period is
+# read by id AND company AND source: it is the document's own, or the re-run
+# is refused with a neutral code — never a period id, never a sign of
+# whether another company's row exists. The engine-written pointer is the
+# truth; the pin only says where to look.
+
+#: The pinned period is another document's of the SAME company: a newer
+#: upload (or a Workspace merge) made this file an attachment of its month.
+RERUN_REFUSED_SUPERSEDED = "document_superseded"
+#: ONE answer on purpose for "that period is not your company's", "that
+#: period does not exist" and "that period is not provably this file's" —
+#: the refusal must not tell them apart.
+RERUN_REFUSED_NOT_OWN = "rerun_period_not_own"
+
+#: What the ownership look reads of a period before it decides — the full
+#: row (its envelope) is fetched only for a period that names no source.
+_RERUN_OWNERSHIP_COLUMNS = "id,org_id,period_end,source_document_id"
+
+
+class RerunRefused(Exception):
+    """A re-run that must not start: the period whose analysis it would
+    replace is not this document's. `code` is all the caller is ever told."""
+
+    def __init__(self, code: str) -> None:
+        super(RerunRefused, self).__init__(code)
+        self.code = code
+
+
+def _own_periods_for_rerun(admin_client: Any, document_id: Any, org_id: Any) -> List[Dict[str, Any]]:
+    """The period(s) whose analysis a re-run of `document_id` may replace —
+    its OWN, newest first; []
+    when the document holds none (a failed first run, a sales document).
+    Raises `RerunRefused` when the period it is pinned to is not its own.
+
+    Every read names the company (under the service role the filter IS the
+    access control) and every row's own `org_id` is re-checked. The pin is
+    read FRESH from the store — never taken from the row the write wall
+    returned, which was read before the claim. A read that raises
+    propagates: the caller answers 503 and starts nothing blind."""
+    document_id = str(document_id or "").strip()
+    org_id = str(org_id or "").strip()
+    if not document_id or not org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    documents = admin_client.select(
+        "documents",
+        filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"},
+        columns="id,org_id,period_id,status,scope,detected_type", limit=1,
+    ) or []
+    if not documents or str(documents[0].get("org_id") or "") != org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    pin = documents[0].get("period_id")
+    if not pin:
+        # NOT PINNED. The pointer the engine wrote is the truth: every period
+        # that names this document as its source is its own. (A document
+        # whose pin was lost used to re-run IN PLACE on such a period.)
+        rows = admin_client.select(
+            "financial_periods",
+            filters={"org_id": f"eq.{org_id}", "source_document_id": f"eq.{document_id}"},
+            columns=_RERUN_OWNERSHIP_COLUMNS, order="updated_at.desc",
+        ) or []
+        own = [dict(r) for r in rows
+               if str(r.get("org_id") or "") == org_id
+               and str(r.get("source_document_id") or "") == document_id]
+        if (not own and _reads_analysed_and_holds_no_period(admin_client, documents[0], org_id)
+                and document_id in (_quota_ledger.committed_ids([document_id]) or ())):
+            # AN ANALYSED TRIAL BALANCE THAT HOLDS NO PERIOD — its month was
+            # taken over by a newer upload and its pin lost (a browser write;
+            # the period foreign key's ON DELETE SET NULL), or its period was
+            # cleared. Run "as a document with no period", its analysis would
+            # find the month under ANOTHER document, stage beside it and take
+            # it over on success: the hand-over's item 1 again — the newer
+            # file's month replaced by the older file's statements, under the
+            # newer file's briefing and recommendations — through the one
+            # door the pin check left open (review 2026-10-05, measured).
+            # It is not linked to an analysis of its own: refused, like every
+            # other pin that proves nothing. Uploading the file again is the
+            # entry that may replace a month, and says so.
+            #
+            # REFUSED HERE ONLY WHERE THE ANALYSIS IS A FACT THE BROWSER
+            # CANNOT WRITE: the quota ledger holds this document's own commit
+            # (`_quota_ledger`: the settlement of a run that succeeded).
+            # `documents.status` alone proves nothing — a member can PATCH
+            # `analyzed` onto a fresh upload, and that document's /retry is
+            # its FIRST, metered analysis (`_needs_metering`, the P1 metering
+            # law), as is the re-run of a document analysed before the ledger
+            # existed. Those start — as runs that NEVER take over a month
+            # that is another document's (`_NO_TAKEOVER_RUNS`).
+            raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+        return own
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{pin}", "org_id": f"eq.{org_id}"},
+        columns=_RERUN_OWNERSHIP_COLUMNS, limit=1,
+    ) or []
+    if not rows or str(rows[0].get("org_id") or "") != org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    period = dict(rows[0])
+    source = str(period.get("source_document_id") or "")
+    if source == document_id:
+        return [period]
+    if source:
+        raise RerunRefused(RERUN_REFUSED_SUPERSEDED)
+    # THE PERIOD NAMES NO SOURCE (a row from before the pointer was written,
+    # or one a correction left without it). It is this document's only when
+    # its analysis says so — the provenance stamp `stage_persist` writes —
+    # or, when it carries no stamp, when no OTHER document of the company,
+    # live or deleted, is pinned to it (the dedupe's own definition of a copy
+    # that "holds": `_doc_dedupe._analysis_state`). NULL is never "anyone's".
+    full = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{pin}", "org_id": f"eq.{org_id}"},
+        limit=1,
+    ) or []
+    if not full or str(full[0].get("org_id") or "") != org_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    named_since = str(full[0].get("source_document_id") or "")
+    if named_since:
+        # It was given a source between the two reads: that pointer decides.
+        if named_since != document_id:
+            raise RerunRefused(RERUN_REFUSED_SUPERSEDED)
+        return [dict(period, source_document_id=named_since)]
+    if _staged_rerun.marker_of(full[0]) is not None:
+        # A STAGED row of a re-run (this document's or another's) is nobody's
+        # period: its envelope carries the provenance stamp of the document
+        # it was built from, and read by that stamp alone a document pinned
+        # to it by a browser write would re-run "its own" staged row.
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    built_from = _period_move.envelope_source_document_id(full[0])
+    if built_from and built_from != document_id:
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    if not built_from:
+        others = admin_client.select(
+            "documents",
+            filters={"period_id": f"eq.{pin}", "org_id": f"eq.{org_id}", "id": f"neq.{document_id}"},
+            columns="id", limit=1,
+        ) or []
+        if others:
+            raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    # …AND ONLY WHEN NO OTHER PERIOD ALREADY NAMES THIS DOCUMENT — STAMP OR
+    # NO STAMP. A document that is the source of one period and pinned by the
+    # browser to an empty container (a stamp-less, source-less row of the same
+    # month) used to be accepted here: the re-run staged beside the container
+    # and took IT over, and the document's real period stayed behind with the
+    # previous analysis — two periods for one document (review 2026-10-05,
+    # measured). The same through a container that CARRIES the document's own
+    # provenance stamp (re-verification 2026-10-10, measured: the stamped
+    # branch returned before this look) — a shape a killed upload takeover
+    # leaves behind (`source_document_id` nulled on the staged row, the
+    # document pinned to it, its envelope stamped with the document), and one
+    # a Workspace merge's re-pin can make. The engine-written pointer is the
+    # truth; a pin that contradicts it proves nothing, whatever the envelope
+    # says.
+    elsewhere = admin_client.select(
+        "financial_periods",
+        filters={"org_id": f"eq.{org_id}", "source_document_id": f"eq.{document_id}"},
+        columns="id,org_id", limit=1,
+    ) or []
+    if any(str(r.get("org_id") or "") == org_id and str(r.get("id")) != str(pin) for r in elsewhere):
+        raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    return [period]
+
+
+def _reads_analysed_and_holds_no_period(admin_client: Any, document: Dict[str, Any], org_id: str) -> bool:
+    """Does this period-less document READ as an analysed trial balance — a
+    copy that held an analysis and holds none now (`_doc_dedupe.
+    _analysis_state` calls it an orphan), or one whose status says so? Not
+    one: a document whose status is not `analyzed` (its first run failed,
+    its 402 was dismissed — the re-run is its first analysis), a sales
+    document (no period by scope), and an analysis that files no period BY
+    KIND (the public-records summary: `detected_type`, or its `sku_analyses`
+    row). A read that raises propagates — the caller answers 503 and starts
+    nothing blind."""
+    if str(document.get("status") or "").lower() != "analyzed":
+        return False
+    if _doc_dedupe.normalize_scope(document.get("scope")) != "financial":
+        return False
+    if str(document.get("detected_type") or "").lower() in _doc_dedupe.PERIODLESS_KINDS:
+        return False
+    summaries = admin_client.select(
+        "sku_analyses",
+        filters={"org_id": f"eq.{org_id}", "document_id": f"eq.{document.get('id')}"},
+        columns="document_id,summary", limit=1,
+    ) or []
+    for row in summaries:
+        summary = row.get("summary")
+        kind = summary.get("kind") if isinstance(summary, dict) else None
+        if str(kind or "").lower() in _doc_dedupe.PERIODLESS_KINDS:
+            return False
+    return True
+
+
+def _own_periods_or_refuse_rerun(document_id: Any, org_id: Any) -> List[Dict[str, Any]]:
+    """`_own_periods_for_rerun` in the shapes the retry route answers with:
+    409 with the refusal's CODE alone (no message, no period id, no document
+    id), 503 `rerun_unavailable` when ownership cannot be read."""
+    try:
+        with _supabase.admin() as admin_client:
+            return _own_periods_for_rerun(admin_client, document_id, org_id)
+    except RerunRefused as refused:
+        logger.info("[pipeline] retry of %s refused: %s", document_id, refused.code)
+        raise HTTPException(409, {"code": refused.code})
+    except Exception as exc:  # noqa: BLE001 — unreadable is never "own"
+        logger.exception("[pipeline] retry of %s: the document's period could not be read — "
+                         "the re-run is not started", document_id)
+        raise HTTPException(503, {"code": "rerun_unavailable"}) from exc
+
+
+# ── The Docs panel's "Re-run analysis" is STAGED beside the document's own month ──
+#
+# THE DEFECT THIS ENDS (hand-over 2026-10-04, item 2). POST /api/pipeline/retry
+# RESET before it re-ran: it deleted the document's period — production's
+# foreign keys cascade the line items, the metrics, the briefing and the
+# recommendations away — and what a reader would lose was held in PROCESS
+# MEMORY until the run had narrated. A restart or a deploy between the reset
+# and the run's narrative stage, or between a failed run and the document's
+# next one, lost the last good briefing and the worked recommendations
+# (statuses, owners, due dates) for good; and from the click until a run
+# succeeded the month was not served at all.
+#
+# THE ORDER NOW — the same-month re-upload's own (G4), applied to a document's
+# own row:
+#   1. The route deletes nothing, unpins nothing, re-statuses nothing. It
+#      records that the run about to start is a re-run of a document that
+#      owns its month (`_STAGED_RERUNS`) and hands it off.
+#   2. The run persists everything under a STAGED row: a period row that
+#      names NO source document and carries the marker (`_staged_rerun`).
+#      The month's row and everything under it are not touched; the document
+#      stays pinned to its month and keeps its status.
+#   3. Only the run's terminal success replaces the month
+#      (`_finalize_same_month_takeover`, rerun mode): the run's rows move
+#      onto the month's row, the row takes the staged row's columns WITHOUT
+#      the marker, the staged row goes. What a failed narration would cost is
+#      KEPT where it is — never moved, never re-inserted — and marked stale.
+#   4. A run that fails leaves the month serving exactly what it served; the
+#      staged row is dropped, the document stays `analyzed`, and its row
+#      says the last re-run did not finish (`documents.error`,
+#      `RERUN_FAILED_PREFIX`).
+#
+# THE SAME FOR A RUN THAT DOES NOT NARRATE (hand-over item 3). A non-Romanian
+# document's run ends in the AI lane's exit, which stores the statements and
+# nothing else. It is staged like every other re-run and goes through the
+# same takeover — told what it is: the month's briefing is kept and marked
+# `BRIEFING_STALE_NOT_RENARRATED`, its recommendations and its alerts stay
+# where they are (`_run_pipeline_stages`, the lane's exit). A staged re-run
+# tells the extract stage to RE-EXTRACT — the lane's cache is the period row
+# the reset used to delete — and one that now reads as a public-records
+# summary is refused before any write (`RERUN_NOT_A_TRIAL_BALANCE`): that exit
+# would leave the month without its document.
+#
+# THE TAKEOVER IS A SEQUENCE, NOT A TRANSACTION, so it has a COMMIT POINT.
+# Before the first statement that touches the month — and after every delete
+# that touches only the staged id — the staged row's marker gets
+# `takeover_began_at` (durable). A staged row found WITHOUT it never touched
+# the month and is dropped. A staged row found WITH it is APPLIED — by the
+# live takeover itself and by whoever finds it after the process died, the
+# same function (`_apply_committed_staged_rerun`): for every takeover table
+# that still has rows under the staged id the month's rows go and the staged
+# ones move, then the row's columns, then the staged row. Dropping such a row instead loses the
+# briefing or the recommendations in the window between a table's delete and
+# its move (measured in the design review, 2026-10-04: the month's briefing
+# deleted, the run's own left under the staged id, the cleanup dropping it).
+#
+# WHO CLEANS UP. A process that died leaves a staged row behind. It is
+# cleaned by the document's next run of ANY kind (a re-run at the route; an
+# in-place run before its first stage and again at its own persist — all
+# under the claim), by this run's own
+# failure handler, by a hard delete of the document, and — for a document
+# that is never run again — by the company's next analysis of anything
+# (`stage_persist`'s company pass) or the next member to open the app (the
+# page-mount watchdog, `_resume_interrupted_reruns_of`): a COMMITTED row at
+# once, an uncommitted one once it is `STAGED_RERUN_TTL_S` old or its
+# document is gone.
+#
+# TWO RUNS OF ONE PROCESS NEVER INTERLEAVE ON A MONTH: every takeover — its
+# last ownership look included — every resume and every drop holds the
+# company's lock (`_takeover_lock`).
+#
+# WHAT THIS CANNOT DO (stated, not hidden). Between the commit point and the
+# end of the apply (or of its resume) a reader can be served the statements
+# of one run beside the metrics of another, or a table with no rows: only a
+# database function — one transaction — removes that window, and it needs a
+# migration. Until then the row says so at once (`RERUN_INTERRUPTED`) and the
+# apply is completed by the next writer on the month or the next reader of
+# the app. Two backend PROCESSES are not serialised (the lock and in-flight
+# are per process): a second process that persists in the same company
+# while this one is inside an apply can resume that apply's committed row
+# under it — the guarded table loop narrows what two appliers can do to each
+# other, it does not exclude it.
+
+#: An UNCOMMITTED staged row whose run is not in flight in THIS process is a
+#: dead run's once it is this old (seconds). A real run takes about a minute;
+#: fifteen leave room for a slow provider and for a second worker's run. (A
+#: COMMITTED row does not wait: see `_clear_staged_rerun_rows`.)
+STAGED_RERUN_TTL_S = 900
+
+#: `documents.error` of a document whose last staged re-run did not finish —
+#: the row keeps its status (`analyzed`) and its month; this says so. The
+#: remainder is the run's own message, or one of the two codes below. The
+#: Docs panel prints a sentence for it and never the remainder itself
+#: (frontend/lib/rerunRefusals.ts holds the same prefix and codes).
+RERUN_FAILED_PREFIX = "rerun_failed: "
+#: … the takeover was interrupted after its commit point: the month may be
+#: mid-replacement until the staged row is resumed.
+RERUN_INTERRUPTED = "interrupted_replacing"
+#: … the file now reads as a month that already has another analysis.
+RERUN_MONTH_TAKEN = "rerun_month_taken"
+#: … the file now reads as a public-records summary (a few figures per year,
+#: no accounts): there is no analysis to replace the month's with. The Docs
+#: panel has no sentence of its own for it — the row says the re-run did not
+#: finish and the previous analysis is still the one served, which is true.
+RERUN_NOT_A_TRIAL_BALANCE = "rerun_not_a_trial_balance"
+
+#: document id -> the id of its OWN period, for a claimed Docs-panel re-run
+#: the route handed off as staged. In process memory on purpose: it only
+#: tells the run which entry started it; everything a restart must find is on
+#: the staged row. Popped when the run ends (`_run_pipeline_sync`).
+_STAGED_RERUNS: Dict[str, str] = {}
+_STAGED_RERUNS_LOCK = threading.Lock()
+
+
+class RerunOvertaken(PlainRefusal):
+    """The month a staged re-run would take over is no longer this
+    document's (a newer upload replaced it, the period was cleared, the
+    document is gone). The month is not touched."""
+
+    def __init__(self) -> None:
+        super(RerunOvertaken, self).__init__(RERUN_REFUSED_SUPERSEDED)
+
+
+class RerunMonthTaken(PlainRefusal):
+    """The re-run reads the file as ANOTHER month than its period's, and that
+    month already has an analysis of its own. Nothing is changed (before
+    2026-10-04 such a re-run replaced that other month)."""
+
+    def __init__(self) -> None:
+        super(RerunMonthTaken, self).__init__(RERUN_MONTH_TAKEN)
+
+
+#: Claimed /retry runs of a document that READS analysed and holds no period
+#: (`_reads_analysed_and_holds_no_period`) and whose analysis the ledger does
+#: not show: the run may start — it may be the document's first, metered
+#: analysis — but it NEVER takes over a month that is another document's
+#: (`stage_persist`, the same-month branch). In process memory, like
+#: `_STAGED_RERUNS`: it only tells the run which entry started it. Popped
+#: when the run ends (`_run_pipeline_sync`).
+_NO_TAKEOVER_RUNS: Dict[str, bool] = {}
+
+#: What such a run stores on its document's row when the file's month turns
+#: out to be another document's — a sentence for the reader (the row is
+#: `failed`: it holds no analysis, and never held one that can be shown).
+RERUN_MONTH_IS_ANOTHER_DOCUMENTS = (
+    "This file's month already has an analysis from another upload, so the file was not "
+    "re-analysed and the month was not changed. To use this file for the month, upload it again.")
+
+
+def _set_no_takeover_run(document_id: Any) -> None:
+    with _STAGED_RERUNS_LOCK:
+        _NO_TAKEOVER_RUNS[str(document_id)] = True
+
+
+def _is_no_takeover_run(document_id: Any) -> bool:
+    with _STAGED_RERUNS_LOCK:
+        return bool(_NO_TAKEOVER_RUNS.get(str(document_id or "")))
+
+
+def _pop_no_takeover_run(document_id: Any) -> None:
+    with _STAGED_RERUNS_LOCK:
+        _NO_TAKEOVER_RUNS.pop(str(document_id or ""), None)
+
+
+def _set_staged_rerun(document_id: Any, served_period_id: Any) -> None:
+    with _STAGED_RERUNS_LOCK:
+        _STAGED_RERUNS[str(document_id)] = str(served_period_id)
+
+
+def _staged_rerun_of(document_id: Any) -> Optional[str]:
+    """The period a claimed re-run of `document_id` is staged beside — None
+    for every other run (a first analysis, a same-month re-upload, a
+    correction re-run, a recovery)."""
+    with _STAGED_RERUNS_LOCK:
+        return _STAGED_RERUNS.get(str(document_id or ""))
+
+
+def _pop_staged_rerun(document_id: Any) -> Optional[str]:
+    with _STAGED_RERUNS_LOCK:
+        return _STAGED_RERUNS.pop(str(document_id or ""), None)
+
+
+def _staged_rerun_rows(admin_client: Any, org_id: str) -> List[Dict[str, Any]]:
+    """Every STAGED row of the company — light: the id and the marker, never
+    the envelope. Raises when the store cannot be read."""
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"org_id": f"eq.{org_id}", "source_document_id": "is.null"},
+        columns="id,org_id,source_document_id," + _staged_rerun.MARKER_SELECT,
+    ) or []
+    return [r for r in rows
+            if str(r.get("org_id") or "") == str(org_id) and _staged_rerun.marker_of(r) is not None]
+
+
+def _month_is_another_rows(admin_client: Any, org_id: str, period_end: Any, own_period_id: Any) -> bool:
+    """Does the company hold a period for `period_end` other than
+    `own_period_id`? A staged row is never one (it is nobody's month)."""
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"org_id": f"eq.{org_id}", "period_end": f"eq.{str(period_end)[:10]}"},
+        columns="id,org_id,source_document_id," + _staged_rerun.MARKER_SELECT,
+    ) or []
+    return any(str(r.get("id")) != str(own_period_id)
+               and str(r.get("org_id") or "") == str(org_id)
+               and _staged_rerun.marker_of(r) is None
+               for r in rows)
+
+
+def _staged_rerun_mint_checks(admin_client: Any, doc: Dict[str, Any], period_end: str,
+                               served_period_id: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """`stage_persist`, staged mode — what is looked at before the staged
+    row of a Docs-panel re-run is inserted. Returns (the document's own row
+    in full, the marker the staged row carries).
+
+    OWNERSHIP IS LOOKED AT AGAIN, at the write (the route looked before and
+    under the claim; the run started later): the month must still be this
+    document's own — `_own_periods_for_rerun`, read fresh. A re-run that
+    reads the file as ANOTHER month is refused when that month is another
+    row's. Both refusals come before anything is written."""
+    document_id, org_id = str(doc["id"]), str(doc["org_id"])
+    try:
+        own = _own_periods_for_rerun(admin_client, document_id, org_id)
+    except RerunRefused:
+        raise RerunOvertaken()
+    if not own or str(own[0]["id"]) != str(served_period_id):
+        raise RerunOvertaken()
+    if (str(own[0].get("period_end") or "")[:10] != str(period_end)[:10]
+            and _month_is_another_rows(admin_client, org_id, period_end, served_period_id)):
+        raise RerunMonthTaken()
+    served_rows = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{served_period_id}", "org_id": f"eq.{org_id}"},
+        limit=1,
+    ) or []
+    if not served_rows:
+        raise RerunOvertaken()
+    marker = {"document_id": document_id, "served_period_id": str(served_period_id),
+              "staged_at": _now_iso()}
+    return served_rows[0], marker
+
+
+def _envelope_without_marker(envelope: Any) -> Optional[Dict[str, Any]]:
+    """A staged row's envelope as the month takes it: the marker gone. None
+    when nothing else is there (the run stored no envelope) — the month's
+    column is then NULL, as after any run whose envelope write failed, and
+    the read path recomputes."""
+    if not isinstance(envelope, dict):
+        return None
+    stripped = dict((k, v) for k, v in envelope.items() if k != _staged_rerun.MARKER_KEY)
+    return stripped or None
+
+
+def _month_columns_from_staged_row(staged_row: Dict[str, Any], served_row: Dict[str, Any]) -> Dict[str, Any]:
+    """What the month's row takes from a staged re-run's row: every column
+    that is not its identity, the envelope WITHOUT the marker — and the month
+    itself when the re-run filed the document under another one (the row is
+    re-dated; a document never has two periods)."""
+    patch = dict((k, v) for k, v in staged_row.items()
+                 if k not in _PERIOD_IDENTITY_COLUMNS and k != _staged_rerun.MARKER_KEY)
+    patch["assembled_canonical_v1"] = _envelope_without_marker(staged_row.get("assembled_canonical_v1"))
+    patch["updated_at"] = _now_iso()
+    if str(staged_row.get("period_end") or "")[:10] != str(served_row.get("period_end") or "")[:10]:
+        patch["period_start"] = staged_row.get("period_start")
+        patch["period_end"] = staged_row.get("period_end")
+    return patch
+
+
+def _bust_benchmark_cache_of(admin_client: Any, period_id: str, org_id: Any) -> None:
+    """Best effort: the Section-9 benchmark report cached for `period_id`.
+    The cache is keyed on the period id and re-used while the CAEN and the
+    revision match (`_benchmarks`) — and a takeover replaces a period's
+    statements WITHOUT changing its id, so a cached report would go on
+    comparing the previous file's ratios."""
+    try:
+        admin_client.delete(
+            "benchmark_reports",
+            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"})
+    except Exception as exc:  # noqa: BLE001 — a stale cache is recomputed on a CAEN change
+        logger.warning("[stage_persist] benchmark cache not cleared for period %s (%s)",
+                       period_id, type(exc).__name__)
+
+
+def _drop_staged_rerun_row(admin_client: Any, org_id: str, staged_id: str) -> None:
+    """Remove a staged row that never touched its month, and everything its
+    run stored under it. The children go explicitly (production's foreign
+    keys would cascade them; nothing here relies on that), by the staged id —
+    which was read under the company's filter — and the row itself only
+    while it still names no source."""
+    for table in TAKEOVER_TABLES:
+        admin_client.delete(table, filters={"period_id": f"eq.{staged_id}"})
+    admin_client.delete(
+        "financial_periods",
+        filters={"id": f"eq.{staged_id}", "org_id": f"eq.{org_id}",
+                 "source_document_id": "is.null"})
+
+
+def _rekey_moved_alerts(admin_client: Any, org_id: str, staged_id: str, served: str) -> None:
+    """An alert's key names the period it sits on (`{rule}:{period}`,
+    `stage_validate`). A staged re-run's alerts are written under keys that
+    name the STAGED id — never the month's: until the takeover the month's
+    own alerts still exist under those very keys, and a database that still
+    carries the legacy `unique (org_id, alert_key)` (schema.sql; kept on
+    purpose by schema_phase_notes_period_scope.sql, whose drop is a manual
+    step) refuses the run's whole alerts write for the collision — the run
+    then ended analysed with the PREVIOUS analysis's alerts on its statements
+    and nothing saying so (review 2026-10-05, measured with that constraint
+    modelled). Once the rows sit on the month they are re-keyed to it, so a
+    month's alert keys are what an in-place run would have written. A row is
+    addressed by its (period, key) — the tuple the newer unique names. Safe
+    to repeat: a key that already names the month is not touched."""
+    suffix = ":%s" % staged_id
+    rows = admin_client.select(
+        "alerts", filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+        columns="period_id,alert_key") or []
+    for row in rows:
+        key = str(row.get("alert_key") or "")
+        if not key.endswith(suffix):
+            continue
+        admin_client.update(
+            "alerts", {"alert_key": key[:len(key) - len(staged_id)] + served},
+            filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}",
+                     "alert_key": f"eq.{key}"})
+
+
+def _apply_committed_staged_rerun(admin_client: Any, org_id: str, staged_id: str) -> str:
+    """THE ONE APPLIER of a staged re-run whose takeover reached its commit
+    point — the live takeover's own last steps (T3–T6) and the completion of
+    one a dead process left. It works from what the STORE holds, never from
+    what a process remembered. Returns "resumed" (the month is the run's
+    analysis, whole), "dropped" (nothing to apply ONTO: the staged row and
+    what is under it are removed), "gone" (no such staged row) or
+    "not_committed" (never applied: its month was never touched).
+
+    The caller holds the company's takeover lock (`_takeover_lock`).
+
+    For every takeover table that still has rows under the staged id, the
+    month's rows of that table go and the staged ones move: a table whose
+    move had completed has none left and is skipped, a table whose delete had
+    run and whose move had not is completed. A table the run stored nothing
+    in (`emptied`, recorded at the commit point) is emptied on the month too.
+    What the takeover KEPT (the month's briefing, recommendations, alerts)
+    has nothing under the staged id — it was deleted there before the commit
+    point — and is never touched. Then the re-keys, the row's columns, the
+    document, and the staged row LAST: every statement is safe to repeat, so
+    an apply that is itself interrupted is resumed again."""
+    rows = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{staged_id}", "org_id": f"eq.{org_id}",
+                 "source_document_id": "is.null"},
+        limit=1,
+    ) or []
+    marker = _staged_rerun.marker_of(rows[0]) if rows else None
+    if marker is None:
+        return "gone"
+    if not marker.get("takeover_began_at"):
+        return "not_committed"
+    staged_row = rows[0]
+    served = str(marker.get("served_period_id") or "")
+    document_id = str(marker.get("document_id") or "")
+    served_rows: List[Dict[str, Any]] = []
+    documents: List[Dict[str, Any]] = []
+    if served and document_id:
+        # THE COMPANY IS IN BOTH FILTERS, and it is the whole wall: the marker
+        # sits in a column any member can write for their own company
+        # (`financial_periods.assembled_canonical_v1`), so `served_period_id`
+        # and `document_id` are, in the worst case, another tenant's input.
+        # Read without it, a marker forged in one company emptied another
+        # company's month (review 2026-10-05, measured on a planted copy).
+        served_rows = admin_client.select(
+            "financial_periods",
+            filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+            columns=_RERUN_OWNERSHIP_COLUMNS, limit=1,
+        ) or []
+        documents = admin_client.select(
+            "documents",
+            filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"},
+            columns="id,org_id,error", limit=1,
+        ) or []
+        served_rows = [r for r in served_rows if str(r.get("org_id") or "") == org_id]
+        documents = [d for d in documents if str(d.get("org_id") or "") == org_id]
+    source = str((served_rows[0] if served_rows else {}).get("source_document_id") or "")
+    if not served_rows or not documents or (source and source != document_id):
+        # The month is gone (cleared by its user), is another document's now,
+        # or the document itself was deleted for good: there is nothing to
+        # apply ONTO, and a month the user removed is never brought back.
+        _drop_staged_rerun_row(admin_client, org_id, staged_id)
+        logger.warning("[staged rerun] %s: the month of the committed takeover (staged %s) is "
+                       "gone or no longer the document's — the staged row is dropped",
+                       document_id, staged_id)
+        return "dropped"
+    emptied = set(str(t) for t in (marker.get("emptied") or []))
+    kept = set(str(t) for t in (marker.get("kept") or []))
+    for table in TAKEOVER_TABLES:
+        if table in kept:
+            # The month keeps its own rows of this table (the briefing and
+            # the recommendations of a run that narrated nothing usable, the
+            # alerts of a run that wrote none): what the run left under the
+            # staged id was deleted before the commit point. Not touched.
+            continue
+        # GUARDED: the month's rows of a table go only while the run's rows
+        # of it are still under the staged id (or the run stored none in it).
+        # A table another applier already completed is skipped — an
+        # unconditional delete-then-move there deleted the rows that had
+        # just been moved and moved nothing (review 2026-10-05, measured
+        # with a second process's resume landing inside an apply).
+        still_staged = admin_client.select(
+            table, filters={"period_id": f"eq.{staged_id}"}, columns="period_id", limit=1)
+        if still_staged:
+            admin_client.delete(table, filters={"period_id": f"eq.{served}"})
+            admin_client.update(table, {"period_id": served}, filters={"period_id": f"eq.{staged_id}"})
+        elif table in emptied:
+            admin_client.delete(table, filters={"period_id": f"eq.{served}"})
+    if "recommendations" not in kept:
+        # A recommendation about the period points at the period it is on
+        # now — the staged id it named stops existing below.
+        admin_client.update(
+            "recommendations", {"target_id": served},
+            filters={"period_id": f"eq.{served}", "org_id": f"eq.{org_id}",
+                     "target_id": f"eq.{staged_id}"})
+    if "alerts" not in kept:
+        _rekey_moved_alerts(admin_client, org_id, staged_id, served)
+    reason = marker.get("keep_briefing_reason")
+    if reason:
+        kept = _stored_briefing_row(admin_client, served, org_id)
+        if _is_usable_stored_briefing(kept):
+            _mark_briefing_stale(admin_client, kept, served, org_id, str(reason))
+    # The period keeps its id and its statements have just been replaced:
+    # the benchmark report cached for it compares the previous analysis's.
+    _bust_benchmark_cache_of(admin_client, served, org_id)
+    # T5. The month's row takes the run's columns, the marker gone.
+    columns = _month_columns_from_staged_row(staged_row, served_rows[0])
+    if "period_end" in columns and _month_is_another_rows(
+            admin_client, org_id, columns["period_end"], served):
+        # THE RE-RUN RE-FILED THE DOCUMENT, AND THE NEW MONTH HAS SINCE BECOME
+        # ANOTHER ROW'S (an upload for it landed after the takeover's own
+        # look, or while a dead process's row waited to be resumed). Re-dated
+        # onto it, the company held two live periods for one month, each
+        # with its document (review 2026-10-05, measured). The run's analysis
+        # is applied — past the commit point it is the only whole analysis
+        # there is — and the row keeps the month it had.
+        columns.pop("period_start", None)
+        columns.pop("period_end", None)
+        logger.warning("[staged rerun] %s: the re-run read the file as %s, which is another "
+                       "period's month now — period %s takes the analysis and keeps its month",
+                       document_id, str(staged_row.get("period_end"))[:10], served)
+    # …AND ONLY WHILE THE ROW IS STILL THIS DOCUMENT'S: the source is in the
+    # filter (a row that names nobody is matched as such), and the row is read
+    # back. In this process the takeover lock already rules a change of hands
+    # out; a second process is not serialised, and its takeover must never
+    # have its row's columns written over nor the document reported analysed
+    # on a month that is no longer its own.
+    admin_client.update(
+        "financial_periods", columns,
+        filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}",
+                 "source_document_id": f"eq.{document_id}" if source else "is.null"})
+    landed = admin_client.select(
+        "financial_periods",
+        filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+        columns="id,org_id,source_document_id", limit=1,
+    ) or []
+    now_source = str((landed[0] if landed else {}).get("source_document_id") or "")
+    if not landed or (now_source and now_source != document_id):
+        _drop_staged_rerun_row(admin_client, org_id, staged_id)
+        logger.error("[staged rerun] %s: period %s changed hands while its takeover was being "
+                     "applied (two processes?) — nothing more is written; staged %s dropped",
+                     document_id, served, staged_id)
+        return "dropped"
+    # T6. The document, then the staged row — LAST.
+    patch: Dict[str, Any] = {"period_id": served}
+    if str(documents[0].get("error") or "").startswith(RERUN_FAILED_PREFIX):
+        # Only a marker a staged re-run wrote is cleared (and with it the
+        # document is what a completed takeover leaves it: analysed — a
+        # document that was `failed` over its period would otherwise stay
+        # failed over the new analysis). Any other text on the row — a
+        # superseded or duplicate marker, a sentence another entry stored —
+        # is not this takeover's to erase.
+        patch.update({"status": "analyzed", "error": None})
+    admin_client.update(
+        "documents", patch,
+        filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"})
+    admin_client.delete(
+        "financial_periods",
+        filters={"id": f"eq.{staged_id}", "org_id": f"eq.{org_id}",
+                 "source_document_id": "is.null"})
+    return "resumed"
+
+
+def _resume_staged_rerun(admin_client: Any, org_id: str, staged_id: str) -> str:
+    """Finish a takeover that was interrupted AFTER its commit point — by
+    what the store holds, not by what a dead process remembered
+    (`_apply_committed_staged_rerun`, under the company's takeover lock).
+    Returns "resumed", "dropped" (nothing to resume ONTO) or "gone"."""
+    with _takeover_lock(org_id):
+        outcome = _apply_committed_staged_rerun(admin_client, org_id, staged_id)
+    if outcome == "resumed":
+        logger.warning("[staged rerun] the interrupted takeover staged under %s was resumed",
+                       staged_id)
+    return outcome
+
+
+def _staged_row_is_dead(admin_client: Any, org_id: str, marker: Dict[str, Any]) -> bool:
+    """For the company pass: is this UNCOMMITTED staged row a DEAD run's?
+    Older than `STAGED_RERUN_TTL_S` (or carrying no readable time), or its
+    document no longer exists."""
+    try:
+        staged_at = datetime.fromisoformat(str(marker.get("staged_at") or "").replace("Z", "+00:00"))
+        if staged_at.tzinfo is None:
+            staged_at = staged_at.replace(tzinfo=timezone.utc)
+        if (datetime.now(timezone.utc) - staged_at).total_seconds() > STAGED_RERUN_TTL_S:
+            return True
+    except ValueError:
+        return True
+    owner = str(marker.get("document_id") or "")
+    if not owner:
+        return True
+    present = admin_client.select(
+        "documents", filters={"id": f"eq.{owner}", "org_id": f"eq.{org_id}"},
+        columns="id", limit=1)
+    return not present
+
+
+def _clear_staged_rerun_rows(admin_client: Any, org_id: Any, *, document_id: Optional[str] = None,
+                             ttl: bool = False, resume: bool = True,
+                             claimed_document_id: Optional[str] = None) -> Dict[str, Any]:
+    """Clean up the staged rows dead re-runs left in a company. NEVER raises.
+
+      * `document_id`: only that document's rows — its next re-run (at the
+        route, under the claim), its own run's failure handler, its hard
+        delete;
+      * `ttl`: the company pass (every `stage_persist` of the company, and
+        the page-mount watchdog) — only rows of runs that are DEAD:
+          · a row of `claimed_document_id` — the document whose run is
+            making this very pass, under its claim: no other run of it is
+            alive in this process, so its leftover is dead whatever its age;
+          · any other row only when its document is NOT in flight in this
+            process, and then: a COMMITTED row at once — its month is
+            mid-replacement and the next writer on that month must find it
+            whole (see below) — and an uncommitted one once it is dead
+            (`_staged_row_is_dead`: fifteen minutes, or its document gone);
+      * a row whose takeover reached its COMMIT POINT is RESUMED — never
+        dropped — unless `resume` is False (the document is being deleted for
+        good: its month goes with it);
+      * any other row never touched its month and is dropped.
+
+    WHY A COMMITTED ROW DOES NOT WAIT FIFTEEN MINUTES (review 2026-10-05,
+    measured with a real second process). A re-run killed between the month's
+    briefing delete and the move of its own left the month with NO briefing
+    and the run's good one under the staged row. A same-month upload of
+    another file inside the fifteen minutes, its narration refused, then took
+    the month over: nothing usable to keep, the failure sentinel moved onto
+    the month — and the later pass found the month another document's and
+    dropped the staged row. The last good briefing AND the run's new one,
+    both gone. The fifteen minutes only ever stood for "this may be a live
+    run's row"; a committed row whose document is not in flight in this
+    process is a dead process's (the engine is one process), so it is
+    completed before anything else stages beside or takes over its month.
+
+    Returns `{"resumed", "dropped", "left", "unreadable", "left_documents"}`:
+    `left` counts the COMMITTED rows that could not be resumed (the month may
+    be mid-replacement: the caller must not start another run over it, nor
+    say the previous analysis is still served) and `left_documents` names
+    their documents; `unreadable` — the staged rows could not even be listed."""
+    out: Dict[str, Any] = {"resumed": 0, "dropped": 0, "left": 0, "unreadable": False,
+                           "left_documents": []}
+    org_id = str(org_id or "").strip()
+    if not org_id:
+        return out
+    try:
+        rows = _staged_rerun_rows(admin_client, org_id)
+    except Exception:  # noqa: BLE001 — cleanup never fails the run it rides on
+        logger.exception("[staged rerun] the staged rows of %s could not be listed", org_id)
+        out["unreadable"] = True
+        return out
+    for row in rows:
+        marker = _staged_rerun.marker_of(row) or {}
+        staged_id = str(row.get("id") or "")
+        owner = str(marker.get("document_id") or "")
+        if document_id is not None and owner != str(document_id):
+            continue
+        committed = bool(marker.get("takeover_began_at"))
+        try:
+            if ttl and not (claimed_document_id is not None and owner == str(claimed_document_id)):
+                if owner and _doc_dedupe.in_flight(owner):
+                    continue
+                if not committed and not _staged_row_is_dead(admin_client, org_id, marker):
+                    continue
+            # Under the company's takeover lock: a resume or a drop never
+            # runs through the middle of a live takeover of this process.
+            with _takeover_lock(org_id):
+                if committed and resume:
+                    outcome = _apply_committed_staged_rerun(admin_client, org_id, staged_id)
+                    out["resumed" if outcome == "resumed" else "dropped"] += 1
+                    if outcome == "resumed":
+                        logger.warning("[staged rerun] %s: the interrupted takeover staged under "
+                                       "%s was resumed", owner, staged_id)
+                else:
+                    _drop_staged_rerun_row(admin_client, org_id, staged_id)
+                    out["dropped"] += 1
+                    logger.info("[staged rerun] %s: the staged row %s of a re-run that did not "
+                                "finish was removed", owner, staged_id)
+        except Exception:  # noqa: BLE001 — the next pass tries again
+            logger.exception("[staged rerun] the staged row %s of %s could not be cleaned up",
+                             staged_id, owner)
+            if committed:
+                out["left"] += 1
+                out["left_documents"].append(owner)
+    return out
+
+
+def _resume_interrupted_reruns_of(user_id: str) -> int:
+    """The page-mount watchdog's part (POST /api/pipeline/recover-stuck):
+    complete the re-runs a dead process left mid-replacement in the caller's
+    OWN companies. Returns how many were completed. Never raises.
+
+    WHY HERE. A committed staged row means a month whose page may be serving
+    a table with no rows, or one run's statements beside another's metrics
+    (the takeover is a sequence, not a transaction). The company's next
+    analysis completes it — but a company that uploads nothing would keep the
+    gap until then (review 2026-10-05: there is no sweep at boot, and a boot
+    sweep would run in the deploy's probe container while the old process is
+    still applying). This route is what the dashboard posts when it mounts,
+    at most once a minute: the first reader to open the app after a restart
+    heals what the restart interrupted. One light read per company of the
+    caller's when there is nothing to do. The companies are the caller's
+    MEMBERSHIPS (the write wall's scope), never what firm visibility shows."""
+    resumed = 0
+    try:
+        orgs = [str(o) for o in _org.member_org_ids(user_id) if o]
+    except Exception:  # noqa: BLE001 — the watchdog's own answer must not fail on this
+        logger.exception("[staged rerun] the watchdog could not read the caller's companies")
+        return 0
+    for org_id in orgs:
+        try:
+            with _supabase.admin() as admin_client:
+                resumed += int(_clear_staged_rerun_rows(admin_client, org_id, ttl=True)["resumed"])
+        except Exception:  # noqa: BLE001
+            logger.exception("[staged rerun] the watchdog's pass over %s failed (non-fatal)", org_id)
+    return resumed
+
+
+def _staged_rerun_failed(document_id: str, doc: Optional[Dict[str, Any]], msg: str,
+                         duration_ms: int) -> str:
+    """The failure handler of a STAGED re-run. Returns the run's outcome.
+
+    THE STATUS IS NEVER WRITTEN: the document was not re-statused when the
+    re-run started, its month was not touched (or is being replaced by this
+    very run), and `failed` over a served period is the state G4 forbids —
+    the year tile vanishes. What happened is said on the row instead.
+
+      * the takeover had passed its commit point and the resume below
+        completed it → the run's analysis IS the month: `analyzed`;
+      * a committed row could not be resumed → the row says the replacement
+        was interrupted (never that the previous analysis is still served);
+      * otherwise the month is what it was → `rerun_failed: <message>`,
+        never over the marker of a superseded or duplicate copy."""
+    _pop_takeover(document_id)
+    _pop_period_minted(document_id)
+    org_id = str((doc or {}).get("org_id") or "").strip()
+    out: Dict[str, Any] = {"resumed": 0, "dropped": 0, "left": 0, "unreadable": True}
+    if org_id:
+        try:
+            with _supabase.admin() as admin_client:
+                out = _clear_staged_rerun_rows(admin_client, org_id, document_id=document_id)
+        except Exception:  # noqa: BLE001 — never mask the failure being handled
+            logger.exception("[pipeline] %s: the staged re-run's cleanup failed", document_id)
+    if out["resumed"] and not out["left"] and not out["unreadable"]:
+        logger.warning("[pipeline] %s: the staged re-run failed after its takeover had begun; "
+                       "the takeover was completed — the run's analysis is the month", document_id)
+        try:
+            _admin_set_status(document_id, "analyzed", duration_ms=duration_ms)
+        except Exception:  # noqa: BLE001 — the resume already left the row analysed
+            logger.exception("[pipeline] %s: the last status write failed (non-fatal)", document_id)
+        return "analyzed"
+    filters = {"id": f"eq.{document_id}"}
+    if org_id:
+        filters["org_id"] = f"eq.{org_id}"
+    interrupted = RERUN_FAILED_PREFIX + RERUN_INTERRUPTED
+    try:
+        with _supabase.admin() as admin_client:
+            if out["left"]:
+                admin_client.update("documents", {"error": interrupted}, filters=filters)
+                return "failed"
+            rows = admin_client.select("documents", filters=filters, columns="id,error", limit=1) or []
+            current = str((rows[0] if rows else {}).get("error") or "")
+            if not rows or current.startswith((SUPERSEDED_MARKER_PREFIX,
+                                               _doc_dedupe.DUPLICATE_MARKER_PREFIX)):
+                # An archived copy says what it is; that is not overwritten.
+                return "failed"
+            if out["unreadable"] and current == interrupted:
+                # The staged rows could not be read and the row says the
+                # takeover had begun: that stays until a resume clears it.
+                return "failed"
+            admin_client.update(
+                "documents", {"error": RERUN_FAILED_PREFIX + msg, "duration_ms": duration_ms},
+                filters=filters)
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] %s: could not record that the re-run did not finish", document_id)
+    return "failed"
+
+
+def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any], *,
+                  staged_rerun_of: Optional[str] = None) -> str:
     """Lookup-or-create the financial_period for this document's
     (org, period_end, source_document_id) tuple, then refresh its
     statement_line_items from the extracted statements. Returns the
     resolved period_id.
+
+    `staged_rerun_of` (keyword-only; every other caller's run is unchanged):
+    the id of the document's OWN period, for a Docs-panel re-run. The run
+    then persists under a STAGED row beside that period (no source, the
+    marker in its envelope; `_staged_rerun_mint_checks` first) — the month's row, its line
+    items and the document's pin are not touched; `_finalize_same_month_
+    takeover` replaces the month once the run has succeeded.
 
     Period-container discipline (post Bug-A fix — May 2026):
       · ONE period per (org_id, period_end, source_document_id) — enforced
@@ -2426,13 +3943,64 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
     # carried forward on a same-file re-scan (see step 5 below).
     prior_period_row: Optional[Dict[str, Any]] = None
 
+    #: The marker of this run's staged row (a Docs-panel re-run) — it rides
+    #: in every envelope write below, so the row stays recognisable.
+    staged_marker: Optional[Dict[str, Any]] = None
+
     with _supabase.admin() as admin_client:
+        # 0. THE COMPANY PASS. A re-run that died (a restart, a deploy) left
+        #    a staged row behind; a document that is never re-run again would
+        #    keep it for ever. Every analysis of the company clears the dead
+        #    ones first — one light read when there are none. Wrapped as well
+        #    as never-raising: a store double that cannot answer it must not
+        #    fail a persist.
+        #
+        #    THIS RUN'S OWN DOCUMENT FIRST (`claimed_document_id`): the run
+        #    holds its claim, so whatever staged row an EARLIER re-run of it
+        #    left is dead, whatever its age — and it must be settled BEFORE
+        #    this run writes. An in-place run (the failed banner's Retry, a
+        #    correction, the reprocessing tool) that wrote its month while a
+        #    committed row of an older re-run waited was later resumed OVER:
+        #    the older run's briefing on the newer run's statements, unmarked
+        #    (review 2026-10-05, measured).
+        leftover: Dict[str, Any] = {}
+        try:
+            leftover = _clear_staged_rerun_rows(
+                admin_client, doc.get("org_id"), ttl=True,
+                claimed_document_id=str(doc.get("id") or "") or None)
+        except Exception:  # noqa: BLE001
+            logger.exception("[stage_persist] the staged-row pass failed (non-fatal)")
+        if str(doc.get("id") or "") in (leftover.get("left_documents") or []):
+            # An earlier re-run of THIS document is stranded mid-replacement
+            # and could not be completed now: writing the month under it
+            # would be undone, in part, by its later resume. Refuse rather
+            # than write — nothing has been touched.
+            raise PlainRefusal(
+                "An earlier re-run of this file was interrupted while it was replacing "
+                "the analysis, and it could not be completed just now — so this run "
+                "stopped before it changed anything. Try again in a moment.")
+        if leftover.get("unreadable"):
+            # THE STAGED ROWS COULD NOT EVEN BE LISTED: nothing is known. A
+            # committed row of this document's earlier re-run may be waiting,
+            # and a month written now would be resumed OVER by it later — one
+            # run's briefing on another run's statements, unmarked
+            # (re-verification 2026-10-10, measured: the in-place run went
+            # on, `left_documents` being empty). The route refuses the same
+            # state with 503; the run refuses it here, before any write. Not
+            # the empty dict the pass hands back when it never ran at all —
+            # that is a double that could not answer, the run's own reads
+            # below will say so.
+            raise PlainRefusal(
+                "Whether an earlier re-run of this file is still replacing its analysis "
+                "could not be checked just now — so this run stopped before it changed "
+                "anything. Try again in a moment.")
+
         # 1. Lookup existing period for this (org, period_end, source_document_id).
         # Post-Bug-A: the DB enforces UNIQUE (org_id, period_end, source_document_id);
         # the 3-col SELECT here finds same-document re-runs (so we UPDATE
         # the same period row) but NOT different-document uploads sharing
         # the same date (each gets its own period row via the INSERT branch).
-        existing = admin_client.select(
+        existing = None if staged_rerun_of else admin_client.select(
             "financial_periods",
             filters={
                 "org_id": f"eq.{doc['org_id']}",
@@ -2441,7 +4009,41 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             },
             single=True,
         )
-        if existing:
+        if staged_rerun_of:
+            # 1'. A DOCS-PANEL RE-RUN of a document that owns its month: the
+            #     run persists under a staged row of its own and the month is
+            #     replaced only once it has succeeded. The month's row is the
+            #     prior envelope a same-file re-scan carries its
+            #     reconciliation forward from (step 5), as on every other
+            #     re-run of a document on its period.
+            prior_period_row, staged_marker = _staged_rerun_mint_checks(
+                admin_client, doc, period_end, str(staged_rerun_of))
+            # NO SOURCE on the staged row: the month's own row keeps the
+            # (org, month, document) tuple, and no reader that looks a period
+            # up by its document finds this one. The marker rides in the
+            # envelope column from the first statement on — a staged row is
+            # recognisable before any envelope is written.
+            staged = admin_client.insert(
+                "financial_periods",
+                {
+                    "org_id": doc["org_id"],
+                    "source_document_id": None,
+                    "period_start": period_start,
+                    "period_end": period_end,
+                    "currency": parsed.get("currency") or prior_period_row.get("currency") or "RON",
+                    "extraction_confidence": parsed.get("confidence", 0.5),
+                    "assembled_canonical_v1": {_staged_rerun.MARKER_KEY: staged_marker},
+                },
+                returning=True,
+            )
+            period_id = staged[0]["id"]
+            # NOT recorded as minted by the run (`_PERIODS_MINTED_BY_RUN`):
+            # that rollback looks the row up by its source document and would
+            # find nothing. A staged row is cleaned by
+            # `_clear_staged_rerun_rows`.
+            _record_takeover(doc.get("id"), staged=period_id, served=str(staged_rerun_of),
+                             superseded_document=None, rerun=True)
+        elif existing:
             period_id = existing[0]["id"]
             prior_period_row = existing[0]
             # Keep source_document_id pointing at the original. Update mutable
@@ -2483,6 +4085,22 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 },
                 order="updated_at.desc",  # newest first if legacy duplicates exist
             )
+            # A re-run's STAGED row is never "the month" (`_staged_rerun`):
+            # it names no source and is nobody's analysis yet. Taken for the
+            # month, an upload would stage beside it and take over a row that
+            # a re-run's cleanup then drops — the month's own row, and its
+            # document, left as they were under a second row for the month.
+            month_periods = [p for p in (month_periods or [])
+                             if _staged_rerun.marker_of(p) is None]
+            if month_periods and _is_no_takeover_run(doc.get("id")):
+                # A /RETRY OF A DOCUMENT THAT READS ANALYSED AND HOLDS NO
+                # PERIOD never takes over a month that is another
+                # document's: staged beside it and swapped in on success,
+                # this run was the hand-over's item 1 through the retry
+                # route (the newer file's month replaced by the older
+                # file's). Refused before anything is staged — the month,
+                # its document and everything under it are untouched.
+                raise PlainRefusal(RERUN_MONTH_IS_ANOTHER_DOCUMENTS)
             if month_periods:
                 # 2a'. NOT YET. The served row keeps serving until this run
                 #      has succeeded (G4 — see the takeover notes above the
@@ -2526,9 +4144,9 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 _record_takeover(doc.get("id"), staged=period_id, served=served_row["id"],
                                  superseded_document=served_row.get("source_document_id"))
             else:
-                # 2b. Genuinely new month — insert a fresh period row. If a
-                #     concurrent upload races to insert the same tuple, the
-                #     unique constraint raises and we re-select the winner.
+                # 2b. Genuinely new month — insert a fresh period row. If the
+                #     insert raises, only a row holding THIS document's own
+                #     tuple is adopted (see the `except` below).
                 try:
                     inserted = admin_client.insert(
                         "financial_periods",
@@ -2549,29 +4167,45 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                     # backs it (see `_rollback_period_of_failed_run`).
                     _record_period_minted(doc.get("id"), period_id)
                 except Exception:
-                    # Race-loser: another upload for this month won. Re-select
-                    # by (org_id, period_end) and reuse it — same replace
-                    # semantics as 2a.
-                    rows = admin_client.select(
+                    # The insert was refused, or it landed and its reply was
+                    # lost. ONLY this document's own tuple may be adopted —
+                    # the row this very insert left (as the staged branch
+                    # above does). This branch used to re-select by company
+                    # and month ALONE ("race-loser: another upload won"),
+                    # pin the document to ANOTHER document's row and rewrite
+                    # that row's line items and envelope in place: no
+                    # staging, no takeover, the other document's month under
+                    # this one's figures (measured 2026-10-04). With no row
+                    # of its own the run fails; the next entry finds the
+                    # month taken and stages beside it, as every same-month
+                    # upload does.
+                    own = admin_client.select(
                         "financial_periods",
                         filters={
                             "org_id": f"eq.{doc['org_id']}",
                             "period_end": f"eq.{period_end}",
+                            "source_document_id": f"eq.{doc['id']}",
                         },
-                        order="updated_at.desc",
                     )
-                    if not rows:
+                    if not own:
                         raise
-                    period_id = rows[0]["id"]
-                    prior_period_row = rows[0]
+                    period_id = own[0]["id"]
+                    # It is this run's insert: still the run's to take back
+                    # if a later stage fails (G4).
+                    _record_period_minted(doc.get("id"), period_id)
 
         # 3. Pin the document to the resolved period. Documents drive period
-        #    ownership now — multiple docs per period.
-        admin_client.update(
-            "documents",
-            {"period_id": period_id},
-            filters={"id": f"eq.{doc['id']}"},
-        )
+        #    ownership now — multiple docs per period. NOT for a staged
+        #    re-run: its document stays pinned to the month it is the source
+        #    of — the staged row is nobody's period until the takeover, and a
+        #    document pinned to it would vanish from the Docs panel (and be
+        #    left pinned to nothing when the row is dropped).
+        if staged_marker is None:
+            admin_client.update(
+                "documents",
+                {"period_id": period_id},
+                filters={"id": f"eq.{doc['id']}"},
+            )
 
         # 4. Wipe + re-insert statement line items for this period. The new
         #    document's extraction becomes the canonical analysis until
@@ -2740,7 +4374,13 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             try:
                 admin_client.update(
                     "financial_periods",
-                    {"assembled_canonical_v1": canonical},
+                    # A staged re-run's row keeps its marker beside the
+                    # envelope (a copy: `canonical` itself is what the rest
+                    # of the run reads, and what the month takes — without
+                    # the marker — at the takeover).
+                    {"assembled_canonical_v1": (
+                        canonical if staged_marker is None
+                        else dict(canonical, **{_staged_rerun.MARKER_KEY: staged_marker}))},
                     filters={"id": f"eq.{period_id}"},
                 )
             except Exception:  # noqa: BLE001
@@ -2804,13 +4444,16 @@ _EBITDA_DEFINITION_REVISION = _ro_chart_of_accounts.EBITDA_DEFINITION_REVISION
 
 #: The one-line note a briefing written under an earlier EBITDA definition is
 #: served with (and hidden behind) — never shown beside corrected numbers.
+# GENERIC ON PURPOSE (deploy-readiness review, 2026-09-29): the stamp has
+# moved more than once (2026-09-26: 711 / 72x inside; 2026-09-28: provisions
+# outside, 7411 in turnover), so a note naming what the earlier definition
+# lacked misdescribes a briefing stamped 2026-09-26 — which DID include 711
+# and 72x. It says only that the definition differs.
 BRIEFING_PREVIOUS_DEFINITION_NOTE = {
-    "ro": "Comentariul a fost scris sub definiția anterioară a EBITDA "
-          "(fără variația stocurilor de produse și producția imobilizată) și "
+    "ro": "Comentariul a fost scris sub o definiție anterioară a EBITDA și "
           "este ascuns; reanalizați perioada pentru un comentariu nou.",
-    "en": "This briefing was written under the previous EBITDA definition "
-          "(without the stock variation and own work capitalised) and is "
-          "hidden; re-analyse the period for a new one.",
+    "en": "This briefing was written under an earlier EBITDA definition and "
+          "is hidden; re-analyse the period for a new one.",
 }
 
 
@@ -2828,6 +4471,250 @@ def briefing_definition_status(briefing: Optional[Dict[str, Any]]) -> Optional[D
         "current_definition": _EBITDA_DEFINITION_REVISION,
         "written_under_previous_definition": not current,
         "note": None if current else dict(BRIEFING_PREVIOUS_DEFINITION_NOTE),
+    }
+
+
+# ─── A briefing a model failure cannot destroy (owner ruling 2026-10-02) ────
+#
+# "A failed regenerate must NEVER overwrite a stored briefing with
+# [NARRATIVE_UNAVAILABLE] — keep the last good one, mark it stale."
+#
+# MEASURED before the repair (real route, real `stage_narrate`, a provider
+# client that raises): POST …/briefing/regenerate answered 200 `ok: true` and
+# the stored briefing BECAME `[NARRATIVE_UNAVAILABLE]`; with no API key it
+# became the operator sentence "Set ANTHROPIC_API_KEY on the backend…"; a
+# re-run of an analysed document whose narration failed did the same AND
+# deleted the period's recommendations; the same-month takeover replaced the
+# served month's briefing with the staged run's sentinel. `briefings` holds
+# ONE row per period and no history: an overwritten briefing is gone.
+#
+# TWO PREDICATES, one module, every writer and the one reader:
+#   · `narration_unavailable_code(narrate)` — is THIS narration usable? Read
+#     from the structured code `stage_narrate` returns beside its `briefing`
+#     in every failure branch, never from the body text (an unparseable reply
+#     is a fragment of anything).
+#   · `stored_briefing_failure_code(body)` — does a row ALREADY stored hold a
+#     failure text? The texts the failure branches have written over time.
+# No writer replaces a usable row with an unusable narration.
+
+#: The neutral body a failed narration stores when there is nothing to
+#: protect (a first analysis) — the one failure text the product ever
+#: writes from here on. Never provider text, never an operator sentence.
+NARRATIVE_UNAVAILABLE_SENTINEL = "[NARRATIVE_UNAVAILABLE]"
+
+#: Why a narration is unusable — neutral codes: stored in
+#: `briefings.stale_reason`, served as `briefing.unavailable_reason` and as
+#: the regenerate route's `reason`. Never a provider message.
+NARRATION_UNAVAILABLE_CODES = ("no_api_key", "sdk_missing", "provider_error",
+                               "unparseable_reply", "empty_reply", "withheld_numerals")
+
+#: Why a KEPT briefing is stale when no narration failed — `stale_reason`
+#: only, beside the codes above: a Docs-panel re-run whose own usable
+#: narration could not be STORED (the database refused the write) keeps the
+#: month's briefing, and says so.
+BRIEFING_STALE_WRITE_REFUSED = "write_refused"
+
+#: … and when the run narrated NOTHING, by design: the AI lane (non-Romanian
+#: documents) replaces a month's statements and never narrates. The month's
+#: briefing — written for the statements it just replaced, on an explicit,
+#: metered request — is kept and says so. NOT one of the codes above: no
+#: narration failed, and `narration_unavailable_code` never returns it.
+BRIEFING_STALE_NOT_RENARRATED = "not_renarrated"
+
+#: Provider error text as a stored body BEGINS with it: the SDK's own
+#: `str(e)` of a status error ("Error code: 400 - {…}"). Applied with
+#: `.match` — ANCHORED at the start of the body, never searched inside it.
+#:
+#: Until 2026-10-03 this was `invalid_request_error | authentication_error |
+#: credit balance is too low | Error code: \d` SEARCHED anywhere in the
+#: body. "Credit balance" (sold creditor) is this product's own vocabulary:
+#: a good briefing saying a supplier's "credit balance is too low" was
+#: served `body: null`, left unprotected against the next failed narration,
+#: and — because `narration_unavailable_code` falls back to the text
+#: predicate — a FRESH good narration saying it was refused. No failure
+#: text a writer ever stored needs the bare phrases: the provider branch
+#: before 2026-08-04 stored `f"Narrative unavailable: {e}"` (caught by that
+#: prefix) and the sentinel since. frontend/lib/briefingDefinition.ts holds
+#: the same predicate for the browser — change both together.
+_PROVIDER_ERROR_TEXT_RX = re.compile(r"Error code: \d", re.IGNORECASE)
+
+#: The languages `stage_narrate` has an instruction for. The regenerate route
+#: refuses any other (422 `unsupported_language`, before the meter); a
+#: document whose detected language is another is narrated in English.
+NARRATION_LANGUAGES = ("en", "ro", "de", "fr", "es", "it", "pt", "nl", "pl")
+
+
+def stored_briefing_failure_code(body: Any) -> Optional[str]:
+    """The TEXT predicate, for a row already stored: the neutral code of the
+    failure text `body` is, or None when it is prose.
+
+    Recognised — every one by the SHAPE of the body, never by a phrase
+    somewhere inside it: an empty body; the sentinel; a body that begins
+    "Narrative unavailable…" (the empty-reply fallback, and the
+    pre-2026-08-04 provider branch, which appended the raw provider error);
+    a body that begins with the SDK's own error text ("Error code: NNN");
+    the two operator sentences; the numeral-guard sentence; the head of a
+    raw model reply stored as the body (it begins with `{` or a backtick).
+
+    NOT recognised (it is arbitrary text no predicate can name): a reply
+    fragment that begins with prose ("Here is the briefing: {…").
+
+    A FALSE POSITIVE IS NOT A HARMLESS REFUSAL: the row is served `body:
+    null`, a failed narration may then overwrite it, and a fresh good
+    narration saying the same words is refused (`narration_unavailable_code`
+    falls back to this predicate). Prose that merely SAYS "credit balance is
+    too low", "unavailable" or "error" is prose."""
+    if not isinstance(body, str) or not body.strip():
+        return "empty_reply"
+    text = body.strip()
+    if text.startswith("Set ANTHROPIC_API_KEY"):
+        return "no_api_key"
+    if text.startswith("anthropic SDK not installed"):
+        return "sdk_missing"
+    if text.startswith("The briefing was withheld:"):
+        return "withheld_numerals"
+    if NARRATIVE_UNAVAILABLE_SENTINEL in text or _PROVIDER_ERROR_TEXT_RX.match(text):
+        return "provider_error"
+    if text.lower().startswith("narrative unavailable"):
+        return "provider_error" if ":" in text else "empty_reply"
+    # The head of a raw model REPLY, not prose: until 2026-10-02 the not-JSON
+    # branch of `stage_narrate` returned `text[:500]` and every writer stored
+    # it as the briefing (a JSON reply that was cut off, carried trailing
+    # text, or came in backticks). No briefing begins with `{` or a backtick.
+    if text.startswith(("{", "`")):
+        return "unparseable_reply"
+    return None
+
+
+def narration_unavailable_code(narrate: Any) -> Optional[str]:
+    """THE predicate for "is this narration usable?": the neutral code when
+    it is not, None when it is.
+
+    Decided on the structured `unavailable` code `stage_narrate` returns in
+    every failure branch. A result that carries no code is usable only if
+    its body is prose — a body the reader side would serve as unavailable
+    (`stored_briefing_failure_code`) is never written as a briefing."""
+    if not isinstance(narrate, dict):
+        return "empty_reply"
+    code = narrate.get("unavailable")
+    if code:
+        return code if code in NARRATION_UNAVAILABLE_CODES else "provider_error"
+    return stored_briefing_failure_code(narrate.get("briefing"))
+
+
+def narration_language(doc: Optional[Dict[str, Any]]) -> str:
+    """The language `stage_narrate` narrates `doc` in."""
+    code = str((doc or {}).get("detected_language") or "en").lower()[:2]
+    return code if code in NARRATION_LANGUAGES else "en"
+
+
+def briefing_language_stamp(doc: Optional[Dict[str, Any]]) -> str:
+    """`briefings.language` for a narration of `doc`: the TRUE language,
+    clamped to what the column's check constraint allows ('en' / 'ro' —
+    schema_phase3.sql). Every write stamped the constant 'en' until
+    2026-10-02, whatever the prose was in."""
+    return "ro" if narration_language(doc) == "ro" else "en"
+
+
+def _stored_briefing_row(admin_client: Any, period_id: str, org_id: Any) -> Optional[Dict[str, Any]]:
+    """The period's briefing row, read under the service role with the
+    TENANT in the filter (and re-checked on the row), or None."""
+    rows = admin_client.select(
+        "briefings",
+        filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        limit=1,
+    ) or []
+    own = [r for r in rows if str(r.get("org_id")) == str(org_id)]
+    return own[0] if own else None
+
+
+def _is_usable_stored_briefing(row: Optional[Dict[str, Any]]) -> bool:
+    return bool(row) and stored_briefing_failure_code(row.get("body")) is None
+
+
+def _kept_briefing_body(row: Optional[Dict[str, Any]]) -> Optional[str]:
+    """The stored body the regenerate route may hand back as "the briefing
+    that was kept": prose, written under TODAY's EBITDA definition. A row
+    written under an earlier definition is hidden by the page behind its
+    note (design A9) and this response carries no definition block, so it
+    is answered null, never as prose beside corrected numbers."""
+    if not _is_usable_stored_briefing(row):
+        return None
+    status = briefing_definition_status(row) or {}
+    if status.get("written_under_previous_definition"):
+        return None
+    return row.get("body")
+
+
+def _mark_briefing_stale(admin_client: Any, row: Optional[Dict[str, Any]],
+                         period_id: str, org_id: Any, reason: str) -> bool:
+    """The kept row is marked stale: a SEPARATE, best-effort service-role
+    update filtered by period AND tenant — never part of a briefing upsert
+    (an upsert naming a column PostgREST does not know is rejected whole,
+    and every briefing write would then depend on
+    supabase/schema_phase_briefing_stale.sql having been applied).
+    `stale_since` is the FIRST failure since the last good write.
+
+    Returns whether the marker was STORED (the update was accepted): a
+    caller that reports `stale` reports what the row holds, never what it
+    asked for (owner ruling 2026-10-03: "never report a state that isn't
+    stored")."""
+    patch: Dict[str, Any] = {"stale_reason": reason}
+    if not (row or {}).get("stale_since"):
+        patch["stale_since"] = _now_iso()
+    try:
+        admin_client.update(
+            "briefings", patch,
+            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        )
+    except Exception as exc:  # noqa: BLE001 — the column may not exist yet
+        logger.warning("[briefing] stale marker not written for period %s (%s) — "
+                       "is supabase/schema_phase_briefing_stale.sql applied?",
+                       period_id, type(exc).__name__)
+        return False
+    return True
+
+
+def _clear_briefing_stale(admin_client: Any, period_id: str, org_id: Any) -> bool:
+    """A successful write clears the marker — the same separate, best-effort
+    update (see `_mark_briefing_stale`). Returns whether the clear was
+    STORED (the update was accepted)."""
+    try:
+        admin_client.update(
+            "briefings", {"stale_since": None, "stale_reason": None},
+            filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+        )
+    except Exception as exc:  # noqa: BLE001 — the column may not exist yet
+        logger.info("[briefing] stale marker not cleared for period %s (%s) — "
+                    "is supabase/schema_phase_briefing_stale.sql applied?",
+                    period_id, type(exc).__name__)
+        return False
+    return True
+
+
+def served_briefing(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """GET /api/period's `briefing` for a stored row (None when there is
+    none). Additive over the earlier shape: a row holding a failure text is
+    served `body: null, unavailable: true` with its neutral reason — an
+    older bundle then simply does not mount the card — and `stale` carries
+    the marker when the row has one."""
+    if not row:
+        return None
+    reason = stored_briefing_failure_code(row.get("body"))
+    stale = None
+    if row.get("stale_since"):
+        stale = {"since": row.get("stale_since"), "reason": row.get("stale_reason")}
+    return {
+        "body": None if reason else row["body"],
+        "language": row.get("language", "en"),
+        "model": row.get("model"),
+        # Which EBITDA definition the prose was written under; the page
+        # hides one written under an earlier definition with the note
+        # (owner ruling 2026-09-26, design A9).
+        "definition": briefing_definition_status(row),
+        "unavailable": reason is not None,
+        "unavailable_reason": reason,
+        "stale": stale,
     }
 
 
@@ -3597,12 +5484,54 @@ def _briefing_ratios(
     return ratios, refusals
 
 
+def _briefing_credit_regime(statements: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The credit model's regime, as the narrator reads it: its code, its
+    label, the finding (the owner's sentence — RO verbatim — and its EN
+    equivalent), what X3 was computed on and the status of the cash figure
+    the cash components read. TEXT ONLY: every money figure the finding
+    cites is already a top-level briefing fact (`inventory_variation` is the
+    net 711, `turnover` the net turnover), where the FX conversion and the
+    numeral guard type it — a nested money figure here would be neither
+    converted nor citable (`numerals.facts_from_briefing` skips nested
+    dicts). None on a book under the standard model (owner ruling R1,
+    2026-09-28; `credit_model.stock_build_regime`)."""
+    if not isinstance(statements, Mapping):
+        return None
+    try:
+        regime = _credit_model.stock_build_regime(statements)
+    except Exception:  # noqa: BLE001 — a pack that cannot be read states nothing
+        logger.exception("[stage_narrate] credit regime unreadable (non-fatal)")
+        return None
+    if regime is None:
+        return None
+    cash = regime.get("cash") or {}
+    finding = regime.get("finding")
+    return {
+        "code": regime.get("code"),
+        "label": dict(regime.get("label") or {}),
+        # None when the served figures contradict the sentence (EBITDA not
+        # positive, positive before the stock build, or cash measured
+        # positive — `credit_model._finding_premise`): the narrator then
+        # states the regime and NO finding, never the sentence.
+        "finding": ({"code": finding.get("code"), "severity": finding.get("severity"),
+                     "text": dict(finding.get("text") or {})}
+                    if isinstance(finding, Mapping) else None),
+        "altman_x3_basis": dict((regime.get("altman_x3") or {}).get("label") or {}),
+        "cash_status": cash.get("status"),
+        "cash_refusal": dict(cash["refusal"]) if isinstance(cash.get("refusal"), Mapping) else None,
+        "cash_components": list(regime.get("cash_components") or []),
+    }
+
+
 def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, Any],
-                        grand_totals: Dict[str, Any]) -> Dict[str, Any]:
+                        grand_totals: Dict[str, Any],
+                        statements: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The briefing's fact block BEFORE FX conversion — the figures the
     model may cite (numerals.facts_from_briefing types every money field as
     a citable MoneyFact). Pure: `stage_narrate` calls it, and the
-    refusal-carries gate reads it on the refused books."""
+    refusal-carries gate reads it on the refused books. `statements` (the
+    assembled block) carries the credit model's regime into the facts
+    (`credit_regime`, owner ruling R1) — once, as text."""
     # ABSENT != ZERO: a missing or REFUSED EBITDA or turnover stays None
     # here (it used to default to 0.0, the same value as a measured zero).
     # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26).
@@ -3626,6 +5555,11 @@ def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, An
         "inventory_variation": (_inv.get("value") if isinstance(_inv, dict) else None),
         "capitalized_own_work": (_cap.get("value") if isinstance(_cap, dict) else None),
         "depreciation": pl_canonical.get("depreciation", 0.0),
+        # R2 (owner ruling 2026-09-28): charges (6812, 6814) − reversals
+        # (7812, 7814), OUTSIDE EBITDA, between EBITDA and the operating
+        # result — absent (None) on a block assembled before the ruling.
+        "net_provisions": ((pl_canonical.get("net_provisions") or {}).get("value")
+                           if isinstance(pl_canonical.get("net_provisions"), dict) else None),
         "interest_expense": pl_canonical.get("interest_expense", 0.0),
         "tax": pl_canonical.get("tax", 0.0),
         "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),
@@ -3658,6 +5592,12 @@ def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, An
         briefing_facts_raw["ebitda_refusal"] = {
             "code": _r.get("code"), "text_en": _r.get("text_en"), "text_ro": _r.get("text_ro")}
     briefing_facts_raw["ebitda_definition"] = pl_canonical.get("ebitda_definition")
+    _regime = _briefing_credit_regime(statements)
+    if _regime is not None:
+        # The credit grade is on cash for this book (owner ruling R1): the
+        # narrator states the regime and its finding ONCE, never the grade
+        # as an EBITDA verdict.
+        briefing_facts_raw["credit_regime"] = _regime
     if briefing_ratio_refusals:
         # Why each None ratio is None — the model reads the reason instead
         # of inventing a figure. Present only when something refused, so a
@@ -3703,18 +5643,35 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     catalog) the prompt switches modes: instead of ratio-based CFO commentary,
     Claude describes what's in the document and surfaces the headline
     findings from `parsed.summary`.
+
+    A FAILED narration never raises: every failure branch returns its
+    `briefing` text as before PLUS `unavailable: <code>` (one of
+    `NARRATION_UNAVAILABLE_CODES`). The code — not the text — is what every
+    writer decides on (`narration_unavailable_code`): no writer stores a
+    failed narration over a usable briefing (owner ruling 2026-10-02).
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        return {"briefing": "Set ANTHROPIC_API_KEY on the backend to enable AI narrative.", "recommendations": [], "alerts": []}
+        return {"briefing": "Set ANTHROPIC_API_KEY on the backend to enable AI narrative.", "recommendations": [], "alerts": [],
+                "unavailable": "no_api_key"}
 
     try:
         from anthropic import Anthropic  # type: ignore
-    except ImportError:
-        return {"briefing": "anthropic SDK not installed on backend.", "recommendations": [], "alerts": []}
+    except Exception as exc:  # noqa: BLE001 — an SDK that cannot be imported, for any reason
+        # ImportError is the SDK not being installed. A half-installed or
+        # version-broken SDK raises something else at import; either way
+        # there is no SDK to narrate with, and "never raises" holds.
+        if not isinstance(exc, ImportError):
+            logger.warning("anthropic SDK could not be imported (%s)", type(exc).__name__)
+        return {"briefing": "anthropic SDK not installed on backend.", "recommendations": [], "alerts": [],
+                "unavailable": "sdk_missing"}
 
-    # max_retries=5 covers transient Opus 529 overloads on the narrate stage.
-    client = Anthropic(api_key=api_key, max_retries=5, timeout=180.0)
+    # The provider client is CONSTRUCTED inside the same `try` as the call
+    # (below): `Anthropic(...)` itself raises — an httpx whose `proxies`
+    # keyword is gone, a SOCKS proxy without its extra — and out here that
+    # exception left `stage_narrate`, failing a run whose statements and
+    # metrics were already replaced (and answering 500 on the regenerate
+    # route).
 
     industry_key = org.get("industry_key") or "generic"
     industry_display = org.get("industry_display_name") or industry_key
@@ -3763,6 +5720,23 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         f"Every monetary figure in `briefing_facts` is pre-converted to "
         f"{effective_display} — do NOT re-convert."
     )
+    # THE READER'S FIGURE FORMAT (owner order 2026-10-04: "make chat and
+    # briefings write numbers in Romanian format in Romanian text …, currency
+    # after the figure. Use the product's own formatting standard"). For the
+    # two languages the product defines a figure format for, the hint is
+    # `figure_format.currency_hint`: the code AFTER the figure, with example
+    # strings that are the product's own prints (held to frontend/lib/money
+    # by the gate ai-figures-engine) — never an example typed here. Every
+    # other narration language, and a module that cannot be imported, keeps
+    # the four lines above byte for byte.
+    if output_language in ("ro", "en"):
+        try:
+            from engine.ai import figure_format as _figure_format
+
+            currency_hint = (_figure_format.currency_hint(output_language, effective_display)
+                             or currency_hint)
+        except Exception:  # noqa: BLE001 — the hint must never break a narration
+            logger.exception("[pipeline] narration figure hint failed (non-fatal)")
 
     if is_financial:
         system = (
@@ -3833,6 +5807,17 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "figure and its basis and make no slow/high claim. When\n"
             "`inventory_days.seasonal` is true, say that a year-end balance of a\n"
             "food / FMCG business is seasonal.\n\n"
+            "CREDIT REGIME — STOCK BUILD: when `briefing_facts.credit_regime` is\n"
+            "present, the credit model grades this book on CASH, not EBITDA (the\n"
+            "stock variation 711 is a build of stock, not earnings). When its\n"
+            "`finding` is present, state `finding.text` in the reply language\n"
+            "ONCE, verbatim, citing the net stock variation\n"
+            "(`briefing_facts.inventory_variation`) and net turnover\n"
+            "(`briefing_facts.turnover`); when `finding` is null, state NO\n"
+            "finding sentence of your own. Never call EBITDA a sign of\n"
+            "operating strength. When `cash_refusal` is present, the\n"
+            "cash components and the letter are refused: say so with its text,\n"
+            "never estimate a grade.\n\n"
             "═══════════════════════════════════════════════════════════════\n"
             "INDUSTRY-APPROPRIATE LANGUAGE — STRICTLY ENFORCED\n"
             "═══════════════════════════════════════════════════════════════\n"
@@ -3925,7 +5910,8 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    briefing_facts_raw = _briefing_facts_raw(pl_canonical, bs_canonical, grand_totals)
+    briefing_facts_raw = _briefing_facts_raw(pl_canonical, bs_canonical, grand_totals,
+                                             statements=assembled["statements"])
     # ── FX conversion ─────────────────────────────────────────────────
     # Convert every monetary value in briefing_facts from the source
     # currency (the trial balance's native currency, almost always RON)
@@ -4017,6 +6003,8 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     }
 
     try:
+        # max_retries=5 covers transient Opus 529 overloads on the narrate stage.
+        client = Anthropic(api_key=api_key, max_retries=5, timeout=180.0)
         resp = client.messages.create(
             model=_narrative_model(),
             max_tokens=4096,
@@ -4036,9 +6024,24 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "recommendations": [],
             "alerts": [],
             "narrate_error": str(e)[:200],
+            "unavailable": "provider_error",
         }
 
-    text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
+    # THE PROVIDER ANSWERED — whether there is anything to READ in the answer
+    # is not something the call returning guarantees. A response whose
+    # `content` is null, or whose text block carries a null `text`, raised
+    # TypeError from the join that stood here, outside any try. Read only
+    # what is text; whatever cannot be read is an EMPTY reply, never an
+    # exception.
+    try:
+        text = "".join(
+            block.text for block in (getattr(resp, "content", None) or [])
+            if getattr(block, "type", None) == "text" and isinstance(getattr(block, "text", None), str)
+        ).strip()
+    except Exception:  # noqa: BLE001 — content that cannot even be walked
+        logger.warning("Opus narrate returned a response with no readable content (%s)",
+                       type(getattr(resp, "content", None)).__name__)
+        text = ""
     if text.startswith("```"):
         text = text.strip("`")
         if text.startswith("json"):
@@ -4046,14 +6049,40 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         text = text.strip()
     try:
         data = json.loads(text)
-    except json.JSONDecodeError:
-        return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": []}
+    except (ValueError, RecursionError):
+        # Not JSON (JSONDecodeError is a ValueError) — or JSON nested deeper
+        # than the parser will follow, which is not the object asked for
+        # either and must not leave this function as an exception.
+        return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": [],
+                "unavailable": "unparseable_reply" if text else "empty_reply"}
+    if not isinstance(data, dict):
+        # Valid JSON that is not the object asked for (a list, a string, a
+        # number): `data.get` below raised AttributeError and failed the run.
+        return {"briefing": text[:500] or "Narrative unavailable.", "recommendations": [], "alerts": [],
+                "unavailable": "unparseable_reply"}
 
     narrated = {
         "briefing": data.get("briefing", "Narrative unavailable."),
-        "recommendations": data.get("recommendations", []) or [],
+        # A LIST, or not at all (review 2026-10-03). Only a real list — an
+        # empty one included — is the narration's word on what to recommend;
+        # a missing key, a null, a string or an object used to be coerced to
+        # [] here, which the writer reads as "recommends nothing — replace":
+        # a usable reply that merely omitted the key deleted the period's
+        # worked recommendations. None = unreadable; the writer replaces
+        # nothing (`_recommendation_rows`).
+        "recommendations": (data.get("recommendations")
+                            if isinstance(data.get("recommendations"), list) else None),
         "alerts": data.get("alerts", []) or [],
     }
+    _narrated_body = narrated["briefing"]
+    if "briefing" not in data or not isinstance(_narrated_body, str) or not _narrated_body.strip():
+        # No `briefing` key, a JSON null (it reached the `body text not
+        # null` column as None), an empty string, a non-string.
+        narrated["briefing"] = "Narrative unavailable."
+        narrated["unavailable"] = "empty_reply"
+        # A failure result always carries a LIST (every failure branch
+        # does): it replaces nothing, whatever the reply held there.
+        narrated["recommendations"] = []
 
     # ── THE AI BOUNDARY (engine.ai.numerals) ──────────────────────────
     # This is where model output becomes narrative the product ships:
@@ -4087,8 +6116,59 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
                 _numeral_report["fields_checked"],
                 _numeral_report["rejected_fields"], doc.get("id"),
             )
+        if (_numeral_report.get("mode") == _numerals.MODE_ENFORCE
+                and "briefing" in (_numeral_report.get("rejected_fields") or [])):
+            # Enforce mode replaced the briefing with the guard's fixed
+            # sentence: that is a withheld narration, not a briefing.
+            narrated.setdefault("unavailable", "withheld_numerals")
+            if not isinstance(narrated.get("recommendations"), list):
+                narrated["recommendations"] = []
     except Exception:  # noqa: BLE001 — the boundary must never break narration
         logger.exception("[pipeline] numeral guard failed (non-fatal)")
+
+    # ── THE READER'S FIGURE FORMAT (engine.ai.figure_format) ─────────
+    # What the model wrote is what every writer below stores and every
+    # surface serves, and the hint above is only a request: a Romanian
+    # briefing that says "~EUR 12.3M (marjă 8.75%)" would be stored and
+    # shown as written. Here — after the numeral guard, before any caller
+    # — a figure PROVEN to be in the other language's notation is
+    # rewritten into the text's own (separators swapped character by
+    # character, the ISO code moved after the figure). No value can
+    # change: an ambiguous token ("1,234") is left as written and
+    # counted, and the pass refuses its own result if the digit sequence
+    # differs. Romanian and English only; a failed narration is not
+    # touched; `output_language` is the code the prompt above instructed
+    # in (NOT narration_language(), which reads an unknown code as
+    # English). The log line carries counts by reason — never a token.
+    try:
+        if output_language in ("ro", "en") and not narrated.get("unavailable"):
+            from engine.ai import figure_format as _figures
+
+            narrated, _fig = _figures.normalise_narrate_result(
+                narrated, output_language,
+                anchors=_figures.anchors_of(
+                    briefing_facts, user_payload.get("metrics"),
+                    user_payload.get("valuation"), user_payload.get("inventory_days")),
+                # (the pass must not change what the stored-text predicate
+                # reads a briefing AS: "Error code: RON 1,250.50 …" with the
+                # code moved would begin like the SDK's own error text)
+                briefing_verdict=stored_briefing_failure_code,
+            )
+            if _fig["rewritten"] or _fig["left"]:
+                logger.info(
+                    "[pipeline] narration figures (%s): %d rewritten, left %s — doc=%s",
+                    output_language, _fig["rewritten"], _fig["left_by_reason"], doc.get("id"),
+                )
+            if _fig.get("errors"):
+                # An honest refusal of the proof and a DEFECT in the pass look
+                # the same in the counts above: say which it was.
+                logger.warning(
+                    "[pipeline] narration figures (%s): the pass raised on %d field(s); "
+                    "the model's text was kept — doc=%s",
+                    output_language, _fig["errors"], doc.get("id"),
+                )
+    except Exception:  # noqa: BLE001 — a formatter must never break a narration
+        logger.exception("[pipeline] narration figure format failed (non-fatal)")
     return narrated
 
 
@@ -4157,14 +6237,144 @@ def _persist_period_alerts(admin_client: Any, org_id: str, document_id: Any,
         admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
 
 
+_RECOMMENDATION_URGENCY = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
+
+
+def _recommendation_text(value: Any) -> str:
+    """A model-written field as the text column it lands in: a JSON null is
+    the empty string, a number or a nested value is its text."""
+    if value is None:
+        return ""
+    return value if isinstance(value, str) else str(value)
+
+
+def _recommendation_rows(narrate: Any, org_id: Any, period_id: str) -> Optional[List[Dict[str, Any]]]:
+    """The narration's recommendations as rows of `recommendations` —
+    VALIDATED HERE, before any write: the writer deletes the period's
+    recommendations to replace them, and a row that raised while it was
+    being built used to land AFTER that delete (a JSON null rationale, a
+    list of numbers for the actions, a string where the list was asked for:
+    recommendations gone, none inserted, the run's alerts never written).
+
+      · a list of objects      → one row per object; every field is coerced
+                                  to what its column holds (text; a number
+                                  or null for the cash impact). An item that
+                                  is not an object is dropped.
+      · an empty list          → [] — the narration recommends nothing, and
+                                  that replaces what is stored.
+      · anything else          → None: UNREADABLE (a string, an object, no
+                                  `recommendations` at all, a non-empty list
+                                  holding no object). Nothing is replaced —
+                                  an unreadable reply is not "no
+                                  recommendations".
+    Well-formed input yields byte-for-byte the rows the writer built before.
+    """
+    raw = narrate.get("recommendations") if isinstance(narrate, dict) else None
+    if not isinstance(raw, list):
+        return None
+    rows: List[Dict[str, Any]] = []
+    for r in raw:
+        if not isinstance(r, dict):
+            continue
+        actions_raw = r.get("actions")
+        if isinstance(actions_raw, str):
+            actions_raw = [actions_raw]
+        elif not isinstance(actions_raw, (list, tuple)):
+            actions_raw = []
+        actions = [_recommendation_text(a) for a in actions_raw if a is not None]
+        explanation = _recommendation_text(r.get("rationale")) + (
+            "\n\nActions:\n• " + "\n• ".join(actions) if actions else "")
+        severity = _recommendation_text(r.get("severity") or "medium").lower()
+        title = _recommendation_text(r.get("title", "Untitled recommendation"))
+        impact = r.get("estimated_ron_impact")
+        if isinstance(impact, str):
+            # A plain numeric string only. "12,500" / "1.234,56" are never
+            # guessed at — absent, not approximated.
+            try:
+                impact = float(impact.strip())
+            except ValueError:
+                impact = None
+        if isinstance(impact, bool) or not isinstance(impact, (int, float)) \
+                or impact != impact or impact in (float("inf"), float("-inf")):
+            impact = None
+        rows.append({
+            "org_id": org_id,
+            "period_id": period_id,
+            "target_type": "dataset",
+            "target_id": str(period_id),
+            "title": title if title.strip() else "Untitled recommendation",
+            "explanation": explanation,
+            "expected_cash_impact_kron": impact,
+            "urgency": _RECOMMENDATION_URGENCY.get(severity, "medium"),
+            "status": "new",
+        })
+    if raw and not rows:
+        return None
+    return rows
+
+
+def narration_recommendations_unreadable(narrate: Any) -> bool:
+    """A USABLE narration whose `recommendations` cannot be read — the
+    writer then stores none of them and keeps what the period holds
+    (`stage_persist_narrative`); the same-month takeover must keep the
+    month's for the same reason."""
+    return (narration_unavailable_code(narrate) is None
+            and _recommendation_rows(narrate, None, "") is None)
+
+
 def stage_persist_narrative(
     doc: Dict[str, Any],
     period_id: str,
     narrate: Dict[str, Any],
     validation_alerts: List[Dict[str, Any]],
+    *,
+    stored: Optional[Dict[str, bool]] = None,
 ) -> None:
+    """Persist the run's briefing, recommendations and alerts.
+
+    NO RUN REPLACES A USABLE BRIEFING WITH A FAILED NARRATION (owner ruling
+    2026-10-02). Every re-run of an analysed document reaches this stage on
+    the SAME period row; a narration that failed used to upsert its failure
+    text over the stored briefing and delete the period's recommendations.
+      · usable narration            → written, as before; the marker cleared;
+      · unusable + a usable row     → the row and the recommendations are
+                                      KEPT; the row is marked stale;
+      · unusable + nothing to keep  → the neutral sentinel is written (a
+                                      first analysis), never provider text
+                                      or an operator sentence.
+
+    A FAILED NARRATION NEVER DELETES THE PERIOD'S RECOMMENDATIONS, whatever
+    the stored briefing row holds (owner ruling 2026-10-03). The state the
+    pre-repair regenerate left in production — the sentinel over the
+    briefing, the recommendations untouched — lost the statuses, owners and
+    due dates a user had set on them at the first re-run whose narration
+    failed. Recommendations are replaced only by a USABLE narration whose
+    list can be read, and they are validated BEFORE the delete
+    (`_recommendation_rows`): nothing raises between the delete and the
+    insert because of what a model wrote.
+
+    Alerts are deterministic and are written in EVERY case — also when a
+    briefing or recommendation write raises (a transient database error, a
+    schema drift): the raise still reaches the caller, after the alerts.
+
+    A DOCS-PANEL RE-RUN reaches this stage on its STAGED row — a fresh one,
+    with nothing stored under it: a failed narration writes the sentinel
+    there and nothing else, and the takeover that follows keeps what the
+    MONTH holds (`_finalize_same_month_takeover`). Nothing is carried across
+    a reset any more (2026-10-04: the reset is gone — what it took lived in
+    process memory and a restart lost it).
+
+    `stored` (optional, filled in as the stage goes, readable after a
+    raise): `briefing` — a briefing row was written (the run's prose, or the
+    sentinel); `recommendations` — the run's own recommendations replaced
+    the period's; `alerts` — the run's alerts were written. The takeover is
+    told from these what may replace the month's.
+    """
+    if stored is None:
+        stored = {}
     org_id = doc["org_id"]
     document_id = doc["id"]
+    unavailable = narration_unavailable_code(narrate)
     with _supabase.admin() as admin_client:
         # Defensive: if a concurrent DELETE /api/period/{id} removed the
         # period between stage_persist and now, every FK-bound write below
@@ -4185,83 +6395,153 @@ def stage_persist_narrative(
             )
             return
 
-        # Briefing — upsert one row per period
-        admin_client.upsert(
-            "briefings",
-            {
-                "period_id": period_id,
-                "org_id": org_id,
-                "body": narrate["briefing"],
-                "language": "en",
-                "model": _narrative_model(),
-                # The EBITDA definition the prose was written under (owner
-                # ruling 2026-09-26). Served beside the body so a briefing
-                # written under an earlier definition is recognised and
-                # hidden, never shown beside corrected numbers. Column added
-                # by supabase/schema_phase_briefing_ebitda_definition.sql.
-                "ebitda_definition": _EBITDA_DEFINITION_REVISION,
-            },
-            on_conflict="period_id",
-            returning=False,
-        )
+        try:
+            # The last good briefing, when this run's narration failed. Read
+            # only then (a usable narration is written whatever is stored),
+            # with the tenant in the filter.
+            kept_row: Optional[Dict[str, Any]] = None
+            if unavailable is not None:
+                stored_row = _stored_briefing_row(admin_client, period_id, org_id)
+                if _is_usable_stored_briefing(stored_row):
+                    kept_row = stored_row
 
-        # Recommendations — wipe per-PERIOD, re-insert with period_id.
-        #
-        # Phase D-backend: the prior `delete WHERE org_id = ?` wiped EVERY
-        # period's recommendations on every re-run, then re-inserted only
-        # the current period's. Result: only the most-recently-analysed
-        # period had recs; every other period's were silently wiped on
-        # the next upload. The new scope is `WHERE period_id = ?` so a
-        # re-run only replaces THIS period's recs; sibling periods are
-        # untouched. The schema migration at
-        # supabase/schema_phase_notes_period_scope.sql adds the period_id
-        # column + index this query depends on.
-        admin_client.delete("recommendations", filters={"period_id": f"eq.{period_id}"})
-        recs = []
-        for r in narrate["recommendations"]:
-            actions = r.get("actions") or []
-            explanation = r.get("rationale", "") + ("\n\nActions:\n• " + "\n• ".join(actions) if actions else "")
-            urgency_map = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
-            severity = (r.get("severity") or "medium").lower()
-            recs.append({
-                "org_id": org_id,
-                "period_id": period_id,
-                "target_type": "dataset",
-                "target_id": str(period_id),
-                "title": r.get("title", "Untitled recommendation"),
-                "explanation": explanation,
-                "expected_cash_impact_kron": r.get("estimated_ron_impact"),
-                "urgency": urgency_map.get(severity, "medium"),
-                "status": "new",
-            })
-        if recs:
-            admin_client.insert("recommendations", recs, returning=False)
+            if kept_row is not None:
+                logger.warning(
+                    "[stage_persist_narrative] narration unavailable (%s) for period %s — "
+                    "the stored briefing and recommendations are kept; briefing marked stale",
+                    unavailable, period_id,
+                )
+                _mark_briefing_stale(admin_client, kept_row, period_id, org_id, str(unavailable))
+                return
 
-        # ── Alerts — DETERMINISTIC rules only (read from canonical views) ──
-        # LLM-generated alerts are NO LONGER persisted. The "15 duplicate
-        # critical alerts" problem came from the LLM emitting many slight
-        # variations of the same concern, each landing as a fresh row.
-        # `stage_validate` is now the single source — each rule has a
-        # unique rule_key, structurally deduped before this step.
-        #
-        # Phase D-backend: dedup scope is now (period_id, alert_key), not
-        # (org_id, alert_key). The pre-D-backend setup had alerts as
-        # org-scoped rows — `/api/period/:id` then returned the union of
-        # every period's alerts on every period view, producing the
-        # "80 on file" duplicate pile the user reported. Now:
-        #
-        #   1. DELETE every alert for THIS period_id before inserting
-        #      (covers re-runs and old document_ids that previously
-        #      attached to this period via documents.period_id).
-        #   2. INSERT the deduped set with period_id stamped on each
-        #      row, with a (period_id, alert_key) unique constraint
-        #      enforcing idempotency at the DB level.
-        #
-        # The schema migration that adds `period_id` + the new unique
-        # is at supabase/schema_phase_notes_period_scope.sql — both
-        # must ship together.
-        _persist_period_alerts(admin_client, org_id, document_id, period_id,
-                               validation_alerts)
+            # Briefing — upsert one row per period
+            admin_client.upsert(
+                "briefings",
+                {
+                    "period_id": period_id,
+                    "org_id": org_id,
+                    # Nothing to protect and the narration failed: the neutral
+                    # sentinel, whatever text the failure branch returned.
+                    "body": narrate["briefing"] if unavailable is None else NARRATIVE_UNAVAILABLE_SENTINEL,
+                    "language": briefing_language_stamp(doc),
+                    "model": _narrative_model(),
+                    # The EBITDA definition the prose was written under (owner
+                    # ruling 2026-09-26). Served beside the body so a briefing
+                    # written under an earlier definition is recognised and
+                    # hidden, never shown beside corrected numbers. Column added
+                    # by supabase/schema_phase_briefing_ebitda_definition.sql.
+                    "ebitda_definition": _EBITDA_DEFINITION_REVISION,
+                },
+                on_conflict="period_id",
+                returning=False,
+            )
+            stored["briefing"] = True
+            if unavailable is not None:
+                # The narration failed and there was no usable briefing to
+                # keep: the sentinel is stored — and that is ALL a failed
+                # narration writes. It brings no recommendations, so the
+                # period's stored ones are not touched.
+                logger.warning(
+                    "[stage_persist_narrative] narration unavailable (%s) for period %s — "
+                    "the sentinel is stored; the period's recommendations are kept",
+                    unavailable, period_id,
+                )
+                return
+
+            # A good write: the row is current again. NEVER inside the
+            # upsert payload above (see `_mark_briefing_stale`).
+            _clear_briefing_stale(admin_client, period_id, org_id)
+
+            # Recommendations — wipe per-PERIOD, re-insert with period_id.
+            #
+            # Phase D-backend: the prior `delete WHERE org_id = ?` wiped EVERY
+            # period's recommendations on every re-run, then re-inserted only
+            # the current period's. Result: only the most-recently-analysed
+            # period had recs; every other period's were silently wiped on
+            # the next upload. The new scope is `WHERE period_id = ?` so a
+            # re-run only replaces THIS period's recs; sibling periods are
+            # untouched. The schema migration at
+            # supabase/schema_phase_notes_period_scope.sql adds the period_id
+            # column + index this query depends on.
+            #
+            # The rows are built and validated FIRST: the delete below is
+            # destructive, and nothing a model wrote may raise after it.
+            recs = _recommendation_rows(narrate, org_id, period_id)
+            if recs is None:
+                logger.warning(
+                    "[stage_persist_narrative] the narration's recommendations cannot be read "
+                    "for period %s — the stored recommendations are kept",
+                    period_id,
+                )
+                return
+            # What the period holds, read BEFORE the delete: the replacement
+            # is a delete then an insert, and an insert the database refused
+            # (a timeout) used to leave the period with none — its worked
+            # recommendations gone although the narration had not failed
+            # (review 2026-10-03, measured 2 -> 0). They are put back.
+            previous_recs = admin_client.select(
+                "recommendations",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+            ) or []
+            admin_client.delete(
+                "recommendations",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"})
+            try:
+                if recs:
+                    admin_client.insert("recommendations", recs, returning=False)
+            except Exception:
+                # Put back — onto a period that HOLDS NONE only: a timeout
+                # is ambiguous (the insert may have landed and only its
+                # reply been lost), and the previous rows beside the run's
+                # own would be both lists at once.
+                try:
+                    landed = admin_client.select(
+                        "recommendations",
+                        filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+                        columns="id", limit=1,
+                    )
+                    if previous_recs and not landed:
+                        admin_client.insert("recommendations", previous_recs, returning=False)
+                except Exception:  # noqa: BLE001 — the original failure is what is raised
+                    logger.exception(
+                        "[stage_persist_narrative] the period's previous recommendations "
+                        "could not be put back for period %s", period_id)
+                raise
+            stored["recommendations"] = True
+        finally:
+            # ── Alerts — DETERMINISTIC rules only (read from canonical views) ──
+            # LLM-generated alerts are NO LONGER persisted. The "15 duplicate
+            # critical alerts" problem came from the LLM emitting many slight
+            # variations of the same concern, each landing as a fresh row.
+            # `stage_validate` is now the single source — each rule has a
+            # unique rule_key, structurally deduped before this step.
+            #
+            # Phase D-backend: dedup scope is now (period_id, alert_key), not
+            # (org_id, alert_key). The pre-D-backend setup had alerts as
+            # org-scoped rows — `/api/period/:id` then returned the union of
+            # every period's alerts on every period view, producing the
+            # "80 on file" duplicate pile the user reported. Now:
+            #
+            #   1. DELETE every alert for THIS period_id before inserting
+            #      (covers re-runs and old document_ids that previously
+            #      attached to this period via documents.period_id).
+            #   2. INSERT the deduped set with period_id stamped on each
+            #      row, with a (period_id, alert_key) unique constraint
+            #      enforcing idempotency at the DB level.
+            #
+            # The schema migration that adds `period_id` + the new unique
+            # is at supabase/schema_phase_notes_period_scope.sql — both
+            # must ship together.
+            #
+            # IN EVERY CASE (`finally`): the briefing kept, the sentinel
+            # stored, the recommendations unreadable — and a briefing or
+            # recommendation write that RAISED. The alerts belong to the
+            # statements, not to the narration; a same-month takeover moves
+            # them onto the month, and a run whose narrative write raised
+            # used to leave the month with none.
+            _persist_period_alerts(admin_client, org_id, document_id, period_id,
+                                   validation_alerts)
+            stored["alerts"] = True
 
 
 # ─── Orchestrator ───────────────────────────────────────────────────────────
@@ -4519,25 +6799,91 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
     Two writes per upload:
       1. sku_analyses (one row per document) — briefing + recommendations
       2. sku_aggregates (N rows) — engine-classified per-SKU rollups
+
+    NO RUN REPLACES A USABLE BRIEFING WITH A FAILED NARRATION — the same
+    rule as `stage_persist_narrative`, for the fourth writer of a briefing
+    (owner ruling 2026-10-03: the SKU briefing is in scope). `sku_analyses`
+    holds ONE row per document and no history; a re-run of a sales document
+    whose narration failed used to store the operator sentence, the
+    sentinel, or the first 500 characters of an unparseable reply over the
+    briefing and replace its recommendations with [].
+      · usable narration            → written, as before;
+      · unusable + a usable row     → the row's briefing, recommendations,
+                                      language and model are KEPT (the
+                                      upsert names none of them); the run's
+                                      deterministic `summary` is written;
+      · unusable + nothing to keep  → the neutral sentinel, never provider
+                                      text or an operator sentence — and a
+                                      failed narration never writes over
+                                      recommendations a stored row holds.
     """
     from ._sku_classify import classify_portfolio
 
     raw_skus = parsed.get("skus") or []
     classified = classify_portfolio(raw_skus)
     period_label = parsed.get("period_label") or "Imported period"
+    unavailable = narration_unavailable_code(narrative)
 
     with _supabase.admin() as client:
-        client.upsert(
-            "sku_analyses",
-            {
-                "org_id": doc["org_id"],
-                "document_id": doc["id"],
+        # The run's deterministic part: always written.
+        row: Dict[str, Any] = {
+            "org_id": doc["org_id"],
+            "document_id": doc["id"],
+            "summary": parsed.get("summary") or {},
+        }
+        run_recs = narrative.get("recommendations")
+        stored: Optional[Dict[str, Any]] = None
+        if unavailable is not None or not isinstance(run_recs, list):
+            # The narration failed — or its recommendations cannot be read:
+            # read what the document already holds, with the TENANT in the
+            # filter (the read runs under the service role) and re-checked
+            # on the row.
+            stored_rows = client.select(
+                "sku_analyses",
+                filters={"document_id": f"eq.{doc['id']}", "org_id": f"eq.{doc['org_id']}"},
+                columns="document_id,org_id,briefing",
+                limit=1,
+            ) or []
+            stored = next((r for r in stored_rows
+                           if str(r.get("org_id")) == str(doc["org_id"])), None)
+        if unavailable is None:
+            row.update({
                 "briefing": narrative.get("briefing", ""),
-                "summary": parsed.get("summary") or {},
-                "recommendations": narrative.get("recommendations") or [],
                 "language": "en",
                 "model": _narrative_model(),
-            },
+            })
+            # A reply whose recommendations cannot be read (`stage_narrate`
+            # hands on a list or None) is not a reply that recommends
+            # nothing: the stored ones are kept (the upsert names no such
+            # column) — an empty list only where there is no row to keep.
+            if isinstance(run_recs, list):
+                row["recommendations"] = run_recs
+            elif stored is None:
+                row["recommendations"] = []
+        else:
+            if stored is not None and stored_briefing_failure_code(stored.get("briefing")) is None:
+                logger.warning(
+                    "[sku] narration unavailable (%s) for document %s — the stored SKU "
+                    "briefing and recommendations are kept",
+                    unavailable, doc["id"],
+                )
+            else:
+                # Nothing usable to keep: the neutral sentinel, whatever
+                # text the failure branch returned. Recommendations are
+                # written only where there is no row to merge into.
+                row.update({
+                    "briefing": NARRATIVE_UNAVAILABLE_SENTINEL,
+                    "language": "en",
+                    "model": _narrative_model(),
+                })
+                if stored is None:
+                    row["recommendations"] = []
+        # An upsert MERGES on conflict: a column the payload does not name
+        # keeps its stored value — which is how the kept briefing and
+        # recommendations survive a failed narration.
+        client.upsert(
+            "sku_analyses",
+            row,
             on_conflict="document_id",
             returning=False,
         )
@@ -4755,7 +7101,8 @@ def _live_reservation_ids() -> List[str]:
 
 def _orphan_analysis_finished(document_id: str) -> bool:
     """Did the orphaned run's analysis FINISH — the document analysed and
-    not an archived duplicate — so that only its settlement was lost?"""
+    not an archived duplicate, and no staged re-run of it left unfinished —
+    so that only its settlement was lost?"""
     try:
         with _supabase.admin() as ac:
             found = ac.select("documents", filters={"id": f"eq.{document_id}"}, single=True) or []
@@ -4763,8 +7110,26 @@ def _orphan_analysis_finished(document_id: str) -> bool:
         logger.exception("[pipeline] orphan settlement: could not read document %s", document_id)
         return False
     doc = dict(found[0]) if found else {}
-    return (str(doc.get("status") or "").lower() == "analyzed"
-            and not _doc_dedupe.is_archived_duplicate(doc) and not doc.get("deleted_at"))
+    if not (str(doc.get("status") or "").lower() == "analyzed"
+            and not _doc_dedupe.is_archived_duplicate(doc) and not doc.get("deleted_at")):
+        return False
+    # A STAGED re-run never re-statuses its document: `analyzed` here may be
+    # the analysis the document had BEFORE the orphaned run. That run did not
+    # finish when its row says so, or when its staged row is still there —
+    # never applied, or interrupted mid-replacement (a resume will complete
+    # the analysis; this sweep cannot say it has). Unknown is released, never
+    # charged.
+    if str(doc.get("error") or "").startswith(RERUN_FAILED_PREFIX):
+        return False
+    try:
+        with _supabase.admin() as ac:
+            staged = _staged_rerun_rows(ac, str(doc.get("org_id") or ""))
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] orphan settlement: the staged rows of %s could not be read",
+                         document_id)
+        return False
+    return not any(str((_staged_rerun.marker_of(r) or {}).get("document_id") or "") == str(document_id)
+                   for r in staged)
 
 
 def _settle_orphaned_reservation(row: Dict[str, Any]) -> None:
@@ -4957,8 +7322,9 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         # Non-RO meter — reserved mid-run by `_enforce_nonro_plan_gate`,
         # settled with the run under the same success-only discipline.
         if run.nonro_reserved and run.nonro_user:
-            # The non-RO reservation was made under `documents.uploaded_by`,
-            # which the BROWSER writes: it settles only against a member of
+            # The non-RO reservation is the verified reserver's
+            # (`_doc_slot_holder`, never `documents.uploaded_by`, which the
+            # BROWSER writes); it still settles only against a member of
             # the document's own organization (P0 family, 2026-09-09).
             nonro_success = settle_as_success
             if nonro_success:
@@ -4968,8 +7334,8 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 doc_org = str((found[0] if found else {}).get("org_id") or "").strip()
                 if not doc_org or not _org.user_is_member(run.nonro_user, doc_org):
                     logger.error(
-                        "[security] REFUSED non-RO commit: document=%s names "
-                        "uploaded_by=%r who is not a member of its org=%r",
+                        "[security] REFUSED non-RO commit: document=%s was reserved "
+                        "by user=%r, who is not a member of its org=%r",
                         document_id, run.nonro_user, doc_org,
                     )
                     nonro_success = False
@@ -5379,6 +7745,10 @@ def _run_pipeline_sync(document_id: str) -> None:
     try:
         outcome = _run_pipeline_stages(document_id)
     finally:
+        # The run is over: the note that it was started as a STAGED re-run
+        # goes with it (the next entry for this document decides afresh).
+        _pop_staged_rerun(document_id)
+        _pop_no_takeover_run(document_id)
         try:
             _commit_pipeline_quota(document_id, success=(outcome == "analyzed"))
         except Exception:  # noqa: BLE001
@@ -5488,6 +7858,30 @@ def _run_pipeline_stages(document_id: str) -> str:
     # Bound before the try so the failure handler can name the tenant of the
     # period this run may have to roll back (G4).
     doc: Optional[Dict[str, Any]] = None
+    # A DOCS-PANEL RE-RUN of a document that owns its month runs STAGED: this
+    # is the id of that month's row (None for every other run). The document
+    # is then not re-statused while it runs — it stays `analyzed`, pinned to
+    # the month that keeps being served — and a failure is said on the row,
+    # never by `failed` over a served period (`_staged_rerun_failed`).
+    staged_of = _staged_rerun_of(document_id)
+
+    def _progress(status: str, **kwargs: Any) -> None:
+        if staged_of is None:
+            _admin_set_status(document_id, status, **kwargs)
+
+    def _analysed(**kwargs: Any) -> None:
+        """The run's last write. For a staged re-run the takeover has already
+        left the document analysed on its month — this adds the duration, and
+        a timeout here must not turn a finished analysis into a failure."""
+        if staged_of is None:
+            _admin_set_status(document_id, "analyzed", **kwargs)
+            return
+        try:
+            _admin_set_status(document_id, "analyzed", **kwargs)
+        except Exception:  # noqa: BLE001
+            logger.exception("[pipeline] %s: the staged re-run's last status write failed "
+                             "(non-fatal — the takeover is complete)", document_id)
+
     try:
         with _supabase.admin() as admin_client:
             doc_rows = admin_client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
@@ -5501,10 +7895,42 @@ def _run_pipeline_stages(document_id: str) -> str:
 
         scope = (doc.get("scope") or "financial").lower()
 
+        if staged_of is None:
+            # THIS DOCUMENT'S OWN LEFTOVER, BEFORE THE FIRST STAGE. A staged
+            # re-run of it that a dead process left mid-replacement is
+            # completed NOW — under this run's claim, while nothing else of
+            # this process can be running the document — not minutes later at
+            # the persist: until then every other document's pass must skip
+            # the row (its document is in flight: this run), and a same-month
+            # upload that finished inside this run's extract stage would take
+            # over a month that is mid-replacement (the measured loss: the
+            # last good briefing and the interrupted run's own, both gone).
+            # (A staged re-run needs no look: the route settled the leftover
+            # under the claim before it handed off.) Never raises; a row that
+            # cannot be completed is met again by the persist's pass, which
+            # refuses to write under it.
+            try:
+                with _supabase.admin() as admin_client:
+                    _clear_staged_rerun_rows(admin_client, doc.get("org_id"), document_id=document_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("[pipeline] %s: its earlier staged rows could not be looked at "
+                                 "(non-fatal here)", document_id)
+
         # RUN JOURNAL — RUN_STARTED (no-op unless ENGINE_JOURNAL_DIR set).
         _journal_hooks.on_run_started(doc, industry=org.get("industry_display_name") or org.get("industry_key"))
 
-        _admin_set_status(document_id, "extracting", pipeline_started_at=_now_iso())
+        _progress("extracting", pipeline_started_at=_now_iso())
+        if staged_of is not None:
+            # "RE-RUN ANALYSIS" RE-EXTRACTS. For a non-Romanian document the
+            # AI lane's cache is the period row itself (`ai_lane._cache_
+            # lookup`): the reset this entry used to make deleted that row,
+            # which is what guaranteed the miss. A staged re-run leaves the
+            # row where it is — so an unchanged file would answer from the
+            # cache and the re-run would be a silent no-op. The lane's own
+            # switch, in memory only: never stored, never in the journal's
+            # copy of the row (`on_run_started` above already took it). The
+            # workspace's plan gate still runs before the lane.
+            doc["force_reextract"] = True
         parsed = stage_extract(doc)
         # RUN JOURNAL — FRONTEND_DONE (deterministic parse / ai-lane /
         # llm-fallback all complete here, whatever lane ran).
@@ -5522,6 +7948,18 @@ def _run_pipeline_stages(document_id: str) -> str:
         # The `documents.detected_type` column has a CHECK constraint so we
         # tag the doc via `briefing.kind` instead — the FE filters by that.
         if (parsed or {}).get("detected_type") == "public_records_summary":
+            if staged_of is not None:
+                # A RE-RUN of a document that owns a month now reads as a
+                # public-records summary. This exit ends by marking the
+                # document analysed with NO period — over a month that still
+                # names it as its source, serving an analysis its own
+                # document no longer points at. A re-run never ends by
+                # leaving its month without its document's analysis: it is
+                # refused BEFORE anything is written, the month and its
+                # document stay as they were, and the row says the re-run did
+                # not finish (`_staged_rerun_failed`). A first upload of such
+                # a file is unchanged.
+                raise PlainRefusal(RERUN_NOT_A_TRIAL_BALANCE)
             persisted = False
             try:
                 with _supabase.admin() as admin_client:
@@ -5608,15 +8046,34 @@ def _run_pipeline_stages(document_id: str) -> str:
                     document_id, _ai_info.get("period_id"),
                 )
                 return "analyzed"
-            _admin_set_status(document_id, "mapping")
+            _progress("mapping")
             assembled = _ai_info.get("assembled") or {}
             # RUN JOURNAL — PASS_DONE (ai-lane assembled envelope).
             _journal_hooks.on_pass_done(doc, assembled)
-            period_id = stage_persist(doc, parsed, assembled)
-            # G4 — a same-month re-upload becomes the month only now.
-            period_id = _finalize_same_month_takeover(doc, period_id)
-            _admin_set_status(
-                document_id, "analyzed",
+            period_id = stage_persist(doc, parsed, assembled, staged_rerun_of=staged_of)
+            # G4 — a same-month re-upload (or a staged re-run) becomes the
+            # month only now. THE LANE NARRATES NOTHING: it stores no
+            # briefing, no recommendations and no alerts — so its takeover
+            # must never replace the month's with none (hand-over 2026-10-04,
+            # item 3: called with no arguments, it deleted the month's alerts
+            # and stamped a kept briefing with a narration code that never
+            # happened). For EVERY AI-lane run, a re-run or a same-month
+            # re-upload: the month's briefing is kept and marked
+            # `not_renarrated`, and its recommendations (a user's statuses,
+            # owners, due dates) stay where they are.
+            #
+            # THE MONTH'S ALERTS ARE KEPT ONLY ACROSS A RE-RUN OF THE SAME
+            # DOCUMENT (`staged_of`). A same-month re-upload is ANOTHER file:
+            # its alerts would be the archived file's — rows that cite the
+            # old file's figures and carry its document id — sitting unmarked
+            # on the new file's statements. There the takeover does what it
+            # did before this lane (7ca386ec): the month's alerts go with the
+            # statements they were derived from, and the lane brings none.
+            period_id = _finalize_same_month_takeover(
+                doc, period_id,
+                narration_unavailable=BRIEFING_STALE_NOT_RENARRATED,
+                keep_recommendations=True, keep_alerts=staged_of is not None)
+            _analysed(
                 duration_ms=int((time.time() - t0) * 1000),
                 period_id=period_id,
             )
@@ -5697,7 +8154,7 @@ def _run_pipeline_stages(document_id: str) -> str:
         #   2. Anything else (PDF, CSV without recognizable sales shape) →
         #      the LLM-summary briefing path (sku_analyses).
         if scope == "sku":
-            _admin_set_status(document_id, "mapping")
+            _progress("mapping")
             dataset_id: Optional[str] = None
             try:
                 dataset_id = _run_sales_dataset_pipeline(doc)
@@ -5707,7 +8164,7 @@ def _run_pipeline_stages(document_id: str) -> str:
             # Always also produce a briefing — useful even with sku_lines,
             # gives the user a 3-sentence executive summary alongside the
             # raw portfolio. Skips if extraction returned nothing.
-            _admin_set_status(document_id, "narrating")
+            _progress("narrating")
             assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
             narrative = stage_narrate(doc, assembled, [], org, period_id="-", parsed=parsed)
             _persist_sku_analysis(doc, parsed, narrative)
@@ -5745,13 +8202,13 @@ def _run_pipeline_stages(document_id: str) -> str:
                 "and try again."
             )
 
-        _admin_set_status(document_id, "mapping")
+        _progress("mapping")
         assembled = stage_map(doc, parsed, org.get("industry_display_name") or org.get("industry_key"))
         # RUN JOURNAL — PASS_DONE (assemble stage boundary).
         _journal_hooks.on_pass_done(doc, assembled)
-        period_id = stage_persist(doc, parsed, assembled)
+        period_id = stage_persist(doc, parsed, assembled, staged_rerun_of=staged_of)
 
-        _admin_set_status(document_id, "computing")
+        _progress("computing")
         valuation_payload: Optional[Dict[str, Any]] = None
         # The effective industry key pins the detection envelope persisted
         # below. It used to be a local of the valuation block; when that block
@@ -5774,6 +8231,12 @@ def _run_pipeline_stages(document_id: str) -> str:
             # `net_income_statutory` to that when available so the FE +
             # briefing cite the same figure the user sees on their filings.
             _override_statutory_net_income_metric(doc, period_id, parsed)
+            # (A staged re-run's alerts are keyed to the row they are STORED
+            # under — the staged one — like every other run's: keyed to the
+            # month while the month's own alerts still exist under the same
+            # keys, the write collides wherever the legacy unique
+            # (org_id, alert_key) is still on `alerts`. The takeover re-keys
+            # them to the month once they sit on it: `_rekey_moved_alerts`.)
             validation_alerts = stage_validate(doc, assembled, period_id)
             # AI Council — advisory extraction-integrity review (2026-07-20).
             # A panel of independent Claude personas scans the extraction and a
@@ -5825,7 +8288,7 @@ def _run_pipeline_stages(document_id: str) -> str:
             metrics = []
             validation_alerts = []
 
-        _admin_set_status(document_id, "narrating")
+        _progress("narrating")
         narrative = stage_narrate(
             doc, assembled, metrics, org, period_id,
             parsed=parsed, valuation=valuation_payload,
@@ -5839,8 +8302,12 @@ def _run_pipeline_stages(document_id: str) -> str:
         # being deleted mid-run — must NOT fail the whole scan. This mirrors
         # the "period vanished" skip inside stage_persist_narrative and the
         # non-fatal handling every other side-effect in this pipeline uses.
+        # What the narrative stage actually stored, filled in as it goes —
+        # it is read after a raise too (the takeover below must know).
+        narrative_stored: Dict[str, bool] = {}
         try:
-            stage_persist_narrative(doc, period_id, narrative, validation_alerts)
+            stage_persist_narrative(doc, period_id, narrative, validation_alerts,
+                                    stored=narrative_stored)
         except Exception:  # noqa: BLE001
             logger.exception(
                 "[pipeline] narrative/alerts persistence failed (non-fatal) — "
@@ -5898,10 +8365,26 @@ def _run_pipeline_stages(document_id: str) -> str:
 
         # G4 — every stage has succeeded: a same-month re-upload becomes
         # the month only now (the served row was untouched until here).
-        period_id = _finalize_same_month_takeover(doc, period_id)
-        _admin_set_status(
-            document_id,
-            "analyzed",
+        # The takeover is told what the run STORED (owner ruling 2026-10-03,
+        # "a takeover must not delete anything that was good"): the run's
+        # own narration code when it failed, and whether it wrote
+        # recommendations and alerts that may replace the month's — read
+        # from what `stage_persist_narrative` reports it stored, not from
+        # whether it raised (a raise in the alerts write comes AFTER the
+        # run's good recommendations were stored).
+        _narration_unavailable = narration_unavailable_code(narrative)
+        if staged_of is not None and _narration_unavailable is None \
+                and not narrative_stored.get("briefing"):
+            # A staged re-run whose narration WORKED and whose briefing was
+            # not stored (the database refused the write): no narration
+            # failed, and the run still brought no briefing — the month's
+            # is kept, and marked with a reason that is not a narration code.
+            _narration_unavailable = BRIEFING_STALE_WRITE_REFUSED
+        period_id = _finalize_same_month_takeover(
+            doc, period_id, narration_unavailable=_narration_unavailable,
+            keep_recommendations=not narrative_stored.get("recommendations"),
+            keep_alerts=not narrative_stored.get("alerts"))
+        _analysed(
             duration_ms=int((time.time() - t0) * 1000),
             period_id=period_id,
         )
@@ -5916,9 +8399,17 @@ def _run_pipeline_stages(document_id: str) -> str:
         logger.exception("[pipeline] %s failed", document_id)
         # RUN JOURNAL — RUN_FAILED + dead-letter entry (no-op when off).
         _journal_hooks.on_run_failed(document_id, exc)
-        # A plain refusal is read by the user as written; anything else
-        # carries its type so the log line and the card agree.
-        msg = str(exc) if isinstance(exc, PlainRefusal) else f"{type(exc).__name__}: {exc}"
+        # A message written FOR the reader is stored as itself — a plain
+        # refusal (`PlainRefusal`) or a sentence written for the uploader
+        # (`UserFacingUploadError`: the upload-type guard); anything else
+        # carries its type, where the class IS the diagnosis, so the log
+        # line and the card agree.
+        msg = (str(exc) if isinstance(exc, (PlainRefusal, UserFacingUploadError))
+               else f"{type(exc).__name__}: {exc}")
+        if staged_of is not None:
+            # A STAGED re-run: the month is what it was (or is this run's,
+            # completed by the resume) — the document is never marked failed.
+            return _staged_rerun_failed(document_id, doc, msg, int((time.time() - t0) * 1000))
         try:
             _admin_set_status(document_id, "failed", error=msg, duration_ms=int((time.time() - t0) * 1000))
         except Exception:
@@ -6498,13 +8989,21 @@ def _monthly_inventory_points(client: Any, period: Dict[str, Any]) -> Optional[D
             "financial_periods",
             filters={"org_id": "eq.%s" % period["org_id"],
                      "period_end": "in.(%s)" % ",".join(month_ends)},
-            columns="id,period_end,inventory_days:assembled_canonical_v1->inventory_days",
+            columns=("id,period_end,source_document_id,"
+                     "inventory_days:assembled_canonical_v1->inventory_days,"
+                     + _staged_rerun.MARKER_SELECT),
         ) or []
     except Exception:  # noqa: BLE001 — a lookup failure is "no monthly basis"
         logger.exception("[inventory days] monthly periods lookup failed (non-fatal)")
         return None
     by_month: Dict[int, Dict[str, Any]] = {}
     for r in rows:
+        if _staged_rerun.marker_of(r) is not None:
+            # A re-run's STAGED row is not a second period of its month: read
+            # as one, it made the month "ambiguous" below and December's
+            # basis fell from the monthly average to the year-end snapshot
+            # for as long as the re-run (or its stranded row) was there.
+            continue
         try:
             d = _dt.date.fromisoformat(str(r.get("period_end") or "")[:10])
         except ValueError:
@@ -6802,6 +9301,51 @@ def _rebuild_assembled(
     _complete_bucket_equity(bs, pl, period, inv_var_711=inv_var_711)
 
     return {"balanceSheet": bs, "incomeStatement": pl}
+
+
+# ── COMMON SIZE OF ONE PERIOD (owner ruling 2026-10-04) ──────────────
+#
+# "% din venituri" / "% din total active" was painted from the two-period
+# comparatives document alone, so a company with one year on file — or its
+# earliest year on screen — had no share column at all. The block is the
+# same computation the comparison's current side runs
+# (`engine.comparatives.shares.side_shares`), over this one period, and
+# rides on the period payload so the page prints it with no second request
+# and divides nothing itself.
+#
+# SERVE TIME ONLY, ON `GET /api/period`. Not persisted (it is a pure
+# function of the served statements, so no stored period needs
+# reprocessing) and not attached on `_rebuild_assembled_for_briefing`: no
+# engine consumer of that seam reads a share, and what a seam does not
+# carry cannot drift from the one that does.
+def _attach_common_size_block(
+    statements: Dict[str, Any], line_items: Optional[List[Dict[str, Any]]]
+) -> None:
+    """Attach `statements["common_size"]` in place, or leave the key ABSENT.
+
+    ABSENT != ZERO on the wire: the block's "absent" rows are statements
+    about a book that was READ. A payload whose re-assembly failed carries
+    no assembled P&L or balance sheet, and a block built on it would call
+    every line "not reported" — a false reading produced by our failure,
+    not by the book. So there is no block without both; the page then says
+    the shares are not served, which is the truth.
+
+    Never raises: a failure here must not cost the reader the period."""
+    try:
+        if not isinstance(statements, dict):
+            return
+        statements.pop("common_size", None)
+        if not isinstance(statements.get("assembled_pl"), dict) or not isinstance(
+                statements.get("assembled_bs"), dict):
+            return
+        from . import _comparatives as _cmp
+
+        statements["common_size"] = _cmp.common_size_block(
+            {"statements": statements, "line_items": list(line_items or [])})
+    except Exception:  # noqa: BLE001
+        if isinstance(statements, dict):
+            statements.pop("common_size", None)
+        logger.exception("[common size] block failed (non-fatal)")
 
 
 def _served_supplementary(period: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -7632,6 +10176,43 @@ class DuplicateCheckRequest(BaseModel):
     scope: Optional[str] = None
 
 
+class _Strict(BaseModel):
+    """Extra fields refused, no coercion — for bodies whose every field
+    is a decision (module scope, CLAUDE.md §22)."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+
+class RegenerateBriefingBody(_Strict):
+    """POST body for `/api/period/{id}/briefing/regenerate` — the EXPLICIT
+    regeneration (owner ruling 2026-10-02: "the frontend must not auto-fire
+    regenerate … explicit, metered action instead").
+
+    `intent: "user"` is what makes the request a model call at all. The
+    bodiless shape (query params only) is what every bundle deployed before
+    the ruling fires from an effect, with no click: it is answered with the
+    stored briefing and narrates, meters and writes nothing.
+
+    MODULE SCOPE on purpose: a model nested in `build_router` degrades to a
+    required query parameter and the route answers 422 to every body
+    (CLAUDE.md §22; gate route-binding)."""
+
+    intent: Literal["user"]
+    # The language to narrate in — the reader's UI language.
+    # Absent (null), or a language the narrator has an instruction for
+    # (`NARRATION_LANGUAGES`, first two letters, any case). Anything else
+    # is refused by the route AFTER the walls and BEFORE the meter: 422
+    # `unsupported_language` (owner ruling 2026-10-03: "never charge for a
+    # request that can't be served"). Checked in the handler, not here: a
+    # validator on this model would answer before the 401 / 403 / 404.
+    language: Optional[str] = None
+    # The display currency to narrate in; only RON is persisted.
+    # Absent (null) / RON, or a currency the engine has a rate for — else
+    # 422 `unsupported_currency`; 503 `fx_unavailable` when no usable rate
+    # payload is to be had. Same seam, same order.
+    currency: Optional[str] = None
+
+
 class ReviewReanalyzeRequest(BaseModel):
     """F3.4 — Body for POST /api/period/{id}/review/reanalyze.
 
@@ -7701,10 +10282,20 @@ def build_router() -> APIRouter:
     # ── FX rates endpoint (currency toggle, BNR proxy) ────────────────
     # Returns {base, rates, source, as_of, fetched_at, stale}. Backend
     # proxy avoids browser CORS on bnr.ro + caches 24h across all FE clients.
+    #
+    # `?refresh=true` is the OPERATOR's. The route is anonymous; honoured for
+    # anyone, the parameter skipped both memos (the 24 h success memo and the
+    # 300 s failure cooldown) — measured 2026-10-03 on the real app: five
+    # anonymous hits were five BNR fetches, ten with the feed down. Without
+    # the operator bearer it is IGNORED and the answer is the plain route's
+    # (not a 401: the caller still gets the rates, and a wrong bearer is no
+    # oracle). `Request` is imported at module scope — this module has
+    # `from __future__ import annotations` (gate route-binding).
     @router.get("/api/fx-rates")
-    def get_fx_rates_endpoint(refresh: bool = False) -> Dict[str, Any]:
+    def get_fx_rates_endpoint(request: Request, refresh: bool = False) -> Dict[str, Any]:
+        from ..public.refresh_shield import has_operator_bearer
         from .fx_rates import get_fx_rates
-        return get_fx_rates(force_refresh=refresh)
+        return get_fx_rates(force_refresh=bool(refresh) and has_operator_bearer(request))
 
     # ── PERIOD DETECTION (Part B) ────────────────────────────────────
     # REGISTRATION ORDER IS LOAD-BEARING. `/api/period/{period_id}`
@@ -8496,6 +11087,12 @@ def build_router() -> APIRouter:
                         admin.delete(table, filters={"document_id": f"eq.{doc_id}"})
                     except Exception:  # noqa: BLE001
                         logger.debug("[docs] clear-deleted: no cascade on %s", table)
+                # A re-run of it that is staged (in flight, or dead) names no
+                # source: no foreign key takes its staged row with the
+                # document. Dropped explicitly, never resumed — the month
+                # goes with the document.
+                _clear_staged_rerun_rows(admin, doc.get("org_id"), document_id=str(doc_id),
+                                         resume=False)
                 admin.delete("documents", filters={"id": f"eq.{doc_id}"})
                 deleted_ids.append(doc_id)
 
@@ -8640,7 +11237,12 @@ def build_router() -> APIRouter:
                     # fine — the FK simply doesn't exist there.
                     logger.debug("[docs] no document_id cascade on %s (skipping)", table)
 
-            # 3) Hard-delete the document row.
+            # 3) Hard-delete the document row — after the staged row(s) of a
+            # re-run of it (in flight, or dead): they name no source, so no
+            # foreign key takes them with the document. Dropped, never
+            # resumed — the month goes with the document.
+            _clear_staged_rerun_rows(admin, doc.get("org_id"), document_id=str(document_id),
+                                     resume=False)
             admin.delete("documents", filters={"id": f"eq.{document_id}"})
 
         return {"document_id": document_id, "permanently_deleted": True}
@@ -9350,6 +11952,7 @@ def build_router() -> APIRouter:
             "needs_confirmation": needs_confirmation,
             "duplicates_count": len(duplicates),
             "duplicates": duplicates,
+            "resumed_reruns": _resume_interrupted_reruns_of(caller_id),
         }
 
     @router.post("/api/pipeline/retry", response_model=RunResponse, status_code=202)
@@ -9365,6 +11968,14 @@ def build_router() -> APIRouter:
         # nothing; a document that holds no analysis yet (its first run
         # failed, or its 402 was dismissed) is metered exactly like /run,
         # 402 / 429 included (`_start_rerun`).
+        #
+        # FIRST: THE PERIOD THIS RE-RUN WOULD REPLACE IS THE DOCUMENT'S OWN, or
+        # the re-run is refused here — before the claim, the meter and any
+        # write (`_own_periods_for_rerun`; 409 with a code alone). A deleted
+        # document keeps its own answers below (`document_deleted`, or the
+        # original its duplicate marker names).
+        if not doc.get("deleted_at"):
+            _own_periods_or_refuse_rerun(req.document_id, doc.get("org_id"))
         entry = _start_rerun(doc, _user_id_from_jwt(jwt),
                              lambda: _retry_rerun(req.document_id, doc))
         if entry.kind == _doc_dedupe.DELETED:
@@ -9382,41 +11993,102 @@ def build_router() -> APIRouter:
         return RunResponse(document_id=req.document_id, status="queued")
 
     def _retry_rerun(document_id: str, doc: Dict[str, Any]) -> None:
-        """The body of a claimed retry: wipe the prior derivatives, queue,
-        hand the run to its thread."""
-        # Wipe prior derivatives via cascade — deleting the financial_periods
-        # row removes statement_line_items, calculated_metrics, briefings,
-        # AND alerts (alerts.document_id has on delete set null, we explicitly
-        # wipe by document below for that one).
-        # THE ORG IS PART OF THE FILTER, not an assumption (P0, 2026-09-09).
-        # `documents.period_id` is written by the BROWSER — `documents` RLS is
-        # is_member_of(org_id) with no column restriction, and its FK to
-        # financial_periods is EXISTENCE-only, so nothing ties it to the same
-        # tenant. The write wall above validated the DOCUMENT; it never looked
-        # at period_id. This delete runs under the SERVICE ROLE, so the filter
-        # IS the access control — filtering on id alone let a row filed in
-        # your own workspace, carrying another workspace's period id, delete
-        # that period and cascade away its line items, metrics and briefings.
-        # Same defect as the storage-path bypass and the make-active twin
-        # fixed the same day. With org_id in the filter a cross-tenant id
-        # simply matches nothing.
+        """The body of a claimed retry: the ownership look again (under the
+        claim), then the hand-off.
+
+        A document that OWNS its period is handed off as a STAGED re-run:
+        NOTHING is deleted, unpinned or re-statused here — the month keeps
+        being served, the run persists under a staged row beside it and
+        takes the month over only once it has succeeded (see "The Docs
+        panel's Re-run analysis is STAGED" above). Until 2026-10-04 this body
+        deleted the period first and held what the delete cascaded away —
+        the last good briefing, the worked recommendations — in process
+        memory: a restart lost them, and a failed run left no month at all.
+
+        A document that holds no period (its first run failed, its 402 was
+        dismissed) re-runs as it always did."""
         doc_org = str(doc.get("org_id") or "").strip()
-        if doc.get("period_id") and doc_org:
+        # THE PERIOD IS THE DOCUMENT'S OWN — looked at again here, under the
+        # claim: the route's look came before it, and a newer upload's
+        # takeover can land in between. A refusal leaves through
+        # `_start_rerun`'s `finally`, which gives the claim (and any
+        # reservation) back; nothing has been written. `own` is what the
+        # STORE says now — never `doc`, the row the wall read.
+        own = _own_periods_or_refuse_rerun(document_id, doc_org)
+        if not own:
+            _pop_staged_rerun(document_id)
+            # A DOCUMENT THAT READS ANALYSED AND HOLDS NO PERIOD — and whose
+            # analysis the ledger does not show, or the look above would
+            # have refused it. Its status may be a browser's write on a
+            # fresh upload (the re-run is then its first, metered analysis)
+            # or an analysis from before the ledger: either way this run
+            # never takes over a month that is another document's
+            # (`stage_persist`). Looked at BEFORE the row is re-statused;
+            # unreadable is taken for "it does" — the side that writes less.
+            try:
+                with _supabase.admin() as admin_client:
+                    fresh = admin_client.select(
+                        "documents", filters={"id": f"eq.{document_id}", "org_id": f"eq.{doc_org}"},
+                        columns="id,org_id,period_id,status,scope,detected_type", limit=1) or []
+                    no_takeover = bool(fresh) and _reads_analysed_and_holds_no_period(
+                        admin_client, fresh[0], doc_org)
+            except Exception:  # noqa: BLE001
+                logger.exception("[pipeline] retry of %s: its row could not be read again — "
+                                 "the run will not take over another document's month", document_id)
+                no_takeover = True
             with _supabase.admin() as admin_client:
-                admin_client.delete("financial_periods", filters={
-                    "id": f"eq.{doc['period_id']}",
-                    "org_id": f"eq.{doc_org}",
-                })
-        with _supabase.admin() as admin_client:
-            admin_client.delete("alerts", filters={"document_id": f"eq.{document_id}"})
-            admin_client.update(
-                "documents",
-                {"period_id": None, "error": None, "duration_ms": None},
-                filters={"id": f"eq.{document_id}"},
-            )
-        _admin_set_status(document_id, "queued", pipeline_started_at=_now_iso())
-        _doc_dedupe.mark_running(document_id)
-        _enqueue(document_id)
+                if not no_takeover:
+                    # (Alerts that carry this document's id and sit on NO
+                    # period of its own. For a document that reads analysed
+                    # they are not this run's to delete: the alerts of an
+                    # earlier analysis of it can be the ones a newer upload's
+                    # takeover KEPT on the month — another document's now.)
+                    admin_client.delete("alerts", filters={"document_id": f"eq.{document_id}"})
+                admin_client.update(
+                    "documents",
+                    {"period_id": None, "error": None, "duration_ms": None},
+                    filters={"id": f"eq.{document_id}"},
+                )
+            _admin_set_status(document_id, "queued", pipeline_started_at=_now_iso())
+            if no_takeover:
+                _set_no_takeover_run(document_id)
+            try:
+                _doc_dedupe.mark_running(document_id)
+                _enqueue(document_id)
+            except BaseException:
+                _pop_no_takeover_run(document_id)
+                raise
+            return
+        # WHAT AN EARLIER RE-RUN OF THIS DOCUMENT LEFT BEHIND, FIRST: a run a
+        # restart killed leaves its staged row. One whose takeover had begun
+        # is completed (the month is then that run's analysis, whole); any
+        # other is dropped. A committed row that cannot be completed — or a
+        # store that cannot be read — refuses this re-run: a second staged
+        # run over a month that is mid-replacement would be resumed over by
+        # the older one later.
+        try:
+            with _supabase.admin() as admin_client:
+                leftover = _clear_staged_rerun_rows(admin_client, doc_org, document_id=document_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[pipeline] retry of %s: its earlier staged rows could not be "
+                             "looked at — the re-run is not started", document_id)
+            raise HTTPException(503, {"code": "rerun_unavailable"}) from exc
+        if leftover["left"] or leftover["unreadable"]:
+            logger.warning("[pipeline] retry of %s: an earlier re-run's interrupted takeover could "
+                           "not be completed (%r) — the re-run is not started", document_id, leftover)
+            raise HTTPException(503, {"code": "rerun_unavailable"})
+        # The newest of the document's own periods is the one the run is
+        # staged beside (a document has one; legacy rows may have left more —
+        # the others are not touched).
+        _set_staged_rerun(document_id, own[0]["id"])
+        try:
+            _doc_dedupe.mark_running(document_id)
+            _enqueue(document_id)
+        except BaseException:
+            # The run was never handed off: the note that it is staged must
+            # not outlive this attempt.
+            _pop_staged_rerun(document_id)
+            raise
 
     @router.get("/api/period/{period_id}")
     def get_period(period_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
@@ -9441,8 +12113,24 @@ def build_router() -> APIRouter:
                 "calculated_metrics",
                 filters={"period_id": f"eq.{period_id}"},
             )
-            briefings = client.select("briefings", filters={"period_id": f"eq.{period_id}"})
-            briefing = briefings[0] if briefings else None
+            # THE TENANT IS IN THE FILTER (owner ruling 2026-10-03: "the period
+            # read without workspace is a tenant boundary bug"). `period_id`
+            # alone is not a tenant filter: `briefings.period_id` is
+            # browser-writable on a row of the WRITER's own workspace (the
+            # insert policy checks the row's own org; the foreign key only
+            # asks that the period exists), so a member of another workspace
+            # who can see this period can put a row on it — and a reader whose
+            # RLS admits both workspaces (two companies, firm staff) was
+            # served that row as THIS period's briefing. The period's briefing
+            # is the row of the period's own org — the same row the
+            # regenerate route reads (`_stored_briefing_row`) — re-checked on
+            # the row itself, never `rows[0]`.
+            _period_org = str(period["org_id"])
+            briefings = client.select(
+                "briefings",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{_period_org}"},
+            ) or []
+            briefing = next((b for b in briefings if str(b.get("org_id")) == _period_org), None)
 
             doc_rows = client.select(
                 "documents",
@@ -9703,6 +12391,19 @@ def build_router() -> APIRouter:
         # (the reconciliation-adjusted `canonical_bs` the FE renders),
         # never the round-trip artifact. See `_attach_insights_block`.
         _attach_insights_block(statements, line_items)
+
+        # The single-period common size (`statements.common_size`, schema
+        # common_size/1): every line as a share of THIS period's own base,
+        # so the share column needs no comparison. After the envelope-truth
+        # override for the same reason as the two blocks above — the
+        # balance-sheet base is the served total assets. Nothing below
+        # changes a figure it reads (the gate recomputes it from the body
+        # this handler returns). A result line's share of turnover is a
+        # margin: the block asks the one margin rule itself, over these
+        # statements — the verdict `statements.margin_meaning` is built from
+        # further down (the gate holds the two equal on every served body).
+        # See `_attach_common_size_block`.
+        _attach_common_size_block(statements, line_items)
 
         # ── F3.3 — Per-upload confidence report ─────────────────────
         # Surface the country-detection / layout / reconciliation /
@@ -10068,15 +12769,10 @@ def build_router() -> APIRouter:
                 }
                 for m in credit_metrics_as_filed
             ],
-            "briefing": briefing and {
-                "body": briefing["body"],
-                "language": briefing.get("language", "en"),
-                "model": briefing.get("model"),
-                # Which EBITDA definition the prose was written under; the
-                # page hides one written under an earlier definition with
-                # the note (owner ruling 2026-09-26, design A9).
-                "definition": briefing_definition_status(briefing),
-            },
+            # {body, language, model, definition} + (2026-10-02, additive)
+            # `unavailable` / `unavailable_reason` — a stored failure text is
+            # served `body: null`, never as prose — and `stale`.
+            "briefing": served_briefing(briefing),
             "recommendations": [
                 {
                     "id": r["id"],
@@ -10282,7 +12978,6 @@ def build_router() -> APIRouter:
 
         from . import _attention as _att
         from . import _comparatives as _cmp
-        from . import _features as _feat
         from engine.attention import compose_attention
 
         jwt = _require_jwt(authorization)
@@ -10322,10 +13017,11 @@ def build_router() -> APIRouter:
             except HTTPException as exc:
                 comparatives_reason = {"code": "prior_period_not_servable",
                                        "inputs": [str(pri_row["id"]), exc.status_code]}
-        features = {k: (v or {}).get("status") for k, v in _feat.served_registry().items()}
+        # No action reads the feature registry (ruling R4, 2026-09-28): the
+        # bank report is the CFO Report PDF whether or not Forecast is on.
         doc = compose_attention(
             payload_of(period_id), prior=prior_desc, comparatives=comparatives,
-            comparatives_reason=comparatives_reason, sector=sector_doc, features=features)
+            comparatives_reason=comparatives_reason, sector=sector_doc)
         return _credit_boundary.enforce_credit_boundary(doc, surface="attention")
 
     @router.put("/api/period/{period_id}/valuation-assumptions")
@@ -10634,182 +13330,407 @@ def build_router() -> APIRouter:
     @router.post("/api/period/{period_id}/briefing/regenerate")
     def regenerate_briefing(
         period_id: str,
-        currency: Optional[str] = None,
-        language: Optional[str] = None,
+        body: Optional[RegenerateBriefingBody] = None,
         authorization: Optional[str] = Header(None),
     ) -> Dict[str, Any]:
-        """F2.8 — Regenerate the LLM CFO Briefing for an existing period
-        against the current canonical statements + metrics. Used after the
-        F1.e basis decisions (cash vs statutory EBITDA, statutory ct.121
-        net profit, Z″ Altman) shifted the canonical numbers — cached
-        briefings still cite the pre-F1.e values until regenerated.
+        """Regenerate the CFO briefing of an existing period against its
+        current statements and metrics — EXPLICITLY, metered, and never at
+        the cost of the briefing already stored (owner ruling 2026-10-02).
 
-        `currency` (optional query param): RON/EUR/USD. When provided,
-        every monetary number in `briefing_facts` is FX-converted to that
-        currency before the LLM sees them, and the prompt asks the LLM
-        to cite the converted currency. Defaults to the period's source
-        currency (typically RON). Wired from the FE TopHeader currency
-        toggle so the briefing prose follows RON ↔ EUR ↔ USD switches.
+        NO BODY — the legacy shape. Every bundle deployed before the ruling
+        POSTs `?currency=…&language=…` from an effect, 600 ms after a
+        language mismatch or a currency toggle, with no click. That shape is
+        INERT: 200 `{ok: true, regenerated: false, legacy: true, briefing:
+        <the stored usable body or null>}` — no model call, no meter, no
+        write; the query parameters are ignored.
 
-        Calls `stage_narrate` against the rebuilt assembled statements +
-        the period's `calculated_metrics` rows, then upserts the resulting
-        briefing body on the `briefings` table. Recommendations + alerts
-        are NOT touched (those have their own deterministic generation
-        path via `stage_validate`).
+        WITH `RegenerateBriefingBody` ({intent: "user", language?,
+        currency?}) — in this order:
+          1. the walls, exactly as before (401; 404 not visible; 403 not a
+             member of the period's org);
+          2. the inputs (owner ruling 2026-10-03: "refuse unsupported
+             language or unknown currency before the meter. Never charge
+             for a request that can't be served"): a `language` the
+             narrator has no instruction for is 422 `unsupported_language`;
+             a `currency` the engine has no rate for is 422
+             `unsupported_currency`; a conversion with no usable rate
+             payload is 503 `fx_unavailable` — each with no meter call, no
+             model call and no write;
+          3. the meter: one Ask-CFO-AI message of the verified CALLER
+             (`_usage_gate.reserve_chat`); a spent allowance is 429
+             `briefing_regen_cap_reached` with the caller's own counts; a
+             meter that gave no usable answer is 503 `metering_unavailable`
+             (never a cap claim), and whatever it may have reserved is
+             given back;
+          4. the model (`stage_narrate`).
+        A usable narration is committed against the meter, written when the
+        display currency is RON (a converted briefing is returned, never
+        stored) with its TRUE language, and clears the stale marker right
+        after the upsert. An unusable one writes NOTHING — no upsert, no
+        `updated_at` touch — releases the meter, marks the kept row stale
+        and answers 200 `{ok: false, regenerated: false, reason: <code>,
+        stale: <bool>, briefing: <the stored usable body or null>}`.
+
+        `stale`, IN EVERY ANSWER, IS WHAT IS STORED (owner ruling
+        2026-10-03: "never report a state that isn't stored"): true if and
+        only if the stored briefing row carries the stale marker when the
+        call returns — what GET /api/period serves next. A failed converted
+        regenerate marks nothing and answers the row's own state; a marker
+        the database rejected (the stale migration not applied) answers
+        false; a failure with no row stored answers false.
+
+        Recommendations and alerts are not touched (they have their own
+        generation paths).
         """
         jwt = _require_jwt(authorization)
         # The WRITE wall (FC1x, D4): visible under RLS AND a member of the
         # period's org — the briefing is upserted through the service role.
+        # BOTH shapes pass it: the legacy answer carries the stored body.
         period = _verify_user_may_write_period(jwt, period_id)
+        org_id = period["org_id"]
 
         with _supabase.admin() as admin_client:
-            org_rows = admin_client.select(
-                "organizations",
-                filters={"id": f"eq.{period['org_id']}"},
-                single=True,
-            )
-            org = org_rows[0] if org_rows else {}
-            line_items = admin_client.select(
-                "statement_line_items",
-                filters={"period_id": f"eq.{period_id}"},
-            )
-            # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02) on every
-            # period-keyed read below whose table carries `org_id`:
-            # `period_id` on those tables is a column a member of ANOTHER
-            # workspace can write on their own rows (the insert policies
-            # check the row's own org only), so "by period" alone could
-            # return a foreign row to the narrator of this workspace's
-            # shared briefing.
-            _org_filter = f"eq.{period['org_id']}"
-            metric_rows = admin_client.select(
-                "calculated_metrics",
-                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
-            )
-            # calculated_metrics columns are name/value/unit/direction
-            # (NOT metric_name/metric_value — the earlier shape was an F2.8
-            # transcription error against the live schema, caught by the
-            # post-deploy KeyError on the first regenerate call).
-            metrics = [
-                {
-                    "name": m["name"],
-                    "value": m["value"],
-                    "unit": m.get("unit"),
-                    "direction": m.get("direction"),
-                }
-                for m in metric_rows
-            ]
-            valuation_rows = admin_client.select(
-                "valuations",
-                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
-            )
-            valuation = valuation_rows[0] if valuation_rows else None
-            doc = _period_source_document(admin_client, period)
-            # `language` (optional query param, 2026-08-04): the FE passes
-            # the ACTIVE UI language so a user who switched EN↔RO can pull
-            # the briefing into the language they're reading the app in —
-            # stage_narrate reads doc["detected_language"], so override it
-            # here rather than threading a new parameter through.
-            if language and language.lower()[:2] in ("en", "ro", "de", "fr", "es", "it", "pt", "nl", "pl"):
-                doc = {**doc, "detected_language": language.lower()[:2]}
-            # F2.8 fix: stage_narrate reads from `assembled["statements"]
-            # .assembled_pl` etc., not the bucket-only shape that
-            # `_rebuild_assembled` returns. Use the canonical-shaped
-            # rebuilder so the regenerated briefing cites
-            # operating-view EBITDA, statutory net income, and the
-            # rest of the briefing_facts envelope.
-            assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)
-            # THE STORED valuations ROW IS NOT THE VALUATION the narrator
-            # cites (the one-EBITDA law, critic 2026-09-27): the same
-            # choice GET /api/period makes — a fresh recompute on these
-            # statements, else the row only as far as `lawful_stored_row`
-            # allows it. The row the engine wrote under the previous
-            # definition carried an EV/EBITDA equity on the old EBITDA,
-            # which a regenerated briefing (stamped with TODAY's
-            # definition) would cite.
-            #
-            # NO USER OVERRIDE (hotfix 2026-10-02, owner ruling "the engine's
-            # result is shared, overrides are per user only"): the briefing
-            # is ONE row every member of the workspace reads. This route
-            # read `user_valuation_assumptions` with the admin client by
-            # period only and handed the FIRST row — whichever member's —
-            # to the narrator, so one member's typed EBITDA / multiple /
-            # debt / cash was written into the shared briefing.
-            if valuation:
-                _fresh_val, valuation = _fresh_or_lawful_valuation(
-                    valuation, None,
-                    assembled.get("statements"), org=org,
-                    line_items=assembled.get("lineItems") or line_items)
+            stored_row = _stored_briefing_row(admin_client, period_id, org_id)
+        kept_body = _kept_briefing_body(stored_row)
+        # Whether the stored row is served as stale — read through the ONE
+        # reader (`served_briefing`, what GET /api/period answers), so this
+        # route never holds a second definition of "stale". Every answer
+        # below reports the row's state AFTER the call, starting from this.
+        row_is_stale = (served_briefing(stored_row) or {}).get("stale") is not None
 
-            # FX rates for currency conversion. Skip the fetch when the
-            # caller wants the period's native currency (the no-op case).
-            display_currency = (currency or "").upper() or None
-            fx_payload: Optional[Dict[str, Any]] = None
-            if display_currency and display_currency not in ("", "RON"):
-                try:
-                    from .fx_rates import get_fx_rates as _get_fx_rates
-                    fx_payload = _get_fx_rates()
-                except Exception:  # noqa: BLE001
-                    logger.warning(
-                        "[/api/period/{id}/briefing/regenerate] fx_rates fetch failed; "
-                        "falling back to source currency"
-                    )
-            fx_rates_map = (fx_payload or {}).get("rates") if fx_payload else None
+        if body is None:
+            # THE LEGACY SHAPE IS INERT. Once the route is metered, a tab
+            # holding an old bundle would otherwise spend its reader's
+            # allowance on every page load.
+            return {
+                "ok": True,
+                "regenerated": False,
+                "legacy": True,
+                "period_id": period_id,
+                "briefing": kept_body,
+                "briefing_length": len(kept_body or ""),
+                "currency": "RON",
+                "stale": row_is_stale,
+            }
 
+        # ── the inputs: refused BEFORE the meter (ruling 2026-10-03) ─────
+        # A request that cannot be served is never charged: no meter call,
+        # no model call, no write. Neutral codes; the page renders its own
+        # sentence.
+        language = body.language
+        if language is not None and language.lower()[:2] not in NARRATION_LANGUAGES:
+            # MEASURED before the repair: `language: "zh"` was narrated in
+            # the document's language, written over the workspace's shared
+            # briefing and charged.
+            raise HTTPException(422, {"code": "unsupported_language"})
+
+        # `null` is "the stored currency"; a string is taken as typed
+        # (upper-cased, not trimmed): "" and " RON" name no currency.
+        display_currency = None if body.currency is None else body.currency.upper()
+        fx_rates_map: Optional[Dict[str, float]] = None
+        if display_currency is not None and display_currency != "RON":
+            # A CONVERTED briefing is narrated on converted figures or not
+            # at all. MEASURED before the repair: with no usable rates —
+            # or a currency the payload does not carry ("ZZZ") — the
+            # narrator was handed the RON figures under a prompt calling
+            # them "pre-converted to EUR", and the caller was charged.
+            fx_payload: Any = None
             try:
-                narrative = stage_narrate(
-                    doc, assembled, metrics, org, period_id,
-                    parsed=None, valuation=valuation,
-                    display_currency=display_currency,
-                    fx_rates=fx_rates_map,
+                from .fx_rates import get_fx_rates as _get_fx_rates
+                fx_payload = _get_fx_rates()
+            except Exception:  # noqa: BLE001 — no rates: refuse below
+                logger.warning(
+                    "[/api/period/{id}/briefing/regenerate] fx_rates fetch failed"
                 )
-            except Exception as exc:  # noqa: BLE001
+            raw_rates = fx_payload.get("rates") if isinstance(fx_payload, dict) else None
+            # Only a positive, finite number is a rate (0 / NaN / a string
+            # would convert to garbage or not at all).
+            usable_rates = {
+                str(code): float(rate)
+                for code, rate in (raw_rates.items() if isinstance(raw_rates, dict) else ())
+                if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                and 0 < rate < float("inf")
+            }
+            if not usable_rates:
+                raise HTTPException(503, {"code": "fx_unavailable"})
+            if display_currency not in usable_rates:
+                raise HTTPException(422, {"code": "unsupported_currency"})
+            # The figures are converted FROM the period's own currency (the
+            # one `stage_narrate` reads off the statements): without a rate
+            # for it the conversion cannot be served either.
+            source_currency = str(period.get("currency") or "RON").upper()
+            if source_currency not in usable_rates:
+                raise HTTPException(503, {"code": "fx_unavailable"})
+            fx_rates_map = usable_rates
+
+        # ── the meter: the verified caller's chat unit ───────────────────
+        from . import _usage_gate as _ug
+        caller_id = _user_id_from_jwt(jwt)
+
+        def _give_back_what_the_meter_may_hold() -> None:
+            # The gate could not hand over a usable answer. A reservation
+            # can still have LANDED (the RPC granted it and the reply was
+            # lost, or was unreadable), nothing reaps chat reservations and
+            # a held one counts against both caps — so it is given back,
+            # best-effort. When nothing was held the release RPC floors at
+            # zero; at worst it frees, for the length of that call, the
+            # hold of another message of the SAME caller that is in flight
+            # (whose commit still counts it) — against a unit lost for the
+            # day and the month.
+            try:
+                _ug.release_chat(caller_id)
+            except Exception:  # noqa: BLE001 — the refusal below stands
                 logger.exception(
-                    "[/api/period/{id}/briefing/regenerate] stage_narrate failed"
-                )
-                raise HTTPException(
-                    500, f"Briefing regeneration failed: {type(exc).__name__}"
-                ) from exc
+                    "[/api/period/{id}/briefing/regenerate] release after an unreadable meter failed")
 
-            # Upsert briefing only; do NOT touch recommendations/alerts
-            # (deterministic rules own those — regen would create
-            # duplicates and disagree with the validation pipeline).
-            #
-            # Currency-conversion regenerations (display_currency != source)
-            # are NOT persisted — the DB row stays the canonical
-            # source-currency briefing. If a user toggles RON → EUR, the
-            # EUR briefing is returned in the response only; on next
-            # session load they'd see RON again until they toggle. This
-            # avoids the alternative-currency briefing becoming "sticky"
-            # and confusing users who later toggle back.
-            should_persist = not display_currency or display_currency.upper() == "RON"
-            if should_persist:
-                admin_client.upsert(
-                    "briefings",
+        try:
+            decision = _ug.reserve_chat(caller_id)
+        except Exception as exc:  # noqa: BLE001 — unreachable meter: fail closed
+            logger.exception("[/api/period/{id}/briefing/regenerate] meter unreachable")
+            _give_back_what_the_meter_may_hold()
+            raise HTTPException(
+                503, {"code": "metering_unavailable"}) from exc
+        if decision.kind in ("daily_cap_reached", "monthly_cap_reached"):
+            # The caller's own plan, in the caller's own response — never
+            # stored. No server sentence: the page renders it from the code.
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "briefing_regen_cap_reached",
+                    "kind": decision.kind,
+                    "plan_key": decision.plan_key,
+                    "daily_used": decision.daily_used,
+                    "daily_cap": decision.daily_cap,
+                    "monthly_used": decision.monthly_used,
+                    "monthly_cap": decision.monthly_cap,
+                    "upgrade_url": "/pricing",
+                },
+            )
+        if decision.kind not in ("allowed", "disabled"):
+            # `metering_unavailable` — the meter answered nothing usable —
+            # or a kind this route does not know: FAIL CLOSED, and never as
+            # an allowance the caller has spent (no counts, no plan name,
+            # no /pricing link: the caller has spent nothing).
+            logger.error(
+                "[/api/period/{id}/briefing/regenerate] meter unavailable (%s) — refused",
+                decision.kind)
+            _give_back_what_the_meter_may_hold()
+            raise HTTPException(503, {"code": "metering_unavailable"})
+        # `allowed` holds one reserved message; `disabled` (enforcement off,
+        # or an operator-exempt caller) holds nothing to settle.
+        reserved = decision.kind == "allowed"
+        settled = False
+
+        try:
+            with _supabase.admin() as admin_client:
+                org_rows = admin_client.select(
+                    "organizations",
+                    filters={"id": f"eq.{org_id}"},
+                    single=True,
+                )
+                org = org_rows[0] if org_rows else {}
+                line_items = admin_client.select(
+                    "statement_line_items",
+                    filters={"period_id": f"eq.{period_id}"},
+                )
+                # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02) on every
+                # period-keyed read below whose table carries `org_id`:
+                # `period_id` on those tables is a column a member of ANOTHER
+                # workspace can write on their own rows (the insert policies
+                # check the row's own org only), so "by period" alone could
+                # return a foreign row to the narrator of this workspace's
+                # shared briefing.
+                _org_filter = f"eq.{org_id}"
+                metric_rows = admin_client.select(
+                    "calculated_metrics",
+                    filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
+                )
+                # calculated_metrics columns are name/value/unit/direction
+                # (NOT metric_name/metric_value — the earlier shape was an F2.8
+                # transcription error against the live schema, caught by the
+                # post-deploy KeyError on the first regenerate call).
+                metrics = [
                     {
-                        "period_id": period_id,
-                        "org_id": period["org_id"],
-                        "body": narrative.get("briefing", ""),
-                        "language": "en",
-                        "model": _narrative_model(),
-                        # see stage_persist_narrative (ruling 2026-09-26)
-                        "ebitda_definition": _EBITDA_DEFINITION_REVISION,
-                    },
-                    on_conflict="period_id",
-                    returning=False,
+                        "name": m["name"],
+                        "value": m["value"],
+                        "unit": m.get("unit"),
+                        "direction": m.get("direction"),
+                    }
+                    for m in metric_rows
+                ]
+                valuation_rows = admin_client.select(
+                    "valuations",
+                    filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
                 )
-                admin_client.update(
-                    "financial_periods",
-                    {"updated_at": _now_iso()},
-                    filters={"id": f"eq.{period_id}"},
-                )
+                valuation = valuation_rows[0] if valuation_rows else None
+                doc = _period_source_document(admin_client, period)
+                # `language`: the reader's UI language, so a user who
+                # switched EN↔RO can pull the briefing into the language
+                # they read the app in — stage_narrate reads
+                # doc["detected_language"], so override it here rather than
+                # threading a new parameter through. (An unsupported
+                # code was refused above, before the meter.)
+                if language is not None:
+                    doc = {**doc, "detected_language": language.lower()[:2]}
+                # F2.8 fix: stage_narrate reads from `assembled["statements"]
+                # .assembled_pl` etc., not the bucket-only shape that
+                # `_rebuild_assembled` returns. Use the canonical-shaped
+                # rebuilder so the regenerated briefing cites
+                # operating-view EBITDA, statutory net income, and the
+                # rest of the briefing_facts envelope.
+                assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)
+                # THE STORED valuations ROW IS NOT THE VALUATION the narrator
+                # cites (the one-EBITDA law, critic 2026-09-27): the same
+                # choice GET /api/period makes — a fresh recompute on these
+                # statements, else the row only as far as `lawful_stored_row`
+                # allows it. The row the engine wrote under the previous
+                # definition carried an EV/EBITDA equity on the old EBITDA,
+                # which a regenerated briefing (stamped with TODAY's
+                # definition) would cite.
+                #
+                # NO USER OVERRIDE (hotfix 2026-10-02, owner ruling "the engine's
+                # result is shared, overrides are per user only"): the briefing
+                # is ONE row every member of the workspace reads. This route
+                # read `user_valuation_assumptions` with the admin client by
+                # period only and handed the FIRST row — whichever member's —
+                # to the narrator, so one member's typed EBITDA / multiple /
+                # debt / cash was written into the shared briefing.
+                if valuation:
+                    _fresh_val, valuation = _fresh_or_lawful_valuation(
+                        valuation, None,
+                        assembled.get("statements"), org=org,
+                        line_items=assembled.get("lineItems") or line_items)
 
-        return {
-            "ok": True,
-            "period_id": period_id,
-            "briefing_length": len(narrative.get("briefing", "")),
-            "briefing": narrative.get("briefing", ""),
-            "currency": display_currency or "RON",
-        }
+                # FX rates for currency conversion: `fx_rates_map` was
+                # fetched and CHECKED before the meter (a rate for the
+                # display currency and for the period's own), and is None
+                # when the caller wants RON (the no-op case). There is no
+                # "falling back to source currency" any more: that fallback
+                # narrated RON figures under another currency's name.
+                try:
+                    narrative = stage_narrate(
+                        doc, assembled, metrics, org, period_id,
+                        parsed=None, valuation=valuation,
+                        display_currency=display_currency,
+                        fx_rates=fx_rates_map,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception(
+                        "[/api/period/{id}/briefing/regenerate] stage_narrate failed"
+                    )
+                    raise HTTPException(
+                        500, f"Briefing regeneration failed: {type(exc).__name__}"
+                    ) from exc
+
+                # Currency-conversion regenerations (display_currency != source)
+                # are NOT persisted — the DB row stays the canonical
+                # source-currency briefing. If a user asks for EUR, the
+                # EUR briefing is returned in the response only; on next
+                # session load they'd see RON again. This avoids the
+                # alternative-currency briefing becoming "sticky".
+                should_persist = not display_currency or display_currency.upper() == "RON"
+                unavailable = narration_unavailable_code(narrative)
+
+                if unavailable is not None:
+                    # THE NARRATION FAILED: NOTHING IS WRITTEN. No upsert, no
+                    # `financial_periods.updated_at` touch — the stored
+                    # briefing stays byte-identical. The meter is released
+                    # (the `finally` below), and the kept row is marked
+                    # stale — only when this call would have replaced it (a
+                    # converted briefing is never stored, so its failure
+                    # says nothing about the stored one).
+                    logger.warning(
+                        "[/api/period/{id}/briefing/regenerate] narration unavailable (%s) "
+                        "for period %s — the stored briefing is kept", unavailable, period_id)
+                    if should_persist and _is_usable_stored_briefing(stored_row):
+                        # `stale` below is what the row HOLDS: true once the
+                        # marker is stored; when the database rejected it
+                        # (the stale migration not applied) the row is as it
+                        # was.
+                        if _mark_briefing_stale(admin_client, stored_row, period_id, org_id,
+                                                str(unavailable)):
+                            row_is_stale = True
+                    return {
+                        "ok": False,
+                        "regenerated": False,
+                        "reason": unavailable,
+                        "stale": row_is_stale,
+                        "period_id": period_id,
+                        "briefing": kept_body,
+                        "briefing_length": len(kept_body or ""),
+                        "currency": display_currency or "RON",
+                    }
+
+                # Upsert briefing only; do NOT touch recommendations/alerts
+                # (deterministic rules own those — regen would create
+                # duplicates and disagree with the validation pipeline).
+                narrated_body = narrative["briefing"]
+                if should_persist:
+                    admin_client.upsert(
+                        "briefings",
+                        {
+                            "period_id": period_id,
+                            "org_id": org_id,
+                            "body": narrated_body,
+                            # The language it was narrated in, clamped to the
+                            # column's check constraint.
+                            "language": briefing_language_stamp(doc),
+                            "model": _narrative_model(),
+                            # see stage_persist_narrative (ruling 2026-09-26)
+                            "ebitda_definition": _EBITDA_DEFINITION_REVISION,
+                        },
+                        on_conflict="period_id",
+                        returning=False,
+                    )
+                    # A good write: the row is current again. A separate
+                    # best-effort update — never in the upsert payload —
+                    # and IMMEDIATELY after the upsert, before anything
+                    # else can raise: the period touch used to sit between
+                    # the two, and when it failed the NEW prose stayed
+                    # served as stale (the upsert merges; it does not reset
+                    # the marker columns).
+                    if _clear_briefing_stale(admin_client, period_id, org_id):
+                        row_is_stale = False
+                    # The period touch is a cache-bust, not part of the
+                    # write: when it fails the briefing IS stored — the
+                    # answer says so and the caller's unit is committed. It
+                    # used to raise: a bare 500 for a briefing that had been
+                    # replaced, the unit released, and a card telling the
+                    # reader "the previous briefing was kept" (review
+                    # 2026-10-03).
+                    try:
+                        admin_client.update(
+                            "financial_periods",
+                            {"updated_at": _now_iso()},
+                            filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+                        )
+                    except Exception:  # noqa: BLE001
+                        logger.exception(
+                            "[/api/period/{id}/briefing/regenerate] the period touch failed "
+                            "(non-fatal) — the briefing of period %s is stored", period_id)
+
+            if reserved:
+                _ug.commit_chat(caller_id)
+            settled = True
+            return {
+                "ok": True,
+                "regenerated": True,
+                "persisted": should_persist,
+                "period_id": period_id,
+                "briefing_length": len(narrated_body),
+                "briefing": narrated_body,
+                "language": narration_language(doc),
+                "currency": display_currency or "RON",
+                # What the stored row holds now: false after a persisted
+                # write cleared the marker; a converted (never stored)
+                # narration leaves the row — and its marker — as it was.
+                "stale": row_is_stale,
+            }
+        finally:
+            # An unusable narration, a refused read, any exception: the
+            # reserved message goes back. Nothing was delivered.
+            if reserved and not settled:
+                _ug.release_chat(caller_id)
 
     # ── F3.4 — Review Mode ─────────────────────────────────────────
     # `ReviewReanalyzeRequest` lives at module level (see above);
@@ -11400,17 +14321,30 @@ def build_router() -> APIRouter:
                 raise HTTPException(
                     409, "This period's workspace is archived; restore the workspace before "
                          "clearing a period in it.")
-            attached = ac.select(
-                "documents",
-                filters={"period_id": f"eq.{period_id}"},
-                columns="id",
-            )
+            # THE COMPANY IS IN THE FILTER, AND EVERY ROW IS RE-CHECKED.
+            # `documents.period_id` is browser-written and its foreign key
+            # asks only that the period exist: a member of ANOTHER company
+            # can pin their row to this period. Read by the pin alone, that
+            # row was soft-deleted here by this company's action and counted
+            # in the answer (re-verification 2026-10-10, measured on the real
+            # app). Under the service role the filter IS the access control;
+            # production's foreign key (ON DELETE SET NULL) unpins the
+            # foreign row when the period goes — it is not this route's to
+            # touch.
+            attached = [
+                d for d in (ac.select(
+                    "documents",
+                    filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+                    columns="id,org_id",
+                ) or [])
+                if str(d.get("org_id") or "") == str(org_id)
+            ]
             now = _now_iso()
             for d in attached:
                 ac.update(
                     "documents",
                     {"deleted_at": now, "period_id": None},
-                    filters={"id": f"eq.{d['id']}"},
+                    filters={"id": f"eq.{d['id']}", "org_id": f"eq.{org_id}"},
                 )
 
             # 3. Hard-delete period derivatives. Order matters where foreign

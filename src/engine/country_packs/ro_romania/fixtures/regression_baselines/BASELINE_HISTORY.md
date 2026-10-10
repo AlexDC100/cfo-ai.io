@@ -60,6 +60,55 @@ Background, blob identity and the accepted residuals:
 
 ---
 
+## 2026-09-28 — RULINGS R2 / R3: provisions symmetric outside EBITDA; 7411 in net turnover (re-baseline of the parity pair) — CANDIDATE `feat/rulings-2`
+
+**Authorization.** Owner rulings 2026-09-28, verbatim in
+`specs-durable/design_2026-09-28_rulings2.md`: "PROVISIONS — SYMMETRIC:
+exclude both charges (6812/6814) and reversals (7812/7814) from EBITDA; show
+net provisions as its own reconciliation line" and "7411 IN TURNOVER: the
+statutory F20 includes operating subsidies related to turnover in cifra de
+afaceri netă. Include it". The design lists the reprocessing and the
+re-capture; the owner sees the per-period diff before any deploy.
+
+**Toward reality (rule 1).** EBITDA stops carrying one side of the provisions
+(the reversals were inside it, the charges outside); the operating result is
+unchanged to the cent. The methodology's operating result subtracted every 78x
+reversal that `reported` had just added (`reported − dap.net`: Scandia
+32,898,302.52 against the served EBIT 41,313,577.93) — it is now the served
+EBIT.
+
+**What moved.**
+
+| fixture | field | before | after |
+|---|---|---:|---:|
+| scandia_fy2025 | `assembled_pl.ebitda` (and its aliases) | 54,963,222.44 | 46,547,947.03 (− 7814 8,415,275.41) |
+| scandia_fy2025 | `assembled_pl.ebit` | 41,313,577.93 | 41,313,577.93 (unchanged) |
+| scandia_fy2025 | `assembled_pl.depreciation` | 13,649,644.51 | 11,607,174.27 (− 6814 2,042,470.24) |
+| scandia_fy2025 | `assembled_pl.net_provisions.value` | — | −6,372,805.17 (a net release) |
+| scandia_fy2025 | `assembled_pl.other_operating_income` | 11,646,608.32 | 3,231,332.91 |
+| scandia_fy2025 | `assembled_pl.other_income_781_reversals` | 8,415,275.41 | 0.00 (the 781 still inside EBITDA) |
+| scandia_fy2025 | `core_ebitda` / `adjusted_ebitda` | 43,316,614.12 | 43,316,614.12 (unchanged) |
+| scandia_fy2025 | methodology `totals.operating_profit_reported` | 32,898,302.52 | 41,313,577.93 |
+| both | the reconciliation chain | … D&A → operating result | … D&A → net provisions → operating result; `bridge.after_ebitda` |
+| both | stamps | `ebitda/2026-09-26:…`, methodology 1.1.0 | `ebitda/2026-09-28:…`, 1.2.0; `turnover_definition`, `net_provisions`, the measured provision inputs |
+
+Plus on Scandia the methodology views on EBITDA (`reported`, `cash`, the
+EBITDA ratios) and on the operating result (interest coverage, net margin,
+ROE, ROA — the reversal no longer subtracted). EEI posts no provision and no
+7411: its figures do not move, only the stamps and the new blocks (zeros).
+Turnover moves on neither (no 7411). `_meta.engine_module` names this
+worktree.
+
+**Capture.** `scripts/capture_assembled_baseline.py --rebaseline` (its own
+writer; no hand edit). Pre-state: the 2026-09-28 capture, in git at main
+80c2e8b5 (not archived — no consumer reads it).
+
+**Gates after:** `check_assembled_parity.py` GREEN (byte-identical on both);
+F-A3.1 `measure_bs_drift.py` GREEN (EEI 0.0000 %; the balance sheet does not
+move).
+
+---
+
 ## 2026-09-28 — INVENTORY DAYS: the methodology's DIO / DPO / CCC / inventory-turnover views retired (re-baseline of the parity pair)
 
 **Authorization.** Owner spec 2026-09-26 on inventory days, point 4 ("ONE

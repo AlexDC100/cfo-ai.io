@@ -15,6 +15,7 @@ export type VarianceLineKey =
   | "opex"
   | "ebitda"
   | "depreciation"
+  | "net_provisions"
   | "ebit"
   | "net_financial_result"
   | "income_tax"
@@ -38,6 +39,11 @@ export const VARIANCE_LINES: VarianceLineDef[] = [
   { key: "opex", label: "Operating expenses", higherIsBetter: false },
   { key: "ebitda", label: "EBITDA", higherIsBetter: true, emphasis: true },
   { key: "depreciation", label: "Depreciation & amortization", higherIsBetter: false },
+  // Owner ruling R2 (2026-09-28): the 6812 / 6814 charges less the 7812 /
+  // 7814 reversals, OUTSIDE EBITDA, between D&A and the operating result —
+  // signed as a charge, like D&A. The engine's name for the line. Printed
+  // only where a column carries it (`buildVarianceRows`).
+  { key: "net_provisions", label: "Net provisions and impairment adjustments", higherIsBetter: false },
   { key: "ebit", label: "EBIT (operating result)", higherIsBetter: true, emphasis: true },
   { key: "net_financial_result", label: "Net financial result", higherIsBetter: true },
   { key: "income_tax", label: "Income tax", higherIsBetter: false },

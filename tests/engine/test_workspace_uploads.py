@@ -286,7 +286,7 @@ def world(app, monkeypatch):
                                  "display_name_ro": "Industria alimentara"})
     w = World(db)
 
-    def _identify(content: bytes, filename: str, registry: Any) -> Any:
+    def _identify(content: bytes, filename: str, registry: Any, mime: Any = None) -> Any:
         w.identify_calls.append(filename)
         return w.identities[filename]
 
@@ -320,17 +320,41 @@ def _headers(user: str, org: Optional[str] = None, token: Optional[str] = None) 
     return out
 
 
-def _file(name: str = "balanta.xlsx", body: bytes = b"PK\x03\x04 a trial balance") -> Dict[str, Any]:
+def _book(tag: bytes = b"a trial balance") -> bytes:
+    """A genuine (minimal) Open XML workbook container, byte-stable, with
+    `tag` inside it so two books hash differently.
+
+    These tests used to upload `b"PK\\x03\\x04 a trial balance"` — four
+    magic bytes and a phrase. The routes now take the pipeline's own
+    verdict (`_upload_type.upload_refusal`), and no reader opens that: it is
+    a cut-off archive, refused by name on the spreadsheet branch. The
+    stand-in for "a workbook" has to BE one."""
+    import io
+    import zipfile
+
+    bio = io.BytesIO()
+    with zipfile.ZipFile(bio, "w", zipfile.ZIP_STORED) as z:
+        for name, data in (("[Content_Types].xml", b"<Types/>"),
+                           ("xl/workbook.xml", b"<workbook/>"),
+                           ("xl/tag.bin", tag)):
+            z.writestr(zipfile.ZipInfo(name, date_time=(2025, 12, 31, 0, 0, 0)), data)
+    return bio.getvalue()
+
+
+_BOOK = _book()
+
+
+def _file(name: str = "balanta.xlsx", body: bytes = _BOOK) -> Dict[str, Any]:
     return {"file": (name, body, XLSX)}
 
 
 def identify(app, user: str = USER, org: Optional[str] = ORG_SCANDIA, name: str = "balanta.xlsx",
-             body: bytes = b"PK\x03\x04 a trial balance", token: Optional[str] = None):
+             body: bytes = _BOOK, token: Optional[str] = None):
     return _client(app).post("/api/uploads/identify", headers=_headers(user, org, token),
                              files=_file(name, body))
 
 
-def commit(app, user: str = USER, name: str = "balanta.xlsx", body: bytes = b"PK\x03\x04 a trial balance",
+def commit(app, user: str = USER, name: str = "balanta.xlsx", body: bytes = _BOOK,
            token: Optional[str] = None, org: Optional[str] = None, **data: Any):
     form = dict((k, v if isinstance(v, str) else json.dumps(v)) for k, v in data.items() if v is not None)
     return _client(app).post("/api/uploads/commit", headers=_headers(user, org, token),
@@ -407,7 +431,7 @@ def test_identify_routes_another_companys_cui_to_that_company_g1(app, world):
     assert body["identity"]["period_end"] == "2025-12-31"
     assert body["identity"]["industry_label"] == "Food manufacturing"
     assert body["identity"]["sources"]["cui"]["signal"] == "document_header_cui"
-    assert body["content_hash"] == hashlib.sha256(b"PK\x03\x04 a trial balance").hexdigest()
+    assert body["content_hash"] == hashlib.sha256(_BOOK).hexdigest()
     assert body["duplicate"] is None
     # The caller's LIVE companies only: the archived one and the outsider's are not places to land.
     assert body["companies"] == [{"org_id": ORG_SCANDIA, "name": "Scandia Food SRL", "cui": CUI_SCANDIA},
@@ -447,7 +471,7 @@ def test_a_name_read_only_off_the_file_name_never_keys_a_company(app, world):
     never matched. (Scandia holds a book here: an EMPTY CUI-less workspace
     becomes the new company whatever its name — the adoption tests below.)"""
     world.db.rows("org_prefs")[:] = [p for p in world.db.rows("org_prefs") if p["org_id"] != ORG_SCANDIA]
-    _seed_doc(world, org=ORG_SCANDIA, body=b"PK\x03\x04 last year's book", period_end="2024-12-31")
+    _seed_doc(world, org=ORG_SCANDIA, body=_book(b"last year's book"), period_end="2024-12-31")
     world.identities["Scandia Food.xlsx"] = _identity(cui="12345678", name="Scandia Food",
                                                       name_signal="filename")
     target = identify(app, name="Scandia Food.xlsx").json()["target"]
@@ -468,7 +492,7 @@ def test_identify_never_offers_a_period_read_off_the_file_name_g2(app, world):
 
 
 def test_identify_reports_the_duplicate_only_for_the_same_account_company_and_period(app, world):
-    body = b"PK\x03\x04 the same bytes"
+    body = _book(b"the same bytes")
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
     mine = _seed_doc(world, org=ORG_SCANDIA, body=body)
     got = identify(app, body=body).json()["duplicate"]
@@ -513,10 +537,10 @@ def test_commit_files_the_document_in_the_confirmed_company_g1_g2_g4(app, world)
     assert doc["org_id"] == ORG_AGRAS and doc["uploaded_by"] == USER
     assert doc["storage_path"].startswith(ORG_AGRAS + "/uploads/"), doc["storage_path"]
     assert doc["period_end_hint"] == "2025-12-31", "G2: the confirmed period is the hint"
-    assert doc["content_hash"] == hashlib.sha256(b"PK\x03\x04 a trial balance").hexdigest()
+    assert doc["content_hash"] == hashlib.sha256(_BOOK).hexdigest()
     assert doc["status"] == "queued" and doc["pipeline_started_at"], doc
     assert doc["detected_language"] == "ro" and doc["period_id"] is None
-    assert world.db.storage["documents/" + doc["storage_path"]] == b"PK\x03\x04 a trial balance"
+    assert world.db.storage["documents/" + doc["storage_path"]] == _BOOK
     assert world.enqueued == [doc["id"]] and world.reserved_for == [USER]
     assert world.db.rows("financial_periods") == [], "G4: commit created a period"
 
@@ -550,7 +574,7 @@ def test_commit_needs_a_target(app, world):
 
 
 def test_commit_does_not_store_analyse_or_count_a_duplicate(app, world):
-    body = b"PK\x03\x04 the same bytes"
+    body = _book(b"the same bytes")
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
     mine = _seed_doc(world, org=ORG_SCANDIA, body=body)
     before = world.db.snapshot()
@@ -586,7 +610,7 @@ def test_a_twin_that_slipped_past_the_first_check_is_archived_at_the_claim(app, 
     first claims the run, the second is found at the CLAIM (the same
     `_doc_dedupe.enter_analysis` /api/pipeline/run takes) — archived, not
     analysed, its reservation handed back."""
-    body = b"PK\x03\x04 the same bytes"
+    body = _book(b"the same bytes")
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
     twin = _seed_doc(world, org=ORG_SCANDIA, body=body, status="queued", with_period=False)
     twin["pipeline_started_at"] = "2026-09-21T10:00:00+00:00"          # the twin is running —
@@ -629,7 +653,7 @@ def test_commit_creates_a_new_company_with_its_owner_and_identity(app, world):
     # The ARCHIVED company holding the same CUI was not reused (it is deleted).
     assert world.docs(org_id=ORG_ARCHIVED) == []
     # A second commit for the same CUI lands in the company just created — never a twin.
-    r = commit(app, body=b"PK\x03\x04 next year", create_company=spec, period_end="2024-12-31")
+    r = commit(app, body=_book(b"next year"), create_company=spec, period_end="2024-12-31")
     assert r.json()["org_id"] == org_id and r.json()["created_company"] is False, r.json()
     assert len([o for o in world.db.rows("organizations") if o["name"] == "Nou Business SRL"]) == 1
 
@@ -743,7 +767,7 @@ def test_a_confirmed_extra_is_granted_to_the_document_this_commit_stores(app, wo
 
 def test_a_confirmed_extra_for_a_file_already_here_reserves_nothing(app, world, monkeypatch):
     calls = _extra_meter(monkeypatch)
-    body = b"PK\x03\x04 the same bytes"
+    body = _book(b"the same bytes")
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
     mine = _seed_doc(world, org=ORG_SCANDIA, body=body)
     before = world.db.snapshot()
@@ -801,7 +825,7 @@ def test_a_commit_that_chooses_no_industry_never_clears_the_companys(app, world)
     empty choice is no choice): the company keeps the one it has."""
     world.identities["balanta.xlsx"] = _identity(cui=CUI_AGRAS)
     assert commit(app, target_org_id=ORG_AGRAS, period_end="2025-12-31").status_code == 200
-    assert commit(app, body=b"PK\x03\x04 another year", target_org_id=ORG_AGRAS, period_end="2024-12-31",
+    assert commit(app, body=_book(b"another year"), target_org_id=ORG_AGRAS, period_end="2024-12-31",
                   industry_key="").status_code == 200
     (org,) = [o for o in world.db.rows("organizations") if o["id"] == ORG_AGRAS]
     assert org["industry_key"] == "food_manufacturing", org
@@ -828,7 +852,7 @@ def test_a_workspace_from_before_cuis_adopts_the_documents_cui_only_when_its_nam
     # A differently-named company chosen by hand for the file never takes its CUI.
     world.identities["other.xlsx"] = _identity(cui="12345678", name="Totally Other SRL")
     world.db.rows("org_prefs")[:] = [p for p in world.db.rows("org_prefs") if p["org_id"] != ORG_AGRAS]
-    r = commit(app, name="other.xlsx", body=b"other", target_org_id=ORG_AGRAS, period_end="2025-12-31")
+    r = commit(app, name="other.xlsx", body=_book(b"other"), target_org_id=ORG_AGRAS, period_end="2025-12-31")
     assert r.status_code == 200
     assert [p for p in world.db.rows("org_prefs") if p["org_id"] == ORG_AGRAS] == []
 
@@ -898,7 +922,7 @@ def test_a_new_users_first_balance_adopts_their_empty_workspace(app, newbie):
     # next year's book finds the company by its CUI — nothing adopted again.
     r = commit(app, user=NEWBIE, org=ORG_EMPTY, create_company=NEW_SPEC, period_end="2025-12-31")
     assert r.json()["status"] == "duplicate" and r.json()["document_id"] == doc["id"], r.text[:300]
-    r = commit(app, user=NEWBIE, org=ORG_EMPTY, body=b"PK\x03\x04 next year", create_company=NEW_SPEC,
+    r = commit(app, user=NEWBIE, org=ORG_EMPTY, body=_book(b"next year"), create_company=NEW_SPEC,
                period_end="2024-12-31")
     assert r.status_code == 200 and r.json()["org_id"] == ORG_EMPTY, r.text[:300]
     assert r.json()["created_company"] is False and r.json()["adopted_company"] is False, r.json()
@@ -909,7 +933,7 @@ def test_a_new_users_first_balance_adopts_their_empty_workspace(app, newbie):
 def test_a_workspace_holding_any_data_is_never_adopted(app, newbie, data):
     world = newbie
     if data == "live_document":
-        _seed_doc(world, org=ORG_EMPTY, user=NEWBIE, body=b"PK\x03\x04 a failed book", status="failed",
+        _seed_doc(world, org=ORG_EMPTY, user=NEWBIE, body=_book(b"a failed book"), status="failed",
                   with_period=False)
     else:
         world.db.add("financial_periods", {"id": None, "org_id": ORG_EMPTY, "source_document_id": None,
@@ -926,7 +950,7 @@ def test_a_workspace_holding_any_data_is_never_adopted(app, newbie, data):
 
 def test_a_deleted_document_alone_leaves_a_workspace_empty(app, newbie):
     world = newbie
-    _seed_doc(world, org=ORG_EMPTY, user=NEWBIE, body=b"PK\x03\x04 deleted", deleted=True, with_period=False)
+    _seed_doc(world, org=ORG_EMPTY, user=NEWBIE, body=_book(b"deleted"), deleted=True, with_period=False)
     assert identify(app, user=NEWBIE, org=ORG_EMPTY).json()["target"]["reason"] == "adopt_empty_workspace"
 
 
@@ -1262,9 +1286,26 @@ def test_an_analysis_that_gets_past_persist_keeps_its_period(run_world, monkeypa
 #
 # A Word document renamed .pdf (a PK container holding word/document.xml)
 # used to reach the PDF path — pdfplumber failed, the card read "not in the
-# document" everywhere, and Analyse handed it to Claude. The routes now read
-# the real type from the magic bytes and refuse the mismatch with a plain
-# sentence, before the identifier, the meter or storage.
+# document" everywhere, and Analyse handed it to Claude. The routes read the
+# real type from the bytes and refuse, before the identifier, the meter or
+# storage, what NO READER OPENS.
+#
+# ONE UPLOAD POLICY (coordinator ruling 2026-10-02). The verdict and the
+# sentence are the pipeline guard's own (`_upload_type.upload_refusal`).
+# These routes used to carry a table of their own, which refused the two
+# files the pipeline reads — an Excel balance named .pdf ("This is an Excel
+# workbook, not a PDF.") and a balance PDF named .xls — and the tests here
+# pinned those two refusals as law. They assert the repair now (TC-11): the
+# owner's expectation is "Carniprod canary as balanta.pdf is read; a balance
+# PDF as .xls is read; a Word file refused both ways". The matrix law that
+# the routes and the pipeline answer alike for every (name, bytes) pair is
+# tests/engine/test_upload_real_type.py — this file proves it at the HTTP
+# seam: status, body, language, and that nothing ran before the refusal.
+
+from engine.api import _upload_type  # noqa: E402
+
+PDF_MIME = "application/pdf"
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def _docx_bytes() -> bytes:
@@ -1290,13 +1331,33 @@ def _xlsx_bytes() -> bytes:
     return bio.getvalue()
 
 
+def _post(app, route: str, name: str, body: bytes, mime: str, **form: str):
+    return _client(app).post("/api/uploads/%s" % route, headers=_headers(USER, ORG_SCANDIA),
+                             files={"file": (name, body, mime)}, data=form)
+
+
 def test_identify_refuses_a_word_document_renamed_pdf_before_anything_reads_it(app, world):
-    r = identify(app, name="raport.pdf", body=_docx_bytes())
+    r = _post(app, "identify", "raport.pdf", _docx_bytes(), PDF_MIME)
     assert r.status_code == 422, r.text[:300]
     detail = r.json()["detail"]
-    assert detail["code"] == "format_mismatch", detail
-    assert detail["message"] == "This is a Word document, not a PDF.", detail
+    assert detail["code"] == "format_mismatch" and detail["kind"] == "docx", detail
+    # The pipeline guard's own sentence, verbatim — not a second wording.
+    assert detail["message"] == _upload_type.upload_refusal("raport.pdf", PDF_MIME, _docx_bytes())[1], detail
+    assert "is named .pdf but its contents are a Word document (.docx)" in detail["message"], detail
+    assert "To fix it:" in detail["message"], detail
     assert world.identify_calls == [], "the identifier ran on a file the routes should have refused"
+
+
+def test_a_word_document_under_its_own_name_is_refused_too(app, world):
+    """"A Word file refused both ways." The old table knew no .docx
+    extension and let this one through to storage and the pipeline."""
+    r = _post(app, "identify", "raport.docx", _docx_bytes(), DOCX_MIME)
+    assert r.status_code == 422, r.text[:300]
+    detail = r.json()["detail"]
+    assert detail["code"] == "format_mismatch" and detail["kind"] == "docx", detail
+    assert "which this app cannot read" in detail["message"], detail
+    assert "but its contents are" not in detail["message"], detail
+    assert world.identify_calls == []
 
 
 def test_commit_refuses_a_word_document_renamed_pdf_and_stores_nothing(app, world):
@@ -1309,29 +1370,86 @@ def test_commit_refuses_a_word_document_renamed_pdf_and_stores_nothing(app, worl
     assert [k for k in world.db.storage if k.startswith("documents/")] == []
 
 
-@pytest.mark.parametrize("name,body,message", [
-    ("balanta.pdf", _xlsx_bytes(), "This is an Excel workbook, not a PDF."),
-    ("balanta.xlsx", b"%PDF-1.7 a balance", "This is a PDF, not an Excel workbook."),
-    ("balanta.xls", _docx_bytes(), "This is a Word document, not an Excel workbook."),
-    ("balanta.csv", _docx_bytes(), "This is a Word document, not a CSV file."),
+def test_the_two_files_the_pipeline_reads_are_read_by_the_card(app, world):
+    """An Excel balance named balanta.pdf and a balance PDF named
+    balanta.xls: the pipeline reads both (workbook bytes as the workbook,
+    PDF bytes by the .pdf branch's readers), so the card's routes take both
+    — identify answers, commit stores and queues. The old table refused
+    each with "This is …, not …"."""
+    world.identities["balanta.pdf"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
+    world.identities["balanta.xls"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
+    cases = (("balanta.pdf", _xlsx_bytes(), PDF_MIME),
+             ("balanta.xls", b"%PDF-1.7\n1 0 obj\nendobj\n%%EOF\n", "application/vnd.ms-excel"))
+    for name, body, mime in cases:
+        assert _upload_type.upload_refusal(name, mime, body) is None, name
+        r = _post(app, "identify", name, body, mime)
+        assert r.status_code == 200, (name, r.text[:300])
+        c = _post(app, "commit", name, body, mime, target_org_id=ORG_SCANDIA, period_end="2025-12-31")
+        assert c.status_code == 200 and c.json()["status"] == "queued", (name, c.text[:300])
+    assert len(world.docs()) == 2 and len(world.enqueued) == 2
+
+
+@pytest.mark.parametrize("name,body,mime,kind", [
+    ("balanta.xls", _docx_bytes(), "application/vnd.ms-excel", "docx"),
+    ("balanta.csv", _docx_bytes(), "text/csv", "docx"),
+    ("balanta.csv", _xlsx_bytes(), "text/csv", "xlsx"),                 # a workbook on a text branch
+    ("balanta.xlsx", b"cont;denumire;sold\n101;Capital;1000\n", XLSX, "text"),  # a CSV named .xlsx
+    ("balanta.xlsx", b"PK\x03\x04 a trial balance", XLSX, "zip_unknown"),      # a cut-off archive
+    ("balanta.pdf", b"cont;denumire;sold\n101;Capital;1000\n", PDF_MIME, "text"),
 ])
-def test_every_mismatch_between_the_name_and_the_bytes_is_refused_plainly(app, world, name, body, message):
-    r = identify(app, name=name, body=body)
+def test_what_no_reader_opens_is_refused_in_the_pipelines_own_sentence(app, world, name, body, mime, kind):
+    r = _post(app, "identify", name, body, mime)
     assert r.status_code == 422, r.text[:300]
     detail = r.json()["detail"]
-    assert (detail["code"], detail["message"]) == ("format_mismatch", message), detail
-    assert re.match(r"^[a-z]+_not_[a-z]+$", str(detail.get("kind") or "")), detail
-    assert "source" not in message.lower()
+    assert (detail["code"], detail["kind"]) == ("format_mismatch", kind), detail
+    assert detail["message"] == _upload_type.upload_refusal(name, mime, body)[1], detail
+    assert repr(name) in detail["message"] and "To fix it:" in detail["message"], detail
+    assert "source" not in detail["message"].lower()
+    assert world.identify_calls == []
 
 
-def test_bytes_that_agree_with_the_name_or_say_nothing_are_never_refused(app, world):
+def test_the_refusal_is_in_the_language_the_card_is_read_in(app, world):
+    """/identify takes `output_language` (the field /commit already took):
+    the sentence the card prints verbatim is Romanian for a Romanian reader,
+    informal, with the fix — and English otherwise."""
+    for route, extra in (("identify", {}), ("commit", {"target_org_id": ORG_SCANDIA, "period_end": "2025-12-31"})):
+        ro = _post(app, route, "raport.pdf", _docx_bytes(), PDF_MIME, output_language="ro", **extra)
+        assert ro.status_code == 422, ro.text[:300]
+        msg = ro.json()["detail"]["message"]
+        assert msg == _upload_type.upload_refusal("raport.pdf", PDF_MIME, _docx_bytes(), "ro")[1], msg
+        assert "are extensia .pdf, dar de fapt este un document Word (.docx)" in msg, msg
+        assert "Ca să rezolvi:" in msg and "To fix it" not in msg, msg
+        en = _post(app, route, "raport.pdf", _docx_bytes(), PDF_MIME, output_language="en", **extra)
+        assert "To fix it:" in en.json()["detail"]["message"]
+    assert world.docs() == [] and world.identify_calls == []
+
+
+def test_an_empty_file_is_told_so_in_the_guards_words(app, world):
+    for lang, needle in ((None, "an empty file (0 bytes)"), ("ro", "un fișier gol (0 octeți)")):
+        form = {"output_language": lang} if lang else {}
+        r = _post(app, "identify", "balanta.xlsx", b"", XLSX, **form)
+        assert r.status_code == 400, r.text[:300]
+        detail = r.json()["detail"]
+        assert detail["code"] == "empty_file" and needle in detail["message"], detail
+        assert detail["message"] == _upload_type.mismatch_message(
+            ".xlsx", _upload_type.EMPTY, filename="balanta.xlsx", language=lang), detail
+    assert world.identify_calls == []
+
+
+def test_bytes_a_reader_opens_are_never_refused(app, world):
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
     world.identities["balanta.pdf"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
     world.identities["balanta.csv"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
-    assert identify(app, name="balanta.xlsx", body=_xlsx_bytes()).status_code == 200
-    assert identify(app, name="balanta.pdf", body=b"%PDF-1.4 a scanned balance").status_code == 200
-    assert identify(app, name="balanta.csv", body=b"cont;denumire;sold\n101;Capital;1000\n").status_code == 200
-    # A PK container that names no Office part is not provably anything
-    # else: a workbook exported by a tool that lays its zip out differently
-    # is still a workbook.
-    assert identify(app, name="balanta.xlsx", body=b"PK\x03\x04 a trial balance").status_code == 200
+    assert _post(app, "identify", "balanta.xlsx", _xlsx_bytes(), XLSX).status_code == 200
+    assert _post(app, "identify", "balanta.pdf", b"%PDF-1.4 a scanned balance", PDF_MIME).status_code == 200
+    assert _post(app, "identify", "balanta.csv", b"cont;denumire;sold\n101;Capital;1000\n", "text/csv").status_code == 200
+    # An Open XML zip that names no `xl/` part is still read where openpyxl
+    # runs (it finds the workbook through the manifest): a workbook exported
+    # by a tool that lays its zip out differently is still a workbook.
+    import io
+    import zipfile
+    bio = io.BytesIO()
+    with zipfile.ZipFile(bio, "w") as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("workbook.xml", "<workbook/>")
+    assert _post(app, "identify", "balanta.xlsx", bio.getvalue(), XLSX).status_code == 200

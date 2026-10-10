@@ -26,6 +26,7 @@ import { fetchAlerts, type AlertRow, type AlertSeverity } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { activeLocale } from "@/lib/locale";
 import { activateWorkspace } from "@/lib/org";
+import { rerunFailedSentenceKey } from "@/lib/rerunRefusals";
 import {
   markUploadNoticesRead,
   unreadUploadNotices,
@@ -178,8 +179,19 @@ export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "ro
                               ? t("wsV2.bell.done", { company: n.companyName })
                               : t("wsV2.bell.failed", { company: n.companyName })}
                           </span>
-                          <span className="block truncate text-[12px] text-ink-soft">
-                            {n.kind === "failed" && n.error ? n.error : n.filename}
+                          <span
+                            className="block truncate text-[12px] text-ink-soft"
+                            data-testid="notifications-analysis-detail"
+                          >
+                            {/* A failed row's error as stored — unless a
+                                staged re-run wrote it: then the app's own
+                                sentence, never the engine's remainder. */}
+                            {n.kind === "failed" && n.error
+                              ? (() => {
+                                  const ours = rerunFailedSentenceKey(n.error);
+                                  return ours ? t(ours) : n.error;
+                                })()
+                              : n.filename}
                           </span>
                           <span className="mt-0.5 block text-[11px] text-ink-mute">
                             {formatWhen(new Date(n.at).toISOString())}

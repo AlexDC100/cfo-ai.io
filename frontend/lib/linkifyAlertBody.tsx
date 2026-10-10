@@ -59,7 +59,12 @@ export const FACT_TO_SOURCE: Record<string, TraceableSource> = {
   // point at is no longer a row of the tab.
   net_income:                 { statement: "pl", bucket: "netIncomeStatutory",     hint: "Net profit — account 121" },
   net_profit:                 { statement: "pl", bucket: "netIncomeStatutory",     hint: "Net profit — account 121" },
-  depreciation:               { statement: "pl", bucket: "depreciationAmortization", hint: "Depreciation & amortization (6811/6812)" },
+  // The fact is `assembled_pl.depreciation` — since the owner's R2 ruling
+  // (2026-09-28) D&A WITHOUT the 6812 / 6814 provision charges, which the
+  // P&L prints on their own net-provisions line. The hint names the row by
+  // the pack's own words and lists no accounts: an account list typed here
+  // is a second definition (it said "6811/6812" — review 2026-10-01).
+  depreciation:               { statement: "pl", bucket: "depreciationAmortization", hint: "Depreciation, amortisation and other adjustments — the P&L's D&A line" },
   interest_expense:           { statement: "pl", bucket: "interestExpense",        hint: "Interest expense (666)" },
 
   // ── Radar detector families (2026-09-09) ──────────────────────────────

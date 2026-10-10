@@ -79,6 +79,27 @@ export function isSellablePlanId(id: string | null | undefined): id is PlanId {
   return (SELLABLE_PLAN_IDS as string[]).includes(id);
 }
 
+/** Plans the backend lists as purchasable that this product does NOT put
+ *  on sale: shown, marked "coming soon", and with no path to a checkout.
+ *
+ *  Multi-Country (2026-10-01): international coverage is not available —
+ *  no file from another country is analysed correctly today
+ *  (frontend/data/coverage.json, row `other_countries`). The backend still
+ *  resolves the plan, so an existing subscriber is untouched; nothing in
+ *  the frontend offers it to a new one. `SELLABLE_PLAN_IDS` above keeps
+ *  mirroring the backend's set (a gate holds it to `_pricing_config.py`);
+ *  THIS list is what the surfaces consult before offering a plan. */
+export const COMING_SOON_PLAN_IDS: PlanId[] = ["multi"];
+
+export function isComingSoonPlanId(id: string | null | undefined): boolean {
+  return !!id && (COMING_SOON_PLAN_IDS as string[]).includes(id);
+}
+
+/** True when a `?plan=` value names a plan a new customer can buy TODAY. */
+export function isOnSalePlanId(id: string | null | undefined): id is PlanId {
+  return isSellablePlanId(id) && !isComingSoonPlanId(id);
+}
+
 /** Narrow an arbitrary persisted value to a known plan key. */
 export function isKnownPlanId(id: string | null | undefined): id is PlanId {
   if (!id) return false;

@@ -167,10 +167,15 @@ export interface CompanyYear {
 
 export class UploadApiError extends Error {
   readonly httpStatus: number;
-  constructor(message: string, httpStatus: number) {
+  /** The engine's own `detail.code`, when it gave one ("format_mismatch",
+   *  "empty_file", …) — the card reads it to tell a file no reader opens
+   *  (final: the engine's sentence, no retry) from a failed request. */
+  readonly code: string | null;
+  constructor(message: string, httpStatus: number, code: string | null = null) {
     super(message);
     this.name = "UploadApiError";
     this.httpStatus = httpStatus;
+    this.code = code;
   }
 }
 
@@ -213,6 +218,12 @@ export function errorMessageFrom(body: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
+/** The engine's `detail.code` of a FastAPI error body, or null. */
+export function errorCodeFrom(body: unknown): string | null {
+  const d = asRecord(asRecord(body)?.detail);
+  return d && typeof d.code === "string" && d.code ? d.code : null;
+}
+
 function outputLanguage(): string {
   try {
     return (getActiveLanguage() || "en").slice(0, 2);
@@ -230,13 +241,17 @@ export async function identifyUpload(
   const headers = await headersFor(onScreenOrgId);
   const form = new FormData();
   form.append("file", file, file.name);
+  // A file no reader opens is refused HERE, by the engine's one upload
+  // policy (`_upload_type`), in a sentence the card prints verbatim — so
+  // the engine is told which language the card is read in.
+  form.append("output_language", outputLanguage());
   const res = await fetch(`${API_URL}/api/uploads/identify`, {
     method: "POST",
     headers,
     body: form,
   });
   const body = await readJson(res);
-  if (!res.ok) throw new UploadApiError(errorMessageFrom(body, res.status), res.status);
+  if (!res.ok) throw new UploadApiError(errorMessageFrom(body, res.status), res.status, errorCodeFrom(body));
   return normalizeIdentify(body);
 }
 
@@ -349,7 +364,9 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
     throw new UploadApiError("malformed_commit", 502);
   }
 
-  // Typed refusals first — a non-RO document on a plan without it.
+  // Typed refusals first — a non-RO document on a plan without it. The
+  // message is the refusal CODE's sentence in the reader's language
+  // (lib/uploadRefusals), never the server's plan-named one.
   const nonRo = parseUploadRefusal(body);
   if (nonRo) return { status: "refused", message: nonRo.message, httpStatus: res.status };
 

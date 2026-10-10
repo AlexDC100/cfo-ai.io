@@ -8,6 +8,12 @@
 // inside EBITDA, outside turnover. Turnover is net turnover (70x − 709).
 // The reconciliation line is shown.
 //
+// OWNER RULINGS (2026-09-28). R2: the provision charges (6812, 6814) and
+// their reversals (7812, 7814) are OUTSIDE EBITDA; their net is its own
+// row between D&A and EBIT, under the engine's name. R3: net turnover
+// holds 7411 (operating subsidies related to turnover, F20 rd. 05) — the
+// row's accounts are the engine's.
+//
 // Before this module the two deliverables each assembled their own column
 // from the `incomeStatement` buckets — neither of which carries the
 // measured net 711 or net 72x — and printed the ENGINE's EBITDA under a
@@ -26,12 +32,13 @@
 //   + Own work capitalised (72x)               ← operating, outside turnover
 //   = EBITDA
 //   − Depreciation & amortization
+//   ± Net provisions (6812 + 6814 − 7812 − 7814)   ← outside EBITDA (R2)
 //   = EBIT (operating result)
 //   + Financial income − interest − other financial expense
 //   = Profit before tax
 //   − Tax expense
 //   [= Net result built from the accounts, ± not explained by the accounts]
-//   = Net income (account 121, as filed)
+//   = Net income (account 121, closing balance)
 //
 // A figure the engine REFUSED (the stock variation could not be measured)
 // is a row with `value: null` and its typed reason — never a zero and
@@ -42,6 +49,7 @@
 import type { Statements } from "./financialReport";
 import {
   componentShown,
+  netProvisionsEffectLabel,
   plLevelsOf,
   readRefusal,
   readServedOneEbitda,
@@ -88,7 +96,7 @@ export interface PrintedPl {
 }
 
 /** The label of the account-121 row; shared so no format renames it alone. */
-export const NET_INCOME_FILED_LABEL = "Net Income (account 121, as filed)";
+export const NET_INCOME_FILED_LABEL = "Net Income (account 121, closing balance)";
 export const NOT_EXPLAINED_LABEL =
   "± Not explained by the revenue and expense accounts (account 121 − the result built from them)";
 export const NET_RESULT_BUILT_LABEL = "Net result — built from the accounts";
@@ -156,7 +164,10 @@ export function printedPl(s: Statements): PrintedPl {
     note: string | null = null,
   ) => rows.push({ key, label, value, kind, refusal: value === null ? rowRefusal : null, note });
 
-  push("turnover", "Net turnover (70x − 709)", levels.turnover, "step");
+  // The turnover row's accounts are the engine's (70x − 709 + 7411 since
+  // R3); a payload the engine did not assemble keeps the bucket's own.
+  const turnoverAccounts = reconLine(recon, "turnover")?.accounts ?? "70x − 709";
+  push("turnover", `Net turnover (${turnoverAccounts})`, levels.turnover, "step");
   push("cogs", "Cost of goods sold", -cogs, "step");
 
   // ── 711, beside cost of sales ─────────────────────────────────────────
@@ -201,6 +212,16 @@ export function printedPl(s: Statements): PrintedPl {
   }
   push("ebitda", "EBITDA", levels.ebitda, "subtotal", refusal);
   push("da", "Depreciation & amortization", -dna, "step");
+  // R2: net provisions, outside EBITDA — the engine's name, signed as its
+  // effect on the result like every step here, with the accounts written as
+  // THAT effect's arithmetic ("7812 + 7814 − 6812 − 6814"). The engine's
+  // label carries the charge arithmetic, which a printed −131,394.66 under
+  // it contradicted (review 2026-10-01). Absent on a payload the engine did
+  // not assemble under the ruling (its D&A still holds the charges).
+  const np = served?.netProvisions ?? null;
+  if (np && (Math.abs(np.charges) >= HALF_CENT || Math.abs(np.reversals) >= HALF_CENT)) {
+    push("net_provisions", netProvisionsEffectLabel(np, "en"), 0 - np.value, "step");
+  }
   push("ebit", "EBIT", levels.ebit, "subtotal", levels.ebitRefusal);
   push("financial_income", "Financial income", finIncome, "step");
   push("interest_expense", "Interest expense", -interest, "step");
@@ -245,15 +266,27 @@ export function printedPl(s: Statements): PrintedPl {
 
   // ── the one-line bridge and the notes ─────────────────────────────────
   const parts = recon?.bridge.parts ?? [];
+  // After EBITDA, outside it (R2): net provisions, the engine's label saying
+  // so — the parts above still sum to EBITDA.
+  const after = recon?.bridge.afterEbitda ?? [];
   const bridge =
     parts.length > 0
-      ? parts
-          .map((p, i) => {
+      ? [
+          ...parts.map((p, i) => {
             const v = p.value === null ? "refused" : money(p.value);
             const lead = i === 0 ? "" : i === parts.length - 1 ? "= " : p.value !== null && p.value >= 0 ? "+ " : "";
             return `${lead}${p.label.en} ${v}`;
-          })
-          .join(" · ")
+          }),
+          ...after.flatMap((p) => {
+            // Net provisions after EBITDA: the P&L tab's line — the served
+            // CHARGE under the engine's charge-arithmetic label, unsigned,
+            // not the effect-signed bridge part (review 2026-10-01). No
+            // readable figure, no after-part rather than a second convention.
+            if (p.key === "net_provisions") return np ? [`${p.label.en} ${money(np.value)}`] : [];
+            const v = p.value === null ? "refused" : money(p.value);
+            return [`${p.value !== null && p.value >= 0 ? "+ " : ""}${p.label.en} ${v}`];
+          }),
+        ].join(" · ")
       : null;
   return {
     rows,

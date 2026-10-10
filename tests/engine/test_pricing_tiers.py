@@ -431,6 +431,11 @@ def _first_metered_run(monkeypatch, doc_id, user_id="u-1"):
 
 
 def test_pipeline_nonro_gate_raises_typed_refusal(monkeypatch):
+    """REWRITTEN 2026-10-02 (owner ruling: never write plan names into the
+    shared `documents.error` — store a neutral code). It used to assert
+    `"multi" in str(exc.value)` and let the payload carry the reserver's
+    `plan_key` and a sentence naming their plan. The stored text is now the
+    code and nothing else, whatever the decision's own message says."""
     from engine.api import pipeline
     monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
     _first_metered_run(monkeypatch, "doc-1")
@@ -438,16 +443,44 @@ def test_pipeline_nonro_gate_raises_typed_refusal(monkeypatch):
         kind="refused", plan_key="solo", used=0, cap=0,
         extra_nonro_doc_eur=None, was_extra=False,
         refusal={"error": "non_ro_not_included", "upgrade_to": "multi"},
-        message="Non-Romanian documents are available on the Multi-Country plan.",
+        message="Non-Romanian documents aren't included in the RO Solo plan.",
     )
     with patch.object(_usage_gate, "reserve_nonro_document",
                       return_value=refusal):
         with pytest.raises(_usage_gate.NonRoNotIncludedError) as exc:
             pipeline._enforce_nonro_plan_gate({"id": "doc-1",
                                                "uploaded_by": "u-1"})
-    # The FE matches this typed marker inside documents.error.
-    assert "non_ro_not_included" in str(exc.value)
-    assert "multi" in str(exc.value)
+    # The FE matches this typed marker inside documents.error — and it is
+    # ALL the row carries: no plan key, no plan name, no message.
+    assert json.loads(str(exc.value)) == {"error": "non_ro_not_included"}
+
+
+def test_pipeline_nonro_gate_stores_the_cap_and_the_unreachable_meter_as_codes(monkeypatch):
+    """The reserving branch's two other refusals, at the pipeline seam.
+    `blocked` (the monthly non-RO cap) stored the reserver's plan key and
+    "…included in the Multi-Country plan this month"; the unreachable meter
+    returns the bare STRING `metering_unavailable`, `dict("metering_…")`
+    raised, and `documents.error` carried that ValueError's text."""
+    from engine.api import pipeline
+    monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
+    blocked = _usage_gate.NonRoReserveDecision(
+        kind="blocked", plan_key="multi", used=8, cap=8,
+        extra_nonro_doc_eur=None, was_extra=False, refusal=None,
+        message="You've used all 8 non-Romanian documents included in the "
+                "Multi-Country plan this month.")
+    _first_metered_run(monkeypatch, "doc-c")
+    with patch.object(_usage_gate, "reserve_nonro_document", return_value=blocked):
+        with pytest.raises(_usage_gate.NonRoNotIncludedError) as exc:
+            pipeline._enforce_nonro_plan_gate({"id": "doc-c", "uploaded_by": "u-1"})
+    assert json.loads(str(exc.value)) == {"error": "nonro_quota_exhausted"}
+    # The unreachable meter, through the REAL unit (it returns the string).
+    _first_metered_run(monkeypatch, "doc-m")
+    with patch.object(_usage_gate._plan_state, "get_plan_state",
+                      return_value=_mk_state("multi")):
+        with patch.object(_usage_gate, "_rpc", return_value=None):
+            with pytest.raises(_usage_gate.NonRoNotIncludedError) as exc:
+                pipeline._enforce_nonro_plan_gate({"id": "doc-m", "uploaded_by": "u-1"})
+    assert json.loads(str(exc.value)) == {"error": "metering_unavailable"}
 
 
 def test_pipeline_nonro_gate_allowed_stamps_document(monkeypatch):
@@ -478,37 +511,112 @@ def test_pipeline_nonro_gate_allowed_stamps_document(monkeypatch):
     assert ledger[0][1] == {"document_id": "eq.doc-9"}
 
 
+class _MembershipsCtx:
+    """The service-role client as the owner resolver reads it: `memberships`
+    rows, filtered the way PostgREST filters `eq.` — and a record of every
+    read, so a test can say which tables and ids were consulted."""
+
+    def __init__(self, memberships: List[Dict[str, Any]]) -> None:
+        self.memberships = memberships
+        self.reads: List[Any] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        return None
+
+    def select(self, table: str, *, filters: Optional[Dict[str, str]] = None,
+               columns: str = "*", limit: Optional[int] = None,
+               order: Optional[str] = None, single: bool = False) -> List[Dict[str, Any]]:
+        self.reads.append((table, dict(filters or {}), order, limit))
+        assert table == "memberships", table
+        out = [dict(r) for r in self.memberships
+               if all(cond.startswith("eq.") and str(r.get(col)) == cond[3:]
+                      for col, cond in (filters or {}).items())]
+        if order:
+            col = order.split(".")[0]
+            out.sort(key=lambda r: str(r.get(col) or ""))
+        return out[:limit] if limit is not None else out
+
+
 def test_pipeline_nonro_gate_a_rerun_reserves_nothing_but_is_still_gated(monkeypatch):
     """A run that holds no document slot (/retry, the ai-lane reextract, a
     period-move re-run) re-analyses a document already counted: the plan
     still refuses non-RO where it is not included, but nothing is
-    reserved, registered or stamped (verifier P-E)."""
+    reserved, registered or stamped (verifier P-E).
+
+    REWRITTEN 2026-10-02 (owner ruling: the WORKSPACE's plan gates a
+    re-run, never whoever `uploaded_by` names). This test used to call the
+    gate with `{"id", "uploaded_by": "u-1"}` and answer the plan of whatever
+    id was asked — it pinned the read of a browser-written column as the
+    law. The plan consulted is now the OWNER's of the document's own
+    `org_id`; `uploaded_by` names somebody else here and is never read."""
     from engine.api import pipeline
     monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
     monkeypatch.setattr(pipeline, "_QUOTA_RUNS", {})
     solo = _pricing_config.CONFIG.plans["solo"]
     multi = _pricing_config.CONFIG.plans["multi"]
+    asked: List[str] = []
 
     def state(plan):
-        return lambda uid: _plan_state.PlanState(
-            user_id=uid, plan_key=plan.key, plan=plan, window_expires_at=None,
-            docs_used_this_period=0, extra_docs_billed_this_period=0, chat_used_today=0,
-            chat_used_this_period=0, today_iso="2026-09-21", period_month_bucket="2026-09")
+        def _state(uid):
+            asked.append(uid)
+            return _plan_state.PlanState(
+                user_id=uid, plan_key=plan.key, plan=plan, window_expires_at=None,
+                docs_used_this_period=0, extra_docs_billed_this_period=0, chat_used_today=0,
+                chat_used_this_period=0, today_iso="2026-09-21", period_month_bucket="2026-09")
+        return _state
 
-    with patch.object(_usage_gate, "reserve_nonro_document",
-                      side_effect=AssertionError("a re-run reserved the non-RO meter")):
-        with patch.object(_usage_gate._plan_state, "get_plan_state", side_effect=state(solo)):
-            with pytest.raises(_usage_gate.NonRoNotIncludedError) as exc:
-                pipeline._enforce_nonro_plan_gate({"id": "doc-r", "uploaded_by": "u-1"})
-            assert "non_ro_not_included" in str(exc.value)
-        with patch.object(_usage_gate._plan_state, "get_plan_state", side_effect=state(multi)):
-            pipeline._enforce_nonro_plan_gate({"id": "doc-r", "uploaded_by": "u-1"})
+    ctx = _MembershipsCtx([
+        {"user_id": "u-owner", "org_id": "org-1", "role": "owner",
+         "created_at": "2026-01-01T00:00:00+00:00"},
+        {"user_id": "u-colleague", "org_id": "org-1", "role": "member",
+         "created_at": "2026-01-02T00:00:00+00:00"},
+    ])
+    doc = {"id": "doc-r", "org_id": "org-1", "uploaded_by": "u-colleague"}
+    with patch.object(pipeline._supabase, "admin", return_value=ctx):
+        with patch.object(_usage_gate, "reserve_nonro_document",
+                          side_effect=AssertionError("a re-run reserved the non-RO meter")):
+            with patch.object(_usage_gate._plan_state, "get_plan_state", side_effect=state(solo)):
+                with pytest.raises(_usage_gate.NonRoNotIncludedError) as exc:
+                    pipeline._enforce_nonro_plan_gate(dict(doc))
+                assert json.loads(str(exc.value)) == {"error": "non_ro_not_included"}
+            with patch.object(_usage_gate._plan_state, "get_plan_state", side_effect=state(multi)):
+                pipeline._enforce_nonro_plan_gate(dict(doc))
     assert pipeline._QUOTA_RUNS == {}
+    # The workspace's owner, both times — never the id `uploaded_by` names.
+    assert asked == ["u-owner", "u-owner"], asked
+    assert [r[1] for r in ctx.reads] == [{"org_id": "eq.org-1", "role": "eq.owner"}] * 2, ctx.reads
 
 
-def test_pipeline_nonro_gate_no_user_is_noop(monkeypatch):
+def test_pipeline_nonro_gate_no_workspace_is_refused(monkeypatch):
+    """REVERSED 2026-10-02 — it was `..._no_user_is_noop` and asserted that a
+    holder-less run of a document with no `uploaded_by` PASSES the gate
+    with enforcement on: a non-Romanian re-run with no plan check at all
+    (the column goes NULL when the uploader's account is deleted, and any
+    member can PATCH it to NULL). It pinned the bypass as the law.
+
+    A run for which no workspace can be named is REFUSED, with the neutral
+    code, before any plan is read: nobody's plan can stand in for it."""
     from engine.api import pipeline
     monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
-    with patch.object(_usage_gate, "reserve_nonro_document",
-                      side_effect=AssertionError("must not run")):
-        pipeline._enforce_nonro_plan_gate({"id": "doc-1"})
+    monkeypatch.setattr(pipeline, "_QUOTA_RUNS", {})
+    ctx = _MembershipsCtx([])
+    with patch.object(pipeline._supabase, "admin", return_value=ctx):
+        with patch.object(_usage_gate, "reserve_nonro_document",
+                          side_effect=AssertionError("must not run")):
+            with patch.object(_usage_gate._plan_state, "get_plan_state",
+                              side_effect=AssertionError("no plan stands in for no workspace")):
+                for doc in ({"id": "doc-1"},
+                            {"id": "doc-1", "uploaded_by": "u-multi"},
+                            {"id": "doc-1", "org_id": "", "uploaded_by": "u-multi"},
+                            # A workspace nobody owns: the memberships read
+                            # answers no owner row.
+                            {"id": "doc-1", "org_id": "org-nobody", "uploaded_by": "u-multi"}):
+                    with pytest.raises(_usage_gate.NonRoNotIncludedError) as exc:
+                        pipeline._enforce_nonro_plan_gate(doc)
+                    assert json.loads(str(exc.value)) == {"error": "non_ro_not_included"}, doc
+    # No workspace named → not even a memberships read (an unfiltered one
+    # would answer every workspace's owner); the one read is org-nobody's.
+    assert [r[1] for r in ctx.reads] == [{"org_id": "eq.org-nobody", "role": "eq.owner"}], ctx.reads

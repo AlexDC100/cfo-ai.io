@@ -96,6 +96,7 @@ function parseConversations(raw: string | null): ChatConversation[] {
             m.failed === "service" || m.failed === "usage" || m.failed === "network"
               ? m.failed
               : undefined,
+          refused: m.refused === true ? true : undefined,
         })),
       }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -650,6 +651,9 @@ export interface CompleteAssistantTurnInput {
   /** The turn failed — renders as the calm degraded panel (A2). Implies
    *  error-style persistence handling (kept locally, never server-side). */
   failed?: import("@/lib/aiDegraded").AiFailureKind;
+  /** The function REFUSED this turn (no model call): the content is the
+   *  app's notice. Marked so it is never sent to the model as history. */
+  refused?: boolean;
 }
 
 export function chatCompleteAssistantTurn(
@@ -674,6 +678,7 @@ export function chatCompleteAssistantTurn(
           pending: false,
           interrupted: params.interrupted === true ? true : undefined,
           failed: params.failed ?? undefined,
+          refused: params.refused === true ? true : undefined,
         };
         finished = done;
         return done;

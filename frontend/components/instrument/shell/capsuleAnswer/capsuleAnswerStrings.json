@@ -197,6 +197,7 @@
       "citation": {
         "title": "Sursă",
         "period_one": "Perioadă",
+        "period_few": "Perioade",
         "period_other": "Perioade",
         "snapshot": "Instantaneu",
         "file": "Fișier sursă",

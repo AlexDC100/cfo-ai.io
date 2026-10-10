@@ -139,11 +139,39 @@ describe("PricingTableV2 — three paid tiers", () => {
     expect(heading?.textContent).toBe("Pro");
   });
 
-  it("surfaces the non-RO inclusion on the Multi card only", () => {
+  // 2026-10-01 — this case used to assert that the Multi card "surfaces the
+  // non-RO inclusion". No file from another country is analysed correctly
+  // today (frontend/data/coverage.json, row other_countries), so the plan is
+  // COMING SOON: shown, marked, and with no way to start a checkout.
+  it("shows Multi-Country as coming soon: marked, not on sale, no checkout", () => {
     renderTable();
     const multi = screen.getByTestId("pricing-plan-multi");
-    expect(multi.textContent?.toLowerCase()).toContain("non-ro");
-    const solo = screen.getByTestId("pricing-plan-solo");
-    expect(solo.textContent?.toLowerCase()).not.toContain("non-ro");
+    expect(multi.getAttribute("data-plan-state")).toBe("coming-soon");
+    expect(screen.getByTestId("pricing-plan-multi-badge").textContent).toContain("Coming soon");
+    expect(screen.getByTestId("pricing-plan-multi-blurb").textContent).toContain(
+      "international coverage is not available yet",
+    );
+    // the backend's own blurb for the plan is not rendered
+    expect(multi.textContent).not.toContain("non-Romanian");
+    expect(multi.textContent?.toLowerCase()).not.toContain("non-ro");
+    expect(multi.textContent).toContain("Not on sale yet");
+    // no checkout CTA — a disabled label instead
+    expect(screen.queryByTestId("pricing-plan-multi-cta")).toBeNull();
+    const cta = screen.getByTestId("pricing-plan-multi-coming-soon") as HTMLButtonElement;
+    expect(cta.disabled).toBe(true);
+    // the plans that ARE on sale keep their CTA
+    expect(screen.getByTestId("pricing-plan-solo-cta")).toBeTruthy();
+    expect(screen.getByTestId("pricing-plan-pro-cta")).toBeTruthy();
+    expect(screen.getByTestId("pricing-plan-solo").getAttribute("data-plan-state")).toBe("on-sale");
+  });
+
+  it("an existing Multi-Country subscriber still sees it as their current plan", () => {
+    render(
+      <MemoryRouter>
+        <PricingTableV2 currentPlanKey="multi" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("pricing-plan-multi-current")).toBeTruthy();
+    expect(screen.queryByTestId("pricing-plan-multi-coming-soon")).toBeNull();
   });
 });

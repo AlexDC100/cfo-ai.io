@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useInRouterContext } from "react-router-dom";
 import { Cloud, ArrowUp } from "lucide-react";
 import { cashFlowFigures, type CashFlowStatement, type CashFlowStatementFigures } from "@/lib/cfStructure";
 import { sourceDocumentLine } from "@/lib/comparatives";
@@ -45,9 +46,20 @@ interface Props {
    *  cells when the dashboard also wrapped this view in a
    *  <ComparativeProvider>; otherwise ignored. */
   prior?: CashFlowStatement | null;
+  /** Where the previous year's balance is uploaded — the "upload the prior
+   *  period" link on the approximated-cash-flow card. The workspace by
+   *  default. (It pointed at `/financials`, a path with no route: the link
+   *  opened the not-found page.) */
+  uploadHref?: string;
+  /** The balance the company is missing for the previous year, as the month
+   *  the comparison notice names ("Dec 2023" / "dec. 2023") — the card's
+   *  call to action then asks for THAT balance, in the notice's own words,
+   *  instead of "the prior period". Null when the page does not know one
+   *  (the year before is uploaded, or the close cannot be read). */
+  missingPriorLabel?: string | null;
 }
 
-export function CashFlowStatementView({ statement, hideGuide = false, prior = null }: Props) {
+export function CashFlowStatementView({ statement, hideGuide = false, prior = null, uploadHref = "/workspace", missingPriorLabel = null }: Props) {
   const { t, i18n } = useTranslation();
   // The engine REFUSED the net result the indirect method starts from: its
   // reason, never a statement built on a net profit of 0.
@@ -65,13 +77,24 @@ export function CashFlowStatementView({ statement, hideGuide = false, prior = nu
       </div>
     );
   }
-  return <CashFlowStatementBody statement={figures} hideGuide={hideGuide} prior={prior} />;
+  return (
+    <CashFlowStatementBody
+      statement={figures}
+      hideGuide={hideGuide}
+      prior={prior}
+      uploadHref={uploadHref}
+      missingPriorLabel={missingPriorLabel}
+    />
+  );
 }
 
-function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: Omit<Props, "statement"> & {
+function CashFlowStatementBody({ statement, hideGuide = false, prior = null, uploadHref = "/workspace", missingPriorLabel = null }: Omit<Props, "statement"> & {
   statement: CashFlowStatementFigures;
 }) {
   const { t, i18n } = useTranslation();
+  // In-app navigation where there is a router (the dashboard); a plain link
+  // where the view is rendered on its own.
+  const inRouter = useInRouterContext();
   const { operating, investing, financing, reconciliation, notes } = statement;
   const cmp = useComparativeContext();
   const cmpOn = !!cmp && !!prior && (cmp.columns.prior || cmp.columns.delta);
@@ -89,8 +112,29 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
     ? `${lang === "ro" ? "Refuzat" : "Refused"} — ${prior.refusal.text[lang]}`
     : null;
   const p = priorRefused ? null : cashFlowFigures(prior);
+  // The add-back row says what it sums (owner ruling R2, 2026-09-28): all
+  // of 68x — the provision charges with D&A — whenever either column's
+  // served add-back holds the 6812 / 6814 charges the P&L prints on their
+  // own line; plain D&A otherwise.
+  const addBackHoldsCharges = Boolean(
+    operating.depreciationIncludesProvisionCharges || (cmpOn && p?.operating.depreciationIncludesProvisionCharges));
+  const depreciationLabelKey = addBackHoldsCharges
+    ? "statements.cf.operating.depreciationAndProvisionCharges"
+    : "statements.cf.operating.depreciation";
+  // The plain-language explainers of "depreciation" (the Simple-mode
+  // glossary tooltip over the label, the D&A learn popover over the figure:
+  // "Σ account 681") describe D&A alone — never put over a row that holds
+  // the provision charges too (review 2026-10-01). Neither explains the
+  // widened row, so it carries none rather than a wrong one.
+  const depreciationTermId = addBackHoldsCharges ? null : "depreciation";
   const driftExceedsTolerance = Math.abs(reconciliation.drift) > 1;
   const showApproximationBanner = statement.isApproximated;
+  // ONE WAY TO NAME THE MISSING BALANCE: when the page knows which month the
+  // company lacks, the card asks for it in the comparison notice's own words
+  // ("Upload the Dec 2023 balance"); otherwise the general call to action.
+  const uploadCta = missingPriorLabel
+    ? t("statements.cmp.noPriorUpload", { prior: missingPriorLabel })
+    : t("statements.cf.approximated.cta");
   // 2026-05-24 — currency conversion via display-currency toggle.
   const fmt = useAmountFormatter(statement.currency);
   const display = useDisplayCurrency();
@@ -166,15 +210,15 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
               </div>
               <div className="cf-row cf-row-item">
                 <span className="cf-label">
-                  <SimpleTermLabel termId="depreciation">
-                    {t("statements.cf.operating.depreciation")}
+                  <SimpleTermLabel termId={depreciationTermId}>
+                    <span data-testid="cf-depreciation-label">{t(depreciationLabelKey)}</span>
                   </SimpleTermLabel>
                 </span>
                 {/* ABSENT-CAPABLE: the public adapter derives D&A from the
                     EBITDA − EBIT identity and refuses when either term is
                     missing. `fmt` paints the gap; no learnable trigger over
                     a figure nobody computed. */}
-                {typeof operating.depreciation === "number" ? (
+                {typeof operating.depreciation === "number" && !addBackHoldsCharges ? (
                   <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
                     {fmt(operating.depreciation)}
                   </LearnableNumber>
@@ -388,16 +432,30 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
                     </ul>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <a
-                      href="/financials"
-                      data-testid="cf-upload-prior-cta"
-                      className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
-                    >
-                      {t("statements.cf.approximated.cta")}
-                    </a>
-                    <span className="text-[11.5px] text-brand-d/70 dark:text-ink/70">
-                      {t("statements.cf.approximated.hint")}
-                    </span>
+                    {inRouter ? (
+                      <Link
+                        to={uploadHref}
+                        data-testid="cf-upload-prior-cta"
+                        className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
+                      >
+                        {uploadCta}
+                      </Link>
+                    ) : (
+                      <a
+                        href={uploadHref}
+                        data-testid="cf-upload-prior-cta"
+                        className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 text-ink px-3 py-1.5 text-[12px] font-medium hover:border-brand/60 transition-colors"
+                      >
+                        {uploadCta}
+                      </a>
+                    )}
+                    {/* The example names two arbitrary years; beside a call to
+                        action that names the month it would contradict it. */}
+                    {!missingPriorLabel && (
+                      <span className="text-[11.5px] text-brand-d/70 dark:text-ink/70" data-testid="cf-upload-prior-hint">
+                        {t("statements.cf.approximated.hint")}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -10,10 +10,14 @@ repository (ruling Q10 — no client book or served capture is committed).
   and Ratios-tab gates render,
       frontend/lib/__tests__/fixtures/comparatives/pair_served.json
       frontend/lib/__tests__/fixtures/comparatives/pair_prior_blocks.json
-  from the committed corpus pair (agras current, carniprod prior). The
-  builders live in tests/engine/test_ratio_compare_fe_fixture.py, which
-  also reds when the committed bytes drift; this is its command line, not a
-  second capture.
+  and the two the single-period share gate renders,
+      frontend/lib/__tests__/fixtures/comparatives/period_common_size.json
+      frontend/lib/__tests__/fixtures/comparatives/pair_prior_later.json
+  from the committed corpus pair (agras current, carniprod prior — and, for
+  the last, the same pair the other way round: a prior that closes later).
+  The builders live in tests/engine/test_ratio_compare_fe_fixture.py and
+  tests/engine/test_common_size_fe_fixture.py, which also red when the
+  committed bytes drift; this is their command line, not a second capture.
 
       .venv/bin/python scripts/capture_comparatives_pair.py
       .venv/bin/python scripts/capture_comparatives_pair.py --check
@@ -56,9 +60,11 @@ ORG = "00000000-0000-4000-8000-00000000c0f0"
 
 
 def _corpus(check: bool) -> int:
+    import test_common_size_fe_fixture as CS
     import test_ratio_compare_fe_fixture as FX
 
     outputs = ((FX.FIXTURE, FX.fixture_text()), (FX.PRIOR_BLOCKS_FIXTURE, FX.prior_blocks_fixture_text()))
+    outputs += tuple((path, text()) for path, text in CS.OUTPUTS)
     if check:
         stale = [p.name for p, text in outputs if (p.read_text(encoding="utf-8") if p.is_file() else "") != text]
         if stale:

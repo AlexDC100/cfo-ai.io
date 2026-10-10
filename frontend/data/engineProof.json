@@ -1,0 +1,127 @@
+{
+  "schema": "engine_proof/1",
+  "generated_by": "scripts/build_engine_proof.py",
+  "measured_at": "2026-10-10",
+  "scope": "full",
+  "subjects_note": "Subjects are DISTINCT real Romanian trial balances, counted by the content of their rows — a committed copy and its local twin are one book. No company is named and no company's figure is published here.",
+  "real_books_total": 8,
+  "engine": {
+    "parser_version": "tb_parser_v6",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
+    "tree_roots": [
+      "src/engine",
+      "packs"
+    ],
+    "tree_files": 561,
+    "tree_sha256": "db555ebc867a3def16cba190d43a12c9950fdb03e8451e4d3729f901ac199ec6"
+  },
+  "checks": [
+    {
+      "id": "rerun_identical",
+      "what_en": "The same file, analysed again, gives byte-identical output.",
+      "what_ro": "Același fișier, analizat din nou, dă un rezultat identic octet cu octet.",
+      "how": "scripts/verify_determinism.py (battery gate: determinism) and scripts/corpus_replay.py (battery gate: corpus-replay)",
+      "subjects": 5,
+      "subjects_kind": "distinct real books",
+      "result": {
+        "runs_per_book": 5,
+        "books_identical": 5,
+        "paths_examined": 9,
+        "replay_cases": 18,
+        "replay_cases_real_books": 6,
+        "replay_cases_constructed": 12,
+        "replay_cases_identical": 18,
+        "replay_artifacts_per_case": 5
+      },
+      "passed": true,
+      "corpus_complete": true,
+      "measured_at": "2026-10-10"
+    },
+    {
+      "id": "balance_sheet_closes",
+      "what_en": "The balance sheet the product serves closes: assets equal equity plus liabilities. Where the source file itself does not balance, the difference is shown on the statement, not smoothed away.",
+      "what_ro": "Bilanțul afișat de produs se închide: activele sunt egale cu capitalurile proprii plus datoriile. Acolo unde fișierul-sursă nu se echilibrează, diferența este afișată pe situație, nu netezită.",
+      "how": "scripts/measure_bs_drift.py, closing-identity table (battery gate: bs-drift)",
+      "subjects": 7,
+      "subjects_kind": "distinct real books with a source file",
+      "result": {
+        "books_closing_exactly": 6,
+        "exact_difference_ron": 0.0,
+        "books_imbalance_surfaced": 1,
+        "legacy_drift_books": 8,
+        "legacy_drift_worst_pct": 0.9975
+      },
+      "passed": true,
+      "corpus_complete": false,
+      "measured_at": "2026-10-10"
+    },
+    {
+      "id": "net_income_equals_121",
+      "what_en": "Net income shown equals the closing balance of account 121 — the statutory result — to the cent. The result rebuilt from classes 6 and 7 is printed beside it, with any gap.",
+      "what_ro": "Rezultatul net afișat este egal, la ban, cu soldul final al contului 121 — rezultatul statutar. Rezultatul reconstruit din clasele 6 și 7 este afișat alături, împreună cu orice diferență.",
+      "how": "tests/engine/test_rebuild_net_income_anchor.py (battery gate: net-income-anchor-witness)",
+      "subjects": 6,
+      "subjects_kind": "distinct real books carrying account 121",
+      "result": {
+        "books_equal_to_the_cent": 6
+      },
+      "passed": true,
+      "corpus_complete": true,
+      "measured_at": "2026-10-10"
+    },
+    {
+      "id": "turnover_equals_filing",
+      "what_en": "Net turnover equals the figure the company filed with the Ministry of Finance — checked only where the trial balance is the filed year-end close. Preliminary closes are not claimed.",
+      "what_ro": "Cifra de afaceri netă este egală cu cea depusă de companie la Ministerul Finanțelor — verificat doar acolo unde balanța este închiderea de an depusă. Închiderile preliminare nu sunt revendicate.",
+      "how": "scripts/build_engine_proof.py: engine net turnover against the published filing (public Ministry-of-Finance data); the same three periods agreed in production's reprocess dry run on 2026-10-01",
+      "subjects": 3,
+      "subjects_kind": "distinct real books whose trial balance is the filed year",
+      "result": {
+        "tolerance_ron": 1,
+        "books_within_tolerance": 3,
+        "max_abs_difference_ron": 0.32,
+        "books_not_checkable": 5,
+        "real_books_total": 8
+      },
+      "passed": true,
+      "corpus_complete": false,
+      "measured_at": "2026-10-10"
+    },
+    {
+      "id": "ebitda_variants_agree",
+      "what_en": "EBITDA is computed three named ways — reported, strict, cash. The written methodology and the code agree on each, within the stated tolerance. This is an internal consistency check, not a comparison with a filing.",
+      "what_ro": "EBITDA se calculează în trei variante numite — raportat, strict, cash. Metodologia scrisă și codul dau aceeași valoare pentru fiecare, în toleranța indicată. Este o verificare de consecvență internă, nu o comparație cu o raportare depusă.",
+      "how": "scripts/check_methodology_parity.py",
+      "subjects": 8,
+      "subjects_kind": "distinct real books",
+      "result": {
+        "tolerance_ron": 1,
+        "variants": 3,
+        "books_within_tolerance": 8,
+        "books_via_account_121_bridge": 6
+      },
+      "passed": true,
+      "corpus_complete": false,
+      "measured_at": "2026-10-10"
+    }
+  ],
+  "formats": {
+    "pdf_positional_layout": 1,
+    "xlsx_10_column_layout": 6
+  },
+  "counts": {
+    "bvb_listings": 88,
+    "bvb_listings_with_financials": 35,
+    "how": "engine.public.bvb_seed.bvb_universe() — the bundled universe the page serves"
+  },
+  "software": {
+    "proven": [
+      "WinMENTOR"
+    ],
+    "real_files": {
+      "WinMENTOR": 1
+    },
+    "real_files_scanned": 6,
+    "how": "scripts/build_engine_proof.py: each name searched in the page text / cells of every committed real corpus file (battery gate: corpus-replay reads them)"
+  }
+}

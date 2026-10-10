@@ -88,12 +88,6 @@ async function currentMonthPeriodId(orgId: string | null): Promise<string | null
 
 type ResolutionStatus = "ready" | "resolving" | "none";
 
-// UUID-shape check — mirrors lib/activePeriod.ts. Distinguishes a real backend
-// period (worth caching as proof the org has documents) from a sample/demo id.
-function isUuid(s: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
-}
-
 // The active-period resolution is remembered per user in lib/dataPresence
 // (in-memory + localStorage, uid-scoped). A /api/org/periods-with-documents
 // round-trip previously ran fresh on every page that landed without ?period= —
@@ -155,11 +149,12 @@ export function useActivePeriodFallback(
     // Already have a period from the URL? Mark ready and exit.
     if (periodId) {
       setStatus("ready");
-      // Keep the verdict fresh: a real (uuid) period in the URL is proof the org
-      // has at least this period, so a later bare-URL visit can skip the lookup
-      // and canonicalize straight to it. Covers the just-uploaded case, where
-      // the app navigates to ?period=<new uuid> directly.
-      if (uid && isUuid(periodId) && orgId) writePeriodVerdict(uid, periodId, orgId);
+      // The period in the URL is NOT remembered here. A uuid in the URL is no
+      // proof the company has that period — a link to a period the reader
+      // cannot read was remembered for the active company, and every later
+      // bare visit dead-ended on it (2026-10-04). It is remembered when its
+      // payload lands and names this company: hooks/usePeriodVerdictKeeper,
+      // mounted by the shell.
       return;
     }
     // User just deleted/reset a period — show empty state, don't auto-resolve.

@@ -323,13 +323,19 @@ create policy "workspaces owner insert" on workspaces for insert with check (aut
 create policy "workspaces owner update" on workspaces for update using (auth.uid() = owner_id);
 create policy "workspaces owner delete" on workspaces for delete using (auth.uid() = owner_id);
 
--- subscriptions
+-- subscriptions — READ ONLY for a signed-in user (their own row). This file
+-- used to create two write policies here ("subscriptions self insert",
+-- "subscriptions self update"): a user could PATCH their own tier, status and
+-- limits — a paid plan with no payment. They are DROPPED below and never
+-- re-created. supabase/schema_phase_subscriptions_write_lockdown.sql
+-- (2026-10-03) also revokes the table's write privileges, and is the file to
+-- run after this one in a fresh environment. Every writer is the service
+-- role; tests/engine/test_entitlement_write_laws.py reds on a write policy or
+-- a write grant on an entitlement table in any committed SQL.
 drop policy if exists "subscriptions self select" on subscriptions;
 drop policy if exists "subscriptions self insert" on subscriptions;
 drop policy if exists "subscriptions self update" on subscriptions;
-create policy "subscriptions self select" on subscriptions for select using (auth.uid() = user_id);
-create policy "subscriptions self insert" on subscriptions for insert with check (auth.uid() = user_id);
-create policy "subscriptions self update" on subscriptions for update using (auth.uid() = user_id);
+create policy "subscriptions self select" on subscriptions for select to authenticated using (auth.uid() = user_id);
 
 -- ═════════════════════════════════════════════════════════════════════════
 -- PHASE 1 — Document intake + persisted alerts

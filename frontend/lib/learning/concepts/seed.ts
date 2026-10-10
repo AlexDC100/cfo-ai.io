@@ -84,13 +84,33 @@ const ebitda: Concept = {
   related: ["ebitda_margin", "revenue", "net_income", "gross_margin"],
   computation: (ctx, value) => {
     const m = ctx.metrics ?? {};
+    // EBITDA = EBIT + D&A + net provisions (owner ruling R2, 2026-09-28:
+    // the 6812 / 6814 charges and 7812 / 7814 reversals sit OUTSIDE
+    // EBITDA, their net between it and the operating result). D&A is the
+    // served P&L line when the engine assembled the period, else the
+    // income statement's; net provisions only where the engine serves them.
+    const dna = m.plDepreciation ?? m.depreciation ?? 0;
+    const netProvisions = m.netProvisions;
+    const provisionTokens =
+      typeof netProvisions === "number" && Math.abs(netProvisions) >= 0.005
+        ? ([
+            { type: "operator", op: netProvisions >= 0 ? "+" : "−" },
+            {
+              type: "value",
+              value: Math.abs(netProvisions),
+              conceptKey: "net_provisions",
+              label: "Net provisions",
+              format: "currency",
+            },
+          ] as const)
+        : ([] as const);
     return {
       result: { value, format: "currency", conceptKey: "ebitda" },
       layout: "stacked",
       tokens: [
         {
           type: "value",
-          value: m.ebit ?? value - (m.depreciation ?? 0) - (m.amortization ?? 0),
+          value: m.ebit ?? value - dna - (m.amortization ?? 0) - (netProvisions ?? 0),
           conceptKey: "ebit",
           label: "EBIT",
           format: "currency",
@@ -98,11 +118,12 @@ const ebitda: Concept = {
         { type: "operator", op: "+" },
         {
           type: "value",
-          value: m.depreciation ?? 0,
+          value: dna,
           conceptKey: "depreciation_amortization",
           label: "D&A",
           format: "currency",
         },
+        ...provisionTokens,
       ],
     };
   },
@@ -229,7 +250,7 @@ const revenue: Concept = {
       tokens: [],
       // Leaf concept — bottoms out at source accounts. When the trial
       // balance accounts are available in ReportingMetrics.accountTraces,
-      // the popover renders them as deep links to /financials. When
+      // the popover renders them as deep links to the account view. When
       // missing, the popover shows the inlineFormula text instead.
       trace: trace.length > 0 ? { accounts: trace } : undefined,
     };

@@ -274,14 +274,33 @@ export function cashWalk(i: ChartInputs): ChartBlock {
   // agras book those two imply a NEGATIVE opening cash balance, which is
   // not a thing a bank account does — so the caption says so rather than
   // letting a clean-looking waterfall imply the walk reconciles.
+  //
+  // WHEN THE OPENING BALANCE IS KNOWN, IT IS PRINTED — NOT IMPLIED
+  // (2026-10-02). The caption used to end "…implying an opening balance of
+  // X" on every book, including one whose prior period sits in the same
+  // document: the public sample printed an implied opening cash of 108,263
+  // beside a prior-year balance sheet that closes at 236,635, and a net-debt
+  // walk two charts down that prints the real cash movement. With a prior
+  // period attached the caption now states the prior closing cash, the
+  // movement the two balance sheets actually show, and how far the engine's
+  // estimate is from it. Nothing is recomputed: both cash figures are the
+  // balance sheets' own.
   const closing = cf ? num(cf.closing_cash_actual) : null;
   const impliedOpening = closing !== null ? closing - net : null;
-  const tie =
-    closing === null
-      ? ""
-      : impliedOpening !== null && impliedOpening < 0
-        ? ` Period-end cash is ${i.money(closing)}; against a net movement of ${i.money(net)} that implies an opening balance of ${i.money(impliedOpening)}, which cannot be right — the walk and the closing balance are not reconciled by this extract.`
-        : ` Period-end cash is ${i.money(closing)}, implying an opening balance of ${i.money(impliedOpening)}.`;
+  const priorCash = i.s.prior ? num(i.s.prior.balanceSheet.cash) : null;
+  const tie = (() => {
+    if (closing === null) return "";
+    if (priorCash !== null && i.s.prior) {
+      const actual = closing - priorCash;
+      const gap = net - actual;
+      return Math.abs(gap) < 0.5
+        ? ` Period-end cash is ${i.money(closing)} against ${i.money(priorCash)} at ${i.s.prior.periodLabel}: the walk's net movement is the movement the two balance sheets show.`
+        : ` Period-end cash is ${i.money(closing)} against ${i.money(priorCash)} at ${i.s.prior.periodLabel}: the two balance sheets show cash moving by ${i.money(actual)}, not by the ${i.money(net)} this walk ends on. The ${i.money(gap)} between them is not explained — the engine's cash-flow reconstruction does not use the prior period's balances yet, so read the walk as an estimate and the balance sheets as the fact.`;
+    }
+    return impliedOpening !== null && impliedOpening < 0
+      ? ` Period-end cash is ${i.money(closing)}; against a net movement of ${i.money(net)} that implies an opening balance of ${i.money(impliedOpening)}, which cannot be right — the walk and the closing balance are not reconciled by this extract.`
+      : ` Period-end cash is ${i.money(closing)}; no prior period is attached, so the opening balance this walk implies (${i.money(impliedOpening)}) cannot be checked against a balance sheet.`;
+  })();
   return {
     id: "chart-cash-walk",
     title,
@@ -291,7 +310,7 @@ export function cashWalk(i: ChartInputs): ChartBlock {
     table: rowsTable(rows, i.s.currency),
     caption:
       (approx
-        ? "The engine flags this reconstruction as approximated (`assembled_cf.is_approximated`), which is why the bars are hatched: the working-capital and investing steps are inferred from period-end balances, not from movement detail."
+        ? "The engine flags this reconstruction as approximated (`assembled_cf.is_approximated`), which is why the bars are hatched: the working-capital, investing and financing steps are estimated from period-end balances, not from movement detail."
         : "Each step is a served cash-flow aggregate; the steps sum to the net movement.") + tie,
   };
 }
@@ -576,18 +595,38 @@ export function creditContributions(i: ChartInputs): ChartBlock {
       // printed in a table too — the same law every other figure obeys.
       // A refused term keeps its model weight (never renormalised) and
       // contributes nothing: the composite is refused with it.
+      // A REFUSED term's ceiling is drawn on its bar too ("of 15.0"), so
+      // its row prints the weight and the ceiling beside the refusal — the
+      // stock-build regime's refused leverage term (credit model revision
+      // 5) was the first refused row whose ceiling no other row printed.
       source:
         c.refusal
-          ? `not scored: ${c.refusal.sentence}`
+          ? c.weight === null
+            ? `not scored: ${c.refusal.sentence}`
+            : `weight ${(c.weight * 100).toFixed(0)}% · ceiling ${(c.weight * 100).toFixed(1)} · not scored: ${c.refusal.sentence}`
           : c.weight === null
           ? "weight not reported"
           : `weight ${(c.weight * 100).toFixed(0)}% · ceiling ${(c.weight * 100).toFixed(1)}`,
       breach: c.contribution !== null && ceiling !== null && ceiling > 0 && c.contribution / ceiling < 0.34,
     };
   });
-  const lost = rows
-    .filter((r) => r.value !== null && r.ceiling !== null)
-    .reduce((a, r) => a + ((r.ceiling as number) - (r.value as number)), 0);
+  const scored = rows.filter((r) => r.value !== null && r.ceiling !== null);
+  const lost = scored.reduce((a, r) => a + ((r.ceiling as number) - (r.value as number)), 0);
+  const weighted = rows.filter((r) => r.ceiling !== null).length;
+  // A TERM THE ENGINE REFUSED GAVE UP NOTHING — it was not scored, and with
+  // it the composite is refused: there is no composite for points to be
+  // "given up" from. The note then counts the terms that DID score, against
+  // their own ceilings, and says what the others are (review round 3,
+  // 2026-10-02: the stock-build book printed "31.1 points of the composite
+  // were given up across the 7 weighted terms" with three terms refused and
+  // no composite).
+  const unscored = comps.filter((c) => c.contribution === null).length;
+  const pale = "The pale bar is the most each term could contribute at its weight; the filled bar is what it did contribute.";
+  const marked = "the marked rows are the ones that gave up more than two-thirds of their own ceiling";
+  const caption =
+    unscored === 0
+      ? `${pale} ${lost.toFixed(1)} points of the composite were given up across the ${weighted} weighted terms, and ${marked}.`
+      : `${pale} ${unscored} of the ${rows.length} terms ${unscored === 1 ? "was" : "were"} not scored, so there is no composite: the ${scored.length} that scored sit ${lost.toFixed(1)} points below their own ceilings together, and ${marked}.`;
   return {
     id: "chart-credit-contrib",
     title,
@@ -595,7 +634,7 @@ export function creditContributions(i: ChartInputs): ChartBlock {
     svg: contributionBars("chart-credit-contrib", title, rows),
     rows,
     table: rowsTable(rows, "points"),
-    caption: `The pale bar is the most each term could contribute at its weight; the filled bar is what it did contribute. ${lost.toFixed(1)} points of the composite were given up across the ${rows.filter((r) => r.ceiling !== null).length} weighted terms, and the marked rows are the ones that gave up more than two-thirds of their own ceiling.`,
+    caption,
   };
 }
 
@@ -844,13 +883,39 @@ export function assetAge(i: ChartInputs): ChartBlock {
   const gross = num(bs.ppe_gross);
   const accum = num(bs.ppe_accumulated_depreciation);
   if (gross === null || accum === null || gross === 0) {
+    // THE BALANCE SHEET ABOVE MAY PRINT BOTH SIDES. The card used to say
+    // the age "cannot be recovered … at any level of effort" on every
+    // book — including one whose served balance sheet lists the gross-cost
+    // rows and the accumulated-depreciation row a few pages earlier, and
+    // whose findings quote both. What is missing there is not the data: it
+    // is the two AGGREGATES this chart reads, which the engine does not
+    // serve yet. The card says that, and does not add the rows up itself
+    // (that would be a second calculation beside the engine's).
+    const cbsRows = ((i.s as Statements & { canonical_bs?: { rows?: Array<{ id?: string; amount?: number }> } })
+      .canonical_bs?.rows ?? []);
+    const servedBothSides =
+      cbsRows.some((r) => r.id === "accumulated_depreciation_ppe" && typeof r.amount === "number" && r.amount !== 0) &&
+      cbsRows.some((r) => typeof r.id === "string" && r.id.startsWith("ppe_") && (r.amount ?? 0) > 0);
+    if (servedBothSides) {
+      const absence = {
+        missing: [
+          "the gross-PP&E aggregate (`assembled_bs.ppe_gross`)",
+          "the accumulated-depreciation aggregate (`assembled_bs.ppe_accumulated_depreciation`)",
+        ],
+        because:
+          "The balance sheet above prints the gross cost of each class of PP&E and the accumulated depreciation against them, row by row. This chart reads two served aggregates of those rows, and the engine does not serve them yet. It is not drawn from a sum made here: that would be a second calculation beside the engine's.",
+        toFix:
+          "The engine needs to serve the two aggregates it already holds as rows; the chart is then accumulated depreciation over gross cost.",
+      };
+      return { id: "chart-asset-age", title, status: "absent", svg: gapCard(title, absence), rows: [], table: "", caption: "Not charted: the gross-cost and accumulated-depreciation rows are on the balance sheet above, but the two aggregates this chart reads are not served.", absence };
+    }
     const absence = {
       missing: [
         gross === null || gross === 0 ? "gross PP&E (`assembled_bs.ppe_gross`, class 21x before contra)" : "",
         accum === null ? "accumulated depreciation (`assembled_bs.ppe_accumulated_depreciation`, class 28x)" : "",
       ].filter((x) => x !== ""),
       because:
-        "Asset age is the contra account over the gross cost. The envelope serves PP&E NET of depreciation only — one number where the ratio needs two — so the age cannot be recovered from it at any level of effort.",
+        "Asset age is the contra account over the gross cost. The envelope serves PP&E NET of depreciation only — one number where the ratio needs two — so the age cannot be worked out from this envelope.",
       toFix:
         "The trial balance carries both sides (21x debit, 28x credit); the assembler needs to serve them separately rather than only their difference.",
     };

@@ -33,6 +33,13 @@ export interface DashboardCanonical {
   capitalizedOwnWork: number | null;
   /** The engine's refusal of EBITDA, when it refused it. */
   ebitdaRefusal: ServedRefusal | null;
+  /** True when the ENGINE assembled this period's P&L (`assembled_pl`): the
+   *  levels above are its served figures, and so is `ebit`. */
+  served: boolean;
+  /** The operating result AS SERVED (`assembled_pl.ebit`) — never EBITDA
+   *  less a D&A taken in the browser. null when the engine refused it, and
+   *  on a payload the engine did not assemble (`served` false). */
+  ebit: number | null;
   /** null when neither the metric row nor the statement states one. */
   netProfit: number | null;
   totalDebt: number;
@@ -87,6 +94,8 @@ export function buildDashboardCanonical(
     inventoryVariation: levels.source === "served" ? levels.inventoryVariation : null,
     capitalizedOwnWork: levels.source === "served" ? levels.capitalizedOwnWork : null,
     ebitdaRefusal: ebitda === null ? levels.refusal ?? pl.ebitdaRefusal ?? null : null,
+    served: levels.source === "served",
+    ebit: levels.source === "served" ? levels.ebit : null,
     netProfit,
     totalDebt: totals.totalDebt,
   };

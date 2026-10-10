@@ -46,6 +46,7 @@ import type { PeriodLineItem } from "@/lib/activePeriod";
 import { authOrgHeaders } from "@/lib/apiHeaders";
 import { useCompanyPeriods, type CompanyPeriods, type OrgPeriod } from "@/lib/orgPeriods";
 import { ROUNDED_MONEY_ZERO_FLOOR, type ChangeKind } from "@/lib/changeKind";
+import { moneyLocaleFor } from "@/lib/money";
 import type {
   ExportComparisonState,
   PriorServedFigures,
@@ -192,6 +193,29 @@ export interface MoversDto {
   improved: MoverDto[];
   deteriorated: MoverDto[];
   below_floor: number;
+  /** Why NO line is called improved / deteriorated ("prior_is_later",
+   *  "period_order_unknown"), or null when verdicts are served. Absent on an
+   *  engine that predates the field. */
+  verdicts_withheld?: string | null;
+}
+
+/** Which way time runs between the two periods — the engine's reading of
+ *  their two closes (src/engine/comparatives/analysis.py `time_direction`).
+ *  The page takes the order from HERE and never compares the dates itself. */
+export type ComparisonOrder = "prior_is_earlier" | "prior_is_later" | "same_close" | "unknown";
+
+export interface ComparisonDirectionDto {
+  order: ComparisonOrder;
+  current_period_end: string | null;
+  prior_period_end: string | null;
+  /** False when the comparison period closes LATER, or the order cannot be
+   *  read: every figure, delta, bridge and share is served, and no line is
+   *  called improved or deteriorated. */
+  verdicts_served: boolean;
+  reason: string | null;
+  /** The engine's English diagnostic — never printed; the page words its own
+   *  sentence from `order`. */
+  note: string;
 }
 
 export interface PriorCanonicalBsDto {
@@ -215,6 +239,9 @@ export interface ComparativesResponse {
     reason: string;
   };
   coverage_source: { current: string; prior: string };
+  /** Absent on an engine that predates the field (then the page says nothing
+   *  about the order, as before). */
+  direction?: ComparisonDirectionDto | null;
   columns: ComparativeColumnDto[];
   common_size: CommonSizeRowDto[];
   bridges: { pl: BridgeDto; bs_assets: BridgeDto; bs_liabilities_equity: BridgeDto };
@@ -268,10 +295,14 @@ export async function fetchComparatives(periodId: string, priorId: string, orgId
   }
 }
 
+/** The first element of every comparison's query key. */
+export const COMPARATIVES_QUERY_ROOT = "comparatives";
+
 /** The company is in the key: one company's comparison is never served
- *  from another company's cache entry. */
+ *  from another company's cache entry. The two periods are at positions 2
+ *  and 3 — `comparisonNamesPeriod` (lib/periodReset.ts) reads them there. */
 export const comparativesQueryKey = (orgId: string, periodId: string, priorId: string) =>
-  ["comparatives", orgId, periodId, priorId] as const;
+  [COMPARATIVES_QUERY_ROOT, orgId, periodId, priorId] as const;
 
 /** The comparison of `periodId` with `priorId`, both of company `orgId` —
  *  requested only when all three are known and the two periods differ. */
@@ -281,6 +312,14 @@ export function useComparatives(periodId: string | null, priorId: string | null,
     queryFn: () => fetchComparatives(periodId!, priorId!, orgId!),
     enabled: !!orgId && !!periodId && !!priorId && periodId !== priorId,
     staleTime: 5 * 60_000,
+    // NEVER ANOTHER PAIR'S DOCUMENT. The app's client keeps the previous
+    // result as a placeholder when a key changes (lib/queryClient.ts) — right
+    // for a page that must not blank, wrong here: stepping from a compared
+    // period to one with no prior left the PREVIOUS comparison on screen
+    // (its header, its summary) under a period it does not describe, and a
+    // disabled query (no prior) kept it for good. A comparison is of exactly
+    // (period, prior); until that pair's own answer arrives there is none.
+    placeholderData: undefined,
   });
 }
 
@@ -493,6 +532,98 @@ export function pickDefaultPrior(
   return earlier[0] ?? null;
 }
 
+/**
+ * The close a reader means by "the previous year" for a period closing on
+ * `currentEnd`: the same month, one year earlier — a month's last day stays
+ * the month's last day (28 Feb 2025 → 29 Feb 2024). Null for a date that
+ * cannot be read.
+ *
+ * It names the period AUTO looked for when `pickDefaultPrior` found none
+ * (2026-10-04, production: a company whose earliest period was on screen —
+ * the picker said "Previous year (auto)", the four column boxes were ticked,
+ * and the statements showed one column with no word about why). The picker
+ * and its notice say which balance is missing; they never pick another
+ * period in its place.
+ */
+export function previousYearEnd(currentEnd: string | null | undefined): string | null {
+  if (!currentEnd || !/^\d{4}-\d{2}-\d{2}/.test(currentEnd)) return null;
+  const y = Number(currentEnd.slice(0, 4));
+  const m = Number(currentEnd.slice(5, 7));
+  const d = Number(currentEnd.slice(8, 10));
+  if (y < 1 || m < 1 || m > 12 || d < 1) return null;
+  const lastOf = (year: number) => new Date(Date.UTC(year, m, 0)).getUTCDate();
+  if (d > lastOf(y)) return null;
+  const day = d === lastOf(y) ? lastOf(y - 1) : Math.min(d, lastOf(y - 1));
+  const pad = (n: number, w: number) => String(n).padStart(w, "0");
+  return `${pad(y - 1, 4)}-${pad(m, 2)}-${pad(day, 2)}`;
+}
+
+/**
+ * A comparison that is ON and compares nothing: the reader did not turn
+ * comparisons off, and no prior resolves (AUTO found no earlier period
+ * of the same length, and no usable stored choice stands in). The page says so in words and offers the next step — it never leaves
+ * the picker and the column boxes implying a comparison that is not there.
+ */
+export function comparisonHasNoPrior(stored: string | null | "none", priorId: string | null): boolean {
+  return stored !== "none" && !priorId;
+}
+
+/** What the controls and the notice say about a comparison that is ON and
+ *  compares nothing. */
+export interface NoPriorState {
+  /** The close of the period on screen (null: it cannot be read). */
+  currentEnd: string | null;
+  /** The close AUTO looked for — the same month a year earlier — when the
+   *  company has NO period closing that month. Null when one exists at
+   *  another length (AUTO did not take it, but it is not "missing"), and
+   *  when the close on screen cannot be read. */
+  missingEnd: string | null;
+  /** The company's EARLIER periods, nearest first: what the notice offers
+   *  one click away. Never a later one — a later period under "Prior" reads
+   *  the change backwards (the Δ and the improved / deteriorated lists turn
+   *  round); it stays one pick away in the list, as before. */
+  earlier: OrgPeriod[];
+}
+
+/** `null` unless the comparison is on and no prior resolves. Pure. */
+export function noPriorStateOf(input: {
+  periods: readonly OrgPeriod[];
+  currentId: string | null;
+  currentEnd?: string | null;
+  stored: string | null | "none";
+  priorId: string | null;
+}): NoPriorState | null {
+  if (!comparisonHasNoPrior(input.stored, input.priorId)) return null;
+  const currentEnd =
+    input.currentEnd ?? input.periods.find((p) => p.period_id === input.currentId)?.period_end ?? null;
+  const others = input.periods.filter((p) => p.period_id !== input.currentId);
+  const wanted = previousYearEnd(currentEnd);
+  const closesThatMonth =
+    wanted !== null && others.some((p) => (p.period_end ?? "").slice(0, 7) === wanted.slice(0, 7));
+  const earlier = currentEnd
+    ? others
+        .filter((p) => !!p.period_end && p.period_end < currentEnd)
+        .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""))
+    : [];
+  return { currentEnd, missingEnd: wanted !== null && !closesThatMonth ? wanted : null, earlier };
+}
+
+/**
+ * The previous-year close the company has NO balance for — the month the
+ * comparison notice names — whatever the reader chose in "Compare with".
+ * Null when a balance closing that month is on file (at any length), when
+ * the close on screen cannot be read, and when the company's periods are not
+ * known yet (an empty list is "not known", never "nothing uploaded").
+ */
+export function missingPreviousYearEnd(
+  periods: readonly OrgPeriod[],
+  currentId: string | null,
+  currentEnd?: string | null,
+): string | null {
+  if (periods.length === 0) return null;
+  return noPriorStateOf({ periods, currentId, currentEnd, stored: null, priorId: null })?.missingEnd ?? null;
+}
+
 // ── Cells the views may paint ────────────────────────────────────────
 
 export interface ComparativeCell {
@@ -581,6 +712,8 @@ export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
   opexTotal: "pl.opex_total",
   opexThirdParty: "pl.opex_third_party",
   depreciationAmortization: "pl.depreciation",
+  // R2 (2026-09-28): the net of the ruled provision charges and reversals.
+  netProvisions: "pl.net_provisions",
   ebitda: "pl.ebitda",
   ebit: "pl.ebit",
   financialIncomeTotal: "pl.financial_income",
@@ -594,7 +727,8 @@ export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
 
 /**
  * THE ENGINE LINES ON THE ONE EBITDA DEFINITION. Their figures moved with
- * the owner's ruling of 2026-09-26 (711 and 72x inside, 767 financial), so
+ * the owner's rulings of 2026-09-26 (711 and 72x inside, 767 financial) and
+ * 2026-09-28 (provisions symmetric outside EBITDA, 7411 in turnover), so
  * a prior assembled under another definition is not the same line: such a
  * row carries the engine's cells only while the PRIOR's served block —
  * `prior_statements.assembled_pl.ebitda_definition`, read off the served
@@ -610,6 +744,16 @@ export const PL_ROW_ONE_EBITDA_KEYS: ReadonlySet<string> = new Set([
   "pl.gross_profit",
   "pl.inventory_variation",
   "pl.capitalized_own_work",
+  // The owner's R2 ruling of 2026-09-28 moved these too: the 6812 / 6814
+  // charges out of D&A, onto their own net-provisions line with the 7812 /
+  // 7814 reversals. A prior stamped with the previous definition carries
+  // them under the same names, built another way. (`pl.other_operating_
+  // income` is the 758 leaves alone — the ruling did not move it. Net
+  // turnover moved by R3 only on a book that posts 7411 — none is known —
+  // and a prior's stamp cannot say whether it did, so it is not held: see
+  // the comparatives law "net turnover … never held to it".)
+  "pl.depreciation",
+  "pl.net_provisions",
 ]);
 
 /** What the definition guard reads for one row: the EBITDA definition the
@@ -641,6 +785,32 @@ export function servedEbitdaDefinition(statements: unknown): string | null {
   return typeof v === "string" && v.trim() ? v : null;
 }
 
+/** The engine line a statement row names: the P&L table's mapping for a
+ *  row's bucket, or the key itself when the row already carries a full
+ *  engine key ("pl.ebitda", "bs.row.cash_operating"). */
+export function engineKeyForRow(rowKey: string | undefined): string | undefined {
+  if (!rowKey) return undefined;
+  return PL_ROW_TO_KEY[rowKey] ?? (rowKey.includes(".") ? rowKey : undefined);
+}
+
+/**
+ * THE PARITY GUARD'S COMPARISON — the amount a row shows IS the engine's
+ * current figure for its line, to the cent. One comparison for both
+ * documents: the two-period cells below and the period's own share
+ * (lib/commonSize.ts) are held to the same rule, so neither can print the
+ * engine's figure beside a number built another way. A row with no readable
+ * figure claims none and is not refused; a row that shows a number for a
+ * line the engine reports absent is built another way.
+ */
+export function rowIsEngineFigure(
+  rowAmount: number | null | undefined,
+  engineCurrent: number | null,
+): boolean {
+  if (typeof rowAmount !== "number" || !Number.isFinite(rowAmount)) return true;
+  if (engineCurrent === null) return Math.abs(rowAmount) < PARITY_FLOOR;
+  return Math.abs(Math.abs(rowAmount) - Math.abs(engineCurrent)) < PARITY_FLOOR;
+}
+
 /**
  * THE PARITY GUARD. A row may carry the engine's cells only if the number
  * the row shows IS the engine's current figure for that line. Otherwise
@@ -659,8 +829,8 @@ export function cellForRow(
   rowAmount: number | null | undefined,
   definition?: RowDefinition | null,
 ): CellOutcome {
-  if (!cells || !rowKey) return { kind: "unmapped" };
-  const key = PL_ROW_TO_KEY[rowKey] ?? (rowKey.includes(".") ? rowKey : undefined);
+  if (!cells) return { kind: "unmapped" };
+  const key = engineKeyForRow(rowKey);
   if (!key) return { kind: "unmapped" };
   const cell = cells.get(key);
   if (!cell) return { kind: "unmapped" };
@@ -675,18 +845,8 @@ export function cellForRow(
       };
     }
   }
-  if (typeof rowAmount !== "number" || !Number.isFinite(rowAmount)) {
-    return { kind: "cell", cell };
-  }
-  if (cell.current === null) {
-    // The engine reports the current side absent; a row that shows a
-    // number for it is built another way.
-    return Math.abs(rowAmount) < PARITY_FLOOR
-      ? { kind: "cell", cell }
-      : { kind: "definition_differs", rowAmount, engineCurrent: null, key };
-  }
-  if (Math.abs(Math.abs(rowAmount) - Math.abs(cell.current)) >= PARITY_FLOOR) {
-    return { kind: "definition_differs", rowAmount, engineCurrent: cell.current, key };
+  if (!rowIsEngineFigure(rowAmount, cell.current)) {
+    return { kind: "definition_differs", rowAmount: rowAmount as number, engineCurrent: cell.current, key };
   }
   return { kind: "cell", cell };
 }
@@ -729,23 +889,34 @@ export function bsOpeningFill(doc: ComparativesResponse): BsOpeningFill | null {
 
 // ── Formatting ───────────────────────────────────────────────────────
 
+// EVERY FIGURE IN THE READER'S LANGUAGE (§26). The three printers below take
+// the UI language: a Romanian reader gets the decimal comma and "p.p." (the
+// ratio table's word), not "0.1%" / "+0.2 pp" beside money printed "1.234,56".
+// The locale comes from the ONE mapping, `moneyLocaleFor`. The digits are the
+// same — only the decimal mark and the unit word follow the language. With
+// no language the bytes are the English ones (the command bar localises its
+// own copy; the report is English by contract).
+const isRomanian = (language?: string | null): boolean => moneyLocaleFor(language) === "ro-RO";
+const decimalMark = (fixed: string, language?: string | null): string =>
+  isRomanian(language) ? fixed.replace(".", ",") : fixed;
+
 /** Δ% as the engine gave it, or null (the caller prints the reason). */
-export function formatDeltaPct(v: number | null): string | null {
+export function formatDeltaPct(v: number | null, language?: string | null): string | null {
   if (v === null || !Number.isFinite(v)) return null;
   const pct = v * 100;
   const sign = pct > 0 ? "+" : "";
-  return `${sign}${pct.toFixed(1)}%`;
+  return `${sign}${decimalMark(pct.toFixed(1), language)}%`;
 }
 
-export function formatShare(v: number | null): string | null {
+export function formatShare(v: number | null, language?: string | null): string | null {
   if (v === null || !Number.isFinite(v)) return null;
-  return `${(v * 100).toFixed(1)}%`;
+  return `${decimalMark((v * 100).toFixed(1), language)}%`;
 }
 
-export function formatPts(v: number | null): string | null {
+export function formatPts(v: number | null, language?: string | null): string | null {
   if (v === null || !Number.isFinite(v)) return null;
   const sign = v > 0 ? "+" : "";
-  return `${sign}${v.toFixed(1)} pp`;
+  return `${sign}${decimalMark(v.toFixed(1), language)} ${isRomanian(language) ? "p.p." : "pp"}`;
 }
 
 export function detailLevelLabelKey(level: DetailLevelName | string): string {

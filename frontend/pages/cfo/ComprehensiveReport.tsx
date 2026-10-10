@@ -25,7 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { Download, FileText, Printer, Loader2 } from "lucide-react";
-// Instrument pass (2026-08): the EEI board CSS (eei-*) is fully evicted
+// Instrument pass (2026-08): the board-grade CSS (ctrl-*) is fully evicted
 // from this page — panels/chips/header from the kit, every figure mono
 // via the Amount family, semantic color only on severity/sentiment.
 import { Chip, PageHeader as InstrumentPageHeader, Panel, PanelHeader, type ChipTone } from "@/components/instrument/Panel";
@@ -104,6 +104,7 @@ import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditS
 import { useTranslation } from "react-i18next";
 import { ratioLabelForKey } from "@/lib/ratioTable";
 import { readInventoryDaysSplit } from "@/lib/inventoryDays";
+import { CF_ADD_BACK_LABEL_EN, addBackHoldsProvisionCharges } from "@/lib/buildCashFlowStatement";
 import { InventoryDaysSplit } from "@/components/cfo/ratios/InventoryDaysSplit";
 import { IndustryConfirmBanner } from "@/components/cfo/IndustryConfirmBanner";
 import { blocksSectorContent, readIndustrySignal } from "@/lib/industrySignal";
@@ -122,9 +123,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
 import {
-  componentShown, equityRefusalOf, netIncomeRefusalOf, readRefusal, readServedOneEbitda, reconLine,
+  componentShown, equityRefusalOf, netIncomeRefusalOf, netProvisionsEffectLabel, readRefusal,
+  readServedOneEbitda, reconLine,
 } from "@/lib/servedOneEbitda";
 import { briefingVisibility } from "@/lib/briefingDefinition";
+import { reportFooterLines } from "@/lib/reportFooter";
 import type { Currency } from "@/lib/rates";
 
 /**
@@ -191,6 +194,9 @@ interface PeriodResponse {
     assembled_pl?: Record<string, number>;
     assembled_bs?: Record<string, number>;
     assembled_cf?: Record<string, number | boolean | string[] | undefined>;
+    /** canonical_bs v2 — the engine's balance-sheet authority, with its
+     *  status and difference. The footer reads it through lib/reportFooter. */
+    canonical_bs?: unknown;
   };
   /** What the ACCOUNT MIX says the company does, whether that agrees
    *  with `organizations.industry_key`, and — the field this page acts
@@ -220,7 +226,14 @@ interface PeriodResponse {
   }>;
   /** `GET /api/period` serves `body` (+ its EBITDA `definition`); `summary`
    *  is the older report shape, read when present. */
-  briefing?: { summary?: string; verdict?: string; body?: string; definition?: unknown } | null;
+  briefing?: {
+    summary?: string;
+    verdict?: string;
+    body?: string | null;
+    definition?: unknown;
+    unavailable?: boolean;
+    stale?: unknown;
+  } | null;
   /** Per-account line items — surfaced by the engine so the canonical
    *  EBITDA reconciliation can subtract 758 / 781 from Reported EBITDA
    *  to reach Core EBITDA. Same shape `useActivePeriod` already
@@ -242,7 +255,7 @@ export default function ComprehensiveReport() {
   // sidebar navigation doesn't show empty state when the user has docs.
   const { periodId } = useActivePeriodFallback();
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [report, setReport] = useState<PeriodResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -396,10 +409,20 @@ export default function ComprehensiveReport() {
   // engine's `ebitda_statutory`). The KPI grid + reconciliation
   // panel + (downstream) PnlTable all read from this object.
   // The executive briefing, hidden with the engine's note when it was
-  // written under an earlier EBITDA definition (lib/briefingDefinition).
+  // written under an earlier EBITDA definition, and replaced by a one-line
+  // note when the stored row is a failure text (lib/briefingDefinition) —
+  // "[NARRATIVE_UNAVAILABLE]" was once printed here as the briefing.
   const briefingShown = briefingVisibility(
     report.briefing ? { ...report.briefing, body: report.briefing.body ?? report.briefing.summary } : null,
   );
+  const footer = reportFooterLines({
+    statements: report.statements,
+    currency,
+    briefingShown: !sectorBlocked && briefingShown.body !== null,
+    // Section 6 (Valuation) on this page is computed in the browser.
+    browserValuation: true,
+    language: i18n.language,
+  });
   const canonical = buildCanonicalMetricsFromInputs({
     assembled_pl: pl as Record<string, number>,
     assembled_bs: bs as Record<string, number>,
@@ -518,10 +541,21 @@ export default function ComprehensiveReport() {
               <Panel inset className="mt-5 border-l-[3px] border-l-caution px-4 py-3" data-testid="report-briefing-hidden-definition">
                 <p className="text-[12.5px] text-ink-soft leading-relaxed">{briefingShown.hiddenNote.en}</p>
               </Panel>
+            ) : briefingShown.unavailable && briefingShown.unavailableNote ? (
+              // The stored row holds no usable narration: the note, never
+              // the failure text (ruling 2026-10-02).
+              <Panel inset className="mt-5 border-l-[3px] border-l-caution px-4 py-3" data-testid="report-briefing-unavailable">
+                <p className="text-[12.5px] text-ink-soft leading-relaxed">{briefingShown.unavailableNote.en}</p>
+              </Panel>
             ) : briefingShown.body ? (
               <Panel inset className="mt-5 border-l-[3px] border-l-brand px-4 py-3">
                 <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
                   Executive briefing
+                  {/* The last good briefing, kept after a later narration
+                      failed (ruling 2026-10-02) — said, never silent. */}
+                  {briefingShown.stale && (
+                    <span data-testid="report-briefing-stale"> · previous version, kept after a later narration failed</span>
+                  )}
                 </div>
                 <p className="text-[13px] text-ink-soft leading-relaxed whitespace-pre-line">
                   {briefingShown.body}
@@ -545,7 +579,7 @@ export default function ComprehensiveReport() {
           {/* ── 4. CASH FLOW ────────────────────────────────────────── */}
           <section id="cf" data-testid="report-section-4-cf">
             <SectionHeader number={4} title="Cash Flow Statement" />
-            <CashFlowTable cf={cf} currency={currency} origin={origin} />
+            <CashFlowTable cf={cf} plDepreciation={pl.depreciation} currency={currency} origin={origin} />
           </section>
 
           {/* ── 5. RATIOS ───────────────────────────────────────────── */}
@@ -616,10 +650,19 @@ export default function ComprehensiveReport() {
           </section>
         </article>
 
-        <footer className="mt-12 pb-12 text-center text-[10.5px] text-ink-mute">
-          Generated by CFO AI · deterministic engine + Claude Opus 4.7 narrative.<br />
-          Numbers reconcile to the source trial balance within 0.5%. Benchmarks carry
-          source + confidence labels — see Section 5.
+        {/* ── Footer — only what is true for THIS report (lib/reportFooter):
+            the engine's own balance verdict and the served difference, and
+            the narrative credit only when a briefing is shown. The three
+            hard-coded sentences that stood here ("…within 0.5%", "see
+            Section 5", a model credited on every report) are gone. ── */}
+        <footer
+          data-testid="report-footer"
+          data-balance-status={footer.machineStatus}
+          className="mt-12 pb-12 text-center text-[10.5px] text-ink-mute"
+        >
+          <span data-testid="report-footer-generated">{footer.generated}</span><br />
+          <span data-testid="report-footer-balance">{footer.balance}</span>{" "}
+          <span data-testid="report-footer-difference">{footer.differenceLine}</span>
         </footer>
       </div>
     </>
@@ -870,6 +913,10 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   // "Variația stocurilor de produse") sits beside cost of sales, signed as
   // its effect on the result; own work capitalised (72x) is an operating
   // line outside net turnover; both are inside EBITDA. 767 is financial.
+  // PROVISIONS SYMMETRIC (owner ruling R2, 2026-09-28): the ruled charges
+  // (6812, 6814) and reversals (7812, 7814) are OUTSIDE EBITDA; their net is
+  // its own step between D&A and EBIT, under the engine's name, signed as
+  // its effect on the result — so EBITDA − D&A − net provisions = EBIT foots.
   // The retired rows went with the old definitions: the "+ Capitalized own
   // work (722)" step after net profit (72x is above EBITDA now), the
   // "EBITDA (statutory, incl. 722)" memo (there is one EBITDA) and the
@@ -918,6 +965,8 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     role: "step" | "subtotal";
     /** The engine's reason, printed under a refused figure. */
     note?: string | null;
+    /** A stable handle for the laws (`data-pl-row`). */
+    key?: string;
   };
 
   const ivLabel = iv ? `${iv.nameRo ?? "Variația stocurilor de produse"} (711)${iv.glossEn ? ` — ${iv.glossEn}` : ""}` : "";
@@ -946,6 +995,25 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     { label: "Operating expenses", val: negated(pl.opex_total), style: "indent", origin: neg("opex_total"), role: "step" },
     { label: "EBITDA", val: num(served?.ebitda), style: "highlight", origin: f("ebitda"), role: "subtotal", note: served?.ebitda == null ? refusalEn : null },
     { label: "Depreciation & amortization", val: negated(pl.depreciation), style: "indent", origin: neg("depreciation"), role: "step" },
+  );
+  const np = served?.netProvisions ?? null;
+  if (np && (Math.abs(np.charges) >= 0.005 || Math.abs(np.reversals) >= 0.005)) {
+    // Printed as its EFFECT on the result, like every step of this column
+    // (D&A above it is negated too) — so the label states the effect's
+    // arithmetic, "7812 + 7814 − 6812 − 6814", never the engine's charge
+    // arithmetic over the opposite figure (review 2026-10-02: agras read
+    // "… (6812 + 6814 − 7812 − 7814) −131,395"). The printed report and the
+    // workbook compose the same label (`netProvisionsEffectLabel`).
+    rows.push({
+      label: netProvisionsEffectLabel(np, "en"),
+      val: 0 - np.value,
+      style: "indent",
+      origin: neg("net_provisions.value"),
+      role: "step",
+      key: "net_provisions",
+    });
+  }
+  rows.push(
     { label: "EBIT", val: num(served?.ebit), style: "highlight", origin: f("ebit"), role: "subtotal", note: served?.ebit == null ? refusalEn : null },
     { label: "Net financial result", val: pl.net_financial_result, style: "indent", origin: f("net_financial_result"), role: "step" },
     { label: "Pre-tax profit", val: num(served?.pretax), style: "subtotal", origin: f("pretax"), role: "subtotal", note: served?.pretax == null ? refusalEn : null },
@@ -971,7 +1039,7 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   rows.push({
     label: acc121?.status === "not_anchored"
       ? "= Net profit — built from the accounts (no account 121 in the trial balance)"
-      : "= Net profit — account 121 (as filed)",
+      : "= Net profit — account 121 (closing balance)",
     val: filedNetProfit,
     style: "headline",
     origin: f("net_income_statutory"),
@@ -1015,6 +1083,7 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
                 <tr
                   key={r.label}
                   data-pl-role={r.role}
+                  data-pl-row={r.key}
                   data-pl-exact={v == null ? undefined : String(v)}
                   className={`h-8 ${r.style === "headline" ? "border-t border-t-rule-strong" : r.style === "reconciliation" ? "border-t border-dashed border-rule-strong" : "border-t border-rule-soft"} first:border-t-0 ${rowCls[r.style]}`}
                 >
@@ -1048,8 +1117,8 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
           The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7
           movements, with the stock variation (711) and own work capitalised (72x) inside EBITDA —
           one definition on every page. It ends on account 121&rsquo;s closing balance
-          ({fmt(filedNetProfit)} {displayCurrency}) — the figure the company filed, and the one
-          every KPI tile and ratio on this page states.
+          ({fmt(filedNetProfit)} {displayCurrency}) — the figure every KPI tile and ratio on
+          this page states.
           {recon?.identityNote && <> {recon.identityNote.en}</>}
           {recon?.splitAssumption && <> {recon.splitAssumption.en}</>}
           {hasUnexplained && (
@@ -1177,7 +1246,14 @@ function BsHalf({ title, rows, totalLabel, totalValue, totalOrigin, reference, c
   );
 }
 
-function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | boolean | string[] | undefined>; currency: string; origin: ReportOrigin }) {
+function CashFlowTable({ cf, plDepreciation, currency, origin }: {
+  cf: Record<string, number | boolean | string[] | undefined>;
+  /** The P&L's D&A (`assembled_pl.depreciation`) — only to name the
+   *  add-back row for what it sums (owner ruling R2, 2026-09-28). */
+  plDepreciation: unknown;
+  currency: string;
+  origin: ReportOrigin;
+}) {
   const { displayCurrency } = useReportFmt(currency);
   const isApprox = Boolean(cf.is_approximated);
   const notes = Array.isArray(cf.approximation_notes) ? cf.approximation_notes : [];
@@ -1211,7 +1287,11 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
       title: "Operating",
       rows: [
         ["Net profit", n("net_profit"), f("net_profit"), "net_profit"],
-        ["+ Depreciation & amortization", n("depreciation"), f("depreciation")],
+        // The walk adds back all of 68x; since R2 the P&L's D&A leaves out
+        // the 6812 / 6814 charges — the row is named for what it sums.
+        [addBackHoldsProvisionCharges(n("depreciation"), plDepreciation)
+          ? CF_ADD_BACK_LABEL_EN.withProvisionCharges
+          : CF_ADD_BACK_LABEL_EN.depreciation, n("depreciation"), f("depreciation")],
         ["+ Provision movements", n("provision_movement"), f("provision_movement")],
         ["Δ Inventory", n("delta_inventory"), f("delta_inventory")],
         ["Δ Receivables", n("delta_receivables"), f("delta_receivables")],

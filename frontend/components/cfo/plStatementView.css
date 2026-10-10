@@ -417,3 +417,7 @@
 /* Six columns need room: the single-period 820px column would wrap every
    label word by word. */
 .pl-statement.pl-cmp { max-width: 1240px; }
+/* ONE extra column — the period's own share, with no comparison on screen:
+   the single-period width plus that column, not the six-column width (the
+   label column would stretch across the page). */
+.pl-statement.pl-cmp[data-share-only="true"] { max-width: 930px; }

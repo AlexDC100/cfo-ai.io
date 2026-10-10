@@ -87,20 +87,46 @@ export async function fetchOrgPeriodsFor(orgId: string): Promise<OrgPeriodsPaylo
 // that never existed in that payload — so every file in a period card
 // rendered as "Untitled file". The direct fetcher normalizes to `filename`.
 
+/** What the Workspace tab reads of a period row. `staged_rerun` is the
+ *  marker of a re-run's STAGED row, read alone out of the envelope (never
+ *  the envelope itself) — the same alias the engine selects
+ *  (src/engine/api/_staged_rerun.py MARKER_SELECT). */
+export const WORKSPACE_PERIODS_SELECT =
+  "id, period_start, period_end, currency, created_at, source_document_id, staged_rerun:assembled_canonical_v1->staged_rerun";
+
+/** Is this `financial_periods` row the STAGED row of a re-run — not a
+ *  period? The engine's rule (`_staged_rerun.marker_of`): it names NO source
+ *  document AND its envelope carries the marker object. An EMPTY container
+ *  (no source, no marker) is a period and stays. */
+export function isStagedRerunRow(row: Record<string, unknown>): boolean {
+  const marker = row.staged_rerun;
+  return (
+    (row.source_document_id === null || row.source_document_id === undefined) &&
+    marker !== null &&
+    typeof marker === "object" &&
+    !Array.isArray(marker)
+  );
+}
+
 /** ALL of a workspace's periods — including ones with no files yet — with
- *  their live (non-deleted) documents, newest month first. */
+ *  their live (non-deleted) documents, newest month first. A re-run's staged
+ *  row is not one of them. */
 export async function fetchWorkspacePeriodsDirect(
   orgId: string,
 ): Promise<OrgPeriodsPayload | null> {
   const sb = getSupabase();
   if (!sb) return null;
-  const { data: periods, error } = await sb
+  const { data: rows, error } = await sb
     .from("financial_periods")
-    .select("id, period_start, period_end, currency, created_at")
+    .select(WORKSPACE_PERIODS_SELECT)
     .eq("org_id", orgId)
     .order("period_end", { ascending: false })
     .order("created_at", { ascending: false });
-  if (error || !periods) return null;
+  if (error || !rows) return null;
+  // A re-run's STAGED row is not a period (see isStagedRerunRow): shown, it
+  // would be a second, empty card for the month while "Re-run analysis" is
+  // going — or until the row a dead run left is cleaned up.
+  const periods = (rows as unknown as Array<Record<string, unknown>>).filter((p) => !isStagedRerunRow(p));
 
   const ids = periods.map((p) => p.id as string);
   let docs: Array<Record<string, unknown>> = [];
@@ -271,15 +297,31 @@ function saneYear(d: Date): boolean {
   return y >= 2000 && y <= 2035;
 }
 
+/** The dates the engine serves: `YYYY-MM-DD`, with or without a time.
+ *  The month formatters read nothing else. `new Date()` is far more
+ *  willing: V8 reads the LABEL "FY 2025" as 1 January 2025 in the viewer's
+ *  timezone and "Decembrie 2025" as 1 December — which, pinned to UTC, the
+ *  dashboard's header then printed as "Dec 2024" and "Nov 2025" for a
+ *  viewer east of Greenwich. A label is not a date: the caller keeps it as
+ *  written. */
+const SERVED_DATE = /^\d{4}-\d{2}-\d{2}(?:$|[T ])/;
+
 /** "Mar 2026" from a period_end date string; null when unparseable or
  *  implausible. UTC-pinned: period_end is a date-only string, so
  *  local-time parsing shifted it a day back (and sometimes a month)
- *  west of Greenwich. */
+ *  west of Greenwich.
+ *
+ *  `locale` is REQUIRED — the reader's (lib/locale `useActiveLocale` in a
+ *  component, `activeLocale` in a plain module). It used to default to
+ *  "en-GB", and every caller that forgot it printed an English month in a
+ *  Romanian interface: the dashboard's header said "Dec 2024" beside a
+ *  breadcrumb saying "dec. 2024". A default is how the argument gets
+ *  forgotten (gate period-month-locale). */
 export function formatPeriodMonth(
   periodEnd: string | null | undefined,
-  locale: string = "en-GB",
+  locale: string,
 ): string | null {
-  if (!periodEnd) return null;
+  if (!periodEnd || !SERVED_DATE.test(periodEnd)) return null;
   const d = new Date(periodEnd);
   if (Number.isNaN(d.getTime()) || !saneYear(d)) return null;
   return d.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" });
@@ -299,12 +341,13 @@ export function formatPeriodYear(periodEnd: string | null | undefined): string |
  *  included. For LIST surfaces (Workspace months, Docs panel, delete
  *  dialogs) where a corrupt row must still be readable so the user can
  *  find and delete it: "Dec 2050" beats a raw "2050-12-31". Ambient
- *  labels (sidebar year, header) keep the strict formatter above. */
+ *  labels (sidebar year, header) keep the strict formatter above. The
+ *  locale is required, as above. */
 export function formatPeriodMonthLoose(
   periodEnd: string | null | undefined,
-  locale: string = "en-GB",
+  locale: string,
 ): string | null {
-  if (!periodEnd) return null;
+  if (!periodEnd || !SERVED_DATE.test(periodEnd)) return null;
   const d = new Date(periodEnd);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" });

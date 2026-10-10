@@ -169,7 +169,7 @@ export function SourceQualityBanner({ sourceQuality, currency = "RON", telemetry
             <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
             <span>
               Common causes: year-end closing entries posted with pending counter-entries,
-              extended-layout SAGA/WinMENTOR exports that snapshot mid-reconciliation, or
+              an export taken while a reconciliation was still in progress, or
               source-document errors. Re-exporting the trial balance after the accountant
               completes closing entries usually resolves it.
             </span>

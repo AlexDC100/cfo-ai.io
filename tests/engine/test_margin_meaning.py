@@ -82,6 +82,7 @@ from _pytest.monkeypatch import MonkeyPatch
 
 import _served_books as SB
 import test_rebuild_net_income_anchor as ANCHOR
+from engine.comparatives import LINE_SPECS
 from engine.ratios import margin_meaning as MM
 
 REPO = Path(__file__).resolve().parents[2]
@@ -265,6 +266,19 @@ def _rows(body: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return dict((r["key"], r) for r in table.get("rows") or [])
 
 
+def _share_rows(body: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    block = (body.get("statements") or {}).get("common_size") or {}
+    return dict((r["key"], r) for r in block.get("rows") or [])
+
+
+#: The statement lines whose share of turnover is a margin — every RESULT
+#: over turnover, and nothing else. WRITTEN HERE, not read off the registry:
+#: read off it, the sweep below agreed with a registry that declared a COST
+#: line a margin (plant MM1 left the gate green until this list was its own).
+MARGIN_LINE_KEYS = ("pl.gross_profit", "pl.ebitda", "pl.ebit", "pl.pretax",
+                    "pl.net_income_operational", "pl.net_income")
+
+
 def _paths_that_differ(a: Any, b: Any, path: str = "$") -> List[str]:
     if type(a) is not type(b):
         return [path]
@@ -308,9 +322,16 @@ def sweep_failures(active: Dict[str, Dict[str, Any]],
             if diff:
                 failures.append("%s: the served body moved at %s" % (book, ", ".join(diff[:8])))
             continue
+        # AMENDED 2026-10-04 (gate common-size-single, fix round). A result
+        # line's share of turnover IS a margin, so the rule also governs the
+        # period's own share block (`statements.common_size`): on the
+        # developer the block's margin lines carry no share and say why —
+        # their share, status and note move; their amount, and every other
+        # row of the block, do not (checked below, line by line).
         allowed = re.compile(
             r"^\$\.assembled_metrics\.ratio_table\.(rows\[\d+\]\.(value|value_q|band|band_status|ladder|"
-            r"ladder_floor|reason)(\..+)?|coverage\.(served|refused|band_withheld)(\..+)?)$")
+            r"ladder_floor|reason)(\..+)?|coverage\.(served|refused|band_withheld)(\..+)?)$"
+            r"|^\$\.statements\.common_size\.rows\[\d+\]\.(share|status|note)$")
         moved = _paths_that_differ(a, n)
         stray = [p for p in moved if not allowed.match(p)]
         if stray:
@@ -319,6 +340,24 @@ def sweep_failures(active: Dict[str, Dict[str, Any]],
         moved_keys = sorted(k for k in rows_a if rows_a[k] != rows_n[k])
         if moved_keys != sorted(MARGIN_KEYS):
             failures.append("%s: the rows that moved are %s, not the five margins" % (book, moved_keys))
+        declared = sorted(spec.key for spec in LINE_SPECS if spec.margin)
+        if declared != sorted(MARGIN_LINE_KEYS):
+            failures.append("%s: the registry declares %s as margins, not the result lines %s"
+                            % (book, declared, sorted(MARGIN_LINE_KEYS)))
+        shares_a, shares_n = _share_rows(a), _share_rows(n)
+        moved_lines = sorted(k for k in shares_a if shares_a[k] != shares_n.get(k))
+        if moved_lines != sorted(MARGIN_LINE_KEYS):
+            failures.append("%s: the share rows that moved are %s, not the result lines %s"
+                            % (book, moved_lines, sorted(MARGIN_LINE_KEYS)))
+        for key in moved_lines:
+            refused, free = shares_a[key], shares_n[key]
+            if (refused["status"], refused["share"]) != (MM.MARGIN_NOT_MEANINGFUL, None):
+                failures.append("%s: %s is served %r / %r under a refused margin"
+                                % (book, key, refused["status"], refused["share"]))
+            if free["status"] != "share" or free["share"] is None:
+                failures.append("%s: %s takes no share even under a rule that refuses nothing" % (book, key))
+            if refused["current"] != free["current"] or refused["current"] is None:
+                failures.append("%s: the rule moved the AMOUNT of %s" % (book, key))
     return failures
 
 

@@ -3,13 +3,14 @@
 // has scrolled up to read history), and surfaces a typing indicator
 // for the trailing pending assistant turn.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 
 import { useChatSearchHighlight } from "./useChatSearchHighlight";
 import { CFOMessageBubble } from "./CFOMessageBubble";
 import { CFOTypingIndicator } from "./CFOTypingIndicator";
+import { languageHints } from "@/lib/readerFigures";
 import type { ChatMessage } from "./types";
 
 interface Props {
@@ -44,6 +45,21 @@ interface Props {
   onRetryFailed?: () => void;
 }
 
+/** Marks the column that holds the conversation and its in-flow composer
+ *  (the full /chat page). The list scrolls the window to THIS element's end. */
+export const CHAT_COLUMN_ATTR = "data-chat-column";
+
+/** Document-scroll mode: the window position that puts the END OF THE
+ *  CONVERSATION at the bottom of the viewport. The end is the chat column's
+ *  (messages + the in-flow composer) — never the document's: the document
+ *  also holds what the app shell renders below the chat, and scrolling to
+ *  ITS end pushed a short conversation up under the header and showed the
+ *  footer instead of the answer (production, 2026-10-04). A conversation
+ *  shorter than the viewport stays at the top. */
+export function chatEndScrollTop(columnBottomInViewport: number, scrollY: number, viewportHeight: number): number {
+  return Math.max(0, Math.round(columnBottomInViewport + scrollY - viewportHeight));
+}
+
 export function CFOMessageList({
   messages, groundedLabel, bottomInset = false, topInset = false, wideContent = false,
   documentScroll = false, searchQuery = "", onClearSearch, onRetryFailed,
@@ -58,6 +74,15 @@ export function CFOMessageList({
   const revision = `${messages.length}:${messages[messages.length - 1]?.content.length ?? 0}`;
   const search = useChatSearchHighlight(contentRef, searchQuery, revision);
   const stickToBottom = useRef(true);
+  // Document-scroll mode: the list's own root, from which the chat column
+  // (the scroll target) is found.
+  const docRootRef = useRef<HTMLDivElement | null>(null);
+  const documentEndTop = useCallback((): number | null => {
+    const root = docRootRef.current;
+    if (!root) return null;
+    const column = root.closest<HTMLElement>(`[${CHAT_COLUMN_ATTR}]`) ?? root;
+    return chatEndScrollTop(column.getBoundingClientRect().bottom, window.scrollY, window.innerHeight);
+  }, []);
 
   // ── Typewriter bookkeeping ──────────────────────────────────────
   // We type out ONLY a freshly-arrived assistant answer — never history
@@ -90,11 +115,12 @@ export function CFOMessageList({
   const scrollToBottom = useCallback(() => {
     if (!stickToBottom.current) return;
     if (documentScroll) {
-      window.scrollTo({ top: document.documentElement.scrollHeight });
+      const top = documentEndTop();
+      if (top !== null) window.scrollTo({ top });
     } else if (ref.current) {
       ref.current.scrollTop = ref.current.scrollHeight;
     }
-  }, [documentScroll]);
+  }, [documentScroll, documentEndTop]);
 
   // Track whether the user has scrolled away from the bottom; if they
   // have, don't yank the scroll back on every new chunk. In documentScroll
@@ -103,8 +129,9 @@ export function CFOMessageList({
     const slack = 24;
     if (documentScroll) {
       const onScroll = () => {
-        const doc = document.documentElement;
-        stickToBottom.current = doc.scrollHeight - window.scrollY - window.innerHeight < slack;
+        // Pinned = at (or past) the conversation's end, not the document's.
+        const top = documentEndTop();
+        stickToBottom.current = top === null || top - window.scrollY < slack;
       };
       window.addEventListener("scroll", onScroll, { passive: true });
       return () => window.removeEventListener("scroll", onScroll);
@@ -117,17 +144,28 @@ export function CFOMessageList({
     };
     el.addEventListener("scroll", onScroll);
     return () => el.removeEventListener("scroll", onScroll);
-  }, [documentScroll]);
+  }, [documentScroll, documentEndTop]);
 
   // Auto-scroll on new messages while pinned to bottom.
   useEffect(() => {
     if (!stickToBottom.current) return;
     if (documentScroll) {
-      window.scrollTo({ top: document.documentElement.scrollHeight });
+      const top = documentEndTop();
+      if (top !== null) window.scrollTo({ top });
     } else if (ref.current) {
       ref.current.scrollTop = ref.current.scrollHeight;
     }
-  }, [messages, documentScroll]);
+  }, [messages, documentScroll, documentEndTop]);
+
+  // For each message: the language of the nearest EARLIER turn whose language
+  // can be read. An answer too short to tell its own language ("EBITDA: 4.58M
+  // RON.") is shown in the language of the question it answers — never the
+  // UI's. A pending, failed, interrupted or refused turn (the app's own
+  // notice, written in the UI language) is nobody's prose and gives no hint.
+  const hints = useMemo(
+    () => languageHints(messages.map((m) => (m.pending || m.failed || m.interrupted || m.refused ? null : m.content))),
+    [messages],
+  );
 
   const lastIsPendingAssistant =
     messages.length > 0 &&
@@ -156,10 +194,12 @@ export function CFOMessageList({
 
   const body = (
     <div className={wideContent ? "w-full max-w-[1760px]" : "w-full"}>
-      {visible.map((m) => (
+      {visible.map((m, i) => (
         <CFOMessageBubble
           key={m.id}
           message={m}
+          // `visible` is `messages` or its prefix: the indices are the same.
+          languageHint={hints[i] ?? null}
           animate={m.id === animateId}
           onType={m.id === animateId ? scrollToBottom : undefined}
           // Retry only on the trailing failed turn — the one whose user
@@ -230,6 +270,7 @@ export function CFOMessageList({
   if (documentScroll) {
     return (
       <div
+        ref={docRootRef}
         // bottomInset below lg: the page composer is FIXED there (out of
         // flow), so the last message needs ~the composer block's height to
         // scroll clear of it. On lg+ the sticky composer sits in flow.

@@ -1,0 +1,2255 @@
+{
+ "as_of": "2026-10-02",
+ "company": {
+  "caen": "1039",
+  "caen_name_en": "Other processing and preserving of fruit and vegetables",
+  "caen_name_ro": "Prelucrarea și conservarea fructelor și legumelor n.c.a.",
+  "currency": "RON",
+  "fictional": true,
+  "fiscal_code": "RO 99999999",
+  "fiscal_code_valid": false,
+  "industry_as_served": {
+   "display": "Manufacturing · industrial",
+   "document": "served_period_fy2025.json",
+   "pointer": "/statements/industry"
+  },
+  "name": "CONSERVE EXEMPLU FICTIV SRL",
+  "trade_register": "J99/9999/2099",
+  "workspace_industry_key": "manufacturing"
+ },
+ "engine": {
+  "canonical_version": "v2.1",
+  "credit_model_revision": 5,
+  "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
+  "extraction_method": "deterministic",
+  "mapping_version": "ro_omfp1802_v2",
+  "pack": "omfp1802@v1",
+  "parser_version": "tb_parser_v6",
+  "ratio_table_version": "ratio_table.v1"
+ },
+ "files": [
+  {
+   "bytes": 66246,
+   "kind": "trial_balance",
+   "name": "balanta_exemplu_fictiv_31.12.2025.xlsx",
+   "sha256": "c421e65667e247396bb9961b248695fc4d7641693f24ee68d9b43c5199169eb0"
+  },
+  {
+   "bytes": 64113,
+   "kind": "trial_balance",
+   "name": "balanta_exemplu_fictiv_31.12.2024.xlsx",
+   "sha256": "e7732ca670751f2400c2b5d8b0b4966ccc2035f946cb2e501bde0b0a3afde67a"
+  },
+  {
+   "bytes": 335289,
+   "kind": "report_html",
+   "name": "sample_report_fy2025.html",
+   "sha256": "5befbec1d857b19c91d1b88b65d4a994f10998099bd2a8024d5d9f1bc20989ba"
+  },
+  {
+   "kind": "report_pdf",
+   "name": "sample_report_fy2025.pdf"
+  },
+  {
+   "bytes": 9885,
+   "kind": "mapping",
+   "name": "account_mapping_fy2025.csv",
+   "sha256": "2c467bf4025687a8529c7c232fad3dda5b91d7e23c2c29f6d480a8c9b36f1f58"
+  },
+  {
+   "bytes": 8745,
+   "kind": "labels",
+   "name": "uncertainty_labels_fy2025.json",
+   "sha256": "31082283aef3b3672fe77110da2ada26d29549d4dcd302bf64c06c3b1f520b3a"
+  },
+  {
+   "bytes": 4902,
+   "kind": "known_issues",
+   "name": "known_issues_fy2025.json",
+   "sha256": "c450aa80250090242f8365415e8637eaa53f0af423443a2baf2fd8a968815ce2"
+  },
+  {
+   "bytes": 242850,
+   "kind": "served_document",
+   "name": "served_period_fy2025.json",
+   "sha256": "35bdc7006b785554b206059680291a120566b2e0d12f2532eebba6be5308844e"
+  },
+  {
+   "bytes": 240509,
+   "kind": "served_document",
+   "name": "served_period_fy2024.json",
+   "sha256": "85e7cdf9dd78d65ee9fdafda72ee46b5dac905153f89555637e42bfefa2a3027"
+  },
+  {
+   "bytes": 376496,
+   "kind": "served_document",
+   "name": "served_comparatives_fy2025_vs_fy2024.json",
+   "sha256": "fafb7af7ffba215ef3688c741ca305be30c5c6c08175e20e6ab19c108e904021"
+  }
+ ],
+ "known_issues": [
+  {
+   "engine": {
+    "cash_from_financing": -475090.51,
+    "cash_from_investing": -207447.75,
+    "cash_from_operating": 801062.26,
+    "implied_opening_cash": 108262.8,
+    "is_approximated": true,
+    "net_change_in_cash": 118524.0,
+    "pointers": {
+     "cash_from_financing": "/statements/assembled_cf/cash_from_financing",
+     "cash_from_investing": "/statements/assembled_cf/cash_from_investing",
+     "cash_from_operating": "/statements/assembled_cf/cash_from_operating",
+     "closing_cash_actual": "/statements/assembled_cf/closing_cash_actual",
+     "net_change_in_cash": "/statements/assembled_cf/net_change_in_cash"
+    }
+   },
+   "id": "cash_flow_estimated",
+   "ledger": {
+    "arithmetic": {
+     "cash_closing": "closing debit balance of 5121 + 5124 + 5311",
+     "cash_opening": "opening debit balance of 5121 + 5124 + 5311",
+     "credit_line_change": "closing credit balance of 5191 less its opening credit balance",
+     "dividends": "debit movement of 457",
+     "financing": "loans drawn − loans repaid − lease repaid + credit line change − dividends − interest",
+     "fixed_asset_additions_ex_vat": "debit movement of classes 20, 21 and 23 less the credit movement of 231 (the transfer out of construction in progress)",
+     "interest": "debit movement of 666",
+     "lease_repaid": "debit movement of 167",
+     "loans_drawn": "credit movement of 1621",
+     "loans_repaid": "debit movement of 1621",
+     "paid_to_fixed_asset_suppliers": "debit movement of 404"
+    },
+    "cash_closing": 226786.8,
+    "cash_movement": -9848.42,
+    "cash_opening": 236635.22,
+    "credit_line_change": -20000.0,
+    "dividends": 100000.0,
+    "financing": -123171.34,
+    "fixed_asset_additions_ex_vat": 640890.85,
+    "interest": 164171.34,
+    "lease_repaid": 63000.0,
+    "loans_drawn": 420000.0,
+    "loans_repaid": 196000.0,
+    "paid_to_fixed_asset_suppliers": 740906.91
+   }
+  },
+  {
+   "finding": {
+    "current_assets": 3286458.08,
+    "current_liabilities": 1683726.68,
+    "document": "served_period_fy2025.json",
+    "inventory": 1656139.72,
+    "pointer": "/statements/insights/insights/id=liquidity_quality/measures/key=quick_ratio/value",
+    "value": 0.968279697272
+   },
+   "finding_id": "liquidity_quality",
+   "finding_measure_label": "Quick ratio as reported",
+   "finding_title": "Headline liquidity leans on receivables that are not trade",
+   "id": "quick_ratio_two_definitions",
+   "ratio_table": {
+    "cash": 226786.8,
+    "current_liabilities": 1683726.68,
+    "document": "served_comparatives_fy2025_vs_fy2024.json",
+    "pointer": "/ratios/rows/key=quick_ratio/current",
+    "trade_receivables": 1382531.56,
+    "value": 0.9558073641738576,
+    "value_q": "0.96"
+   }
+  },
+  {
+   "engine": {
+    "annual_charge": 400705.85,
+    "depreciated_share": 0.404521601381,
+    "gross_ppe": 5412514.27,
+    "net_book_value": 3241585.45,
+    "pointer": "/statements/insights/insights/id=asset_age/measures",
+    "remaining_book_life_years": 8.08968835868
+   },
+   "finding_id": "asset_age",
+   "finding_title": "Asset base is late in its depreciation life",
+   "id": "asset_age_bases",
+   "ledger": {
+    "accumulated_depreciation": 2189478.94,
+    "annual_depreciation_charge": 393195.66,
+    "arithmetic": {
+     "accumulated_depreciation": "closing credit balance of 2812 + 2813 + 2814",
+     "annual_depreciation_charge": "credit movement of 2812 + 2813 + 2814",
+     "construction_in_progress": "closing debit balance of 231",
+     "depreciable_tangible_gross": "closing debit balance of 212 + 2131 + 2133 + 214",
+     "depreciated_share": "accumulated depreciation ÷ depreciable tangible gross",
+     "intangibles_net": "closing debit balance of 208 less the closing credit balance of 2808",
+     "land": "closing debit balance of 211",
+     "remaining_life_years": "(gross − accumulated depreciation) ÷ the year's depreciation charge"
+    },
+    "construction_in_progress": 97773.16,
+    "depreciable_tangible_gross": 5004741.11,
+    "depreciated_share": 0.437481,
+    "intangibles_net": 18550.12,
+    "land": 310000.0,
+    "remaining_life_years": 7.159952,
+    "remaining_net_book_value": 2815262.17
+   }
+  }
+ ],
+ "labels": [
+  {
+   "area": "cash_flow",
+   "engine_en": "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
+   "engine_ro": null,
+   "key": "cash_flow_approximated_1",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_cf/approximation_notes/0"
+  },
+  {
+   "area": "cash_flow",
+   "engine_en": "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS.",
+   "engine_ro": null,
+   "key": "cash_flow_approximated_2",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_cf/approximation_notes/1"
+  },
+  {
+   "area": "profit_and_loss",
+   "engine_en": "Change in inventories of finished goods and WIP — derived: the result in account 121 less every other P&L line (a closed trial balance keeps no net balance on account 711)",
+   "engine_ro": "Variația stocurilor de produse — derivată: rezultatul din contul 121 minus celelalte linii ale contului de profit și pierdere (o balanță închisă nu păstrează soldul net al contului 711)",
+   "key": "stock_variation_derived",
+   "kind": "derived",
+   "reason": null,
+   "source": "/statements/assembled_pl/inventory_variation"
+  },
+  {
+   "area": "profit_and_loss",
+   "engine_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
+   "engine_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
+   "key": "stock_variation_identity",
+   "kind": "derived",
+   "reason": null,
+   "source": "/statements/assembled_pl/inventory_variation"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "Verdict bands are general-SME defaults — not calibrated to the resolved industry's seeded distribution. Industry-specific bands activate when the period's resolved CAEN has matching rows in industry_benchmarks; that wiring is scheduled for a follow-up engine pass.",
+   "engine_ro": null,
+   "key": "bands_general_sme",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/assembled_bands/disclosure"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "average of the balances at 1 January and 31 December",
+   "engine_ro": "media soldurilor la 1 ianuarie și 31 decembrie",
+   "key": "inventory_days_basis",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/basis_label"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "stock at 31 December — a single day",
+   "engine_ro": "stoc la 31 decembrie — o singură zi",
+   "key": "ccc_inventory_term_basis",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/ccc_dio_term/basis_label"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "food and consumer-goods stock is seasonal: a year-end balance can sit far from the usual level; only monthly balances remove the effect",
+   "engine_ro": "stocurile din alimentație și bunuri de larg consum sunt sezoniere: un sold la sfârșit de an poate fi departe de nivelul obișnuit; doar soldurile lunare elimină efectul",
+   "key": "inventory_days_seasonality",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/seasonality"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "a claim must cite the split by stock type and the average balance",
+   "engine_ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor",
+   "key": "inventory_days_claim_policy",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/claim_policy"
+  },
+  {
+   "area": "ratios",
+   "engine_en": null,
+   "engine_ro": null,
+   "key": "ratio_refused_adjusted_dscr",
+   "kind": "refusal",
+   "reason": {
+    "code": "user_input_absent",
+    "display_unit": "x",
+    "inputs": [
+     "supplementary.annualLeaseExpense"
+    ],
+    "ratio": "adjusted_dscr"
+   },
+   "source": "/assembled_metrics/ratio_table/rows/key=adjusted_dscr/reason"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
+   "engine_ro": null,
+   "key": "methodology_note_capex_intensity",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_canonical_v1/methodology/ratios/capex_intensity/note"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
+   "engine_ro": null,
+   "key": "methodology_note_dscr_approx",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_canonical_v1/methodology/ratios/dscr_approx/note"
+  },
+  {
+   "area": "risk",
+   "engine_en": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
+   "engine_ro": null,
+   "key": "piotroski_prior_unavailable",
+   "kind": "not_assessed",
+   "reason": null,
+   "source": "/statements/assembled_piotroski/disclosure"
+  },
+  {
+   "area": "findings",
+   "engine_en": "On this closed trial balance the stock variation (711) is derived from account 121, so the P&L reaches statutory profit by construction; the checks that still bind are the guards the derivation passed (every class-6/7 account read, the remainder within the 711 turnover, 121's opening cleared).",
+   "engine_ro": null,
+   "key": "insight_not_fired_reconstruction_gap",
+   "kind": "checked_clear",
+   "reason": null,
+   "source": "/statements/insights/not_fired/0/reason"
+  },
+  {
+   "area": "findings",
+   "engine_en": "No intercompany or related-party receivable row is present in the classified balance sheet.",
+   "engine_ro": null,
+   "key": "insight_not_fired_related_party_exposure",
+   "kind": "checked_clear",
+   "reason": null,
+   "source": "/statements/insights/not_fired/1/reason"
+  },
+  {
+   "area": "findings",
+   "engine_en": "Every account in the book matched a classification rule; no balance is carried under an Unclassified row.",
+   "engine_ro": null,
+   "key": "insight_not_fired_unclassified_balances",
+   "kind": "checked_clear",
+   "reason": null,
+   "source": "/statements/insights/not_fired/2/reason"
+  },
+  {
+   "area": "findings",
+   "engine_en": "the advisory lane was not invoked for this build",
+   "engine_ro": null,
+   "key": "findings_wording_template",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/insights/insights/0/narrative/reason"
+  },
+  {
+   "area": "document",
+   "engine_en": "partially_calibrated",
+   "engine_ro": null,
+   "key": "calibration_tier",
+   "kind": "basis",
+   "reason": null,
+   "source": "/confidence/calibration_tier"
+  },
+  {
+   "area": "document",
+   "engine_en": "modal depth 3 (60.0% of 90 classifiable rows) is at or below the 4-digit synthetic boundary and only 0.0% of rows are deeper, under the 5.0% mixed floor; no header identity block",
+   "engine_ro": null,
+   "key": "detail_level",
+   "kind": "basis",
+   "reason": null,
+   "source": "comparatives:/current/detail_level/reason"
+  },
+  {
+   "area": "comparison",
+   "engine_en": "comparison struck at the synthetic level (current=synthetic, prior=synthetic): statement lines roll up losslessly across the difference, figures that exist only below the synthetic boundary do not",
+   "engine_ro": null,
+   "key": "comparison_level",
+   "kind": "basis",
+   "reason": null,
+   "source": "comparatives:/comparability/reason"
+  }
+ ],
+ "mapping": [
+  {
+   "account": "1012",
+   "account_name": "Capital subscris vărsat",
+   "amount_ron": 400000.0,
+   "balance_sheet_row": "share_capital",
+   "balance_sheet_row_label_key": "bs.row.share_capital",
+   "balance_sheet_section": "equity",
+   "engine_bucket": "shareCapital",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "1061",
+   "account_name": "Rezerve legale",
+   "amount_ron": 80000.0,
+   "balance_sheet_row": "legal_reserves",
+   "balance_sheet_row_label_key": "bs.row.legal_reserves",
+   "balance_sheet_section": "equity",
+   "engine_bucket": "otherEquity",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "1068",
+   "account_name": "Alte rezerve",
+   "amount_ron": 210000.0,
+   "balance_sheet_row": "other_reserves",
+   "balance_sheet_row_label_key": "bs.row.other_reserves",
+   "balance_sheet_section": "equity",
+   "engine_bucket": "otherEquity",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "117",
+   "account_name": "Rezultatul reportat",
+   "amount_ron": 1945433.08,
+   "balance_sheet_row": "retained_earnings_prior_years",
+   "balance_sheet_row_label_key": "bs.row.retained_earnings_prior_years",
+   "balance_sheet_section": "equity",
+   "engine_bucket": "retainedEarnings",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "121",
+   "account_name": "Profit sau pierdere",
+   "amount_ron": 391558.34,
+   "balance_sheet_row": "current_year_profit",
+   "balance_sheet_row_label_key": "bs.row.current_year_profit",
+   "balance_sheet_section": "equity",
+   "engine_bucket": null,
+   "note": null,
+   "pl_line": null,
+   "statement": null,
+   "status": "excluded:profit_control_account_121"
+  },
+  {
+   "account": "1518",
+   "account_name": "Alte provizioane",
+   "amount_ron": 50025.43,
+   "balance_sheet_row": "provisions_lt",
+   "balance_sheet_row_label_key": "bs.row.provisions_lt",
+   "balance_sheet_section": "provisions",
+   "engine_bucket": "otherNonCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "1621",
+   "account_name": "Credite bancare pe termen lung",
+   "amount_ron": 1460000.0,
+   "balance_sheet_row": "lt_debt_bank",
+   "balance_sheet_row_label_key": "bs.row.lt_debt_bank",
+   "balance_sheet_section": "non_current_liabilities",
+   "engine_bucket": "ltDebt",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "167",
+   "account_name": "Alte împrumuturi și datorii asimilate (leasing)",
+   "amount_ron": 141400.0,
+   "balance_sheet_row": "lt_debt_other",
+   "balance_sheet_row_label_key": "bs.row.lt_debt_other",
+   "balance_sheet_section": "non_current_liabilities",
+   "engine_bucket": "ltDebt",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "208",
+   "account_name": "Alte imobilizări necorporale (programe informatice)",
+   "amount_ron": 62224.03,
+   "balance_sheet_row": "intangibles_other",
+   "balance_sheet_row_label_key": "bs.row.intangibles_other",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "intangibles",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "211",
+   "account_name": "Terenuri și amenajări de terenuri",
+   "amount_ron": 310000.0,
+   "balance_sheet_row": "ppe_land",
+   "balance_sheet_row_label_key": "bs.row.ppe_land",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "212",
+   "account_name": "Construcții",
+   "amount_ron": 1640000.0,
+   "balance_sheet_row": "ppe_buildings",
+   "balance_sheet_row_label_key": "bs.row.ppe_buildings",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "2131",
+   "account_name": "Echipamente tehnologice (mașini, utilaje și instalații de lucru)",
+   "amount_ron": 2778347.03,
+   "balance_sheet_row": "ppe_machinery_equipment",
+   "balance_sheet_row_label_key": "bs.row.ppe_machinery_equipment",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "2133",
+   "account_name": "Mijloace de transport",
+   "amount_ron": 477964.77,
+   "balance_sheet_row": "ppe_machinery_equipment",
+   "balance_sheet_row_label_key": "bs.row.ppe_machinery_equipment",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "214",
+   "account_name": "Mobilier, aparatură birotică, alte active corporale",
+   "amount_ron": 108429.31,
+   "balance_sheet_row": "ppe_furniture_office",
+   "balance_sheet_row_label_key": "bs.row.ppe_furniture_office",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "231",
+   "account_name": "Imobilizări corporale în curs de execuție",
+   "amount_ron": 97773.16,
+   "balance_sheet_row": "ppe_under_construction",
+   "balance_sheet_row_label_key": "bs.row.ppe_under_construction",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "2808",
+   "account_name": "Amortizarea altor imobilizări necorporale",
+   "amount_ron": -43673.91,
+   "balance_sheet_row": "accumulated_amortization_intangibles",
+   "balance_sheet_row_label_key": "bs.row.accumulated_amortization_intangibles",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "intangibles",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "2812",
+   "account_name": "Amortizarea construcțiilor",
+   "amount_ron": -492057.21,
+   "balance_sheet_row": "accumulated_depreciation_ppe",
+   "balance_sheet_row_label_key": "bs.row.accumulated_depreciation_ppe",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "2813",
+   "account_name": "Amortizarea instalațiilor și mijloacelor de transport",
+   "amount_ron": -1623430.27,
+   "balance_sheet_row": "accumulated_depreciation_ppe",
+   "balance_sheet_row_label_key": "bs.row.accumulated_depreciation_ppe",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "2814",
+   "account_name": "Amortizarea altor imobilizări corporale",
+   "amount_ron": -73991.46,
+   "balance_sheet_row": "accumulated_depreciation_ppe",
+   "balance_sheet_row_label_key": "bs.row.accumulated_depreciation_ppe",
+   "balance_sheet_section": "non_current_assets",
+   "engine_bucket": "ppe",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "301",
+   "account_name": "Materii prime",
+   "amount_ron": 325078.53,
+   "balance_sheet_row": "inventory_raw_materials",
+   "balance_sheet_row_label_key": "bs.row.inventory_raw_materials",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "3022",
+   "account_name": "Combustibili",
+   "amount_ron": 6120.0,
+   "balance_sheet_row": "inventory_consumables",
+   "balance_sheet_row_label_key": "bs.row.inventory_consumables",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "3028",
+   "account_name": "Alte materiale consumabile",
+   "amount_ron": 19804.09,
+   "balance_sheet_row": "inventory_consumables",
+   "balance_sheet_row_label_key": "bs.row.inventory_consumables",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "303",
+   "account_name": "Materiale de natura obiectelor de inventar",
+   "amount_ron": 13982.09,
+   "balance_sheet_row": "inventory_consumables",
+   "balance_sheet_row_label_key": "bs.row.inventory_consumables",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "331",
+   "account_name": "Produse în curs de execuție",
+   "amount_ron": 31087.29,
+   "balance_sheet_row": "inventory_wip",
+   "balance_sheet_row_label_key": "bs.row.inventory_wip",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "345",
+   "account_name": "Produse finite",
+   "amount_ron": 1073661.99,
+   "balance_sheet_row": "inventory_finished_goods",
+   "balance_sheet_row_label_key": "bs.row.inventory_finished_goods",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "371",
+   "account_name": "Mărfuri",
+   "amount_ron": 63106.44,
+   "balance_sheet_row": "inventory_merchandise_resale",
+   "balance_sheet_row_label_key": "bs.row.inventory_merchandise_resale",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "381",
+   "account_name": "Ambalaje",
+   "amount_ron": 123299.29,
+   "balance_sheet_row": "inventory_packaging",
+   "balance_sheet_row_label_key": "bs.row.inventory_packaging",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "inventory",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "401",
+   "account_name": "Furnizori",
+   "amount_ron": 933631.42,
+   "balance_sheet_row": "ap_trade",
+   "balance_sheet_row_label_key": "bs.row.ap_trade",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "ap",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "404",
+   "account_name": "Furnizori de imobilizări",
+   "amount_ron": 58051.41,
+   "balance_sheet_row": "ap_trade",
+   "balance_sheet_row_label_key": "bs.row.ap_trade",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "ap",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "408",
+   "account_name": "Furnizori - facturi nesosite",
+   "amount_ron": 27500.0,
+   "balance_sheet_row": "accrued_expenses",
+   "balance_sheet_row_label_key": "bs.row.accrued_expenses",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "ap",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "409",
+   "account_name": "Furnizori - debitori",
+   "amount_ron": 21000.0,
+   "balance_sheet_row": "ar_supplier_advances",
+   "balance_sheet_row_label_key": "bs.row.ar_supplier_advances",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "otherCurrentAssets",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4111",
+   "account_name": "Clienți",
+   "amount_ron": 1373873.59,
+   "balance_sheet_row": "ar_trade_gross",
+   "balance_sheet_row_label_key": "bs.row.ar_trade_gross",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "ar",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4118",
+   "account_name": "Clienți incerți sau în litigiu",
+   "amount_ron": 55932.1,
+   "balance_sheet_row": "ar_doubtful_gross",
+   "balance_sheet_row_label_key": "bs.row.ar_doubtful_gross",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "ar",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "419",
+   "account_name": "Clienți - creditori",
+   "amount_ron": 7000.0,
+   "balance_sheet_row": "customer_advances",
+   "balance_sheet_row_label_key": "bs.row.customer_advances",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "421",
+   "account_name": "Personal - salarii datorate",
+   "amount_ron": 93769.05,
+   "balance_sheet_row": "ap_personnel_salaries",
+   "balance_sheet_row_label_key": "bs.row.ap_personnel_salaries",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4315",
+   "account_name": "Contribuția de asigurări sociale",
+   "amount_ron": 39806.87,
+   "balance_sheet_row": "ap_personnel_social",
+   "balance_sheet_row_label_key": "bs.row.ap_personnel_social",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4316",
+   "account_name": "Contribuția de asigurări sociale de sănătate",
+   "amount_ron": 15922.75,
+   "balance_sheet_row": "ap_personnel_social",
+   "balance_sheet_row_label_key": "bs.row.ap_personnel_social",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "436",
+   "account_name": "Contribuția asiguratorie pentru muncă",
+   "amount_ron": 3582.62,
+   "balance_sheet_row": "ap_personnel_social",
+   "balance_sheet_row_label_key": "bs.row.ap_personnel_social",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4411",
+   "account_name": "Impozitul pe profit curent",
+   "amount_ron": 24908.62,
+   "balance_sheet_row": "ap_tax",
+   "balance_sheet_row_label_key": "bs.row.ap_tax",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4423",
+   "account_name": "TVA de plată",
+   "amount_ron": 9189.96,
+   "balance_sheet_row": "ap_tax",
+   "balance_sheet_row_label_key": "bs.row.ap_tax",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4426",
+   "account_name": "TVA deductibilă",
+   "amount_ron": null,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": null,
+   "note": null,
+   "pl_line": null,
+   "statement": null,
+   "status": "no_closing_balance"
+  },
+  {
+   "account": "4427",
+   "account_name": "TVA colectată",
+   "amount_ron": null,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": null,
+   "note": null,
+   "pl_line": null,
+   "statement": null,
+   "status": "no_closing_balance"
+  },
+  {
+   "account": "444",
+   "account_name": "Impozitul pe venituri de natura salariilor",
+   "amount_ron": 9728.8,
+   "balance_sheet_row": "ap_tax",
+   "balance_sheet_row_label_key": "bs.row.ap_tax",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "446",
+   "account_name": "Alte impozite, taxe și vărsăminte asimilate",
+   "amount_ron": 4616.36,
+   "balance_sheet_row": "ap_tax",
+   "balance_sheet_row_label_key": "bs.row.ap_tax",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "457",
+   "account_name": "Dividende de plată",
+   "amount_ron": null,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": null,
+   "note": null,
+   "pl_line": null,
+   "statement": null,
+   "status": "no_closing_balance"
+  },
+  {
+   "account": "462",
+   "account_name": "Creditori diverși",
+   "amount_ron": 6018.82,
+   "balance_sheet_row": "ap_other",
+   "balance_sheet_row_label_key": "bs.row.ap_other",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "otherCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "471",
+   "account_name": "Cheltuieli înregistrate în avans",
+   "amount_ron": 14100.0,
+   "balance_sheet_row": "prepaid_expenses_st",
+   "balance_sheet_row_label_key": "bs.row.prepaid_expenses_st",
+   "balance_sheet_section": "prepaid_expenses",
+   "engine_bucket": "otherCurrentAssets",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "4751",
+   "account_name": "Subvenții guvernamentale pentru investiții",
+   "amount_ron": 180000.0,
+   "balance_sheet_row": "government_grants_deferred",
+   "balance_sheet_row_label_key": "bs.row.government_grants_deferred",
+   "balance_sheet_section": "deferred_income",
+   "engine_bucket": "otherNonCurrentLiab",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "491",
+   "account_name": "Ajustări pentru deprecierea creanțelor - clienți",
+   "amount_ron": -47274.13,
+   "balance_sheet_row": "ar_provisions",
+   "balance_sheet_row_label_key": "bs.row.ar_provisions",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "ar",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "5121",
+   "account_name": "Conturi la bănci în lei",
+   "amount_ron": 186605.82,
+   "balance_sheet_row": "cash_operating",
+   "balance_sheet_row_label_key": "bs.row.cash_operating",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "cash",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "5124",
+   "account_name": "Conturi la bănci în valută",
+   "amount_ron": 34275.1,
+   "balance_sheet_row": "cash_fx",
+   "balance_sheet_row_label_key": "bs.row.cash_fx",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "cash",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "5191",
+   "account_name": "Credite bancare pe termen scurt",
+   "amount_ron": 450000.0,
+   "balance_sheet_row": "st_debt_bank",
+   "balance_sheet_row_label_key": "bs.row.st_debt_bank",
+   "balance_sheet_section": "current_liabilities",
+   "engine_bucket": "stDebt",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "5311",
+   "account_name": "Casa în lei",
+   "amount_ron": 5905.88,
+   "balance_sheet_row": "cash_operating",
+   "balance_sheet_row_label_key": "bs.row.cash_operating",
+   "balance_sheet_section": "current_assets",
+   "engine_bucket": "cash",
+   "note": null,
+   "pl_line": null,
+   "statement": "BS",
+   "status": "mapped"
+  },
+  {
+   "account": "581",
+   "account_name": "Viramente interne",
+   "amount_ron": null,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": null,
+   "note": null,
+   "pl_line": null,
+   "statement": null,
+   "status": "excluded:transit_account_581"
+  },
+  {
+   "account": "601",
+   "account_name": "Cheltuieli cu materiile prime",
+   "amount_ron": 3497935.04,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "cogs",
+   "note": null,
+   "pl_line": "cogs",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6022",
+   "account_name": "Cheltuieli privind combustibilii",
+   "amount_ron": 131020.07,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "cogs",
+   "note": null,
+   "pl_line": "cogs",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6028",
+   "account_name": "Cheltuieli privind alte materiale consumabile",
+   "amount_ron": 106659.01,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "cogs",
+   "note": null,
+   "pl_line": "cogs",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "603",
+   "account_name": "Cheltuieli privind materialele de natura obiectelor de inventar",
+   "amount_ron": 42856.65,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "604",
+   "account_name": "Cheltuieli privind materialele nestocate",
+   "amount_ron": 26015.95,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "605",
+   "account_name": "Cheltuieli privind utilitățile",
+   "amount_ron": 475414.37,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "607",
+   "account_name": "Cheltuieli privind mărfurile",
+   "amount_ron": 468139.6,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "cogs",
+   "note": null,
+   "pl_line": "cogs",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "608",
+   "account_name": "Cheltuieli privind ambalajele",
+   "amount_ron": 656598.34,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "611",
+   "account_name": "Cheltuieli cu întreținerea și reparațiile",
+   "amount_ron": 118362.67,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "612",
+   "account_name": "Cheltuieli cu redevențele, locațiile de gestiune și chiriile",
+   "amount_ron": 143897.71,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "613",
+   "account_name": "Cheltuieli cu primele de asigurare",
+   "amount_ron": 39089.5,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "623",
+   "account_name": "Cheltuieli privind protocolul, reclama și publicitatea",
+   "amount_ron": 52083.05,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "624",
+   "account_name": "Cheltuieli cu transportul de bunuri și personal",
+   "amount_ron": 301073.45,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "625",
+   "account_name": "Cheltuieli cu deplasări, detașări și transferări",
+   "amount_ron": 16946.79,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "626",
+   "account_name": "Cheltuieli poștale și taxe de telecomunicații",
+   "amount_ron": 17514.33,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "627",
+   "account_name": "Cheltuieli cu serviciile bancare și asimilate",
+   "amount_ron": 21428.42,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "628",
+   "account_name": "Alte cheltuieli cu serviciile executate de terți",
+   "amount_ron": 171411.26,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "635",
+   "account_name": "Cheltuieli cu alte impozite, taxe și vărsăminte asimilate",
+   "amount_ron": 43900.97,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "641",
+   "account_name": "Cheltuieli cu salariile personalului",
+   "amount_ron": 1910729.52,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6422",
+   "account_name": "Cheltuieli cu tichetele de masă acordate salariaților",
+   "amount_ron": 162702.71,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "646",
+   "account_name": "Cheltuieli privind contribuția asiguratorie pentru muncă",
+   "amount_ron": 42991.41,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "654",
+   "account_name": "Pierderi din creanțe și debitori diverși",
+   "amount_ron": 14149.32,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6581",
+   "account_name": "Despăgubiri, amenzi și penalități",
+   "amount_ron": 3111.36,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6588",
+   "account_name": "Alte cheltuieli de exploatare",
+   "amount_ron": 11498.12,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "operatingExpenses",
+   "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "665",
+   "account_name": "Cheltuieli din diferențe de curs valutar",
+   "amount_ron": 6874.19,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "financialExpense",
+   "note": null,
+   "pl_line": "financial_expense",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "666",
+   "account_name": "Cheltuieli privind dobânzile",
+   "amount_ron": 164171.34,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "interestExpense",
+   "note": null,
+   "pl_line": "interest_expense",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6811",
+   "account_name": "Cheltuieli de exploatare privind amortizarea imobilizărilor",
+   "amount_ron": 400705.85,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "depreciation",
+   "note": null,
+   "pl_line": "depreciation",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6812",
+   "account_name": "Cheltuieli de exploatare privind provizioanele",
+   "amount_ron": 40129.38,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "depreciation",
+   "note": null,
+   "pl_line": "net_provisions",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "6814",
+   "account_name": "Cheltuieli de exploatare privind ajustările pentru deprecierea activelor circulante",
+   "amount_ron": 19004.6,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "depreciation",
+   "note": null,
+   "pl_line": "net_provisions",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "691",
+   "account_name": "Cheltuieli cu impozitul pe profit",
+   "amount_ron": 75175.18,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "taxExpense",
+   "note": null,
+   "pl_line": "income_tax",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "701",
+   "account_name": "Venituri din vânzarea produselor finite",
+   "amount_ron": 8870995.5,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "revenue",
+   "note": null,
+   "pl_line": "turnover",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "704",
+   "account_name": "Venituri din servicii prestate",
+   "amount_ron": 85750.68,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "revenue",
+   "note": null,
+   "pl_line": "turnover",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "707",
+   "account_name": "Venituri din vânzarea mărfurilor",
+   "amount_ron": 607859.74,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "revenue",
+   "note": null,
+   "pl_line": "turnover",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "709",
+   "account_name": "Reduceri comerciale acordate",
+   "amount_ron": -205782.02,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "revenue",
+   "note": null,
+   "pl_line": "turnover",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "711",
+   "account_name": "Venituri aferente costurilor stocurilor de produse",
+   "amount_ron": 6369207.1,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "otherIncome",
+   "note": {
+    "key": "served_net_derived_from_121",
+    "value": 123740.06
+   },
+   "pl_line": "inventory_variation",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "7584",
+   "account_name": "Venituri din subvenții pentru investiții",
+   "amount_ron": 36000.0,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "otherIncome",
+   "note": null,
+   "pl_line": "other_operating_income",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "7588",
+   "account_name": "Alte venituri din exploatare",
+   "amount_ron": 15498.35,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "otherIncome",
+   "note": null,
+   "pl_line": "other_operating_income",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "765",
+   "account_name": "Venituri din diferențe de curs valutar",
+   "amount_ron": 4311.56,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "financialIncome",
+   "note": null,
+   "pl_line": "financial_income",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "766",
+   "account_name": "Venituri din dobânzi",
+   "amount_ron": 2590.6,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "financialIncome",
+   "note": null,
+   "pl_line": "financial_income",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "7812",
+   "account_name": "Venituri din provizioane",
+   "amount_ron": 18034.71,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "otherIncome",
+   "note": null,
+   "pl_line": "net_provisions",
+   "statement": "PL",
+   "status": "mapped"
+  },
+  {
+   "account": "7814",
+   "account_name": "Venituri din ajustări pentru deprecierea activelor circulante",
+   "amount_ron": 14149.32,
+   "balance_sheet_row": null,
+   "balance_sheet_row_label_key": null,
+   "balance_sheet_section": null,
+   "engine_bucket": "otherIncome",
+   "note": null,
+   "pl_line": "net_provisions",
+   "statement": "PL",
+   "status": "mapped"
+  }
+ ],
+ "periods": {
+  "current": {
+   "accounts": 95,
+   "figures": [
+    {
+     "key": "net_turnover",
+     "pointer": "/statements/assembled_pl/turnover",
+     "value": 9358823.9
+    },
+    {
+     "key": "ebitda",
+     "pointer": "/statements/assembled_pl/ebitda",
+     "value": 1058532.69
+    },
+    {
+     "key": "operating_result",
+     "pointer": "/statements/assembled_pl/operating_result",
+     "value": 630876.89
+    },
+    {
+     "key": "net_income_statutory",
+     "pointer": "/statements/assembled_pl/net_income_statutory",
+     "value": 391558.34
+    },
+    {
+     "key": "stock_variation_711",
+     "pointer": "/statements/assembled_pl/inventory_variation/value",
+     "value": 123740.06
+    },
+    {
+     "key": "net_provisions",
+     "pointer": "/statements/assembled_pl/net_provisions/value",
+     "value": 26949.95
+    },
+    {
+     "key": "total_assets",
+     "pointer": "/statements/canonical_bs/totals/assets",
+     "value": 6542143.53
+    },
+    {
+     "key": "total_equity",
+     "pointer": "/statements/canonical_bs/totals/equity",
+     "value": 3026991.42
+    },
+    {
+     "key": "total_liabilities",
+     "pointer": "/statements/canonical_bs/totals/liabilities",
+     "value": 3515152.11
+    },
+    {
+     "key": "cash",
+     "pointer": "/statements/assembled_bs/cash",
+     "value": 226786.8
+    },
+    {
+     "key": "total_debt",
+     "pointer": "/statements/assembled_bs/total_debt",
+     "value": 2051400.0
+    }
+   ],
+   "label": "FY2025",
+   "period_end": "2025-12-31"
+  },
+  "prior": {
+   "accounts": 91,
+   "figures": [
+    {
+     "key": "net_turnover",
+     "pointer": "/statements/assembled_pl/turnover",
+     "value": 8356310.13
+    },
+    {
+     "key": "ebitda",
+     "pointer": "/statements/assembled_pl/ebitda",
+     "value": 870082.04
+    },
+    {
+     "key": "operating_result",
+     "pointer": "/statements/assembled_pl/operating_result",
+     "value": 447105.43
+    },
+    {
+     "key": "net_income_statutory",
+     "pointer": "/statements/assembled_pl/net_income_statutory",
+     "value": 232132.08
+    },
+    {
+     "key": "stock_variation_711",
+     "pointer": "/statements/assembled_pl/inventory_variation/value",
+     "value": -29453.63
+    },
+    {
+     "key": "net_provisions",
+     "pointer": "/statements/assembled_pl/net_provisions/value",
+     "value": 49889.61
+    },
+    {
+     "key": "total_assets",
+     "pointer": "/statements/canonical_bs/totals/assets",
+     "value": 6007750.83
+    },
+    {
+     "key": "total_equity",
+     "pointer": "/statements/canonical_bs/totals/equity",
+     "value": 2735433.08
+    },
+    {
+     "key": "total_liabilities",
+     "pointer": "/statements/canonical_bs/totals/liabilities",
+     "value": 3272317.75
+    },
+    {
+     "key": "cash",
+     "pointer": "/statements/assembled_bs/cash",
+     "value": 236635.22
+    },
+    {
+     "key": "total_debt",
+     "pointer": "/statements/assembled_bs/total_debt",
+     "value": 1910400.0
+    }
+   ],
+   "label": "FY2024",
+   "period_end": "2024-12-31"
+  }
+ },
+ "ratios": [
+  {
+   "current": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 11.31,
+    "value_q": "11.3"
+   },
+   "display_unit": "pct",
+   "key": "ebitda_margin",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=ebitda_margin",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 10.41,
+    "value_q": "10.4"
+   }
+  },
+  {
+   "current": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 4.18,
+    "value_q": "4.2"
+   },
+   "display_unit": "pct",
+   "key": "net_margin",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=net_margin",
+   "prior": {
+    "band": "critical",
+    "band_status": "graded",
+    "reason": null,
+    "value": 2.78,
+    "value_q": "2.8"
+   }
+  },
+  {
+   "current": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 12.93556160790175,
+    "value_q": "12.9"
+   },
+   "display_unit": "pct",
+   "key": "roe",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=roe",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 8.486118037294482,
+    "value_q": "8.5"
+   }
+  },
+  {
+   "current": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 46.2691074587292,
+    "value_q": "46.3"
+   },
+   "display_unit": "pct",
+   "key": "equity_ratio",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=equity_ratio",
+   "prior": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 45.53173321271049,
+    "value_q": "45.5"
+   }
+  },
+  {
+   "current": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 1.9518952327820809,
+    "value_q": "1.95"
+   },
+   "display_unit": "x",
+   "key": "current_ratio",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=current_ratio",
+   "prior": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 1.8848708451950227,
+    "value_q": "1.88"
+   }
+  },
+  {
+   "current": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 0.13469335771290386,
+    "value_q": "0.13"
+   },
+   "display_unit": "x",
+   "key": "cash_ratio",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=cash_ratio",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 0.14901584300763068,
+    "value_q": "0.15"
+   }
+  },
+  {
+   "current": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 1.7237,
+    "value_q": "1.72"
+   },
+   "display_unit": "x",
+   "key": "net_debt_to_ebitda",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=net_debt_to_ebitda",
+   "prior": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 1.9237,
+    "value_q": "1.92"
+   }
+  },
+  {
+   "current": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 3.8428,
+    "value_q": "3.84"
+   },
+   "display_unit": "x",
+   "key": "interest_coverage",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=interest_coverage",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 2.6173,
+    "value_q": "2.62"
+   }
+  },
+  {
+   "current": {
+    "band": "strong",
+    "band_status": "graded",
+    "reason": null,
+    "value": 1.7235,
+    "value_q": "1.72"
+   },
+   "display_unit": "x",
+   "key": "dscr",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=dscr",
+   "prior": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 1.3578,
+    "value_q": "1.36"
+   }
+  },
+  {
+   "current": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 53.91959767508821,
+    "value_q": "54"
+   },
+   "display_unit": "days",
+   "key": "dso",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=dso",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 55.86422312212579,
+    "value_q": "56"
+   }
+  },
+  {
+   "current": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 64.6646,
+    "value_q": "65"
+   },
+   "display_unit": "days",
+   "key": "dio",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=dio",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 66.7649,
+    "value_q": "67"
+   }
+  },
+  {
+   "current": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 41.63249600720202,
+    "value_q": "42"
+   },
+   "display_unit": "days",
+   "key": "dpo",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=dpo",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 42.68672473253619,
+    "value_q": "43"
+   }
+  },
+  {
+   "current": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 80.88860166788619,
+    "value_q": "81"
+   },
+   "display_unit": "days",
+   "key": "ccc",
+   "kind": "ratio",
+   "pointer": "/ratios/rows/key=ccc",
+   "prior": {
+    "band": "watch",
+    "band_status": "graded",
+    "reason": null,
+    "value": 80.6105983895896,
+    "value_q": "81"
+   }
+  },
+  {
+   "current": {
+    "band": "BBB",
+    "band_status": "graded",
+    "reason": null,
+    "value": 69.6,
+    "value_q": "BBB"
+   },
+   "display_unit": "grade",
+   "key": "letter_grade",
+   "kind": "composite",
+   "pointer": "/ratios/composites/key=letter_grade",
+   "prior": {
+    "band": "BBB",
+    "band_status": "graded",
+    "reason": null,
+    "value": 66.9,
+    "value_q": "BBB"
+   }
+  },
+  {
+   "current": {
+    "band": null,
+    "band_status": "not_banded",
+    "reason": {
+     "code": "graded_by_letter",
+     "inputs": [
+      "letter_grade"
+     ]
+    },
+    "value": 69.6,
+    "value_q": "69.6"
+   },
+   "display_unit": "score",
+   "key": "credit_composite",
+   "kind": "composite",
+   "pointer": "/ratios/composites/key=credit_composite",
+   "prior": {
+    "band": null,
+    "band_status": "not_banded",
+    "reason": {
+     "code": "graded_by_letter",
+     "inputs": [
+      "letter_grade"
+     ]
+    },
+    "value": 66.9,
+    "value_q": "66.9"
+   }
+  },
+  {
+   "current": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 4.34,
+    "value_q": "4.34"
+   },
+   "display_unit": "z",
+   "key": "altman_z",
+   "kind": "composite",
+   "pointer": "/ratios/composites/key=altman_z",
+   "prior": {
+    "band": "healthy",
+    "band_status": "graded",
+    "reason": null,
+    "value": 4.04,
+    "value_q": "4.04"
+   }
+  }
+ ],
+ "schema": "public_sample/1",
+ "served_document": "served_period_fy2025.json",
+ "verdicts": {
+  "anchor": {
+   "account_121": 391558.34,
+   "net_income_reconstructed": 267818.28,
+   "net_income_statutory": 391558.34,
+   "status": "anchored",
+   "unexplained_vs_121": 0.0
+  },
+  "balance": {
+   "assets": 6542143.53,
+   "display_en": "Balanced",
+   "display_ro": "Echilibrat",
+   "equity_plus_liabilities": 6542143.53,
+   "served_difference": 0.0,
+   "source_anchor": "MATCHED",
+   "source_balanced": true,
+   "status": "BALANCED",
+   "unmapped": 0
+  },
+  "cash_flow": {
+   "balance_sheet_movement": -9848.42,
+   "closing_cash": 226786.8,
+   "is_approximated": true,
+   "net_change_estimated": 118524.0,
+   "pointer_cash": "/statements/assembled_bs/cash",
+   "pointer_net_change": "/statements/assembled_cf/net_change_in_cash",
+   "prior_closing_cash": 236635.22
+  },
+  "credit": {
+   "altman_z": 4.34,
+   "altman_zone": "safe",
+   "composite": 69.6,
+   "letter": "BBB",
+   "model_revision": 5,
+   "refused_subscores": {},
+   "subscores": {
+    "altman": 96.1,
+    "coverage": 60.0,
+    "dscr": 90.0,
+    "equity": 92.5,
+    "leverage": 70.0,
+    "liquidity": 69.9,
+    "profitability": 18.3
+   }
+  },
+  "ebitda": {
+   "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
+   "max_difference": 0.0,
+   "refusal": null,
+   "value": 1058532.69,
+   "variants": [
+    {
+     "engine": 1058532.69,
+     "key": "reported",
+     "methodology": 1058532.69,
+     "pointer_engine": "/statements/assembled_pl/ebitda",
+     "pointer_methodology": "/statements/assembled_canonical_v1/methodology/ebitda/reported"
+    },
+    {
+     "engine": 1007034.34,
+     "key": "strict",
+     "methodology": 1007034.34,
+     "pointer_engine": "/statements/assembled_pl/adjusted_ebitda",
+     "pointer_methodology": "/statements/assembled_canonical_v1/methodology/ebitda/strict"
+    },
+    {
+     "engine": 1058532.69,
+     "key": "cash",
+     "methodology": 1058532.69,
+     "pointer_engine": "/statements/assembled_pl/ebitda_cash",
+     "pointer_methodology": "/statements/assembled_canonical_v1/methodology/ebitda/cash"
+    }
+   ]
+  },
+  "insights": [
+   {
+    "claim": "Financing costs the book more than its financial assets return: financial expense of RON 171,045.53 against financial income of RON 6,902.16 leaves a net cost of RON -164,143.37, 15.5% of RON 1,058,532.69.",
+    "id": "financial_position",
+    "level": "medium",
+    "title": "The financial line is not incidental to the result"
+   },
+   {
+    "claim": "40.5% of gross PP&E is already depreciated; the remaining net book value of RON 3,241,585.45 carries 8.1 years of life at the current annual charge of RON 400,705.85.",
+    "id": "asset_age",
+    "level": "low",
+    "title": "Asset base is late in its depreciation life"
+   },
+   {
+    "claim": "RON 51,498.35 of operating income is other operating income and provision reversals rather than trading margin — 4.9% of RON 1,058,532.69; the operating cash proxy is RON 851,398.17 against an EBITDA of RON 1,058,532.69, a conversion of 80.4%.",
+    "id": "earnings_quality",
+    "level": "low",
+    "title": "Part of EBITDA is not trading income"
+   },
+   {
+    "claim": "The net trade float is RON 390,848.73: RON 1,382,531.56 owed by customers against RON 991,682.83 owed to suppliers — 54 days of sales outstanding against 42 days of payables (RON 1,019,182.83 of balance-sheet payables over RON 8,935,369.45 of total operating expense, on 365 days), a gap of 12 days.",
+    "id": "trade_float",
+    "level": "low",
+    "title": "Suppliers and customers move the cash cycle"
+   },
+   {
+    "claim": "The current ratio of 1.95× falls to 1.94× once RON 21,000.00 of non-trade receivables is removed; the cash ratio is 0.13×.",
+    "id": "liquidity_quality",
+    "level": "info",
+    "title": "Headline liquidity leans on receivables that are not trade"
+   }
+  ],
+  "insights_by_level": [
+   {
+    "count": 0,
+    "level": "critical"
+   },
+   {
+    "count": 0,
+    "level": "high"
+   },
+   {
+    "count": 1,
+    "level": "medium"
+   },
+   {
+    "count": 3,
+    "level": "low"
+   },
+   {
+    "count": 1,
+    "level": "info"
+   }
+  ],
+  "inventory_days": {
+   "basis": "average_two_year_ends",
+   "basis_label_en": "average of the balances at 1 January and 31 December",
+   "basis_label_ro": "media soldurilor la 1 ianuarie și 31 decembrie",
+   "ccc_term_basis_label_en": "stock at 31 December — a single day",
+   "ccc_term_basis_label_ro": "stoc la 31 decembrie — o singură zi",
+   "ccc_term_value_q": "69",
+   "may_call_slow": true,
+   "reconciliation": "reconciled",
+   "seasonality_flagged": true,
+   "status": "served",
+   "total_value_q": "65"
+  },
+  "piotroski": {
+   "has_prior_period": false,
+   "score": 4,
+   "score_max": 9
+  },
+  "ratio_table": {
+   "band_withheld": {},
+   "census_count": 28,
+   "refused": {
+    "adjusted_dscr": "user_input_absent"
+   },
+   "served": 27
+  },
+  "stock_variation": {
+   "book_state": "closed",
+   "label_en": "Change in inventories of finished goods and WIP — derived: the result in account 121 less every other P&L line (a closed trial balance keeps no net balance on account 711)",
+   "label_ro": "Variația stocurilor de produse — derivată: rezultatul din contul 121 minus celelalte linii ale contului de profit și pierdere (o balanță închisă nu păstrează soldul net al contului 711)",
+   "ledger_stock_movement": {
+    "accounts": [
+     "331",
+     "345"
+    ],
+    "closing": 1104749.28,
+    "opening": 981009.22,
+    "value": 123740.06
+   },
+   "provenance": "account_121_bridge",
+   "refusal": null,
+   "value": 123740.06
+  }
+ }
+}

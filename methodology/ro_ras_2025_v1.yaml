@@ -32,7 +32,7 @@ applies_to:
   standards: [ras_omfp_1802]
   fiscal_year_range: ["2024-01-01", "2025-12-31"]
 schema_version: canonical_v1.0.0
-methodology_version: "1.1.0"
+methodology_version: "1.2.0"
 created_at: "2026-05-23"
 authors: ["alex_cretin"]
 
@@ -48,6 +48,20 @@ authors: ["alex_cretin"]
 # received) is financial, outside EBITDA. Margins divide by turnover
 # (totals.revenue_net = 70x − 709).
 #
+# RULINGS R2 / R3 (owner, 2026-09-28; packs/ro/pl_definition.yaml).
+# R2: the charges to provisions and current-asset impairment (6812, 6814)
+# AND their reversals (7812, 7814) are both OUTSIDE EBITDA; their net is
+# its own line between EBITDA and the operating result, which does not
+# move (EBIT = EBITDA − D&A − net provisions). The canonical
+# `provision_reversals` leaf holds every 78x reversal and dap holds every
+# 68x charge, so the assembly MEASURES the ruled parts and hands them in
+# as `measured.provision_reversals_outside_ebitda` /
+# `measured.provision_charges_outside_ebitda`.
+# R3: 7411 (operating subsidies related to turnover) is inside cifra de
+# afaceri netă, as the statutory F20 prints it (rd. 05 of rd. 01): the
+# canonical adapter places the 7411 leaves the assembly placed in
+# turnover into `revenue_gross`, so totals.revenue_net = 70x − 709 + 7411.
+#
 # Neither figure can be read off a canonical bucket. On a CLOSED trial
 # balance (every class-6/7 account closed into 121) the canonical
 # `inventory_variation_memo` leaf holds the GROSS production stocked (the
@@ -61,22 +75,24 @@ authors: ["alex_cretin"]
 
 # Stamp the assembly writes beside the evaluated block. A methodology block
 # without it predates the ruling and serves no EBITDA (FactsGateway).
-ebitda_definition: "ebitda/2026-09-26:711-72x-inside,767-financial"
+ebitda_definition: "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover"
 
 ebitda_variants:
 
   reported:
     description: >
-      THE ONE EBITDA (owner ruling 2026-09-26): turnover (70x − 709) + other
-      operating income + 781 provision reversals − cost of sales − general
-      operating expenses − personnel, + net 711 "Variația stocurilor de
-      produse" (signed, next to cost of sales) + net 72x own work
-      capitalised. 767 is financial (not in other_op_income). Matches the
-      in-code `assembled_pl.ebitda` within 1 RON (F4.2-PARITY).
+      THE ONE EBITDA (owner rulings 2026-09-26 and 2026-09-28): turnover
+      (70x − 709 + 7411) + other operating income + the 78x provision
+      reversals EXCEPT the ruled 7812 / 7814 (outside EBITDA, R2) − cost of
+      sales − general operating expenses − personnel, + net 711 "Variația
+      stocurilor de produse" (signed, next to cost of sales) + net 72x own
+      work capitalised. 767 is financial (not in other_op_income). Matches
+      the in-code `assembled_pl.ebitda` within 1 RON (F4.2-PARITY).
     formula: >
       revenue_gross.net
       + other_op_income.net
       + ?provision_reversals
+      - measured.provision_reversals_outside_ebitda
       - cogs.net
       - opex_general.net
       - personnel_total.net
@@ -104,7 +120,11 @@ ebitda_variants:
     subtract:
       - ?other_op_income.net
       - ?provision_reversals
-    add: []
+    # R2 (2026-09-28): `reported` no longer holds the ruled 7812 / 7814
+    # reversals, so the strip adds them back — strict subtracts every 78x
+    # reversal exactly once, and is the same figure it was before R2.
+    add:
+      - measured.provision_reversals_outside_ebitda
     note: >
       Granular sub-bucket subtracts (one_off / grants / disposal_ppe /
       fx_gain_unrealized) were the original 3b.6 plan's prediction but
@@ -150,15 +170,24 @@ ebitda_variants:
 totals:
   revenue_net:
     formula: revenue_gross.net
-    note: "Top-line revenue net of commercial reductions (709 already nets here)."
+    note: "Cifra de afaceri netă: 70x − 709 + 7411 (709 already nets here; the 7411 leaves are placed in revenue_gross by the canonical adapter, R3 2026-09-28)."
 
   gross_profit:
     formula: revenue_gross.net - cogs.net + measured.inventory_variation_net
     note: "Turnover minus cost of sales plus net 711 (Variația stocurilor de produse sits in the cost-of-sales block). 72x is outside gross profit. Refused with net 711."
 
   operating_profit_reported:
-    formula: ebitda.reported - dap.net
-    note: "Operating result (EBIT) = the one EBITDA − D&A. Refused with it."
+    # EBIT = EBITDA − D&A − net provisions (R2, 2026-09-28). D&A is dap
+    # without the 78x reversals the canonical adapter files under dap and
+    # without the ruled charges; net provisions = charges − ruled
+    # reversals. (Before R2 this read `ebitda.reported − dap.net`, which
+    # subtracted every 78x reversal that `reported` had just added — the
+    # served EBIT less the reversals.)
+    formula: >
+      ebitda.reported
+      - (dap.net - ?provision_reversals - measured.provision_charges_outside_ebitda)
+      - (measured.provision_charges_outside_ebitda - measured.provision_reversals_outside_ebitda)
+    note: "Operating result (EBIT) = the one EBITDA − D&A − net provisions (6812 + 6814 − 7812 − 7814) — the in-code assembled_pl.ebit. Refused with EBITDA."
 
   net_debt:
     formula: >
@@ -227,7 +256,7 @@ ratios:
     direction: higher_is_better
 
   net_margin:
-    formula: (ebitda.reported - dap.net - financial_expense.net + financial_income.net - income_tax.net) / totals.revenue_net
+    formula: (totals.operating_profit_reported - financial_expense.net + financial_income.net - income_tax.net) / totals.revenue_net
     unit: ratio
     direction: higher_is_better
     band_default: [0.03, 0.08]
@@ -238,13 +267,13 @@ ratios:
     direction: higher_is_better
 
   return_on_equity:
-    formula: (ebitda.reported - dap.net - financial_expense.net + financial_income.net - income_tax.net) / totals.total_equity
+    formula: (totals.operating_profit_reported - financial_expense.net + financial_income.net - income_tax.net) / totals.total_equity
     unit: ratio
     direction: higher_is_better
     band_default: [0.10, 0.20]
 
   return_on_assets:
-    formula: (ebitda.reported - dap.net - financial_expense.net + financial_income.net - income_tax.net) / totals.total_assets
+    formula: (totals.operating_profit_reported - financial_expense.net + financial_income.net - income_tax.net) / totals.total_assets
     unit: ratio
     direction: higher_is_better
     band_default: [0.05, 0.10]

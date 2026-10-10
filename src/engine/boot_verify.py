@@ -114,12 +114,36 @@ def verify_journal_layout() -> None:
     )
 
 
+def verify_pl_definition_pack() -> None:
+    """The P&L definition pack (packs/ro/pl_definition.yaml — owner rulings
+    R2 / R3: the provisions outside EBITDA, 7411 inside net turnover) must
+    load at boot. `pl_definition.definition()` is read lazily by the one
+    assembly on every Romanian period, so a missing or malformed pack would
+    otherwise pass the /health boot probe and fail every request instead —
+    a container that cannot place those accounts should not come up. A YAML
+    syntax error is refused here too (the loader raises it as-is)."""
+    import yaml
+
+    from engine.country_packs.ro_romania.pl_definition import (PlDefinitionPackError,
+                                                                definition, pack_path)
+
+    try:
+        definition()
+    except (PlDefinitionPackError, yaml.YAMLError) as exc:
+        raise RuntimeError(
+            "[boot_verify] the P&L definition pack at %s is unusable — fix the file and restart: %s"
+            % (pack_path(), exc)
+        ) from exc
+    logger.warning("[boot_verify] P&L definition pack OK: %s", pack_path())
+
+
 def verify_config() -> None:
     """Run on app boot. Raises RuntimeError on missing critical env, an
-    unusable credit or margin-meaning pack, or a run-journal directory
-    written under the retired content-hash chain key."""
+    unusable credit, margin-meaning or P&L definition pack, or a run-journal
+    directory written under the retired content-hash chain key."""
     verify_journal_layout()
     verify_credit_pack()
+    verify_pl_definition_pack()
     verify_margin_meaning_pack()
     missing_critical: List[str] = [k for k in _CRITICAL if not os.environ.get(k)]
     if missing_critical:

@@ -1,7 +1,7 @@
 {
   "name": "CFO AI",
   "short_name": "CFO AI",
-  "description": "CFO-grade analysis for European SMEs — upload a trial balance, get statements, ratios and a credit score in 90 seconds.",
+  "description": "CFO-grade analysis from a Romanian trial balance — statements, ratios and a credit score.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",

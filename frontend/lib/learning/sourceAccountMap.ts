@@ -11,9 +11,11 @@
 //   · backend-supplied accountTraces (preferred — real amounts)
 //   · this static map (always — codes + labels for deep linking)
 //
-// Each entry is a deep link via /financials?account=XXX (the highlight
-// hook in useHighlightFromUrl picks up the param and scrolls the BS/PL
-// table to that row).
+// Each entry is a deep link to the account view — the dashboard's
+// `?account=<code>` receiver (lib/evidence/evidenceLink accountEvidenceHref,
+// components/cfo/evidence/EvidenceDrawer): the code's served leaves in the
+// period on screen. (It was written as `/financials?account=XXX`, a path the
+// app never routed.)
 //
 // Phase 5 expansion: the backend's `assembled_canonical_v1` envelope
 // will carry per-bucket account arrays, populating `accountTraces` at

@@ -29,9 +29,9 @@ export const pcmEn = {
   // locale files do not carry is the only edit that actually lands.
   //
   // The copy itself: Romania leads because it is the home market, and no
-  // single foreign country is headlined. Romania's deterministic-grade
-  // claim is NOT made here for every market — it lives on the Romania
-  // surface, as `pcm.ro.grade`.
+  // single foreign country is headlined. What the Romania surface carries
+  // is said on that surface, as `pcm.ro.grade` — the landing card's own
+  // sentence, with the proof's counts.
   //
   // 2026-09-08 — THE OLD SENTENCE NAMED MARKETS WITH NO FEED. It read
   // "…from Romania, the US, Europe, China and the UAE — from official
@@ -133,10 +133,19 @@ export const pcmEn = {
       "Quotes on this page come from the Bucharest Stock Exchange feed that already serves Romania, not from the market registry.",
   },
 
-  // ── Romania's own note (kept from the BVB surface) ──
+  // ── Romania's own note ──
+  //
+  // 2026-10-02 — THE OLD NOTE WAS FALSE ON A PUBLIC ROUTE. It read "every
+  // figure is read from the official published filing, machine-verified,
+  // and reconciles to the statutory statement". The main-index rows are
+  // annual-report figures entered by hand, and most listings carry no
+  // financial figures at all. The note now says what the landing's
+  // Public Company Intelligence card says, and its two counts are
+  // engineProof.json `counts` ({{listings}} / {{withFinancials}}, filled by
+  // the page from lib/engineProof.proofTokens) — never typed here.
   ro: {
     grade:
-      "Romania is the deterministic home market: every figure is read from the official published filing, machine-verified, and reconciles to the statutory statement.",
+      "{{listings}} listings on the Bucharest Stock Exchange, with delayed quotes. {{withFinancials}} of them carry summary financial figures today — annual-report figures for the main index, the latest statutory filing for others.",
   },
 
   // ── calm states ──
@@ -326,7 +335,7 @@ export const pcmRo = {
 
   ro: {
     grade:
-      "România este piața de bază deterministă: fiecare cifră este citită din raportarea oficială publicată, verificată mecanic și reconciliată cu situația statutară.",
+      "{{listings}} de listări la Bursa de Valori București, cu cotații cu întârziere. {{withFinancials}} dintre ele au astăzi cifre financiare sumare — cifre din rapoartele anuale pentru indicele principal, ultima raportare statutară pentru celelalte.",
   },
 
   awaiting: {

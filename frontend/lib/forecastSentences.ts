@@ -39,6 +39,9 @@ const FIXED_CODES = new Set([
   // owner ruling 2026-09-26: 711 / 72x are inside the actual year's EBITDA
   // and nil in every plan year
   "stock_variation",
+  // owner ruling R2 (2026-09-28): net provisions, outside EBITDA, nil in
+  // every plan year — the step to plan pre-tax and net profit, said
+  "net_provisions",
 ]);
 
 /** Strip formulas the wire serves as bare strings, by their served text. */

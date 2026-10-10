@@ -77,6 +77,16 @@ export interface CoverFacts {
   generated: string;
   /** Stated, never implied: which balance-sheet status this book is in. */
   statusLine: string;
+  /** "Confidential — for internal use only" in the cover's foot. True on
+   *  a customer's own export; false on a file published for anyone (the
+   *  public sample). */
+  confidential: boolean;
+  /** A notice printed under the title — the public sample's "Fictional
+   *  company — generated sample". Null on a customer's export. */
+  notice: string | null;
+  /** One line under the notice pointing at the "Known issues in this
+   *  report" box — the public sample's. Null when the report lists none. */
+  knownIssuesLine?: string | null;
 }
 
 export function coverPage(c: CoverFacts): string {
@@ -85,7 +95,13 @@ export function coverPage(c: CoverFacts): string {
     <div class="cover-rule"></div>
     <div class="cover-kicker">Comprehensive financial analysis</div>
     <h1 class="cover-title">${esc(c.company)}</h1>
-    <div class="cover-period">${esc(c.period)}</div>
+    <div class="cover-period">${esc(c.period)}</div>${
+      c.notice ? `
+    <div class="cover-notice" data-report-notice="cover">${esc(c.notice)}</div>` : ""
+    }${
+      c.knownIssuesLine ? `
+    <div class="cover-known-issues" data-report-known-issues="cover">${esc(c.knownIssuesLine)}</div>` : ""
+    }
     <dl class="cover-facts">
       <dt>Reporting currency</dt><dd>${esc(c.currency)}</dd>
       <dt>Industry</dt><dd>${esc(c.industryLine)}</dd>
@@ -93,7 +109,9 @@ export function coverPage(c: CoverFacts): string {
       <dt>Prepared</dt><dd>${esc(c.generated)}</dd>
     </dl>
     <div class="cover-verdict"><span class="cover-verdict-l">Overall verdict</span>${esc(c.verdict)}</div>
-    <div class="cover-foot">CFO AI &nbsp;·&nbsp; Financial Statement Intelligence &nbsp;·&nbsp; Confidential — for internal use only</div>
+    <div class="cover-foot">CFO AI &nbsp;·&nbsp; Financial Statement Intelligence${
+      c.confidential ? " &nbsp;·&nbsp; Confidential — for internal use only" : ""
+    }</div>
   </section>`;
 }
 
@@ -181,14 +199,23 @@ export function provAttrs(p: {
 
 export function shellCss(): string {
   return `
-    /* design-lint-allow-hex standalone generated report doc (shell block) */
+    ${""/* design-lint-allow-hex standalone generated report doc (shell block) */}
 
-    /* ── COVER ──────────────────────────────────────────────────────── */
+    ${""/* ── COVER ──────────────────────────────────────────────────────── */}
     .cover { min-height: 60vh; display: flex; flex-direction: column; justify-content: center; padding: 40px 0 56px; }
     .cover-rule { height: 3px; background: ${INK}; width: 72px; margin-bottom: 26px; }
     .cover-kicker { font-family: var(--sans); font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.18em; color: ${INK_MUTE}; margin-bottom: 14px; }
     h1.cover-title { font-family: var(--serif); font-size: 40pt; line-height: 1.05; margin: 0 0 10px; color: ${INK}; letter-spacing: -0.02em; }
     .cover-period { font-family: var(--serif); font-size: 17pt; color: ${INK_SOFT}; margin-bottom: 34px; }
+    .cover-notice, .doc-notice { border: 1.5px solid ${INK}; padding: 9px 12px; font-size: 10pt; font-weight: 600; line-height: 1.4; color: ${INK}; margin: -14px 0 26px; }
+    .doc-notice { margin: 0 0 16px; }
+    .cover-known-issues { border: 1.5px solid ${INK}; border-left-width: 6px; padding: 8px 12px; font-size: 9.5pt; font-weight: 600; line-height: 1.4; color: ${INK}; margin: -14px 0 26px; }
+    .known-issues { border: 1.5px solid ${INK}; border-left-width: 6px; padding: 14px 16px 6px; margin: 0 0 22px; color: ${INK}; }
+    .known-issues-block + .known-issues-block { border-top: 1px solid ${RULE}; margin-top: 12px; padding-top: 12px; }
+    h2.known-issues-title { font-family: var(--sans); font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px; border: none; padding: 0; color: ${INK}; }
+    .known-issues-lede, .known-issues-closing { font-size: 9.5pt; line-height: 1.45; margin: 0 0 8px; color: ${INK_SOFT}; }
+    .known-issues-list { margin: 0 0 8px; padding-left: 20px; font-size: 9.5pt; line-height: 1.5; }
+    .known-issues-list li { margin: 0 0 7px; }
     .cover-facts { display: grid; grid-template-columns: 168px 1fr; gap: 7px 18px; margin: 0 0 30px; font-size: 10pt; border-top: 1px solid ${RULE}; padding-top: 18px; }
     .cover-facts dt { color: ${INK_MUTE}; text-transform: uppercase; letter-spacing: 0.10em; font-size: 8.25pt; padding-top: 2px; }
     .cover-facts dd { margin: 0; color: ${INK}; }
@@ -196,7 +223,7 @@ export function shellCss(): string {
     .cover-verdict-l { display: block; font-family: var(--sans); font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.10em; color: ${ACCENT}; margin-bottom: 5px; }
     .cover-foot { margin-top: auto; padding-top: 40px; font-size: 8.25pt; color: ${INK_MUTE}; letter-spacing: 0.05em; }
 
-    /* ── CONTENTS RAIL ──────────────────────────────────────────────── */
+    ${""/* ── CONTENTS RAIL ──────────────────────────────────────────────── */}
     .toc { position: fixed; left: 16px; top: 92px; width: 186px; font-size: 9pt; z-index: 40; }
     .toc-h { text-transform: uppercase; letter-spacing: 0.12em; font-size: 8pt; color: ${INK_MUTE}; margin-bottom: 8px; }
     .toc ol { list-style: none; margin: 0; padding: 0; }
@@ -212,7 +239,7 @@ export function shellCss(): string {
 
     .toc-print { display: none; }
 
-    /* ── TOOLBAR ────────────────────────────────────────────────────── */
+    ${""/* ── TOOLBAR ────────────────────────────────────────────────────── */}
     .toolbar { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
       background: ${PAPER}; border-bottom: 1px solid ${RULE}; padding: 9px 0; margin: 0 0 22px; }
     .tg { display: flex; align-items: center; gap: 6px; }
@@ -222,17 +249,17 @@ export function shellCss(): string {
     .tg-off { font-size: 8.5pt; color: ${INK_MUTE}; font-style: italic; }
     .tg-search input { font-family: var(--sans); font-size: 9pt; padding: 3px 8px; border: 1px solid ${RULE}; border-radius: 2px; min-width: 190px; color: ${INK}; background: ${PAPER}; }
     .tg-count { font-size: 8.5pt; color: ${INK_MUTE}; font-variant-numeric: tabular-nums; }
-    mark.hit { background: #FBF0C9; color: ${INK}; } /* design-lint-allow-hex standalone generated report document */
+    mark.hit { background: #FBF0C9; color: ${INK}; } ${""/* design-lint-allow-hex standalone generated report document */}
     .search-dim { display: none !important; }
 
-    /* ── SECTIONS / COLLAPSE ────────────────────────────────────────── */
+    ${""/* ── SECTIONS / COLLAPSE ────────────────────────────────────────── */}
     section.rsec { scroll-margin-top: 60px; }
     section.rsec > h2 { cursor: pointer; display: flex; align-items: baseline; gap: 10px; }
     section.rsec > h2::before { content: "−"; font-family: var(--sans); font-size: 11pt; color: ${INK_MUTE}; width: 12px; }
     section.rsec[data-collapsed="1"] > h2::before { content: "+"; }
     section.rsec[data-collapsed="1"] > .rsec-body { display: none; }
 
-    /* ── PROVENANCE ─────────────────────────────────────────────────── */
+    ${""/* ── PROVENANCE ─────────────────────────────────────────────────── */}
     [data-prov] { cursor: help; border-bottom: 1px dotted ${RULE}; }
     .prov { position: fixed; z-index: 90; max-width: 340px; background: ${PAPER}; border: 1px solid ${INK}; padding: 11px 13px; font-size: 8.75pt; color: ${INK_SOFT}; line-height: 1.45; }
     .prov-l { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.10em; color: ${INK_MUTE}; }
@@ -243,18 +270,18 @@ export function shellCss(): string {
     .prov-copy { margin-top: 9px; font-family: var(--sans); font-size: 8pt; padding: 3px 8px; border: 1px solid ${RULE}; background: none; color: ${INK_SOFT}; cursor: pointer; }
     .prov-copy[data-copied="1"] { border-color: ${ACCENT}; color: ${ACCENT}; }
 
-    /* ── PRE-RENDERED TOGGLE STATES ─────────────────────────────────── */
-    /* Every variant is IN the document; the script only changes which one
-       is shown. Default state matches the first option of each toggle. */
+    ${""/* ── PRE-RENDERED TOGGLE STATES ─────────────────────────────────── */}
+    ${""/* Every variant is IN the document; the script only changes which one
+       is shown. Default state matches the first option of each toggle. */}
     tr[data-variant], span[data-variant], div[data-variant], td[data-variant], p[data-variant] { display: none; }
     body[data-pl-view="reconstructed"] tr[data-variant="pl-reconstructed"] { display: table-row; }
     body[data-pl-view="filed"] tr[data-variant="pl-filed"] { display: table-row; }
-    /* …AND the inline spellings. Without these two rules the control
+    ${""/* …AND the inline spellings. Without these two rules the control
        flipped body[data-pl-view] and nothing on the page moved: the
        reconstruction variant is a <span> inside a card's meta line, and
        only the <tr> selectors existed. Caught by clicking it in a real
        browser — the gate had checked that the markup was PRESENT, which
-       it was, all along, invisible. */
+       it was, all along, invisible. */}
     body[data-pl-view="reconstructed"] span[data-variant="pl-reconstructed"] { display: inline; }
     body[data-pl-view="filed"] span[data-variant="pl-filed"] { display: inline; }
     body[data-voice="pro"] p[data-variant="voice-pro"],
@@ -268,13 +295,13 @@ export function shellCss(): string {
     .no-variant { color: ${INK_MUTE}; font-style: italic; }
     .breach-word { color: ${BREACH}; }
 
-    /* ── PRINT ──────────────────────────────────────────────────────── */
+    ${""/* ── PRINT ──────────────────────────────────────────────────────── */}
     @media print {
       .toolbar, .toc, .prov { display: none !important; }
       .cover { min-height: 232mm; break-after: page; page-break-after: always; }
       .toc-print { display: block; break-after: page; page-break-after: always; }
       .toc-print ol { list-style: none; padding: 0; margin: 0; font-size: 11pt; }
-      /* ── NO DOT LEADER ────────────────────────────────────────────
+      ${""/* ── NO DOT LEADER ────────────────────────────────────────────
          There used to be a dotted border-bottom on every row here, and
          it was drawn UNCONDITIONALLY while the number after it came
          from target-counter() — which Chromium does not implement, and
@@ -293,17 +320,17 @@ export function shellCss(): string {
          contents gains real page numbers, and where it does not it
          renders nothing at all — which is a plain list, and a plain
          list promises nothing. What was removed is the half that
-         promised. */
+         promised. */}
       .toc-print li { padding: 7px 0; display: flex; justify-content: space-between; gap: 10px; }
       .toc-print a { color: ${INK}; text-decoration: none; }
-      /* Paged-media page numbers. Resolves in a real paginator; renders
-         NOTHING where it does not — never a wrong number. */
+      ${""/* Paged-media page numbers. Resolves in a real paginator; renders
+         NOTHING where it does not — never a wrong number. */}
       .toc-print li a::after { content: target-counter(attr(href), page); color: ${INK_MUTE}; float: right; font-variant-numeric: tabular-nums; }
       section.rsec { break-before: auto; }
       section.rsec > h2::before { content: "" !important; width: 0; }
       section.rsec[data-collapsed="1"] > .rsec-body { display: block !important; }
       .search-dim { display: revert !important; }
-      /* No orphaned rows: a table never leaves fewer than two rows behind. */
+      ${""/* No orphaned rows: a table never leaves fewer than two rows behind. */}
       table.fin { orphans: 3; widows: 3; }
       table.fin tbody tr.subtotal, table.fin tbody tr.total { break-before: avoid; page-break-before: avoid; }
       [data-prov] { border-bottom: none; }

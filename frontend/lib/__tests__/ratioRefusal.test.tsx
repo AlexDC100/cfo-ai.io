@@ -452,7 +452,7 @@ describe("F2 — the private path's numbers did not move", () => {
         // pinning these two to it recorded a defect as the expected value.
         // Measured on carniprod:
         //
-        //   net_income_statutory (account 121, as filed)   1,435,533.59
+        //   net_income_statutory (account 121, closing balance)   1,435,533.59
         //   net_income_operational (class 6/7)             5,843,449.04
         //   ROA anchored / assets                              1.1403 %
         //   ROA reconstruction / assets                        4.6419 %

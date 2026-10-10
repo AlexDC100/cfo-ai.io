@@ -509,20 +509,38 @@ def build_router() -> APIRouter:
         return {"status": status, "recipients": len(recipients), "sent": sent, "failed": failed}
 
     # ─── ADMIN: drain the renewal-email queue ──────────────────────────
+    #
+    # THREE DECISIONS PER ROW, IN THIS ORDER (gate scheduled-mail-tenancy):
+    #
+    #   1. Is the mail still TRUE? The subscription is re-read: cancelled,
+    #      set to cancel, renewed on another date or already past → the row
+    #      is closed ("cancelled: …"), nothing is sent. The drain is an
+    #      operator action that can run days after the cron.
+    #   2. WHO gets it? The recipient is resolved again from the
+    #      subscription (`_billing.renewal_recipient`); the address stored
+    #      in the row is never trusted — rows the old cron queued carry the
+    #      first membership's address, not the subscriber's.
+    #   3. Is the row OURS? It is claimed (queued → failed/"claimed…",
+    #      compare-and-swap) BEFORE the provider is called. A second drain,
+    #      or a mark-sent write that fails after the send, can therefore
+    #      never deliver it again: the worst case is a row that says
+    #      "claimed, outcome unknown", not a second mail.
     @router.post("/api/newsletter/drain-renewals")
     def drain_renewals(limit: int = Query(200, ge=1, le=1000),
                        authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
         user = _user_from_jwt(_require_jwt(authorization))
         if not _is_admin(user["id"]):
             raise HTTPException(403, "Admin-only. Add the user_id to PRICING_ADMIN_USER_IDS.")
+        from . import _billing
 
-        drained = failed = 0
+        table = _billing.RENEWAL_QUEUE_TABLE
+        drained = failed = cancelled = unconfirmed = 0
         with _supabase.admin() as client:
             try:
                 pending = client.select(
-                    "renewal_email_queue",
+                    table,
                     filters={"status": "eq.queued"},
-                    columns="id,payload",
+                    columns="id,subscription_id,payload",
                     limit=limit,
                     order="send_at.asc",
                 )
@@ -530,14 +548,34 @@ def build_router() -> APIRouter:
                 logger.exception("[newsletter] renewal_email_queue read failed")
                 return {"drained": 0, "failed": 0, "note": "renewal_email_queue unavailable"}
 
+            def _close(row_id: Any, reason: str) -> bool:
+                """queued → failed with the reason; True when THIS drain closed it."""
+                return bool(client.update_returning(
+                    table, {"status": "failed", "error": reason},
+                    filters={"id": f"eq.{row_id}", "status": "eq.queued"}))
+
             for row in pending:
                 payload = row.get("payload") or {}
-                to = payload.get("to")
-                if not to:
-                    continue
                 vars_ = payload.get("vars") or {}
+                renewal_date = str(vars_.get("renewal_date") or "")[:10]
+                sub = None
+                if row.get("subscription_id"):
+                    found = client.select("subscriptions",
+                                          filters={"id": f"eq.{row['subscription_id']}"}, limit=1)
+                    sub = found[0] if found else None
+                refusal = _billing.renewal_still_due(sub, renewal_date)
+                recipient = _billing.renewal_recipient(client, sub) if sub and not refusal else None
+                to = (_billing._user_email(recipient) or "").strip() if recipient else ""
+                if refusal is None and not to:
+                    refusal = "no payer with an address on record for this subscription"
+                if refusal is not None:
+                    if _close(row["id"], "cancelled: %s" % refusal):
+                        cancelled += 1
+                    continue
+                if not _close(row["id"], "claimed by a drain; outcome unknown if this persists"):
+                    continue   # another drain has it
                 html = _email_templates.renewal_reminder(
-                    renewal_date=vars_.get("renewal_date", ""),
+                    renewal_date=renewal_date,
                     amount_label=vars_.get("renewal_price", "€99"),
                     manage_url=vars_.get("manage_url", f"{_app_url()}/settings/billing"),
                     days_ahead=int(vars_.get("days_ahead", 0) or 0),
@@ -549,17 +587,22 @@ def build_router() -> APIRouter:
                 )
                 _log_send(client, to=to, kind="renewal_reminder",
                           subject=payload.get("subject", ""), result=result)
-                if result.get("ok"):
-                    client.update("renewal_email_queue",
-                                  {"status": "sent", "sent_at": "now()"},
-                                  filters={"id": f"eq.{row['id']}"})
-                    drained += 1
-                else:
-                    client.update("renewal_email_queue",
-                                  {"status": "failed", "error": str(result.get("error") or result.get("reason"))},
-                                  filters={"id": f"eq.{row['id']}"})
-                    failed += 1
+                try:
+                    if result.get("ok"):
+                        client.update(table,
+                                      {"status": "sent", "sent_at": "now()", "error": None},
+                                      filters={"id": f"eq.{row['id']}"})
+                        drained += 1
+                    else:
+                        client.update(table,
+                                      {"status": "failed", "error": str(result.get("error") or result.get("reason"))},
+                                      filters={"id": f"eq.{row['id']}"})
+                        failed += 1
+                except Exception:  # noqa: BLE001 — the row stays claimed: never sent again
+                    logger.exception("[newsletter] renewal row %s: outcome not recorded", row.get("id"))
+                    unconfirmed += 1
 
-        return {"drained": drained, "failed": failed}
+        return {"drained": drained, "failed": failed, "cancelled": cancelled,
+                "unconfirmed": unconfirmed}
 
     return router

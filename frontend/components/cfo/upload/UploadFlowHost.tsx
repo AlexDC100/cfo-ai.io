@@ -27,6 +27,7 @@ import { ORG_INDUSTRIES, orgIndustryDisplayLabel } from "@/components/cfo/OrgInd
 import { ExtraDocConfirmDialog } from "@/components/cfo/pricing/ExtraDocConfirmDialog";
 import { activateWorkspace, useActiveOrg } from "@/lib/org";
 import { formatDateOnly, useActiveLocale } from "@/lib/locale";
+import { resetPeriodAnswers } from "@/lib/periodReset";
 import { subscribeToDocumentStatus } from "@/lib/supabase";
 import { pushUploadNotice } from "@/lib/uploadNotices";
 import {
@@ -138,6 +139,18 @@ export function UploadFlowHost() {
       if (done) {
         void queryClient.invalidateQueries({ queryKey: ["company-years", job.orgId] });
         void queryClient.invalidateQueries({ queryKey: ["company-directory"] });
+        // …and so do the period lists the dashboard reads (its stepper, and
+        // the comparison's "previous year": a balance uploaded from here used
+        // to stay "missing" there until a reload — the client never refetches
+        // on mount). Same two families the dashboard's own upload refreshes.
+        void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+        void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+        // …and what the engine answered about the period the file landed on:
+        // a month replaced under the SAME period id leaves the period's
+        // payload and every comparison naming it describing the previous
+        // book (lib/periodReset). This host was the one upload path that
+        // reset neither.
+        if (job.periodId) resetPeriodAnswers(queryClient, job.periodId);
       }
       pushUploadNotice({
         id: job.docId,
@@ -902,17 +915,10 @@ function DuplicateView({
 function ErrorView({ flow }: { flow: FlowState }) {
   const { t } = useTranslation();
   const code = flow.error?.code;
-  const kind = flow.error?.kind;
-  // The plain sentence for a file that is not what its name says — "This is
-  // a Word document, not a PDF" — read from the bytes (lib/fileKind).
-  const wrongKind = code === "wrong_kind" && kind
-    ? t(`wsV2.errors.kind.${kind.code}`, {
-        defaultValue: t("wsV2.errors.kind.generic", {
-          actual: t(`wsV2.errors.kindNames.${kind.actual}`),
-          declared: t(`wsV2.errors.kindNames.${kind.declared}`),
-        }),
-      })
-    : null;
+  // A file no reader opens: the title says so, and the body is the ENGINE's
+  // sentence — what the file really is and what fixes it — in the reader's
+  // language (one upload policy: engine/api/_upload_type).
+  const wrongKind = code === "wrong_kind" ? t("wsV2.errors.wrongKindTitle") : null;
   const message =
     wrongKind ??
     (code === "unsupported"
@@ -931,7 +937,7 @@ function ErrorView({ flow }: { flow: FlowState }) {
             {code === "unsupported"
               ? t("wsV2.errors.unsupported")
               : code === "wrong_kind"
-                ? t("wsV2.errors.wrongKindHint")
+                ? flow.error?.message ?? t("wsV2.errors.identify")
                 : flow.error?.message ?? message}
           </span>
         </p>

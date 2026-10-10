@@ -202,15 +202,15 @@ DECLARED = {
     ("POST", "/api/public/ro/companies/{cui}/teardown"): "operator: _require_operator token (public_ro)",
     ("POST", "/api/public/ro/takedown"): "operator: _require_operator_token (public_ro)",
     ("POST", "/run-daily"): "operator: auth_dep engine bearer (legacy n8n contract)",
+    ("POST", "/api/plan/commit-document-usage"): "operator: engine bearer; the account is named by the operator (2026-10-03)",
+    ("POST", "/api/plan/release-document-reservation"): "operator: engine bearer; the account is named by the operator (2026-10-03)",
     # self-scoped: the VERIFIED user id keys every row read or written
     ("POST", "/api/billing/cancel"): "self-scoped: subscriptions are per user_id (verified)",
     ("POST", "/api/billing/portal"): "self-scoped: subscriptions are per user_id (verified)",
     ("POST", "/api/checkout/start"): "self-scoped: Stripe session for the verified user",
     ("PUT", "/api/dashboard/config"): "self-scoped: dashboard_configs keyed on the verified user_id",
-    ("POST", "/api/plan/commit-document-usage"): "self-scoped: usage counters per verified user_id",
     ("POST", "/api/plan/confirm-extra-doc"): "self-scoped: usage counters per verified user_id; the document "
                                               "it grants the extra to is walled by _verify_user_may_write_document",
-    ("POST", "/api/plan/release-document-reservation"): "self-scoped: usage counters per verified user_id",
     ("POST", "/api/newsletter/subscribe-me"): "self-scoped: the verified identity's own e-mail",
     ("POST", "/api/newsletter/unsubscribe-me"): "self-scoped: the verified identity's own e-mail",
     ("POST", "/api/newsletter/debug-send"): "self-scoped: mails only the verified identity's own e-mail",
@@ -223,7 +223,9 @@ DECLARED = {
     # X-Org-Id it reads is membership-checked (`_org.resolve_org`, 403).
     ("POST", "/api/uploads/identify"): "read-only compute: identifies the uploaded file, writes nothing (JWT verified, X-Org-Id membership-checked)",
     ("POST", "/api/period/{period_id}/valuation/recompute"): "read-only compute: stateless DCF, does not persist",
-    ("POST", "/api/financial-statements/parse"): "read-only compute: stateless parse of the request body",
+    # POST /api/financial-statements/parse is no longer a route (2026-10-04):
+    # it took no bearer and sent the body to the model — the PDF lane is
+    # called in-process by the pipeline; gate no-anonymous-model-call.
     # The PDF renderer takes the HTML the CALLER already holds and hands it
     # to the Chromium sidecar. It requires a verified JWT
     # (`_report_pdf._user_id` -> `_require_jwt` -> `client.get_user`), reads
@@ -246,14 +248,17 @@ DECLARED = {
     # public by design: no tenant data behind them
     ("POST", "/api/cfo/cash"): "public demo: computes from the request body (\"Demo Company\")",
     ("POST", "/api/cfo/profit"): "public demo: computes from the request body",
-    ("POST", "/api/cfo/today"): "public demo: computes from the request body",
+    # /today also PERSISTED the body's recommendations into the shared SQLite
+    # store and answered top_actions from it — for anyone — until 2026-10-02;
+    # the reason below was false while it said only "computes from the body".
+    ("POST", "/api/cfo/today"): "public demo: computes from the request body; stores nothing without the operator bearer (test_public_demo_store)",
     ("POST", "/api/cfo/products"): "public demo: computes from the request body",
     ("POST", "/api/cfo/exports/action-list"): "public demo: computes from the request body",
     ("POST", "/api/cfo/exports/board-summary"): "public demo: computes from the request body",
-    ("POST", "/api/cfo/decisions/{rec_id}/status"): "public demo: legacy SKU adapter, 503 without it; no Supabase tenant table",
+    ("POST", "/api/cfo/decisions/{rec_id}/status"): "operator: require_operator engine bearer, fails closed (test_public_demo_store)",
     ("POST", "/api/contact-sales"): "public form: writes a contact row, no tenant data",
     ("POST", "/api/newsletter/subscribe"): "public: double opt-in subscription",
-    ("POST", "/api/sessions/track"): "public by design (low-sensitivity session log)",
+    ("POST", "/api/sessions/track"): "public write into the operator-only session log (a typed name, the observed address, the device string: personal data; its reader is walled, test_hotfix_anonymous_leaks)",
     ("POST", "/api/stripe/webhook"): "Stripe-signed webhook",
     ("POST", "/api/public/companies/compare"): "public market surface: no tenant data",
     ("POST", "/api/public/companies/{ticker}/refresh"): "public market surface: shielded cache bust, no tenant data",
@@ -558,7 +563,10 @@ def test_the_routes_the_critic_named_refuse_a_forged_bearer_and_accept_a_signed_
         ("GET", "/api/dashboard/config", None),
         ("PUT", "/api/dashboard/config", {"cards": []}),
         ("POST", "/api/firm/email/drain", None),
-        ("POST", "/api/plan/commit-document-usage", None),
+        # `_pricing_routes._user_id_from_jwt` through a route that still resolves the
+        # caller from a token (commit-document-usage is the operator's since
+        # 2026-10-03: tests/engine/test_plan_meter_routes.py).
+        ("POST", "/api/plan/confirm-extra-doc", None),
         ("PUT", "/api/period/%s/valuation-assumptions" % T.PERIOD_A1, {"ebitda_used": 1}),
     ]
     before = snapshot(world)

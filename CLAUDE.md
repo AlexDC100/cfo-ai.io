@@ -784,6 +784,11 @@ module between the two runtimes. **If the persona wording, the FX directive,
 or a plan's chat caps change, update both files** — the Edge Function is the
 one users actually hit, so it's the one that will silently drift out of
 prod behavior if only the Python side gets edited.
+(2026-10-03: the function is four files now — `index.ts` thin wiring,
+`guard.ts` the decision, `plans.ts` the tier → caps table, `prompt.ts` the
+personas. The cap numbers and the row resolution can no longer drift
+silently: `frontend/lib/__tests__/chatLlmPlans.test.ts` reads
+`_pricing_config.py` / `_plan_state.py` and reds on a difference.)
 
 **Scope — chat only.** Today/Cash/Profit/Products/decisions/exports/pipeline
 still require `cfo-ai-backend` running; nothing else was touched.
@@ -810,26 +815,30 @@ does. Nothing in the frontend calls `/api/ask` today (confirmed by grep), so
 it's dead-but-not-duplicate — a distinct decision from this cleanup, flagged
 for the owner rather than deleted.
 
-**Auth model:** the function reads `Authorization: Bearer <jwt>` the same
-way the FE always sent it, resolves the user via `auth.getUser()` against
-the ANON key + that header (never trusts a client-supplied user id), and
-falls back to unauthenticated (cap-check skipped, matching the Python
-endpoint's "legacy callers don't auth this endpoint" behavior) when the
-header is absent. Deployed with `--no-verify-jwt` so the platform gateway
-doesn't reject those unauthenticated calls before they reach the function.
-The chat-cap RPCs and the `subscriptions` read inside the function use the
-service-role key (a Supabase Function secret, injected automatically —
-never sent to the browser); `ANTHROPIC_API_KEY` was added as a second
-secret the same way.
+**Auth model (CORRECTED 2026-10-03 — see "Ask CFO AI — the cap is always
+enforced" at the end of this file):** the function reads `Authorization:
+Bearer <jwt>` the same way the FE always sent it and resolves the user via
+`auth.getUser()` against the ANON key + that header (never trusts a
+client-supplied user id, never the token's own claims). **A request with no
+bearer, or one that does not verify, is answered `401 sign_in_required` — no
+model call, nothing metered.** As first shipped it "fell back to
+unauthenticated (cap-check skipped…)": that was the hole — anyone with the
+function URL got unmetered model calls on the owner's key. It is still
+deployed with `--no-verify-jwt`, for a different reason now: the function
+verifies the bearer itself, so its 401 carries a typed body the app renders
+and it answers the CORS preflight. The chat-cap RPCs and the `subscriptions`
+read inside the function use the service-role key (a Supabase Function
+secret, injected automatically — never sent to the browser);
+`ANTHROPIC_API_KEY` is a second secret set the same way.
 
-**Not yet live-tested:** `USAGE_LIMITS_ENABLED` is unset (enforcement off)
-in both the engine and this function today, matching current prod behavior
-— so the cap-reject path (`reserve_user_chat` returning
-`daily_cap_reached`/`monthly_cap_reached`) has only been read-reviewed
-against the SQL signatures, not exercised against a real capped user. Before
-flipping `USAGE_LIMITS_ENABLED` on for this function, test that path
-deliberately (a plan with a low cap, a few real turns) rather than assuming
-parity from code review alone.
+**The cap-reject path (CORRECTED 2026-10-03):** this section used to say the
+path was "not yet live-tested" and to "test it before flipping
+`USAGE_LIMITS_ENABLED` on for this function". There is no flag to flip any
+more: **the function does not read `USAGE_LIMITS_ENABLED`** and meters every
+verified call. The path is exercised against the real SQL functions by the
+gate `chat-cap-real` (`scripts/check_chat_cap_real.py`, local stack). The
+ENGINE still reads `USAGE_LIMITS_ENABLED` for document quotas — that is a
+separate switch and this change does not touch it.
 
 **Redeploy command** (no Docker required — `--use-api` bundles server-side):
 ```
@@ -1488,6 +1497,184 @@ login`, then the Milestone D redeploy command (§16) — until then the snapshot
 is the only carrier of the rule, and the snapshot law
 (`chatSnapshotInventoryDays.test.ts`, gate inventory-days-surfaces) is what
 keeps it there.
+**UPDATE 2026-10-03:** the rule is in the function's own system prompt now
+(`supabase/functions/chat-llm/prompt.ts` `STOCK_CLAIM_SECTION`, both
+personas, held to `STOCK_SLOW_CLAIM_RULE` by `chatLlmPrompt.test.ts`) and
+goes live with the next chat-llm deploy. The snapshot line STAYS — the
+snapshot law is untouched.
+
+**Rulings of 2026-09-28 (R2, R3) — candidate `feat/rulings-2`, NOT shipped
+until the owner has seen the per-period diff.** Design:
+`specs-durable/design_2026-09-28_rulings2.md`. Both are PLACEMENTS of accounts
+the frozen classification pack has already classified, held as data in
+`packs/ro/pl_definition.yaml` (loader `country_packs/ro_romania/pl_definition.py`)
+and applied once, in `assemble_statements`; every account list and line name
+below is rendered from that pack (TC-10).
+- **R2 — provisions symmetric.** The 6812 / 6814 charges AND the 7812 / 7814
+  reversals are OUTSIDE EBITDA; `assembled_pl.net_provisions` {value = charges
+  − reversals (signed as a charge), per-account charges / reversals, the
+  pack's name "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)"} is
+  its own line between EBITDA and the operating result — on the
+  reconciliation chain, after EBITDA on the one-line bridge
+  (`bridge.after_ebitda`), on the P&L tab, the report, the printed P&L / Excel
+  workbook, the chat snapshot and the EBITDA popover. `depreciation` is D&A
+  WITHOUT the ruled charges; `other_operating_income` is without the ruled
+  reversals. **EBIT does not move** (computed on the pre-ruling terms, to the
+  cent): EBIT = EBITDA − D&A − net provisions. What the ruling does NOT move:
+  core / adjusted EBITDA (`other_income_781_reversals` is now the 781 still
+  inside EBITDA, so no reversal is stripped twice), the cash-flow add-back
+  (`assembled_cf.depreciation` stays all of 68x, and the DCF reads it), the
+  operating-cost total and the inventory-days flow (the charges are still
+  operating costs), the liquidity finding's cash cost (the charges are
+  still non-cash). Unruled 68x / 78x (6811, 6813, 6817, 7813, 7815…) stay
+  where they were. The forecast (closed) follows: plan-year D&A and the
+  maintenance-capex proxy read D&A without the charges, net provisions are
+  not projected, year-0 EBITDA and other operating income are the served
+  ones. The methodology's operating result used to be `reported −
+  dap.net`, which subtracted every 78x reversal `reported` had just added
+  (the served EBIT less the reversals); it is now EBITDA − D&A − net
+  provisions and equals the in-code EBIT (gate provisions-symmetric).
+- **R3 — 7411 in turnover.** Cifra de afaceri netă = 70x − 709 + 7411 (F20
+  rd. 05 of rd. 01). The 7411 leaves are placed in the turnover bucket at
+  assembly (persisted as `revenue`, with `classified_bucket` beside them in
+  memory; a rebuild recognises the stored placement); the canonical adapter
+  places them in `revenue_gross`. 7418 (other operating subsidies) stays other
+  operating income. `assembled_pl.turnover_definition` says what turnover
+  holds. No real, corpus or fixture book posts 7411 — the witness is
+  constructed (gate turnover-7411).
+- **Stamps.** `EBITDA_DEFINITION_REVISION` = `ebitda/2026-09-28:…,provisions-
+  6812-6814-7812-7814-outside,7411-turnover` (the previous one in
+  `EBITDA_DEFINITION_PREVIOUS_REVISIONS`); credit-model revision 4
+  (`ONE_EBITDA_REVISION` 4 — stored rows stamped 3 are refused by the Section
+  9 benchmark until reprocessed; `RULINGS_2_REVISED_METRICS` —
+  other_income_781_reversals, revenue, net_margin, asset_turnover — are
+  served from the serve-time model like the EBITDA family); benchmark `REPORT_REVISION` 6; methodology
+  1.2.0. The reprocess script reports the stamp a period was written under,
+  the net provisions and the 7411 inside turnover; a turnover move of exactly
+  the placed 7411 on an earlier-definition period is named as the ruling
+  (`definition_7411`) and STILL blocks until `--filed` names the period's
+  filed turnover (owner, 2026-09-29: "verify filed-turnover matching on any
+  book with 7411"), the named figure then judging the move. No stored period
+  posts 7411 today (production dry run 2026-09-29: 0.00 on all 10).
+
+**Ruling of 2026-09-28 (R1) — the stock-build credit regime, credit model
+revision 5 — candidate `feat/rulings-2`, NOT shipped until the owner has seen
+the re-grade.** The one EBITDA carries net 711 inside, so a developer that
+capitalises its construction into stock (the corpus developer: net 711
++29,589,814.24 against turnover 162,365.46) showed a positive EBITDA and
+graded 41.5 B. The regime is pack data (`packs/credit/model.yaml`
+`stock_build_regime`, loaded and validated by `ratios/credit_pack.py` — a pack
+without it raises) and ONE function, `credit_model.stock_build_regime`:
+- **Trigger:** a MEASURED net 711 > 0 reaching BOTH pack shares — of net
+  turnover and of total operating expense (compared by multiplication, so a
+  zero turnover never divides; a refused 711 never triggers). Every
+  manufacturer measured sits two orders of magnitude below (agras: 0.97% of
+  turnover).
+- **Effect:** leverage = net debt / cash from operations, coverage = CFO /
+  interest, DSCR = CFO / debt service, on the SERVED `assembled_cf.
+  cash_from_operating`; Altman X3 = (EBIT − net 711 − net 72x) / total assets,
+  labelled; the composite on the regime's weight table (liquidity 0.20,
+  profitability 0.10, the rest unchanged — never renormalised). An
+  APPROXIMATED or REFUSED CFO refuses the three cash components
+  (`cash_from_operations_approximated` / `_refused`) and the composite with
+  them — never 0, never back to EBITDA; a measured CFO <= 0 takes the
+  regime's declared bottom rung; debt-free with CFO > 0 takes R-D1 on cash.
+- **⚠ The served cash flow is approximated on EVERY book today**
+  (`assemble_statements` hard-codes `is_approximated = True`: the engine
+  threads no prior-period trial balance). So on the developer the three cash
+  components and the letter REFUSE (41.5 B → no letter; Z'' 4.81 → 2.43, X3
+  0.0059 → −0.3489). Read as if measured, the same approximated CFO
+  (−3,945,493.79) would give 33.9 CCC — the owner's call whether the regime
+  may grade on the approximation; the code does not. **The re-grade the owner
+  asked for is therefore a REFUSAL on every real book today** (fixer round 1,
+  finding 3 — confirmed, not fixed: it needs an owner decision). The dry run
+  prints it as `REFUSED (no composite, no letter)`, never as a re-grade. Two
+  ways to a letter, both the owner's to rule: (a) measure the working-capital
+  movements from the trial balance's own opening balances (`si_d`/`si_c`, the
+  fiscal-year opening `inventory_days` already reads) — on the developer the
+  class-3 leaves move +29,589,814.29 where the approximation serves
+  −3,391,060.69 (5% of closing), and every book's cash flow would change with
+  it; (b) let the regime grade on the SIGN of the approximated CFO (bottom
+  rung when ≤ 0). Either gives the developer 33.9 CCC (every measured CFO ≤ 0
+  gives the same sub-scores: Altman 66.5, liquidity 45.4, equity 96.6, the
+  rest 0). Measured for (a) (fixer round 2, 2026-09-29, read-only, the same
+  assembler run on the book's own fiscal-year opening): the developer's CFO
+  would be −17,370,630.08 (the served −729,412.53 before working capital plus
+  −16,641,217.55 of measured working-capital movement; the balance-sheet
+  cash identity cross-checks at −17,380,602.20) → 33.9 CCC. **(a) is not
+  local to the developer:** on the four corpus books it moves the served CFO
+  by −10,817,914.23 (agras: +10,234,999.93 → −582,914.30, a sign flip),
+  +2,640,467.94 (carniprod), −13,425,136.29 (the developer) and
+  +11,072,474.11 (retail) — indicative only, since it reads every other
+  current asset and liability as working capital; (a) needs its own design
+  (which balance-sheet lines are operating) before it can serve anything.
+- **The finding** rides the served block (`credit.regime.finding`): "EBITDA
+  pozitivă din stocuri capitalizate — numerarul a fost consumat de
+  construcție." (verbatim) / "Positive EBITDA from capitalised stock — the
+  cash was consumed by construction.", severity high, with the served net 711,
+  turnover, EBITDA, EBITDA before the stock variation and CFO (only when
+  measured) — **ONLY when the served figures say what it states** (fixer
+  round 1): the served EBITDA > 0, the served EBITDA before the stock
+  variation and own work ≤ 0 (the build is what makes it positive), and no
+  MEASURED cash from operations > 0. Otherwise the regime stands (the grade
+  is on cash either way), `finding` is null and `finding_withheld` names the
+  failed premise (pack data: `stock_build_regime.finding.premise`) — no
+  sentence of our own; the command bar prints the regime's label alone and
+  the briefing hands the narrator no sentence. A pre-sales developer whose
+  overhead exceeds turnover (EBITDA < 0) triggers the regime WITHOUT the
+  sentence. It is printed ONCE, beside the grade, on the Risks tab, the
+  dashboard hero (in place of the "analysis pending" line when the regime
+  refused the letter), /report's card (and so the CFO Report PDF), the exported report
+  and workbook, the command bar (`credit_regime` on attention/1, one line at
+  rest) and the briefing facts (`credit_regime`, text only). The developer
+  keeps its margin refusal.
+- **Stamps / tools:** `CREDIT_MODEL_REVISION` 5 (`ONE_EBITDA_REVISION` stays
+  4 — the EBITDA family did not move); the reprocess dry run prints the
+  regime, its trigger shares, the cash status, the refused components and the
+  finding. Gates: `credit-stock-build`, `credit-regime-surfaces`.
+
+**Ruling of 2026-09-28 (R4) — the bank report is the CFO Report PDF —
+candidate `feat/rulings-2`.** "Exportă raportul pentru bancă" / "Export the
+bank report" opens the CFO Report PDF — the dashboard's export tab, whose PDF
+card posts the report (`buildReportHtml` with the credit envelopes) to
+`/api/report/pdf` — and NEVER the Forecast page, whatever the Forecast
+feature's status. This retires design C1's default ("the Forecast cockpit's
+bank export when forecast is active"). attention/1 serves ONE export action,
+`bank_export`, target `report_pdf`. `compose_attention` takes no feature
+statuses and the attention route reads no feature registry. The pack
+(`packs/serving/attention.yaml`) holds an action as its label only.
+`attention/pack.py` refuses a feature gate, a target, or an action name the
+composer does not use (the retired "Exportă raportul CFO (PDF)" row
+included). The command bar prints the engine's actions as served, with no
+per-reader feature fallback. Typing offers ONE export row, "Exportă raportul
+CFO (PDF)", with the bank label as one of its search terms. A recent pick
+saved as `action:bank-export` before the ruling opens the export tab. The
+Forecast cockpit's own "Exportă pentru bancă" stays reachable from the
+Forecast page only. Gates: `attention-rules`, `attention-route`,
+`cmdbar-fixtures`, `cmdbar-surface`.
+
+**Ruling of 2026-09-28 (R5) — Supabase read timeouts, logged and retried
+once.** Two `httpx.ReadTimeout`s hit production that day (ops log). The same
+selects answer in 0.07–0.4 s. In `engine/api/_supabase.py`, `select` (the
+client's one GET) goes through `_get`. On `httpx.ReadTimeout` ONLY, `_get`
+logs one WARNING and sends the same GET once more (`READ_TIMEOUT_RETRIES` =
+1). The WARNING carries the table and the parameter NAMES, never a value and
+never the headers that carry the service key. A second timeout raises. A
+connect error or an HTTP error status is never retried. Writes are never
+retried, because a timed-out write may have landed: insert, upsert, update,
+delete, rpc, signed_url, upload_object and delete_object. Gate
+`supabase-read-retry`. Out of scope: `_billing._user_email`'s auth-admin GET,
+which reaches into `client._client` directly and swallows its own failures.
+
+**Known and ticketed, not fixed in this release (owner ruling 2026-10-01).**
+The Valuation tab's client DCF (`runDcf`: CFO − `assembled_cf.depreciation`)
+still disagrees with the engine's DCF (NI + ΔWC) by exactly
+`assembled_cf.provision_movement`, and floors a non-positive base at 0 where
+the engine refuses; and one period prints four different CFO figures across
+surfaces (the Cash Flow tab, /report with the served `assembled_cf`, the
+Valuation tab's tile, the workbook's Cash Flow sheet). Both are ticketed as
+the release that moves the client-side DCF into the engine — "no financial
+computation in the browser, one engine for every number".
 
 **DEPLOY REQUIREMENT.** Every stored period predates the definition: its
 EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
@@ -1556,50 +1743,136 @@ report and alert bodies) are NOT converted — a separate ruling.
   (the list only shrinks). `GATE-WORK provenance-burndown open=N` prints
   every run; the count is reported weekly (`weekly` rows in the file).
 
-## 29. Run journal: the chain key is (organisation, content hash) (2026-10-02)
+## 28. The shared SQLite store — what it may hold (2026-10-02)
 
-Owner ticket, done BEFORE `ENGINE_JOURNAL_DIR` is ever set (it is unset in
-production; the journal has never run there). Branch
-`fix/journal-chain-key-org`. No production change, nothing to deploy.
+Owner ticket: "public demo routes — confirm the shared SQLite store holds no
+real user data." The store is `engine.db` (`sqlite:////app/data/engine.db`,
+`Dockerfile` CMD; the `backend_data` volume), opened by `create_app()` through
+`PostgresAdapter` (`src/engine/storage/postgres.py`). Six tables, **no user or
+workspace column on any of them**; only `server.py` and `cfo_ai.py` hold the
+adapter. Customer books never touch it — uploads, the pipeline, periods,
+chats and preferences are Supabase.
 
-**What was wrong.** A journal chain was keyed by the document's content hash
-ALONE (`index/<file_hash>.jsonl`). Two organisations uploading byte-identical
-documents shared one chain: B's run chained onto A's, each was answered the
-other's envelope by `GET /api/period/{id}/asof`, a byte-identical analysis was
-swallowed as the other's "duplicate", B's success resolved A's dead letter,
-and A's page view recorded an era on the shared chain. All five were measured
-on the unchanged code (gates.md § journal-chain-key).
+**The rule: a table that cannot tell one customer's row from another's holds
+no customer's row, and is read only with the operator bearer.**
 
-**The rule now.** `engine.journal.ChainKey(org_id, file_hash)`
-(`src/engine/journal/layout.py`); `index/<org_id>/<file_hash>.jsonl`;
-`Journal.begin_run(org_id=…, file_hash=…)`. The organisation comes from the
-ROW — `documents.org_id` for the run hooks, the served period row for
-`on_served`, the period row the caller's client returned for the route —
-never from the envelope, a period id or a file name. A row with no
-organisation is not journaled; there is no shared chain for "unknown". An
-organisation id is used verbatim or refused, never sanitised. The open-data
-ingest chains under the reserved `_platform` scope. The content-addressed
-object store stays global by design.
+| table | written by | read by | may hold |
+|---|---|---|---|
+| `recommendations` | `POST /api/cfo/today`, operator bearer only | `GET /api/cfo/decisions`, `POST /api/cfo/decisions/{id}/status`: operator bearer | the operator's own SKU queue (the legacy single-tenant engine) |
+| `daily_decisions` | `POST /run-daily`: engine bearer | `GET /decisions/{run_date}`: engine bearer | the same engine's daily output |
+| `category_metrics`, `master_skus` | no route (`insert_categories` has no caller outside tests; `master_skus` has no writer) | `/run-daily` | its inputs |
+| `chat_messages` | nothing (`insert_chat_message` has no caller) | nothing | nothing |
+| `session_log` | `POST /api/sessions/track`, **anonymous** | `GET /api/sessions`: operator bearer | a typed name, the address Caddy observed, the device string — personal data |
 
-**Old directories are refused, not migrated.** A root with a flat index file,
-or with any journal content and no `LAYOUT.json`, raises `JournalLayoutError`
-from `Journal(root)` and makes `boot_verify.verify_journal_layout` refuse to
-start the app (not skipped by `CFO_AI_SKIP_BOOT_VERIFY`). Check a directory
-with `python scripts/journal_cli.py --journal-root <dir> layout`; move it
-aside or delete it. CLI: `asof` now requires `--org`.
+What was wrong until this date: `POST /api/cfo/today` is public and persisted
+the BODY's recommendations by default, `GET /api/cfo/decisions` returned every
+row to anyone and `POST …/status` let anyone rewrite one — measured on the
+real app, one client read another's SKU back. No screen of the current
+frontend calls those three (the `cfoApi` wrappers have no call site), so it
+was open to a direct caller. Now: the six `/api/cfo` POST routes compute from
+the body and store nothing without the engine bearer; the queue and the two
+legacy bearer routes fail closed (503) where `ENGINE_API_TOKEN` is unset —
+an unset token used to DISABLE the legacy check.
 
-**Before enabling the journal in production:** run `journal_cli.py layout`
-against the MOUNTED volume path. The §14 pre-switch boot probe runs without
-the data volume, sees an absent directory and passes — the real container is
-the one that would crash-loop over a stale directory.
+Gate `public-demo-store` (`tests/engine/test_public_demo_store.py`): a
+customer-shaped row planted in every table is returned by no route of the
+real app without the operator bearer; no such request changes any table but
+`session_log`; a seventh table reds until it is planted. **A new table in
+this store, or a new route handed the adapter, goes through that gate
+first — and anything that belongs to a customer goes to Supabase with
+`org_id`, never here.**
 
-**Gate:** `journal-chain-key` (`tests/engine/test_journal_chain_key.py`,
-floor 18, twenty plants, the first the old key itself). The mutation kernel's
-`journal` module was re-measured at 100% (678 mutants, 671 caught, 7
-equivalent). `EQUIVALENT_MUTANTS` is keyed by mutmut INDEX: this change moved
-one documented equivalent from 52 to 59, and the stale pin would have excluded
-a real mutant from scoring — after any edit to a kernel function, re-identify
-its pinned equivalents by diff (docs/engine_book/mutation.md).
+The other SQLite files on the volume are separate stores with their own
+gates: `public_ro.db` (open filings; `funnel_events` takes an anonymous
+write of event kind, CUI, path, UTM and a salted IP hash, and has no public
+reader), `public_market.db` (provider feeds), and the registry name index
+(public names only, built read-only from `public_ro.db`).
+
+**Open, the owner's to decide:** (1) `session_log` still collects from any
+browser carrying the legacy `aicfo.user.v1` key (`App.tsx`
+`heartbeatIfIdentified`); `setUserName` and `fetchSessions` have no call
+site, so the roster it fed is dead — retire the heartbeat, the route and the
+rows together. (2) Rows written to `recommendations` before this deploy stay
+in the file. What production holds was NOT measured in this work (no probe
+was run). `docker exec cfo-ai-backend python3 /app/scripts/check_public_store.py`
+prints counts, column names and date ranges only — read-only, exit 3 when a
+table that should be empty is not — then clear the table.
+(3) `GET /api/canonical-categories` is public and serves DIO / CCC / DSO /
+DPO / stored real margin per category from the workbook the `Dockerfile` CMD
+names (`files/Trading_analysis_YTDOct'25_LV.xlsx`, described in `server.py`
+as "the largest real SKU dataset in this repo"). The file is not tracked in
+git; whether the production host carries it — and so whether the route
+serves a real company's category figures or an empty list — was not
+measured. Not in this store, not changed here.
+
+---
+
+## 27. Scheduled-mail audit before the Firm Cockpit flag (2026-10-03)
+
+Owner ticket 2026-10-02: "firm digest cron and renewal recipient audited
+before the Firm Cockpit flag flips." Branch `claude/admiring-benz-72166d`
+(from main 72a29c72). Engine only; nothing deployed, nothing sent, the flag
+untouched. Gate `scheduled-mail-tenancy` (39 tests, twenty plants:
+`docs/engine_book/gates.md`).
+
+**The rule.** Every cron and drain reads under the SERVICE ROLE: the filter
+the code writes is the access control. A mail path therefore decides three
+things, in this order, and decides them again AT SEND TIME (a drain is an
+operator action that runs hours or days after the cron):
+
+1. **Who** — a recipient is resolved from the record that owns the mail (the
+   subscriber; the opted-in user), never from "the first row" of a join.
+2. **What** — every workspace a body names is one the recipient reads today
+   (`_firm_requests.digest_scope`: member now, role holds `read`, firm not
+   archived, client served now and unarchived).
+3. **Once** — the cron CLAIMS before it queues (`firm_digest_log`'s unique
+   index; `reminders_sent`; the renewal queue read), and the drain claims
+   the row before the provider is called
+   (`SupabaseClient.update_returning`, PATCH + `Prefer:
+   return=representation`). The worst case is a row that says "claimed by a
+   drain; outcome unknown", never a second mail.
+
+**What was wrong** (all latent: the Cockpit is unmounted in production and
+no scheduler calls the renewal cron):
+
+- The renewal reminder went to the first `memberships` row ordered
+  `role.asc` — `'admin'` before `'owner'`. `import_firm_client` writes the
+  firm's responsible accountant into a client workspace as `'admin'`, so
+  with the Cockpit on the client's renewal date and price went to the
+  accountant. Now: `subscriptions.user_id`, else the oldest owner.
+- That cron had no idempotency marker (its docstring claimed one), mailed
+  subscriptions set to cancel, and queued address-less rows that blocked the
+  drain forever.
+- The firm digest read open requests by `client_org_id` alone (a previous
+  firm's request followed the client), computed archived clients, mailed
+  archived firms, and claimed its day after queueing.
+- Both drains sent whatever was queued (a removed member, a revoked request,
+  a cancelled subscription) and marked rows sent AFTER sending.
+- `firm_name` in the body of `POST /api/firm/requests` was printed as the
+  sender. It is ignored now; the name is `firms.name`.
+
+**Owner steps, none done here:**
+
+- `supabase/schema_phase_email_idempotency.sql` — the dedupe index for two
+  OVERLAPPING renewal runs (§14 two-step protocol; its pre-flight must
+  return zero rows). The engine works without it.
+- **Unverified:** no migration in this repository gives `subscriptions` the
+  `is_founder` / `org_id` columns the renewal cron filters on (§16 "Known
+  drift"). If production does not have them the cron answers 500 and reminds
+  nobody. One read-only `select column_name from information_schema.columns
+  where table_name = 'subscriptions'` settles it.
+- No scheduler calls any cron, and both drains take an operator's user JWT
+  (`PRICING_ADMIN_USER_IDS`), which a scheduler cannot hold: today mail is
+  queued and waits for a hand-run drain. Founding members under the tier
+  model (`is_founding_member`) are not selected by the renewal cron at all.
+- `firm_invite_email_queue` is written and never drained (the accept link is
+  in the API response) — invitations are not mailed.
+- The digest's report provider loads no suppressions: an item a member
+  dismissed on the board is still mailed. Not a tenancy defect; ticketed.
+
+**Never choose a recipient with `limit=1` over a join.** And a new function
+that queues or sends mail is red in `test_scheduled_mail_census.py` until it
+is classified with its recipient rule.
 
 ---
 
@@ -3544,3 +3817,1490 @@ xlsx/xls trial balances do not. With credits at zero every PDF 502s.
 
 Fast unblock for the pre-fix bundle: remove `cfo-upload-current` from
 localStorage and reload.
+
+---
+
+## 29. Entitlement tables are written by the service role only (2026-10-03)
+
+Branch `fix/subscriptions-self-write` (owner task: "Close self-service tier
+writes on subscriptions"). SQL + frontend + gates; no engine file.
+
+**What was open.** `supabase/schema.sql` created an INSERT and an UPDATE policy
+on a user's own `public.subscriptions` row ("subscriptions self insert" /
+"self update"), and Supabase's default privileges grant ALL on every public
+table to `anon` and `authenticated`. With the public anon key and the session
+the page already holds, a signed-in user could
+`PATCH /rest/v1/subscriptions?user_id=eq.<own id>` with
+`{"tier":"multi","status":"active"}` — a paid plan with no payment — or make
+the same write through `/graphql/v1`. Measured on a stack built from this
+repository: 21 of the row's 22 columns were writable (every one but `user_id`),
+the row could be INSERTed when none existed, and `create_workspace` then
+allowed the plan's workspaces.
+`frontend/lib/billing.ts` still exposed two browser writers of the row with
+no caller (`cancel()`, `reactivate()`).
+
+**What closes it.** `supabase/schema_phase_subscriptions_write_lockdown.sql`.
+For every table on its one list — `subscriptions`, `user_usage`,
+`plan_chat_daily_usage`, `document_quota_ledger`, `founding_members`,
+`billing_events`, `renewal_email_queue`, and `plan_assignment_audit` where it
+exists: row level security on; every policy that is not a SELECT policy
+dropped, whatever its name; everything revoked from `anon` and PUBLIC; the
+write privileges revoked from `authenticated` (MAINTAIN too on Postgres 17+).
+`subscriptions` and the two meters keep exactly ONE policy each (own row,
+SELECT, to authenticated). `schema.sql` no longer creates the two write
+policies; `cancel()` / `reactivate()` are deleted (Settings cancels through
+`POST /api/billing/cancel`, which asks Stripe; the webhook writes the row).
+**It changes no row** — the owner's fence for production (2026-10-03: "apply
+migrations that only remove or restrict access … may not delete or alter
+customer rows"): the file holds no INSERT, UPDATE, DELETE or TRUNCATE and
+changes no table's columns, in its own text or in a string it executes.
+
+**The rule.** An entitlement table — the plan row, a meter, the quota ledger,
+a seat, a billing log or queue — is written by the SERVICE ROLE (or a
+SECURITY DEFINER function owned by the table owner), never by a browser
+session and never by an edge function through a direct table write. A new
+such table gets Supabase's default grants on the day it is created: add it to
+THE LIST in the migration (and in the two read-only files that carry the
+list — the static law reds when they differ) and re-run it.
+
+**How it runs** (the migration's header is the runbook):
+- It is ONE BATCH and ONE TRANSACTION: no psql meta-command, nothing read
+  from a NOTICE. Its last statement returns one jsonb row, `applied` — what
+  each table held before and after, every policy dropped or created, tables
+  skipped, views named, `changed_anything`, `verified`. On any error nothing
+  is applied. (`applied.applied` null with a `note` = the client did not run
+  the file as one batch on one connection; the row cannot see the result —
+  run the pre-flight report.)
+- It waits for no one: `lock_timeout` 5 s ("canceling statement due to lock
+  timeout" = nothing applied, run it again), and a run that changes nothing
+  takes no lock.
+- It checks itself and says what to do: a listed table owned by another role
+  stops it with the owner named; a grant it cannot revoke is named with the
+  statement that removes it (a grant by another role, a column-level grant by
+  another role and a privilege inherited through a membership are three
+  different statements — the owner's plain `revoke … from authenticated`
+  answers REVOKE and removes nothing in all three).
+- A client that sends one prepared statement at a time (`supabase db query
+  --local`) refuses a multi-statement file; the `do $lockdown$ … $lockdown$;`
+  block alone is the single-statement fallback.
+
+**The files beside it — all read-only** (run in this order: report → audit →
+read both → migration → Dashboard "Reload schema cache" (§14) → report again →
+audit again → probe):
+- `…_preflight_report.sql` — ONE statement, one jsonb row `report`, with a
+  computed `verdict`: `hole_open` / `stopgap_in_place` / `fully_locked`. Run
+  again after the migration it is the post-check: `fully_locked` must be true.
+- `…_audit_report.sql` — ONE statement, one jsonb row `audit`: the rows whose
+  entitlement has no payment visible behind them, and the rows whose Stripe id
+  is in no recorded Stripe event. A list for a person, not a verdict; no
+  email, no Stripe id value; does not need `founding_members` or
+  `billing_events`. Its `row_fingerprints` — per listed table
+  `"<rows>:<md5 over every row's whole content>"`, `"absent"` where the table
+  does not exist — is THE FENCE as production can read it: the same string
+  before and after the migration = no row of that table was changed, added or
+  removed in between. A string that differs is somebody else's write (a
+  signup, a webhook, an upload) — the migration holds none.
+- `…_preflight.sql` — the same questions as grids, SELECTs only, for a person
+  in Studio or psql.
+- `…_probe.js` — the browser-console probe; must print `CLOSED`.
+
+> **⚠ Re-run the lockdown file after `supabase/schema.sql` from a checkout
+> older than 2026-10-03, after any logical restore, and in every fresh
+> environment** — the old `schema.sql` re-creates the two write policies and a
+> `create table` hands the default grants out again. The same discipline as
+> `schema_phase_security_hardening.sql` after `schema_phase5_usage_limits.sql`
+> (§16).
+
+**A view is not closed by a revoke on its table**, and the migration changes
+no view: a plain view runs with its owner's rights and gets ALL for `anon` /
+`authenticated` by default. The migration and the report name every view that
+reads a listed table DIRECTLY OR THROUGH ANOTHER VIEW and that an API role may
+use, and say which can be written through (a view over a view over
+`subscriptions` let a signed-in user update every row — measured).
+`founder_cohort_public` — read by the pricing page with the anon key — is
+created by NO file in this repository; the runbook says how to read its row.
+
+**Gates** (plant log: `docs/engine_book/gates.md`, at the end):
+- `subscriptions-write-lockdown` — `scripts/check_subscriptions_write_lockdown.sh`
+  on a LOCAL Supabase stack, through real PostgREST and GraphQL with a real
+  GoTrue session, from four starting states — (b) is the owner's stopgap on a
+  database built from the old files (the three own-row SELECT policies still
+  `to public`, SELECT and MAINTAIN left on `subscriptions`, the default ALL on
+  the meters): the shape a production database holds once the stopgap was
+  run. Every application of the migration is bracketed by a fingerprint of
+  every row of every listed table (the fence), and the audit's
+  `row_fingerprints` is held to the same sum. IT ADDRESSES NO STACK BY DEFAULT
+  (it creates users and re-opens the hole to prove it sees one): set
+  `SUBS_LOCKDOWN_DB_URL` and `SUBS_LOCKDOWN_API_URL` to an isolated local
+  stack, or it is VACUOUS. `--before <state>` / `--after <state>` print the
+  attack table.
+- `entitlement-write-laws` — `tests/engine/test_entitlement_write_laws.py`:
+  the source half — no browser or edge-function writer, no committed SQL that
+  re-opens a table, the migration one batch that changes no row and no
+  table's shape (the fence, read in its text and in the strings it executes),
+  the report files one read-only statement each (a query handed to
+  `query_to_xml` must be a literal or `format()` of one), the probe in a
+  mocked browser, the gate's own default.
+  Two of its laws over-reach on purpose and were narrowed where they would
+  have red another lane's honest files (measured by merging this branch
+  read-only with main and each sibling lane and running the laws there): the
+  "names a listed table in quotes and also writes" law is not asked of TEST
+  files — the two exact laws (a `.from("<table>")` write chain, a
+  `/rest/v1/<table>` path) still are — and the `execute` law reads the
+  keyword, not the word inside a string literal.
+
+> **On the local Postgres image (supabase/postgres 17.6.1.106)
+> `grant <role> to current_user` segfaults the backend** and the whole cluster
+> restarts — as does a `permission denied for function` inside a `set role`
+> session (§ owner-plan-sql). Name the role.
+
+**In production** each file is sent whole with `supabase db query --linked -f
+<file>` (the Management API runs it as `postgres` and returns the LAST
+statement's rows as JSON: the one row's one column is `report`, `applied` or
+`audit`. The CLI prints a bare array of rows to a person and wraps it in an
+envelope — `{warning, boundary, rows, advisory}` — when an agent runs it;
+`jq '(if type == "array" then . else .rows end)[0]'` reads both, measured on
+the local stack with `--agent=no`, `--agent=yes` and neither). The gate cannot
+run there — it creates accounts and re-opens the hole. What proves "0 of 35" there: the post-check report's
+`verdict.fully_locked: true` (the catalog state the gate shows refusing every
+attack), anonymous `GET` / `POST /rest/v1/subscriptions` answering 401, and the
+signed-in console probe printing `CLOSED`. What proves that no customer row
+was touched there: `audit.row_fingerprints.subscriptions`, the same string in
+the audit run before the migration and in the one run after it. The "Reload schema cache" click
+(§14) is discipline here, not what closes the door: a revoke and a dropped
+policy are enforced by Postgres on the next statement — measured with no
+NOTIFY sent — so the anonymous 401 is the evidence where the Dashboard cannot
+be reached.
+
+**What only the two reports, run there, can say:** whether the hole was used,
+who owns the tables, what views and hand-made functions exist, and the
+Postgres major version (the files were run on 17.6 only; the MAINTAIN
+statements are version-guarded). The coordinator read production with both,
+read-only, on 2026-10-04 (the audit in its text before `row_fingerprints`);
+what they answered is in that run's log, not in this repository. The ops log
+of 2026-10-03 records the old `schema.sql`'s three policies and then the
+owner's three-statement stopgap — the gate's state (b), built to be exactly
+that catalog. The four-statement migration has not yet been sent through
+`supabase db query --linked` by anyone: on the local stack the same batch
+went through psql and through pg-meta's `/query` (one batch, one
+transaction, the row `applied` last).
+
+**Found, not fixed here** — a free user still gets paid entitlements by
+routes this migration does not touch (`gates.md`, same section, with the
+measurements). "Closed on another branch" = the change and its gate are
+committed THERE, not here; a SQL file closes nothing until it is applied:
+- **the workspace cap, three ways**: a member PATCHes
+  `organizations.archived_at`; `archive_workspace` → `create_workspace` →
+  `restore_workspace` (restore never re-checks the cap); `create_firm` →
+  `import_firm_client` × n → `detach_workspace_from_firm` (neither function
+  reads a plan). The first two are closed on `fix/entitlement-holes`
+  (`schema_phase_workspace_cap_guard.sql`); **the firm path is open** — the
+  owner's ruling;
+- **the Multi allowance by default**: `get_plan_state` reads `tier`, else
+  `plan`, never `status` — the signup row this repository seeds (`tier` NULL,
+  `plan` 'professional') resolves to Multi in the engine. Closed for NEW
+  signups on `fix/entitlement-holes` (`schema_phase_signup_tier_trial.sql`);
+  **open** for the rows that already hold `tier` NULL and in
+  `get_plan_state`'s fall-back to `plan`;
+- **the chat cap is skipped with no bearer**: `supabase/functions/chat-llm`
+  reserves only `if (userId)`, and is deployed `--no-verify-jwt` (read).
+  Closed on `fix/chat-cap-always` — once the function is redeployed;
+- **`upsert_dashboard_config`** is SECURITY DEFINER, executable by `anon`, and
+  trusts its `p_user_id` argument (measured: anon overwrote another user's
+  row). Closed on `fix/entitlement-holes`
+  (`schema_phase_dashboard_config_caller.sql`);
+- **twelve public-market tables with row level security off**: anyone with
+  the anon key writes the storefront's market data. Closed on
+  `fix/entitlement-holes` (`schema_phase_public_tables_write_revoke.sql`);
+- **open everywhere**: delete-your-account-and-sign-up-again restarts the
+  trial and the meters; `documents.metered_extra` / `nonro_*` billing stamps
+  sit on a browser-writable table;
+- the document reservation routes
+  (`POST /api/plan/release-document-reservation`, `…/commit-document-usage`)
+  took any user's bearer. Closed on `fix/plan-meter-routes` (62710096, gate
+  `plan-meter-routes`).
+
+When `schema_phase_workspace_cap_guard.sql` is applied to the stack the
+lockdown gate runs on, its trigger function `_organizations_guard_write` must
+be read and added to `TRIGGER_FUNCTIONS_ALLOWED` in the gate (L3c is a census:
+a new trigger function on a table an API role can write reds until it is).
+
+---
+
+## 30. The exchange-rate feed — BNR moved it; three readers, one rule (2026-10-03)
+
+Branch `fix/fx-bnr-feed`. Gates `fx-feed` (engine) and `fx-browser` (browser
++ the Edge Function's source); plant logs in `docs/engine_book/gates.md`,
+sections "fx-feed", "fx-browser" and "fx — round 3".
+
+**The incident, measured on production — two facts, not one.** BNR moved its
+reference-rate feed from `https://www.bnr.ro/nbrfxrates.xml` (now a redirect
+to a web page) to `https://curs.bnr.ro/nbrfxrates.xml`, namespace `https://`.
+1. The ENGINE endpoint (`GET /api/fx-rates`) served its bundled fallback —
+   4.97 RON per EUR as of May, 7.5% high — to `/api/health` and the EUR/USD
+   briefing regeneration only.
+2. What a READER saw came from the Supabase Edge Function `fx-rates`, which
+   the browser asks first: its last cached row, 5.2489 as of 2026-08-05,
+   marked stale — and the browser used it. Two months of EUR amounts 1.8% too
+   high and USD amounts 4.5%.
+Nothing failed loudly; `/api/health` said `fx_rates: ok`; no test read the
+feed's real bytes (now committed: `tests/engine/fixtures/fx/`).
+
+**Three readers of one feed** — `src/engine/api/fx_rates.py`,
+`supabase/functions/fx-rates/bnr.ts` (pure; `index.ts` is wiring) and
+`frontend/lib/rates.ts` — and ONE definition of a current rate in all three:
+`source: BNR`, `stale: false`, accepted inside 24 hours AND published at most
+10 days ago, never after today (Romania's date). The date is checked on the
+way IN and again wherever a payload is CALLED current (the engine's memo hit,
+the function's serve-from-row, the browser's `isCurrentBnrRate`): a label is
+not trusted against the date it is printed beside. The three bundled
+fallbacks are one figure (BNR's file of 2026-10-02), held equal by the gate.
+
+**The browser** (`lib/rates.ts`, `stores/currency.tsx`):
+- the function first; the engine only when the function's answer is not
+  current; the current rate wins; nothing current → the NEWER publication,
+  marked stale. What a browser holds changes only for something better
+  (`preferHeld`): a stale answer never replaces a current rate, nor an older
+  figure a newer one — the bundled fallback included.
+- a tab that stays open keeps itself current: the provider looks at the clock
+  every minute and on focus / visibilitychange / online; a rate past its day
+  is marked stale AT READ TIME, and the sources are asked again without a
+  reload — at most once per five minutes (the failure cooldown of both
+  sources), `online` let through once; never more than two attempts in any
+  five minutes; after its mount fetch nothing from a hidden tab; nothing at
+  all inside the held day. Before this a tab left open for four days showed Monday's rate as
+  current on Friday.
+
+**After every backend switch — two read-only checks, both required** (§14):
+```
+docker exec cfo-ai-backend python3 /app/scripts/check_fx_live.py
+docker exec cfo-ai-backend python3 /app/scripts/check_fx_served.py
+```
+`check_fx_live` imports the engine and forces a fetch in its OWN process: it
+proves the code and the container's egress to `curs.bnr.ro`. It does not read
+the process that answers requests. `check_fx_served` asks that process over
+HTTP (`GET /api/fx-rates`, `GET /api/health`; base URL argument, default
+`http://localhost:8000`; pass the public origin to read it through Caddy) and
+exits 0 only on a current BNR rate. Its health line carries
+`fx_rates ok / source / stale / as_of` — the lane's `health ok True LIVE` is
+the same words during a BNR outage, on purpose (a BNR outage must not fail a
+deploy). **FX-SERVED RED is not a rollback:** the previous build read a dead
+address; browsers show a stale-marked figure and keep asking.
+
+**The function goes live only by its own redeploy** (a frontend or backend
+deploy does not touch it): `supabase functions deploy fx-rates --project-ref
+<ref> --use-api --no-verify-jwt` (the ref of §16, Milestone D), then the
+before/after probe in gates.md "fx-browser". Until then browsers are right
+through the engine.
+
+**Traps this left behind:**
+- A payload-shaped answer with `stale: true` was read and USED. A flag nobody
+  acts on is not a safeguard — every reader of a `stale` / `approximated` /
+  `refused` field needs a law that it changes what is shown.
+- A regex reader is not an XML parser: it accepted a commented-out Cube and
+  let a self-closed Cube take the next one's rates. The function now refuses
+  a body with a comment or CDATA; the same documents are run through both
+  readers in the gates.
+- Tests that read a date against the machine's clock rot in ten days. The
+  browser laws run on a pinned clock; `.filter(isCurrentBnrRate)` passes the
+  array index as the clock — call it through a lambda.
+- A law that drives days of a fake clock through thousands of `act()` calls
+  times out under a loaded machine and takes the next tests with it: one
+  `act` around the loop, or jump the clock.
+- Dead constants still say 4.97 (`config.yaml` `fx_eur_ron`,
+  `frontend/lib/currency.ts` `FX_RON_TO_EUR`, `frontend/lib/thresholds.ts`
+  `fxEurRon`): read by nothing live, left alone on purpose.
+
+---
+
+## 31. Entitlement holes beside the subscriptions lockdown — six restrict-only files (2026-10-04)
+
+> Branch `fix/entitlement-holes`. Number 31 is the next free one seen from this
+> branch — **renumber at merge**. NOTHING here was applied to production by the
+> lane that wrote it. The owner's ruling of 2026-10-04: after the subscriptions
+> lockdown, the coordinator applies **H1** (the workspace cap) and **H4** (the
+> signup tier, NEW signups only) — and nothing else. The other four files wait
+> for a ruling each.
+
+The adversarial review of the subscriptions lockdown (2026-10-03) measured four
+more holes beside it; the census behind the third found two more classes. Each
+is closed by ONE migration that only removes or restricts access (the owner's
+fence: no customer row altered, no price or plan limit changed, no money
+spent), read before and after by ONE read-only report.
+
+| | file (`supabase/`) | what was open | what the file does | what it leaves, on purpose |
+|---|---|---|---|---|
+| H1 | `schema_phase_workspace_cap_guard.sql` | A trial user (cap 1) held 2–4 live workspaces: PATCH `organizations.archived_at` → `create_workspace` → PATCH back; `archive_workspace` → `create_workspace` → `restore_workspace` (never re-checked); and two `create_workspace` calls at once (it counts, then inserts, with no lock). `purge_after`, `firm_id` and `cui` were writable by a member the same way — `firm_id` to another tenant's firm. | ONE trigger, `organizations_guard_write` (BEFORE INSERT OR UPDATE, row, SECURITY INVOKER): a statement running as `anon` / `authenticated` may not change `archived_at`, `purge_after`, `firm_id`, `cui`; a workspace coming back from the archive, or created, under a signed-in user's request is allowed only if `create_workspace` would let that user add one — the trigger takes a per-user advisory lock and ASKS `create_workspace` in a sub-transaction that is always rolled back. Outside that question it calls no function of schema `auth` (it fires on a signup's first workspace, inside GoTrue's own session). No function is replaced: the file reads `md5(prosrc)` of the workspace functions before and after and refuses to commit a difference, so no cap number is touched or copied. | Path (iii) `create_firm` → `import_firm_client` ×N → `detach_workspace_from_firm` (a ruling). A user ALREADY over their cap keeps every workspace and cannot restore or create another until under it. The service role and the SQL editor are not capped. A restore refused at the cap shows the frontend's generic "couldn't restore". |
+| H2 | `schema_phase_dashboard_config_caller.sql` | `upsert_dashboard_config(p_user_id, p_cards)` — SECURITY DEFINER, EXECUTE to anon, the id unchecked: the anon key alone overwrote any user's dashboard layout; the table's `with check (true)` INSERT policy let it plant a row. | The body refuses a `p_user_id` that is not `auth.uid()` (the service role may name any user); EXECUTE goes from PUBLIC and anon; INSERT / UPDATE / DELETE / TRUNCATE on `dashboard_configs` go from anon and authenticated. A body this repository never committed is NOT replaced — it is closed at the door (the service role only). | SELECT and the three policies. The engine's own write (`_dashboard.py`, service role) is unchanged. |
+| H3 | `schema_phase_public_tables_write_revoke.sql` | Twelve public-market / intelligence tables created WITHOUT row level security: the anon key inserted, updated and deleted their rows. | INSERT / UPDATE / DELETE / TRUNCATE revoked from anon and authenticated (and PUBLIC) on the twelve. Every legitimate writer is the service role. | SELECT, row level security and every policy exactly as found; every table a user's JWT writes; any table this repository does not define (the report LISTS those that are open). |
+| H3c | `schema_phase_calibration_queue_write_revoke.sql` | NOT one of the four measured. `calibration_rules` has row level security and one INSERT policy whose check admits `org_id` NULL — a GLOBAL rule — from any signed-in user: anyone fills the operator's review queue, for every company. | The same revoke, on that one table. Every legitimate writer is the engine's service role (`pipeline.py` review routes). | SELECT and both policies. A file of its own because the table exists where the twelve do not. Applied on its own decision. |
+| H3b | `schema_phase_derived_tables_write_revoke.sql` | NOT one of the four measured — the rest of the same census. Six tables hold what the ENGINE computes (`statement_line_items`, `calculated_metrics`, `briefings`, `benchmark_reports`, `sku_analyses`, `org_coa_mappings_overrides`); their member policies are scoped, and a member could rewrite their OWN organization's rows through the REST API — the figures the report exports. | The same revoke. No user-JWT path writes them (the laws red the day one appears); a member's period / document delete still cascades. | SELECT (the engine's `per_user` reads). Applied on its own decision. |
+| H4 | `schema_phase_signup_tier_trial.sql` | The signup trigger seeds `tier` NULL / `plan` 'professional'; the engine reads `tier or plan`, and 'professional' is a legacy key for the Multi-Country allowance (15 documents, 5 workspaces, 8 non-RO documents, 40/200 chat) — every new free account was metered as Multi-Country while `create_workspace`'s SQL said trial. | FORWARD ONLY: the subscriptions insert of every function an INSERT trigger on `auth.users` runs (and of `handle_new_user` / `handle_new_user_v2` by name) gains `tier` / `'trial'` — patched in place (`pg_get_functiondef`), so the owner, the grants, SECURITY DEFINER, the search_path and the rest of the body stay as they are. It installs nothing where a tier CHECK does not accept 'trial'. | NO backfill, no existing row read for change. What existing free accounts are metered as is a ruling (below). A new signup then gets the trial's allowance: 1 document, 1 workspace, RO only, 3/5 chat. |
+
+**How a file reaches production.** `supabase db query --linked -f <file>`: one
+batch, executed as `postgres`, only the LAST statement's rows come back. So
+every migration is one `do $migration$` block (`lock_timeout` 5 s first, all
+or nothing, `notify pgrst`) plus one `select` returning a jsonb row —
+`changed` / `revoked`, `changed_count`, `skipped`, `not_closed` — and every
+report (`supabase/preflight/<stem>_preflight_report.sql`) is ONE read-only
+statement returning one jsonb row with a computed `hole_open`. Order, per
+hole: report (`hole_open` true → apply) → migration (`not_closed` must be
+`[]`) → Dashboard → Settings → API → "Reload schema cache" (§14) → the report
+again (`hole_open` false). A lock timeout or any error means NOTHING was
+applied: run it again. Where none of a file's objects exists, the report
+answers `hole_open` false and the migration changes nothing and SAYS so under
+`skipped` — it never fails.
+
+**The fence is measured, not promised (H1, H4).** Each of the two files
+applied to production takes one md5 per whole row of its table
+(`organizations`; `subscriptions`) before it creates or replaces anything and
+again after, refuses to commit if a row it found is no longer byte-identical,
+and answers both digests (`existing_organizations_*`; `existing_rows_*`). The
+report answers the same digest (`organizations_fingerprint`;
+`existing_rows_fingerprint`: `{rows, md5}`). The proof that no customer row
+was altered is: the same `rows` and `md5` in the report read BEFORE and the
+report read AFTER, equal to the migration's own `…_fingerprint_before` /
+`…_after`. A signup, a rename or a webhook that lands between the two reports
+changes it too — `rows` or the grouped counts then show what moved.
+
+**Read before applying.** Each report says who owns the object and whether
+the role running it can change it (`this_role_can_install_the_guard`,
+`this_role_can_replace_it`, `this_role_can_revoke`): an object ANOTHER role
+owns is not replaced, not attached to and its grants are not revoked — the
+file changes nothing of it, names it under `skipped` / `not_closed`, and the
+report keeps saying open. H1: `users_over_their_cap` (a count, never a list)
+and `workspace_functions.*.security_definer` (a SECURITY INVOKER
+`archive_workspace` would be refused by the guard). H3:
+`open_tables_not_known_to_this_repository`,
+`rls_off_tables_not_known_to_this_repository` and `api_writable_views` — what
+a database holds that no committed file creates; with row level security off
+the anon key writes it, and a view that is not `security_invoker` writes its
+table as the view's owner, past every revoke here. H4: `signup_triggers`
+(which function the trigger on `auth.users` runs THERE, and what it seeds),
+`subscriptions.every_tier_check_accepts_trial` and `existing_rows` (counts by
+tier-is-null / plan / status / has a Stripe subscription).
+
+**`supabase db query` over a direct connection cannot run the migrations.**
+`--local` and `--db-url` answer `cannot insert multiple commands into a
+prepared statement` for a two-statement file (measured, CLI 2.95.4); the
+single-statement reports run either way. The migrations are written for the
+`--linked` (Management API) path, or the SQL editor. H4's rollback is ONE
+statement (the `create or replace function handle_new_user_v2()` of
+`schema_phase3.sql`), never that whole file; H1's is the two `drop`s in its
+header.
+
+**Re-running an old file re-opens four of them** (each migration's ⚠ says
+so): `schema_phase_dashboard_config.sql` re-creates the function without the
+caller check; `schema.sql` / `schema_phase3.sql` re-create the signup function
+without `tier`; a new environment creates the twelve tables and
+`calibration_rules` with the default grants again. H1 is not re-opened by the
+files that re-create `restore_workspace` — the cap is on the table.
+
+**Gates** (plant log: `docs/engine_book/gates.md`, "Entitlement holes"):
+`hole-workspace-cap`, `hole-dashboard-config`, `hole-public-tables`,
+`hole-calibration-queue`, `hole-derived-tables`, `hole-signup-tier`
+(`scripts/check_hole_*.sh`, library `scripts/entitlement_holes/lib.sh`) and
+`entitlement-hole-laws` (`tests/engine/test_entitlement_hole_laws.py`). The
+six database gates address NO database by default: without
+`ENTITLEMENT_HOLES_DB_URL` (a loopback URL of a LOCAL Supabase Postgres;
+anything else is refused, exit 2) each is VACUOUS — never green. With it,
+each builds ITS OWN scratch database from this repository's SQL, shows the
+hole OPEN, applies the migration and shows it closed (twice; re-opened by
+hand; on production's shape; on an empty database; on objects another role
+owns), with every legitimate path still working, and drops the database.
+`HOLE_MIGRATION` / `HOLE_REPORT` point a gate at a planted copy; such a run
+ends in exit 1 or 3, never 0.
+
+> ⚠ **Never `set role anon | authenticated | service_role` in a `postgres`
+> session of a local Supabase Postgres and then call a function that role may
+> not execute.** On image 17.6.1.106 that SEGFAULTS THE SERVER (supautils'
+> hint for permission-denied on a function) and drops every session of every
+> database on the cluster. A request is reproduced in an `authenticator`
+> session — what PostgREST's are (`sql_as` in the library); a law reds a gate
+> that sets a role itself.
+
+**Correction to §16 ("Backend cleanup").** `_dashboard.py`'s router IS
+mounted (`server.py`, since 2026-07-26): `PUT /api/dashboard/config` upserts
+`dashboard_configs` with the service role, keyed on the verified user id.
+Nothing calls `upsert_dashboard_config` — not the engine, not the frontend.
+
+**Found, not built — the owner's rulings** (measured in a scratch database
+built from this repository's SQL, 2026-10-04):
+
+1. **Firm clients and the cap (H1 path iii).** `create_firm` →
+   `import_firm_client` ×2 gives a trial user 3 live workspaces, and
+   `detach_workspace_from_firm` leaves them as plain owned workspaces. Do a
+   firm's clients count against the importer's cap? Only where
+   `schema_phase_firm.sql` is applied (the H1 report: `firm_path_iii`).
+2. **Users already over their cap (H1).** They keep everything; after the
+   guard they cannot restore a workspace they archive until they are under
+   the cap — an accidental "delete" is then theirs to lose after 30 days
+   (the service role restores). The SQL cap reads `tier` only: an existing
+   free account (tier NULL) has cap 1 whatever the engine's plan card says.
+   Read `users_over_their_cap` before applying H1.
+3. **The calibration queue (H3c) and the derived tables (H3b).** Apply or
+   not: both restrict-only, no user-JWT writer found. H3c closes who may fill
+   the operator's queue; H3b stops a member rewriting their own figures from
+   the browser. Tables of the same kind that NO committed file creates (the
+   engine writes `valuations`, `sku_lines`, … with the service role; three
+   committed files only ALTER such tables) are in neither list: the H3 report
+   names every one that is open (`open_tables_not_known_to_this_repository`)
+   and no file touches them.
+4. **Existing free accounts (H4).** The engine change that would close it for
+   rows that exist: `_plan_state.get_plan_state` resolves `tier`, else `plan`
+   ONLY where the row has a `stripe_subscription_id`, else trial (today:
+   `row.get("tier") or row.get("plan")`; the same expression sits in
+   `_billing.py`'s usage status and in the chat function's plan lookup). It
+   moves every existing free account from the Multi-Country allowance to the
+   trial's — a change of what existing accounts get, so it is NOT built.
+5. **`delete_my_account` + signing up again** restarts the 14-day trial and
+   zeroes the month's meter (the account's rows are deleted with it).
+6. **`documents.metered_extra` / `nonro_doc` / `nonro_metered_extra`** are
+   writable by a member on their own document (measured; another member's:
+   0 rows). Nothing that charges reads them — a run settles what ITS run
+   reserved (the quota ledger); only the operator's recompute report and
+   `scripts/list_duplicate_charges.py` read `metered_extra`, where a planted
+   stamp adds a line.
+7. **`profiles` has no INSERT policy.** Settings' profile save is an upsert
+   (`insert … on conflict (id) do update`): on a database built from this
+   repository it answers "new row violates row-level security policy" even
+   though the row exists (a plain UPDATE works), and the page shows
+   "Couldn't save profile" while the name it mirrors into the auth metadata
+   does change. A database whose `profiles` holds only the self-select and
+   self-update policies shows it. The fix that widens nothing is the
+   frontend's (`update`, not `upsert`). `profiles.language` is written by
+   the frontend and defined by no committed file.
+
+---
+
+## 32. Ask CFO AI — the cap is always enforced (2026-10-03)
+
+Owner, 2026-10-03: *"Fix the chat function so it enforces its cap on every
+call, signed in or not, and deploy it. Only after that will I add the
+Anthropic key."* And 2026-10-04: *"deploy the cap fix with limits switched
+on"* and *"tell me when it is safe to add the Anthropic key"*. Branch
+`fix/chat-cap-always`. **Not deployed by this branch — the coordinator deploys
+the function (steps below).** Renumber this section at merge.
+
+**What was open** (each verified on `supabase/functions/chat-llm/index.ts` as
+it stood on main):
+
+1. No `Authorization` header, or a bearer `auth.getUser` rejected → `userId`
+   stayed null and the reservation was skipped. Anyone with the function URL
+   got unmetered model calls on the owner's key.
+2. The reservation for everyone else sat behind `USAGE_LIMITS_ENABLED`, unset
+   in production: signed-in users were uncapped too.
+3. A dead metering RPC read as "monthly cap reached" (a false sentence to a
+   paying user); an unreadable plan row read as "trial".
+4. The cap-reject path had never run against the real SQL functions.
+
+**What closes it.** The function is four files; `index.ts` is thin wiring.
+
+| file | holds |
+|---|---|
+| `guard.ts` | THE DECISION, pure, dependencies injected: verify → validate → plan → reserve → ONE model request → commit \| release |
+| `plans.ts` | the tier → chat caps table and the row resolution — the engine's, step for step |
+| `prompt.ts` | the request shape, the two personas, the stock-claim rule |
+| `index.ts` | the real things: `auth.getUser`, the `subscriptions` read, the three RPCs, one `fetch` |
+
+The order is the contract:
+
+| step | refusal | upstream request | metered |
+|---|---|---|---|
+| no bearer / bearer does not verify (the anon key, a forged, unsigned or expired token, the token of a deleted user) | `401 sign_in_required` | none | nothing |
+| auth server cannot be asked (unreachable, a 5xx, or rate-limiting the check: 408 / 429) | `503 auth_unavailable` | none | nothing |
+| request not sendable (not JSON, no messages, a non-string `content`, a role other than user / assistant) | `400 invalid_request` | none | nothing |
+| `ANTHROPIC_API_KEY` unset (verified user) | `503 ai_not_configured` | none | nothing |
+| plan row unreadable | `503 metering_unavailable` | none | nothing |
+| the plan carries a cap that is not a whole number (no plan has one; `reserve_user_chat` reads NULL as "unlimited", and JSON sends NaN as null) | `503 metering_unavailable` | none | nothing — the meter is not asked |
+| `reserve_user_chat` errors, times out (8 s), or answers a shape the function does not understand | `503 metering_unavailable` | none | whatever the RPC did |
+| `reserve_user_chat` → `daily_cap_reached` / `monthly_cap_reached` | `429 chat_cap_reached` | none | nothing |
+| `allowed` | — | exactly ONE, with a deadline of 100 s | reserved → **committed once** on an answer, **released once** on a failure — a model that has not answered at the deadline is aborted and counts as a failure |
+
+(The missing-key arm used to be HTTP 200 with an "answer" naming the secret
+and the model; the chat stored it in the conversation and Explain cached it.
+The function is deployed BEFORE the key is added, so that window is real: it
+is a typed 503 now, the secret's name goes to the function's log, and every
+surface — old bundle and new — shows "the assistant is unavailable".)
+
+**There is no switch — "limits switched on" is the code, not a setting.** The
+function does not read `USAGE_LIMITS_ENABLED` (unset among production's
+function secrets, 2026-10-04 — and it does not matter any more) and no
+environment variable turns the cap off. (The ENGINE still reads it for
+document quotas; that switch is untouched.) The cap decision is the RPC's:
+the function never reads a counter and never pre-checks, so two calls at
+cap − 1 — or six first calls at once — are settled by the row lock in
+`reserve_user_chat`.
+
+To switch enforcement OFF the owner would have to change the function's
+source and redeploy it — take the reservation out of `guard.ts`, which reds
+`chat-cap-always` (plants P1–P9, P114) — a deliberate act, never an unset
+variable. The one lever a secret holds is a cap NUMBER: `PRICING_CHAT_DAILY_CAP_<PLAN>`
+/ `PRICING_CHAT_MONTHLY_CAP_<PLAN>` set among the function's secrets moves
+that plan's cap (the engine reads the same names from its own environment —
+set both or the plan card and the function disagree). Unset — as today — the
+caps are the table below. A value that is not a whole number falls back to
+the table's; a very large whole number would be a cap nobody reaches — again
+something a person has to type and set, by name, on purpose. A plan with no
+whole-number cap at all is refused, not served.
+
+**IT FAILS CLOSED — so the database must have the meter BEFORE the deploy.**
+The three functions (`supabase/schema_phase_pricing_v3_atomic.sql`) were only
+ever called behind the switch; production may never have run them. On a
+database without them every call of a signed-in user is answered `503
+metering_unavailable` — the chat is off for everyone. The coordinator runs
+`supabase/preflight/chat_cap_always_preflight_report.sql` first (ONE
+read-only statement, one jsonb row): `ready` (the functions under the names
+and argument names `index.ts` calls, executable by `service_role`, the tables,
+columns and unique keys), `blocking` (what is missing, in words),
+`functions_are_this_repository` (md5 of each body against the repository's),
+`meter_closed_to_browser_roles` (neither browser role may execute the three
+FUNCTIONS), `plan_and_counters_closed_to_browser_roles` (neither can write a
+ROW of `subscriptions`, `user_usage` or `plan_chat_daily_usage` — see "as
+strong as the three tables" below), and COUNTS ONLY — never a user — of the
+stored tier keys, of users with no plan row, of users with MORE than one
+(`subscriptions.users_with_more_than_one_row`: the function reads one row per
+user and refuses a user who has two, so this must be 0) and of reservations
+left open. Deploy only on `ready: true`. If it is false the
+fix is `schema_phase_pricing_v3_atomic.sql`, which CREATES objects — that is
+outside "restrict-only" and is the owner's call, not this branch's. The
+report reads the catalog; it does not CALL the functions. A counter column
+of another type, a NOT NULL column the meter's insert does not supply, a
+trigger that raises, or row security that binds the functions' owner would
+each pass it and fail the first reservation — closed (`503`), never open.
+The owner's signed-in check (b) below is what runs them.
+
+**Every refusal body is `{ error: <code>, detail: { code, message, … } }`.**
+The `message` is in the request's `language` ("ro" / "en") for a caller with
+no words of its own. THE APP NEVER PRINTS IT: `frontend/lib/chatRefusal.ts`
+renders its own sentence from the code, the cap period and the cap number
+(`chatRefusalStrings.json`, EN + RO). Its "See plans" / "Sign in" link is a
+labelled link the bubble now renders — for a same-site path made of a closed
+set of characters only (no backslash: a browser reads `/\host` as `//host`,
+and a model's answer could have hidden another site behind a label). A 401
+while signed in triggers ONE session refresh and ONE retry in
+`cfoApi.chatLlm`; nothing else is retried.
+A bundle older than this branch still works against the new function: the
+cap card renders as before (from `detail.code`, with the server's English),
+and a 401 / 503 shows its generic "assistant unavailable" panel — the SAME
+panel for "sign in again", "could not check your plan" and a dead key, which
+is why the deploy's signed-in checks below are read as HTTP, not off the
+screen. So the order frontend → function is the gentle one, and function →
+frontend is safe. A refusal the new bundle shows is marked as one
+(`ChatMessage.refused`) and is never sent to the model as a turn of the next
+request — the reader's questions ride, the app's notice does not (an errored
+turn was always left out; the sentence this branch gave the refusals would
+otherwise have gone upstream as if the assistant had said it).
+
+**Who calls the function.** One chokepoint, `cfoApi.chatLlm`, three surfaces —
+Ask CFO AI (`/chat`), the command bar's answer (Capsule), and Explain
+(`ExplainDrawer`, Benchmark). All three sit behind `AuthGuard`; the mobile
+shell is a WebView of the same app; no landing, public or demo page calls it
+(the anonymous `/public-companies` drawer's "Ask CFO AI" button dispatches an
+event only the signed-in shell listens to — it does nothing signed out, and
+calls nothing). So no signed-out surface exists today. All three share ONE
+cap: an Explain click and a command-bar answer each use a chat message (a
+command-bar answer that fails its guard and regenerates uses two). At the cap
+the chat shows the cap sentence and locks the composer; the command bar
+serves its deterministic answer under "You have reached your assistant limit
+for now."; Explain keeps its template explanation and says "CFO AI couldn't
+add more right now" with a Retry (which is refused again, unmetered). On a
+401 / 503 the two fall back the same way with their own "could not be
+reached" sentence. Every one of these sentences is the app's, EN and RO —
+none prints the function's.
+
+**The plan a row resolves to — unchanged, and now exactly the engine's.**
+`plans.ts` mirrors `_plan_state.get_plan_state` (`tier or plan`),
+`_pricing_config.plan_for` and `_env_int`. One real difference was repaired:
+an EMPTY `tier` fell through to the trial caps here (`??`) while the engine
+read `plan`. No cap number changed:
+
+| `subscriptions` row | plan | chat / day | chat / month |
+|---|---|---|---|
+| no row, `tier = 'trial'`, or an unknown tier | trial | 3 | 5 |
+| `intro` | intro | 5 | 10 |
+| `solo` | solo | 10 | 50 |
+| `pro`, `starter` | pro | 25 | 150 |
+| `multi`, `pro_legacy`, `business`, `professional`, `professional_contact` | multi | 40 | 200 |
+| **tier NULL, plan `'professional'` — the row the signup trigger writes** | **multi** | **40** | **200** |
+
+**⚠ The last row is the one to rule on before the Anthropic key goes in.**
+The signup trigger (`handle_new_user` in `supabase/schema.sql`,
+`handle_new_user_v2` in `schema_phase3.sql`) gives every new account a row
+with `plan = 'professional'`, `tier` NULL. The engine and the function both read
+`tier or plan` → `professional` → the legacy map → **multi**. So a free
+signup is metered at 40 messages a day and 200 a month, not 3 and 5 — and its
+plan card says the same, because both read the row the same way. This branch
+does NOT change that (owner's fence: no change to plan limits, no change to
+customer rows). Whatever closes the "Multi-Country signup" hole in the engine
+must be mirrored in `plans.ts` in the same commit; `chatLlmPlans.test.ts`
+pins the engine lines and reds until it is. (A trigger that writes `tier =
+'trial'` for NEW rows needs no change here: `tier` is read first — a signup
+made after that fix is on 3 / 5. It changes nothing for the rows that exist:
+every account created before it keeps `plan = 'professional'`, `tier` NULL,
+and so 40 / 200, until the owner rules on existing accounts.)
+
+**The cap is exactly as strong as the three tables behind it.** The plan is
+read from `subscriptions`; the counters are `user_usage` and
+`plan_chat_daily_usage`. On a repository-built database the two counter
+tables carry a SELECT policy only (gate `chat-cap-real` 11: a user at the cap
+cannot update, delete or upsert their counter or call the three functions),
+but `subscriptions` carries "self insert" / "self update" policies: a
+signed-in user can PATCH their own `tier` to `multi`. That is the
+subscriptions write lockdown's hole (branch `fix/subscriptions-self-write`),
+not this branch's — where it is open the chat cap of any account is, at most,
+multi's. The owner's order (2026-10-04) puts the lockdown on production
+BEFORE this deploy; its own post-check is what says the row is closed.
+
+**The preflight report now says it too** (review of 2026-10-04: it answered
+`ready: true` and `meter_closed_to_browser_roles: true` on the local stack
+while a trial user at the cap raised their own tier with their own session
+and was served — it looked at the three functions only).
+`plan_and_counters_closed_to_browser_roles` is true when, for each of the
+three tables and each of INSERT / UPDATE / DELETE, a browser role either does
+not hold the privilege (on the table or on any column) or row security is on,
+the role does not bypass it, and no permissive policy for that command (or
+FOR ALL) applies to the role or to public. `browser_role_row_writes` names
+every open door ("authenticated may UPDATE public.subscriptions (policy
+…)"); `browser_role_truncate_grants` is for the record only (row security
+does not cover TRUNCATE; no API a browser reaches issues it). On production
+as the coordinator read it on 2026-10-04 — one SELECT policy on
+`subscriptions` and no write privilege; select-only policies on the two
+counter tables — the fact is `true` already; the lockdown keeps it so. What
+it CANNOT see: a SECURITY DEFINER function, trigger or view that writes these
+rows on someone else's privileges, and a policy's own condition (it errs
+towards "open"). So it is a second look, not a replacement: the lockdown's
+post-check stays item 1 of "when it is safe to add a working key".
+
+**What bounds ONE call (C4).**
+- Model `claude-opus-4-7`, `max_tokens: 2000`, `output_config.effort: high`,
+  no `thinking` requested (on this model that means no thinking: the 2,000
+  tokens are the whole output) — as the engine's original call. One
+  reservation → ONE `fetch`, no SDK underneath (an SDK would retry 429 / 5xx
+  twice by default), no retry in the function.
+- The caller cannot widen it: only `{role: user|assistant, content: string}`
+  messages are forwarded, and only the known context fields; a caller's own
+  `model`, `max_tokens`, `tools`, `system`, image or document blocks are not.
+  (This is the one bound ADDED: the app only ever sends strings, so nothing a
+  real user sends changes.)
+- **INPUT SIZE IS NOT BOUNDED BY THE FUNCTION.** It forwards the whole
+  `messages` history and the whole `dataset_summary`. The chat sends the full
+  conversation each turn and the app sets no limit on either, so there is no
+  smaller size the frontend guarantees and none was invented here. The only
+  ceiling is the model's context window. So the cap bounds CALLS, not tokens:
+  at the list price in the API reference this was written against
+  (2026-09-25: $5 / MTok in, $25 / MTok out, 1M-token context — re-check it),
+  the output of a call is at most 2,000 tokens ≈ $0.05, an ordinary turn (a
+  few thousand input tokens) is a few cents, and a direct caller who fills the
+  context costs about $5 a call (about $6.25 where it rides in the
+  cached system block, written at 1.25×). An owner ruling (a maximum request
+  size) is the missing bound; it is one line in `guard.parseRequest`.
+- **The model request has a deadline: `guard.MODEL_TIMEOUT_MS`, 100 s** — an
+  operational timeout like the 8 s on the auth check, the plan read and each
+  RPC, not a plan limit. (Review of 2026-10-04, measured: with the upstream
+  never answering, the function had not answered after 25 s and the meter
+  read 0 used / 1 reserved; the platform cuts a request off at 150 s and then
+  nothing releases — a fifth of a trial month gone with no answer.) At the
+  deadline the request is ABORTED (the signal `index.ts` hands to its one
+  `fetch` — while waiting for the answer or while reading it), the
+  reservation is released once and the caller gets the same sentinel a failed
+  model call always got. 3 × 8 s before the request + 100 s + 8 s for the
+  release = 132 s, under the platform's 150 s (a law holds the sum). An
+  aborted request may still have cost input tokens upstream; it is not
+  counted against the user.
+- A call the platform kills anyway (a crash, a redeploy mid-flight) is neither
+  committed nor released: its reservation stays and keeps counting against
+  the cap for that day and month. The same if `commit_user_chat` fails after
+  an answer: the answer is returned, `used` does not move, the reservation
+  still fills its slot (the plan card shows one fewer used than the cap
+  counts).
+- An upstream failure RELEASES the reservation (C2), so while the upstream is
+  failing a signed-in user below the cap can keep sending requests that are
+  not counted. Requests the upstream rejects are not billed; the Console
+  spend limit and Anthropic's own rate limits are the ceiling for that.
+- Nothing is remembered between requests: the bearer is verified with the
+  auth server on every call and the plan row is read on every call, for the
+  user the auth server named. A request's own headers, query string or body
+  never say who is metered or on which plan.
+- The meter's buckets are the UTC day and the UTC calendar month — not the
+  billing period.
+
+**Before the Anthropic key goes in — what a signed-in account can spend.**
+The caps are CALLS. The unchanged numbers, per account, and the ceiling the
+function itself enforces at the list price above (a call that fills the 1M
+context is ≈ $5.05; about a quarter more where the bulk rides in the cached
+system block):
+
+| plan (how a row resolves: the table above) | messages / day | messages / month | a month in which EVERY call fills the context |
+|---|---|---|---|
+| trial | 3 | 5 | ≈ $25 |
+| intro | 5 | 10 | ≈ $50 |
+| solo | 10 | 50 | ≈ $250 |
+| pro | 25 | 150 | ≈ $760 |
+| multi — and every default signup row | 40 | 200 | ≈ $1,010 |
+
+That last column is what a direct caller with a valid session could reach,
+not what the app sends: an ordinary turn is a few cents (the answer is at
+most 2,000 tokens ≈ $0.05; the prompt a few thousand), so a month of 200
+ordinary messages is in the order of $10–20.
+
+NOT bounded by this function, each one the owner's to rule or set:
+1. **The number of accounts.** Every signup is a new allowance — 40 / 200 for
+   the default row until the signup tier is ruled on (H4), so until then the
+   number of accounts IS the bound on spend: H4 and the Console spend limit
+   go in before the key. Whether production requires a confirmed e-mail,
+   allows signups at all or allows anonymous sign-ins is readable with the
+   PUBLIC anon key alone — `GET <project>/auth/v1/settings` answers
+   `disable_signup`, `mailer_autoconfirm` and `external.anonymous_users`
+   (measured on the local stack: false / true / false). The coordinator reads
+   it on production and puts the three values in front of the owner; a
+   CAPTCHA is a dashboard setting that endpoint does not show.
+2. **Input tokens per call** (above): a maximum request size is one line in
+   `guard.parseRequest`, and a number only the owner can choose.
+3. **The plan row**, while a signed-in user can write their own (the
+   subscriptions lockdown): any account can lift itself to multi's caps —
+   never above them, an unknown tier reads as trial.
+4. **The total.** Nothing in the function or the database budgets across
+   accounts. The one global ceiling available without code is a monthly spend
+   limit in the Anthropic Console (the organization's, or the key's
+   workspace) — set it before the key goes in.
+
+**Gates** (`docs/engine_book/gates.md`; 152 plants, each alone, each
+RED on at least one of the two — 119 from the build, 33 from the review of
+2026-10-04, all replayed in one run at `8c91a093`; one line of the real
+gate's driver came after it, and the six plants that line touches were run
+again at `ad32d692` — no function, report or frontend file changed since):
+- `chat-cap-always` — vitest, 191 laws: `chatLlmGuard` (a recorder where the
+  model would be; a plan with no whole-number cap never reaches the meter;
+  the model request's deadline and the sum of the deadlines; the auth server
+  and the plan row asked on every call; a body that names another user),
+  `chatLlmPlans` (reads the engine's Python), `chatLlmPrompt` (the function's
+  source: no switch, one fetch, three RPCs, no counter read, the stock-claim
+  rule — and, with the rule taken out, every prompt hashing to what main's
+  function sent; the CORS allowlist and the deployed LAN dev allowance; the
+  model request pinned line for line; two request headers and nothing else of
+  a request; module scope holds constants only; the preflight report held to
+  the SQL and to the argument names `index.ts` sends, and its fact about the
+  plan row and the counters), `chatRefusal` (the app's sentences, EN + RO,
+  from the function's real bodies; no labelled link in a bubble that a
+  browser would take to another site; a refusal is never sent to the model as
+  a turn), `chatLlmSignInRetry`.
+- `chat-cap-real` — `scripts/check_chat_cap_real.py`, 100 cases: the DEPLOYED
+  FILE under Deno on a loopback port against the local stack's real auth
+  server, plan row and RPCs (checked body for body against this repository's
+  SQL), the engine's real `get_plan_state` executed beside it, a recorder for
+  the model, the process confined to 127.0.0.1; the preflight report run on
+  the stack (`ready: true`), on an empty database (`ready: false`, six
+  things named), and once more while the run's users and counters exist (no
+  user id, no address in its answer; its meter counts the tables'; no
+  reservation of the run left open; its fact about what a browser can write
+  held to what the run's signed-in user DID write, and to eleven shapes in a
+  scratch database). A token that was SERVED and then revoked (its user
+  deleted, or signed out); a trial user at the cap naming a paying user in
+  headers, cookie, query string and body; the plan row re-read on every call;
+  the deploy's two signed-in checks; an upstream that never answers (the
+  function's 100 s timer run in 1.5 s — the file under test untouched).
+  VACUOUS without the stack or Deno; it
+  refuses a non-loopback
+  API and an API that is not its database's stack. The model upstream can be
+  pointed at a loopback recorder with `CHAT_LLM_UPSTREAM_BASE_URL`; any other
+  value is ignored, and production leaves it unset.
+- Measured once BY HAND (2026-10-04; transcripts in `gates.md` under
+  `chat-cap-real`), not by a gate: the four files served by the REAL local
+  Supabase edge runtime (`supabase functions serve`, edge-runtime v1.73.13)
+  through the stack's gateway — 20 cases, 20 pass, including twenty
+  concurrent calls with one slot left (one served); and the preflight report
+  on a scratch database in fourteen deviant shapes (an overload, other
+  argument names, a missing column, table or unique key, a partial unique
+  index, a lost grant, a browser role that may execute) — it named each and
+  errored on none. Both were measured on the files as they stood at
+  `45f22fff`; what came after (the LAN dev allowance, the whole-number cap
+  refusal, the report's fifth read, and the review's changes of 2026-10-04:
+  the model request's deadline and its `AbortSignal` on the fetch, the
+  report's table fact) runs under plain Deno and psql in the two gates, not
+  again under the edge runtime. If the hosted runtime's `fetch` did not
+  honour the signal, the function would still stop waiting at the deadline,
+  release and answer — `guard.ts` races the request and does not depend on
+  the abort; only the upstream request would run on.
+
+**What goes live with this deploy (C7).** `git log -- supabase/functions/chat-llm`
+on main is two commits: `7488b4e7` (2026-07-26, the file as first committed
+after the 2026-07-24 deploy) and `a3853435` (2026-08-27, the tier
+restructure). **What production runs was read on 2026-10-04** (the
+coordinator downloaded the deployed source): it is main's `index.ts` — the
+`a3853435` tier table included — plus ONE addition main never had: a CORS
+allowance for the iOS shell's LAN dev server (`LAN_DEV_ORIGIN`, a
+private-range host on the Vite port; in the repository it exists only on
+`origin/feat/ios-shell-native-sheets`, commit `cdca438a` of 2026-09-10 —
+never merged to main; that branch's `index.ts` is byte-identical to the
+downloaded source). This branch was built from main, so a redeploy of it
+would have DROPPED that allowance; it carries it now, byte for byte. **Until
+that iOS branch merges, any deploy of this function from main-derived code
+without these lines removes it again — the LAN dev law is what reds.** So
+against what is
+deployed today the redeploy changes exactly the rows marked "this branch"
+below, and nothing in CORS:
+
+| change | from | safe |
+|---|---|---|
+| the tier table — `starter` 10/50 · `pro` 40/200 became `solo` 10/50 · `pro` 25/150 · `multi` 40/200; the legacy map (`starter → pro`; `business`, `professional`, `professional_contact`, `pro_legacy → multi`, where the old one had `solo → starter` and the rest `→ pro`); display names | `a3853435` — ALREADY LIVE (the deployed file carries it): no change | — the engine's numbers (parity law); until this deploy no cap was enforced at all, so no account loses an allowance it had |
+| the LAN dev CORS allowance: `http://10.x.x.x:5173`, `http://192.168.x.x:5173`, `http://172.16–31.x.x:5173` are echoed as the allowed origin | deployed today, NOT on main | KEPT — the same comment, pattern and deciding line as the deployed file (`chatLlmPrompt.test.ts` pins the pattern and executes it against 26 origins; `chat-cap-real` 1.4 through the real `index.ts`). It admits a browser on a private network to READ the function's answers; it verifies nobody — such a caller is still refused 401 without a session |
+| a plan whose cap is not a whole number is refused `503 metering_unavailable` instead of being sent to the meter (which reads NULL as "unlimited") | this branch | yes — no plan carries one, with or without an override (law); nothing a real account gets changes |
+| 401 / 429 / 503 before any model call; no switch; fail closed (C1–C3) | this branch | the point of the deploy — needs the meter in the database (preflight) |
+| an unverified caller is refused BEFORE the request is validated or the key is looked at | this branch | yes — changes only what an unauthenticated caller is told |
+| no model key → `503 ai_not_configured`, not a 200 "answer" naming the secret | this branch | yes — old and new bundles show "unavailable" |
+| `messages` must be `{role: user \| assistant, content: string}`; a caller's other fields are not forwarded; context fields of the wrong type read as absent | this branch | yes — the three callers send exactly that |
+| every refusal body gains `error`; the 400s keep their `detail` words, the cap body every field it had | this branch | yes — a superset; the old bundle reads `detail` |
+| the monthly cap sentence says "Resets on the 1st of next month (UTC)" (it said "at the start of your next billing period"; the meter's bucket is the calendar month); Romanian sentences when the request says `language: "ro"` | this branch | yes — the new bundle prints its own sentence anyway |
+| an EMPTY `tier` falls through to `plan`; an override is parsed as the engine's `_env_int` | this branch | yes — engine parity; the preflight report counts the rows by stored key |
+| the stock-claim rule in both personas' system prompt | this branch | yes — static text in the cached head; the first call after the deploy writes the prompt cache anew, once |
+| the auth check, the plan read and each metering RPC time out at 8 s; the UTC day is read once per request; a rate-limited or failed auth check is `503 auth_unavailable` | this branch | yes |
+| the model request is aborted at 100 s and its reservation released (it used to wait until the platform cut the function off, leaving the reservation counted) | this branch | yes — an answer of at most 2,000 tokens fits (80 s at 25 tokens a second); the deadline cannot be much longer, because the platform ends the whole request at 150 s and the function must still release inside that. A call that IS cut off at 100 s reads "assistant unavailable" and is not counted |
+| `CHAT_LLM_UPSTREAM_BASE_URL`, honoured for loopback values only | this branch | yes — unset in production; any other value is ignored |
+| the CORS allowlist (the six origins + the LAN dev allowance) and headers, the model id, `max_tokens`, `output_config`, the upstream headers, the two personas, the currency and public-company directives | unchanged — the CORS block is the DEPLOYED file's, byte for byte; the rest was diffed against main line by line; the personas differ by the rule's one insertion each. HELD by laws since 2026-10-04: eight sha256 pins of main's own prompts (`chatLlmPrompt.test.ts`), the allowlist law, the LAN dev law, `chat-cap-real` 1.3 / 1.4 — before them a changed persona word, an echoed foreign origin or a dropped allowance left both gates green | — |
+
+**Deploy (coordinator), in this order.**
+```
+# 1. the meter is there (read-only; deploy only on "ready": true)
+supabase db query --linked -f supabase/preflight/chat_cap_always_preflight_report.sql
+# 2. what is deployed today, for the diff — with a SCRATCH workdir: the
+#    download writes the function's source under <workdir>/supabase/functions/
+#    and must not be able to touch the checkout you are about to deploy from
+supabase functions download chat-llm --project-ref cjclenykwlngqvapmisb --use-api --workdir <scratch dir>
+diff -ru <scratch dir>/supabase/functions/chat-llm supabase/functions/chat-llm   # expected: the table above
+#    (done once on 2026-10-04: one file, main's index.ts + LAN_DEV_ORIGIN. Do it
+#    again on the day: `grep -n LAN_DEV_ORIGIN` must hit BOTH trees with the same
+#    two lines — if the deployed file has gained anything else since, stop and read it)
+# 3. the secrets' NAMES: CHAT_LLM_UPSTREAM_BASE_URL must not be there; a
+#    PRICING_CHAT_* override must be the same on the engine container; and
+#    whether ANTHROPIC_API_KEY is there decides what the signed-in live check shows
+supabase secrets list --project-ref cjclenykwlngqvapmisb
+# 4. deploy — from the checkout that holds this branch (the CLI deploys
+#    <workdir>/supabase/functions/chat-llm)
+supabase functions deploy chat-llm --project-ref cjclenykwlngqvapmisb --use-api --no-verify-jwt
+```
+The function is four files now. After the deploy, a second download (again
+into a scratch directory) must show `index.ts`, `guard.ts`, `plans.ts`,
+`prompt.ts` — a missing module is a boot error on every call, the CORS
+preflight included. (The same four files boot under the local edge runtime;
+if the server-side bundler ever drops one, the same command without
+`--use-api` bundles with Docker.) To go back: redeploy the previous source —
+which is the hole itself, so only with no working key among the secrets.
+
+**Live checks that cannot spend** — AFTER the deploy (before it, an
+unauthenticated POST is the unmetered model call itself, harmless only while
+no valid key is set). All are refused before any upstream request:
+```
+curl -i -X OPTIONS "$FN/chat-llm" -H 'Origin: https://cfo-ai.io' -H 'Access-Control-Request-Method: POST'
+#   200, access-control-allow-origin: https://cfo-ai.io
+curl -i -X POST "$FN/chat-llm" -H 'Origin: https://cfo-ai.io' -H 'Content-Type: application/json' \
+     -d '{"messages":[{"role":"user","content":"hi"}]}'
+#   401 {"error":"sign_in_required","detail":{"code":"sign_in_required",…}}
+```
+The same POST with the public anon key as the bearer is also a 401. A boot
+error (a module the bundle lost) shows on the first of these as a 5xx
+`BOOT_ERROR` instead of the 200 — the preflight is the cheapest proof the four
+files arrived. And the allowance the deployed function carried is still there
+(and still admits only a private address on the Vite port):
+```
+curl -si -X OPTIONS "$FN/chat-llm" -H 'Origin: http://192.168.1.20:5173' -H 'Access-Control-Request-Method: POST' | grep -i allow-origin
+#   access-control-allow-origin: http://192.168.1.20:5173
+curl -si -X OPTIONS "$FN/chat-llm" -H 'Origin: http://203.0.113.7:5173' -H 'Access-Control-Request-Method: POST' | grep -i allow-origin
+#   access-control-allow-origin: https://cfo-ai.io
+```
+
+**The checks above pass on a function that refuses every real user.** Until
+this deploy production swallowed a failed `auth.getUser`, a failed plan read
+and a failed reservation alike (the review of 2026-10-04 ran main's function
+in the gate's harness: no bearer → an answer; a signed-in trial user, six
+calls → six answers, meter untouched). So
+production has NEVER shown whether any of the three works there — and from
+this deploy each one is a refusal for EVERY user. OPTIONS → 200, no bearer →
+401 and the anon key → 401 say nothing about it. Two signed-in checks do, and
+both are the OWNER's (they need a session; the token never leaves the owner's
+browser). Each is a case of `chat-cap-real` (13.1–13.3) and of
+`chat-cap-always`:
+
+**(a) Free, always: a real session and a request that can never be sent.**
+In the browser console of `https://cfo-ai.io`, signed in (reload the page
+first, so the stored token is a fresh one):
+```js
+const k = Object.keys(localStorage).find((k) => /^sb-.*-auth-token$/.test(k));
+const t = JSON.parse(localStorage.getItem(k)).access_token;
+const r = await fetch("https://cjclenykwlngqvapmisb.supabase.co/functions/v1/chat-llm", {
+  method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+  body: JSON.stringify({ messages: [] }) });
+console.log(r.status, await r.text());
+```
+| it prints | it means |
+|---|---|
+| `400 {"error":"invalid_request","detail":"messages is required"}` | the bearer was VERIFIED by the auth server from inside the deployed function. Nothing was reserved (no counter row is made), nothing reached the model |
+| `401 {"error":"sign_in_required",…}` | **verification is broken on production — stop.** (The function's own `SUPABASE_ANON_KEY` / `SUPABASE_URL` is refused, or the session really has ended: sign in again and repeat once) |
+| `503 {"error":"auth_unavailable",…}` | the function cannot reach the auth server — stop |
+
+**(b) One real message while the key among the secrets is still DEAD** (the
+same snippet with `body: JSON.stringify({ messages: [{ role: "user", content:
+"hi" }] })`, or one question in the chat — then read the RESPONSE BODY of
+`chat-llm` in the Network tab, not the panel). It costs nothing while the
+upstream rejects the key (a revoked key answers 401, a key with no credit
+400; neither is billed). If the key turns out to WORK, this is the first
+billed call (a few cents) — so it is the owner's to send, never a
+coordinator's "check".
+
+| the HTTP response | it means |
+|---|---|
+| `200 {"answer":"Couldn't reach Claude: 401 …"` (or `400 … credit balance …`) | auth, the plan read, `reserve_user_chat` and `release_user_chat` all ran in production, and the key is dead. Run the preflight report again: `meter.daily_rows_today.users` ≥ 1 and both `reservations_open` 0 — the counter rows that call made, with nothing left reserved |
+| `503 {"error":"metering_unavailable",…}` | **the meter failed** (the plan row could not be read, or `reserve_user_chat` errored): read the function's log before adding a working key |
+| `503 {"error":"ai_not_configured",…}` | there is no `ANTHROPIC_API_KEY` among the secrets at all: the meter was NOT exercised (the function stops before it). Nothing to conclude about the plan read or the RPCs |
+| `200` with a real answer | the key that is there already works: the call was billed and committed — the plan card's "used" went up by one. **If so, the function deployed BEFORE this one was answering anyone with the URL, unmetered — the deploy closed that** |
+| `401` / `503 auth_unavailable` | as in (a) |
+
+**Why the body and not the panel.** The bundle in production today knows one
+refusal — `429 chat_cap_reached`. A 401, a 503 `metering_unavailable` and the
+dead-key sentinel ALL render as the same "assistant unavailable" panel there
+(and, in any bundle, the command bar and Explain show one generic sentence
+for a 401 and a 503). The new frontend build tells the three apart in the
+chat ("sign in again" / "could not check your plan" / unavailable); until it
+is live, "did it say *could not check your plan*?" cannot be decided from the
+screen. Deploying the frontend first is the other way to make them read
+differently — the order frontend → function is safe.
+
+**When it is safe to add a working key — all of these, in this order.**
+1. The subscriptions lockdown is on production and its post-check says closed
+   (a user cannot write their own plan row). A hard precondition: the
+   function believes the plan row.
+2. The preflight report answered `ready: true`, `blocking: []`,
+   `functions_are_this_repository: true`, `meter_closed_to_browser_roles:
+   true`, `plan_and_counters_closed_to_browser_roles: true` (with
+   `browser_role_row_writes: []`),
+   `subscriptions.users_with_more_than_one_row: 0`.
+3. The function is deployed from this branch; the second download shows the
+   four files; the unauthenticated checks above answer 200 and 401.
+4. Signed-in check (a) printed `400 invalid_request`.
+5. Signed-in check (b) answered HTTP 200 with the "Couldn't reach Claude"
+   sentinel (the key that is there is dead), and the preflight report run
+   again shows `meter.daily_rows_today.users` ≥ 1 with `reservations_open` 0
+   for the day and the month. (If (b) answered with a real reply, that key
+   already works and this list is complete but for 6–8. If it answered
+   `ai_not_configured`, there is no key: the meter has still never run on
+   production — the first message after the key is added is then both the
+   first billed call and the first reservation; send it yourself and read its
+   body before anyone else uses the chat.)
+6. The signup-tier fix (H4) is applied: a new account is on 3 a day / 5 a
+   month, not 40 / 200. Until then the number of accounts is the bound.
+7. A monthly spend limit is set in the Anthropic Console for the key's
+   workspace — the only ceiling across accounts, and the only ceiling on
+   requests that fail upstream (those are released, not counted).
+8. The owner has read the two numbers nothing here bounds: how many accounts
+   can be created (`/auth/v1/settings`: `disable_signup`,
+   `mailer_autoconfirm`, `external.anonymous_users` — read with the public
+   anon key; a CAPTCHA is a dashboard setting), and that every account
+   created before the signup-tier fix stays on 40 a day / 200 a month.
+
+**When feat/owner-plan merges:** its `owner` entry must be added to
+`plans.ts` `buildPlans` (it edited the table when it lived in `index.ts`),
+`tests/engine/test_owner_plan.py` `CHAT_FUNCTION` repointed to `plans.ts`,
+its `stored_tier` (an internal plan is read from `tier` only) mirrored in
+`plans.ts` `storedTier` — the pin in `chatLlmPlans.test.ts` reds until it is —
+and its runbook's "or `USAGE_LIMITS_ENABLED` confirmed unset among its
+secrets" dropped: the function no longer reads the variable, so the only way
+to settle chat before assigning the plan is the redeploy.
+
+**When feat/ios-shell-native-sheets merges:** its only change to
+`supabase/functions/chat-llm/index.ts` is the LAN dev allowance (seven added
+lines, one changed), already carried here byte for byte. The merge conflicts
+on that file (it edits the single-file function this branch split in four):
+keep THIS tree's `index.ts`; `chatLlmPrompt.test.ts` reds if the allowance is
+lost or changed in the resolution.
+
+---
+
+## 33. A comparison that is on says what it compares — or that it compares nothing (2026-10-04)
+
+Owner, top priority: Scandia Food, Dec 2024 on screen, "Compară cu: Anul
+precedent (automat)" selected, the Anterior / Δ / Δ % / "% din venituri"
+boxes ticked — and the P&L, the balance sheet and the cash flow each showed
+one column, with no word why. Read before anything was changed: no Dec 2023
+period exists (both of that company's workspaces hold Dec 2024 and Dec 2025
+only); the engine's `GET /api/period/{id}/comparatives?prior=` answers 200
+for the pair in both directions; the morning's deploy touched no comparison
+code. The page's own rule was working as written — AUTO is the nearest
+EARLIER period of the same length, there was none, no request was made — and
+the controls went on implying a comparison. **A state with a reason and no
+sentence.**
+
+Frontend-only hotfix, LIVE 2026-10-04 05:22Z: main `4c27baf1` (d7e8481d +
+4c27baf1), frontend image `606243fad680`, backend untouched.
+
+**The rule.** Whenever the comparison is ON and no prior resolves
+(`lib/comparatives` `noPriorStateOf`): the picker's AUTO option names the
+balance it looked for (`previousYearEnd`) as missing — never one that is in
+the list at another length; `ComparativesNoPriorNote`, rendered by the page
+BELOW the sticky tab bar, says which balance is missing and offers the
+workspace upload and up to three EARLIER periods one click away (never a
+later one: under "Prior" it reads the change backwards); the column boxes
+are disabled and unticked, and the reader's stored columns are not written
+over; AUTO never picks another period in its place; month names follow the
+UI language.
+
+**The review's blocker — keep it in mind for every hook keyed by a pair.**
+The app's query client keeps the previous result as a placeholder when a key
+changes (`lib/queryClient.ts`, `placeholderData: keepPreviousData`). A query
+that becomes DISABLED under a new key hands back the previous key's data for
+good. Opening the later year and stepping back to the earlier one left the
+later year's comparison — its header, its summary — beside the new notice.
+`useComparatives` takes no placeholder now, and `ratioSurfacesOf` paints a
+document only when a comparison is requested AND the document names the pair
+on screen (a held-over refusal likewise). No gate could see it: every
+comparison test used `createTestQueryClient()`, which has none of the app's
+defaults. **A law that depends on cache behaviour builds its client from
+`queryClient.getDefaultOptions()`.**
+
+Also fixed in the same change: the cash-flow card's "upload the prior
+period" link pointed at `/financials`, a path with no route; a balance
+uploaded from the redesigned workspace did not refresh the period lists the
+dashboard reads (`UploadFlowHost` invalidates `periods-with-documents` and
+`org-periods` now).
+
+Gate `compare-no-prior` (26 tests, 190 states, twenty-six plants:
+`docs/engine_book/gates.md`). Owner's rule from this day: **frontend-only
+display fixes skip the independent review — gates, the full frontend suite
+and the build are enough; reviews stay for money, auth, customer data and
+the engine.** (This one had a review, and it found the blocker.)
+
+**Follow-ups shipped with this release** (frontend only; branch
+`fix/compare-followups`, three gates): `links-routed` — every internal path
+the frontend links to is a route of `App.tsx`, a proxied request or a file
+under `public/` (the learning popover's account rows linked to `/financials`,
+never a route; the Products page's sales example pointed at a workbook deleted
+in July); `i18n-parity` — English and Romanian carry the same keys and
+placeholders, the in-code string tables included (the stale
+`scripts/check-i18n-coverage.ts` is deleted); `period-month-locale` — the two
+month formatters REQUIRE a locale and read `YYYY-MM-DD` dates only (the
+dashboard header said "Dec 2024" in a Romanian interface).
+
+**What production's database and functions carry since 2026-10-04** (applied
+by the coordinator with `supabase db query --linked`, each restrict-only, each
+with a before / after fingerprint showing no existing row changed; the record
+is `specs-durable/ops_log.md`): the subscriptions write lockdown (§29), the
+workspace-cap guard and the signup tier for NEW signups (§31), the `fx-rates`
+function (§30) and `chat-llm` with the cap always enforced (§32). The two
+revokes §31 lists as "the owner's rulings" — the calibration queue (H3c) and
+the derived tables (H3b) — WERE applied the same day, 09:53Z (8 and 48
+privileges; SELECT untouched; row counts and content hashes identical before
+and after), and the owner approved them afterwards. Still open, with no
+migration that creates them in this repository: `valuations` and `sku_lines`.
+
+---
+
+## 34. A refused restore says why; the assistant is told its period (2026-10-04)
+
+Branch `fix/workspace-cap-restore-message` (frontend only; no engine, no
+schema, no function). Four frontend defects, each with a gate. Per the
+owner's rule (§33) none went to an independent review: gates, the full
+frontend suite and the build.
+
+**A restore the plan's limit refuses.** The workspace-cap guard (§31, H1)
+refuses `restore_workspace` when the restore would put its owner over the
+plan's workspace limit. Both screens that restore — `WorkspaceHomeV2`'s
+"Recently deleted" shelf and the legacy `Workspace` page's — answered every
+refusal "Couldn't restore", while the archived workspace's 30-day purge date
+kept counting down. Owner: "replace the generic failure with a clear message
+(Romanian and English) saying the workspace limit is reached and how to
+upgrade". Now `lib/org` `restoreWorkspaceOrg` records the database's refusal
+where the RPC answered (`lastWorkspaceRestoreRefusal()`: the limit, and the
+number THE REFUSAL names — never the plan card's), and
+`lib/workspaceRestoreNotice` is the one notice both screens show: "Workspace
+limit reached" / "Ai atins limita de spații de lucru", one sentence with the
+plan's limit and that upgrading restores it, one action — "View plans" /
+"Vezi planurile" → `/pricing`. Any other failure keeps the plain sentence.
+**The account that is over its cap was not touched; restores for it are the
+owner's.** Gate `workspace-restore-limit` (10 tests, twenty plants).
+
+**The assistant's period.** One real question on the live chat (the owner's
+word, 2026-10-04) was answered "the period is `<a uuid>` (an internal
+identifier)". `buildWorkspaceSnapshot`'s first line was
+`Period: ${p.label ?? p.id}` — and `label` is the COMPANY's name
+(`lib/activePeriod`). It is `snapshotPeriodLine` now: the statements' period
+label and the closing date, one of the two when the other is absent, "not
+stated in the workspace" when neither; **the row id is nowhere in the
+snapshot**. The edge function is unchanged (the snapshot is what it is
+handed as `dataset_summary`).
+
+**The chat page's scroll.** `CFOMessageList` in document-scroll mode sent the
+window to `document.documentElement.scrollHeight` after every message — the
+end of the DOCUMENT, which also holds what the app shell renders below the
+chat: a two-message conversation ended up under the header with the footer
+on screen. The target is the end of the CHAT COLUMN (`data-chat-column` on
+the page: the messages and the in-flow composer) through `chatEndScrollTop`,
+never above the top; "pinned to the end" is measured against the same end.
+Gate `chat-period-and-scroll` (10 tests, sixteen plants).
+
+**The profile save.** Settings saved the name with an UPSERT into
+`profiles`, a table with own-row SELECT and UPDATE policies and no INSERT
+policy (the repository's schema and production's catalog agree): row level
+security refuses the INSERT half of an upsert even when the row exists, so
+every save answered "Couldn't save profile". It is one own-row UPDATE now
+(`lib/profileSave`), read back; nothing in the frontend inserts into
+`profiles` — the row is the signup trigger's. Proved on the isolated local
+stack (update: 1 row; upsert: refused). Gate `profile-save-own-row` (8
+tests, eleven plants). **An upsert needs an INSERT policy, whatever the
+conflict target says.**
+
+**When a label is a name, name it.** `ActivePeriod.label` reads like "the
+period's label" and is the company's. Two call sites in the chat shell still
+pass it as `periodLabel` (the grounding chip prints it only when it differs
+from the company name — i.e. never as a period). Rename before the next
+reader takes it for a date.
+
+---
+
+## 35. No anonymous request reaches a model (2026-10-04)
+
+Branch `fix/anonymous-model-routes` (four commits, engine), merged into
+`release/r-trust`. Found by the spend audit the owner's question started:
+"can I fix the backend key now … without exposing credits".
+
+**The defect.** `POST /api/financial-statements/parse` was mounted
+unconditionally with no bearer, no dependency, no meter and no limiter. It
+sent the caller's PDF (`pdf_b64`) — or fetched a URL THE CALLER named
+(`pdf_url`, addresses inside the Docker network included) — to the model on
+the backend's key (one Opus call, up to 8,000 output tokens, the whole PDF
+as input) and returned the model's text. Measured on production 2026-10-04:
+an anonymous 20-byte POST answered 502 with the model API's 401 inside.
+**Only the backend key being invalid stopped the spend; the server-side
+fetch of any URL worked the whole time.** Nothing called the route over
+HTTP — the pipeline calls the handler in-process.
+
+**The rule.** The PDF model lane is NOT a route. `server.py` neither imports
+nor mounts `financial_statements`; `pipeline.stage_extract` still finds the
+handler by name on `build_router()` and calls it in-process, unchanged. The
+handler fetches a `pdf_url` only when it is https, on the host and port of
+`VITE_SUPABASE_URL`, under `/storage/v1/object/sign/documents/`, with no
+credentials, no dot or empty segment and no escape standing for a slash, a
+dot, a backslash or a percent sign; it follows no redirect, enforces the
+25 MB cap while reading, refuses an encoded body, and refuses bytes that do
+not read as a PDF (415) before the SDK is imported. An http or base-path
+`VITE_SUPABASE_URL` (a local stack) makes the lane refuse to fetch — the
+deploy pre-flight proves production's setting. The public
+`/api/features/status` payload names `/api/pipeline/run` as the upload
+endpoint now.
+
+**Gate `no-anonymous-model-call`** (83 tests; 388 routes in two flag states,
+6,356 requests; fifty plants): every route of the real `create_app()` —
+mounts walked into, every declared query / header / cookie parameter filled,
+raw PDF bodies sent — with no header, a forged bearer and the public anon
+key. Zero model clients constructed or called outside the DECLARED census
+(the four public market reads, bounded by
+`PUBLIC_LLM_COMPLETIONS_PER_DAY`); zero requests to a caller-named host;
+every host contacted is in `OUTBOUND_HOSTS`; every handler entered or
+refused by a wall or an auth dependency; no module under `src/` but the
+pipeline refers to the lane; no route is registered under a condition that
+is not one of the three declared route flags. **A new surface flag goes into
+`ROUTE_FLAGS` and `STATES["open"]`; a new outbound host for an anonymous
+caller goes into `OUTBOUND_HOSTS` with what is asked of it** — the merge
+into this release reddened on exactly that (`curs.bnr.ro`, §30).
+
+**What the gate cannot see** (its docstring lists all of it): signed-in
+spend — re-runs, failing runs, `/reconcile`, regenerate (other lanes); a
+handler that reads a real row through the service role with no bearer check
+and then calls a model; a switch a handler reads without declaring it; the
+Edge Function; the front proxy.
+
+**Order, for whoever installs a working backend key: this image first, the
+key second.** On an image without it, the moment the key works every
+anonymous POST to that route is a paid Opus call.
+
+---
+
+## 36. What a browser remembers as a company's period is one it was served (2026-10-04)
+
+Branch `fix/period-verdict-not-found` (frontend only). Found on the live
+site right after `release/r-trust` shipped — and not caused by it.
+
+**The incident.** The signed-in dashboard of a company with two analysed
+years said "nothing analysed here yet". The browser's remembered period for
+(user, company) was a period of another account's workspace: opened once by
+URL, answered 404, and written down anyway by `useActivePeriodFallback` ("a
+uuid in the URL is proof the org has this period"). Every bare `/dashboard`,
+`/chat` and `/benchmark` of that company went back to it. The chat called
+itself grounded on it — the morning's "the period is `<uuid>`" answer (§34)
+was this, not only a label defect. A customer reaches it through any link to
+a period they cannot read: a deleted month, a colleague's link, a second
+account.
+
+**The rule.** `hooks/usePeriodVerdictKeeper` (mounted once by `AppShell`):
+- a period is remembered for the active company only when its payload
+  LANDED and names that company — read from the query cache's own entry for
+  the URL's period, never from the placeholder `useActivePeriod` is handed
+  while a new period loads;
+- a period the engine answers "not found" is forgotten wherever it is
+  remembered, the reader is told once, and `period` / `org` are dropped from
+  the URL so the page opens the company's own period;
+- once per period id, three per page life — a recovery never loops (the
+  auth-lock flood of 2026-09-26 is the reason for the budget);
+- a transport error says nothing about a period.
+`useActivePeriodFallback` writes only what the engine's lookup answered.
+`buildWorkspaceSnapshot` returns nothing for a period that was not found or
+has not landed: the chat then says it has no workspace loaded.
+
+Gate `period-verdict-served` (18 tests, fifteen plants). **A cache entry
+written from what the reader ASKED FOR, instead of what they were SERVED, is
+a persisted wrong answer** — the same class as §24 (a persisted failed
+upload replaced the dashboard) and the benchmark cache of 2026-09-20.
+
+**For whoever verifies on the live site with a customer's browser:** never
+open a period id of another account by URL in the owner's signed-in
+session. Until this ships, that one navigation dead-ends their dashboard.
+
+---
+
+## 37. "% din venituri" on one year, and which way time runs (2026-10-04)
+
+Branch `feat/single-period-share` (engine + frontend), release
+`release/r-share`. Owner ruling 2026-10-04: **"'% din venituri' must work
+for a single year without a comparison. Engine change, with a gate."** Two
+independent review rounds (both lenses "do not ship" each time, each fixed);
+the coordinator read both fix rounds' engine diffs.
+
+**What was wrong.** The share column was painted from the two-period
+comparatives document, so a company with one year on file — or its earliest
+year on screen — had none. And the balance-sheet tab's share was never an
+engine figure: `BsCmpCells` DIVIDED in the browser.
+
+**The one computation.** `engine.comparatives.shares` — each line of ONE
+period as a share of its base (P&L: net turnover; balance sheet: total
+assets), with the registry and bases the two-period document's current side
+uses. Served on the period payload as `statements.common_size`
+(`common_size/1`: `bases`, `rows` of key / statement / base_key / current /
+share / status / note), computed at serve time, never stored. The document's
+`common_size[]` carries the canonical balance-sheet rows too, so no share on
+either tab is divided in the browser. A line with no share says why and is
+never 0 %: `absent`, `not_disclosed_at_this_detail_level`, `no_base` (asked
+first — one reason per statement), `refused` (the one EBITDA, a refused net
+income, a refused total equity and what is built on it),
+`margin_not_meaningful`.
+
+**Which way time runs.** The document serves `direction` (`prior_is_earlier`
+/ `prior_is_later` / `same_close` / `unknown`, read from the two closes by
+the engine). When the comparison period closes LATER than the one on screen,
+or the order cannot be read, NOTHING is called improved or deteriorated: the
+movers, the ratio table's band movements and `delta.favourable`, the band
+findings, Piotroski's year-over-year checks (score capped at four), and the
+attention document's statement verdicts and improvement slot. Figures, bands
+and deltas are served unchanged — a size is not a verdict.
+
+**The frontend prints it.** One composition (`lib/comparisonSurface.ts`,
+`components/cfo/ComparisonSurface.tsx`) that the page and the gate both
+render. Every share cell prints the period's OWN served share in every
+state; the document adds only the change in points, and only where its
+`current_share` equals that share. The share box is offered with no
+comparison; the other three boxes stay comparison columns. A request in
+flight / refused / failed is said once, on every tab that has the controls.
+`lib/periodReset.resetPeriodAnswers` resets a period AND every comparison
+naming it (a month replaced under the same id left the previous book's
+shares beside the new amounts).
+
+**Decisions the lane took, each the owner's to reverse** (they follow
+existing rulings — a refusal is never a figure; a refused margin is not
+served):
+- a result line's share of turnover IS a margin (`LineSpec.margin`): on a
+  book whose margin rule refuses (the developer) gross profit, EBITDA, EBIT,
+  profit before tax, the net result before the stock variation and net
+  income read "nesemnificativ" — with a comparison on screen too, where
+  four of them used to print. Cost lines and the financial result keep their
+  shares (thousands of percent on that book): whether the whole column
+  should fall silent there is open;
+- `bs.total_equity` and `pl.net_income` are `refused` in the two-period
+  columns on a book carrying those refusals, and the liabilities + equity
+  bridge is refused with the reason (the assets bridge is untouched);
+- under a later or unreadable comparison period the Ratios tab shows one
+  sentence and no lists, the exports count 0 / 0 with each crossing "not
+  comparable", the command bar serves no improvement item;
+- a balance sheet with no canonical rows, or a payload with no block, has no
+  share column and says why.
+
+**Gates.** `common-size-single` (the identity between the single-period
+block and the document's current side over every corpus pair — 14,548 cells;
+refusals; the direction and swap laws; the pre-flight), `single-year-share`
+(two files: 112 laws over the shared composition and source, 8 states on the
+REAL page mounted with the network mocked; no arithmetic on the share path —
+`Math` beyond abs / max / min / sign, a dynamic import, a new package and
+any change in a trusted module's pinned arithmetic red), `compare-no-prior`
+(amended where the law changed on purpose). **A red on the trusted-module
+pin after a merge is the gate asking you to LOOK**: read the difference,
+then `SHARE_PATH_PIN=write npx vitest run … -t "trusted module"`.
+
+**Deploy.** Backend before or with the frontend (an older engine serves no
+block; the new frontend then says "not available"). Pre-flight in the new
+image: `check_served_periods.py --require-common-size` — exit 1 for a period
+served without the block unless named with `--accept-withheld`, exit 2 when
+no period serves a lawful one. **Read every NOTE before shipping; do not
+override a substance failure.**
+
+**The public sample moves with the engine.** `/sample` publishes what the
+engine serves for a fictional company, byte for byte (gate `public-sample`):
+a served payload that gains a block makes the committed files stale, and
+the release battery reds until `scripts/build_public_sample.py` is run and
+committed (three served documents and the page's data here; the report and
+its PDF did not change). The block's per-line notes are on the sample's
+label EXCLUSIONS with their reason — how a line states its share, like the
+comparison's own notes — not on the uncertainty-label list.
+
+**"Prior" is a word about time** (owner, after the live check): under a
+later or unreadable comparison period the ratio cards label the comparison's
+figure "Comparison, <period>" / "Comparație, <period>" — as the column box
+does — never "Prior" / "Anterior" (branch `fix/later-comparison-label`).
+
+**Not done (S8, and the reviewers' residue):** the exported report /
+workbook / PDF's own share column; the command bar's own "vs prior" wording (it asks for
+the engine's earlier period and offers no later one); printer conventions on shares (ungrouped
+"17995,1%", an ASCII hyphen on negatives, "+0.0 pp"); `same_close` pairs
+serve verdicts; `statements.subAggregates` is built in hash order (on main
+too).
+
+---
+
+## 38. Release r-next (2026-10-10): a re-run never loses a month; model-written figures in the reader's format; a later comparison is not "prior"
+
+Three lanes, one deploy (backend + frontend + a `chat-llm` redeploy). Each was built by a workflow with independent adversarial
+reviewers and shipped only after its last reviewer said SHIP (two to three rounds each; the reports are in the session's
+`specs-durable/rerun_lane/` and `specs-durable/ai_figures/`). Owner order of 2026-10-10: full authority, no questions, every
+decision recorded here and in the final report.
+
+### 38.1 The staged re-run (`fix/rerun-data-loss`) — gates `rerun-data-loss`, `rerun-refusal-surfaces`
+
+**What was wrong (the hand-over's two data-loss tickets).** "Re-run analysis" RESET the document's month first and rebuilt it
+after: a run that failed (the provider refusing a PDF — production, 2026-09-21..10-04), or was killed, left the month EMPTY; and
+a re-run of a restored, superseded document deleted the NEWER upload's month, because the reset read the document's
+browser-writable pin (`documents.period_id`) rather than the engine's own pointer (`financial_periods.source_document_id`).
+
+**The rules now.**
+- **R1 — ownership.** A re-run resets only a period that is the document's OWN: the engine-written source pointer is the truth;
+  the pin is a hint that must agree with it. A pin to a period whose source is another document → `409 document_superseded`
+  ("Another upload has replaced this file for its month" / "O altă încărcare a înlocuit acest fișier…"); a pin to another
+  company's period, to nothing, to a staged row, or to a source-less period while another period of the company names the
+  document → `409 rerun_period_not_own` (ONE answer for all of them: a refusal never tells one company about another). A
+  deleted document → `409 document_deleted`.
+- **R2 — staged.** The re-run runs BESIDE the month (a staged `financial_periods` row, `source_document_id` NULL, marker
+  `assembled_canonical_v1.staged_rerun`) and takes the month over only on success, table by table, after a durable COMMIT
+  POINT (`takeover_began_at` on the marker; the document row carries `error = "rerun_failed: interrupted_replacing"` until
+  the takeover's last statement clears it). A stranded staged row WITHOUT the commit point is dropped (the month was never
+  touched); WITH it, it is RESUMED — by the document's next run, by the company's next analysis once it is 15 minutes old,
+  and by the page-mount watchdog (`POST /api/pipeline/recover-stuck`, `resumed_reruns`). The period id no longer changes on a
+  re-run. The document stays `analyzed` and the month stays served the whole time; a failed re-run prints "The last re-run
+  didn't finish. You're still seeing the previous analysis." / "Ultima reanalizare nu s-a încheiat…" on its Docs-panel row.
+  A run settles its own document's interrupted re-run BEFORE its first stage. Two writers on one month are refused
+  (`rerun_month_taken`); an in-place run whose staged-row listing cannot be read is refused rather than written.
+- **R3 — the AI lane.** A re-run through the non-Romanian lane keeps what the lane never writes (the briefing, marked
+  `stale_reason = not_renarrated`; the recommendations); a document that reads as a public-records summary is refused
+  (`rerun_not_a_trial_balance`). A same-month re-upload of ANOTHER file through the lane no longer keeps the old file's
+  alerts (back to main's behaviour; the briefing is still kept and marked).
+- **"Make source"** is refused wherever the month already holds another analysed file's analysis (live or in Recently
+  deleted): "This month already has an analysis from another file…" / "Luna aceasta are deja o analiză din alt fișier…".
+  Decision taken under the 2026-10-10 authority: data loss beats the menu item; a staged promotion is the feature's future.
+- **Tenancy, pre-existing, fixed with it:** `DELETE /api/period/{id}` soft-deleted ANOTHER company's document whose pin named
+  the cleared period — attached documents are now read and updated under the company filter.
+
+**Production facts read before the deploy (read-only, 2026-10-04 and 2026-10-10):** `financial_periods` unique is the plain
+`(org_id, period_end, source_document_id)` (NULLs distinct — staged rows are allowed); 10 legacy source-less periods, 0
+staged, 0 AI-lane; 0 re-runs newly refused; 0 documents in flight at the switch.
+
+**Not built, ticketed (rerun_lane reports, `TICKETS_2026-10-10.md`):** `reextract` / make-active / move-period still run in
+place; a lane failure stores the provider's sentence on `documents.error`; a staged run writes the row's `detected_*` columns
+before its takeover; the reader is served a gap between a commit point and its resume (the page does not refetch); two
+processes are not serialised (none runs today); a re-filing re-run onto a legacy EMPTY container is refused where main took it
+over; forecast history / sector prior / Capsule context are not guarded against a staged row.
+
+### 38.2 Model-written figures in the reader's format (`fix/ai-figures-reader-language`) — gates `ai-figures-engine`, `ai-figures`
+
+**The order (2026-10-04):** "make chat and briefings write numbers in Romanian format in Romanian text (413.727.560 RON,
+~77,4 mil. EUR), currency after the figure. Use the product's own formatting standard, with a gate." The live chat had
+answered "~EUR 77.4M (convertit din RON 413,727,560 …)" in a Romanian interface.
+
+**The rule.** The §26 standard (locale by language, ISO code AFTER the figure, never a symbol, never "lei") now covers the
+two model-written surfaces. Two twins, byte-identical on every text (held by a composed-set digest both must reproduce):
+`src/engine/ai/figure_format.py` runs over a narration AFTER the numeral guard and BEFORE any writer (`stage_narrate`, every
+caller, the regenerate route — Romanian and English only); `frontend/lib/readerFigures.ts` runs over a chat reply before it
+is stored and shown, over Explain's answer and over the briefing card's body. A figure is rewritten ONLY when its numeric
+reading is unique AND something positive says it is a figure (a currency, a unit, a magnitude, a range partner, a handed
+figure); the separators are swapped character by character and the code moved behind the amount it is read to the end of.
+**No value and no binding (currency, sign, magnitude, unit) can change; in doubt the text stays as the model wrote it and is
+counted** (`left_by_reason`: `single_group`, `open_amount`, `code_before`, `reference`, `possible_date`, `bare_groups`,
+`text_held`…). A LONE group of three digits ("162,365 RON") is ambiguous and never rewritten; a text holding one beside
+figures the pass would reshape is returned WHOLE (`text_held`) — never half a text. Account numbers, dates, note and law
+references, years, clock times are never figures. A text's own words decide its language — never the interface's, never the
+question's; a text that does not show its language is shown as written. f(f(x)) == f(x): stored and shown are one text.
+The chat function's display-currency directive (`supabase/functions/chat-llm/prompt.ts`, Ask CFO AI only — the command bar
+and Explain send no currency and their prompts are byte-identical to before) carries a figure-format section whose examples
+are the product's own prints (`FIGURE_FORMAT_VALUES`, held equal to `lib/money` by `chatLlmFigureFormat.test.ts`; the pins
+in `chatLlmPrompt.test.ts` moved on purpose with their reasons); the engine's narration hint (`figure_format.currency_hint`)
+does the same for ro / en and leaves the seven other languages byte for byte.
+
+**Decisions taken (owner may reverse):** a lone 3–6-digit whole amount in the other notation holds the whole reply — on a
+small company's figures the pass then does nothing and the prompt is what moves the model; a code-first amount the pass
+cannot read to its end ("EUR 1.5-2.5M", "RON 64 567 890", "RON 4.58 mil", a hedged range) stays as written; a bare run of
+groups ("| EBITDA | 18,778,901 |") is rewritten only when the model was handed that figure; "$" is written USD only where
+nothing else names a currency; an own-code range whose bounds carry different magnitudes stays as written; the example
+figures in the prompt, the hint and the fixtures are invented (the owner's company's ratios and a corpus book's turnover were
+replaced; the repository is public). The pass stores U+00A0 between a figure and its magnitude / code (chat search folds it).
+
+**Not built, ticketed:** the engine's insight claims, alert bodies and the exported report still print the code BEFORE the
+figure (§26 left them alone — a separate ruling); the command bar's own percent text; the model's original text is not kept
+beside the stored one; the date guard's word window does not see a date word the MODEL joined to its predecessor with a
+no-break space (three coincidences; a one-line union fix in the lane's round-3 confirmer report); what a model actually
+writes under the new prompt was measured only after the deploy, with the owner-allowed billed messages (see ops_log).
+Three review rounds (eight reviewers in all) preceded the merge; every "do not ship" was fixed and re-reviewed.
+
+### 38.3 "Comparație, <period>" instead of "ANTERIOR" under a later comparison period (`fix/later-comparison-label`)
+
+The ratio cards' eyebrow said "ANTERIOR" whatever the comparison period was. When the document's `direction` is not
+`prior_is_earlier` (§37) the eyebrow reads "Comparison, {label}" / "Comparație, {label}"
+(`statements.ratioCmp.ui.comparisonEyebrow`), three laws in `singleYearShare.test.tsx`. Frontend only.
+
+---
+
+## 39. Run journal: the chain key is (organisation, content hash) (2026-10-02)
+
+Owner ticket, done BEFORE `ENGINE_JOURNAL_DIR` is ever set (it is unset in
+production; the journal has never run there). Branch
+`fix/journal-chain-key-org`. No production change, nothing to deploy.
+
+**What was wrong.** A journal chain was keyed by the document's content hash
+ALONE (`index/<file_hash>.jsonl`). Two organisations uploading byte-identical
+documents shared one chain: B's run chained onto A's, each was answered the
+other's envelope by `GET /api/period/{id}/asof`, a byte-identical analysis was
+swallowed as the other's "duplicate", B's success resolved A's dead letter,
+and A's page view recorded an era on the shared chain. All five were measured
+on the unchanged code (gates.md § journal-chain-key).
+
+**The rule now.** `engine.journal.ChainKey(org_id, file_hash)`
+(`src/engine/journal/layout.py`); `index/<org_id>/<file_hash>.jsonl`;
+`Journal.begin_run(org_id=…, file_hash=…)`. The organisation comes from the
+ROW — `documents.org_id` for the run hooks, the served period row for
+`on_served`, the period row the caller's client returned for the route —
+never from the envelope, a period id or a file name. A row with no
+organisation is not journaled; there is no shared chain for "unknown". An
+organisation id is used verbatim or refused, never sanitised. The open-data
+ingest chains under the reserved `_platform` scope. The content-addressed
+object store stays global by design.
+
+**Old directories are refused, not migrated.** A root with a flat index file,
+or with any journal content and no `LAYOUT.json`, raises `JournalLayoutError`
+from `Journal(root)` and makes `boot_verify.verify_journal_layout` refuse to
+start the app (not skipped by `CFO_AI_SKIP_BOOT_VERIFY`). Check a directory
+with `python scripts/journal_cli.py --journal-root <dir> layout`; move it
+aside or delete it. CLI: `asof` now requires `--org`.
+
+**Before enabling the journal in production:** run `journal_cli.py layout`
+against the MOUNTED volume path. The §14 pre-switch boot probe runs without
+the data volume, sees an absent directory and passes — the real container is
+the one that would crash-loop over a stale directory.
+
+**Gate:** `journal-chain-key` (`tests/engine/test_journal_chain_key.py`,
+floor 18, twenty plants, the first the old key itself). The mutation kernel's
+`journal` module was re-measured at 100% (678 mutants, 671 caught, 7
+equivalent). `EQUIVALENT_MUTANTS` is keyed by mutmut INDEX: this change moved
+one documented equivalent from 52 to 59, and the stale pin would have excluded
+a real mutant from scoring — after any edit to a kernel function, re-identify
+its pinned equivalents by diff (docs/engine_book/mutation.md).

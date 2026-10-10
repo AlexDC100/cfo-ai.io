@@ -286,6 +286,19 @@ export function buildBandMovements(
   const improved = entries(bm?.improved ?? [], "up");
   const deteriorated = entries(bm?.deteriorated ?? [], "down");
   const between = `between ${cmp.prior_label} and ${cmp.current_label}`;
+  // A WITHHELD DIRECTION IS NOT "NOTHING MOVED". When the comparison period
+  // closes after this one, or the order of the two cannot be read, the engine
+  // serves no improved / deteriorated list (`band_movements.
+  // verdicts_withheld`, 2026-10-04): the two lists are empty by its hand, and
+  // "no ratio moved up a band" would be false — the ratios that changed band
+  // are listed under "not comparable", each with the reason.
+  const withheld: unknown = bm?.verdicts_withheld;
+  const notJudged =
+    withheld === "prior_is_later"
+      ? `no ratio is listed: ${cmp.prior_label} closes after ${cmp.current_label}, so no direction is given to a change`
+      : withheld === "period_order_unknown"
+        ? `no ratio is listed: the order of ${cmp.prior_label} and ${cmp.current_label} could not be read, so no direction is given to a change`
+        : null;
   return {
     available: true,
     absence: null,
@@ -294,8 +307,8 @@ export function buildBandMovements(
     basis: ratioRankBasisSentence(cmp),
     improved,
     deteriorated,
-    improvedAbsence: improved.length > 0 ? null : `no ratio moved up a band ${between}`,
-    deterioratedAbsence: deteriorated.length > 0 ? null : `no ratio moved down a band ${between}`,
+    improvedAbsence: improved.length > 0 ? null : notJudged ?? `no ratio moved up a band ${between}`,
+    deterioratedAbsence: deteriorated.length > 0 ? null : notJudged ?? `no ratio moved down a band ${between}`,
     unchanged: (bm?.unchanged ?? []).map((u) => {
       const row = rows.get(u.key);
       return {
@@ -437,9 +450,17 @@ export function buildExecutiveSummary(
     letter: credit.rating,
     score: credit.score,
     model: credit.modelLabel,
+    // WHY THERE IS NO LETTER. A composite the ENGINE refused states the
+    // engine's reason — the regime's cash refusal when that is the reason,
+    // else the served composite refusal. "No letter grade and no band ladder"
+    // is said only of a period the engine never scored: on a refused book the
+    // same document prints the ladder a few lines down (review round 3,
+    // 2026-10-02).
     unavailable:
       credit.rating === null
-        ? "the engine emitted no letter grade and no band ladder to derive one from for this period"
+        ? credit.compositeRefusal?.stated
+          ? (credit.regime?.cash?.refusal?.text.en ?? credit.compositeRefusal.sentence)
+          : "the engine emitted no letter grade and no band ladder to derive one from for this period"
         : null,
     facts,
   };

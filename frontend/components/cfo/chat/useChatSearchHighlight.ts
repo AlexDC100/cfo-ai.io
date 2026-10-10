@@ -31,15 +31,28 @@ function HighlightCtor(): (new (...ranges: Range[]) => unknown) | null {
   return (globalThis as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight ?? null;
 }
 
+// U+00A0 and U+202F, built from their code points so no invisible character
+// sits in this file.
+const JOINERS = new RegExp(`[${String.fromCharCode(0xa0)}${String.fromCharCode(0x202f)}]`, "g");
+
+/** How a search reads text: case folded, and a no-break space read as the
+ *  space a reader types. An answer's figures carry the product's own joiners
+ *  ("12,3 mil. EUR" is joined with U+00A0, as lib/money prints it); a reader
+ *  looking for that figure types plain spaces. One character for one, so an
+ *  index into the folded text is an index into the text. */
+export function searchFold(text: string): string {
+  return text.toLowerCase().replace(JOINERS, " ");
+}
+
 /** Every match of `query` inside `root`, in document order. */
 function collectRanges(root: HTMLElement, query: string): Range[] {
-  const needle = query.trim().toLowerCase();
+  const needle = searchFold(query.trim());
   if (!needle) return [];
   const ranges: Range[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let node = walker.nextNode() as Text | null;
   while (node) {
-    const hay = node.data.toLowerCase();
+    const hay = searchFold(node.data);
     let from = hay.indexOf(needle);
     while (from !== -1) {
       const range = document.createRange();

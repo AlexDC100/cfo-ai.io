@@ -118,8 +118,8 @@ describe("turnover-denominator — every margin and every growth figure divides 
       const doc = new DOMParser().parseFromString(buildReportHtml(b.statements, { metricsByName: b.metrics }), "text/html");
       near("report 'Net turnover' card", parsePrinted(cardNamed(doc, "Net turnover").value), T, 0.5 + 0.005);
       const wb = buildExcelWorkbook(b.statements, undefined, { metricsByName: b.metrics });
-      near("workbook cover net turnover", sheetCell(wb, "Cover", "Net turnover (70x − 709)"), T, 0.005);
-      near("workbook P&L net turnover", sheetCell(wb, "P&L", "Net turnover (70x − 709)"), T, 0.005);
+      near("workbook cover net turnover", sheetCell(wb, "Cover", "Net turnover (70x − 709 + 7411)"), T, 0.005);
+      near("workbook P&L net turnover", sheetCell(wb, "P&L", "Net turnover (70x − 709 + 7411)"), T, 0.005);
       // Growth is over net turnover.
       const g = multiPeriodGrowth(pairedWithItself(b)).find((r) => r.metric === "Net turnover");
       expect(g, `${b.name}: no net-turnover growth row`).toBeTruthy();

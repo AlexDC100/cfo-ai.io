@@ -69,7 +69,7 @@
   "period_id": "route-period-agras",
   "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d"
  },
- "body_hash": "sha256:4e167676a36926a1b893236951c42b5d60a0d8464a10b1d3aa001c552ef6087c",
+ "body_hash": "sha256:c379de3118396740389706461ce9d06ae3d722f5a6903de3eba82cf2b389a8ed",
  "client": {
   "analysis_debounce_ms": 600,
   "debounce_ms": 150,
@@ -126,6 +126,15 @@
     "sentence": {
      "code": "stock_variation",
      "text": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+    }
+   },
+   {
+    "key": "net_provisions",
+    "panel": null,
+    "rail_group": null,
+    "sentence": {
+     "code": "net_provisions",
+     "text": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
     }
    }
   ]
@@ -222,7 +231,7 @@
      "evidence": [
       {
        "fact": "assembled_pl.depreciation",
-       "value_minor": 295534639
+       "value_minor": 281996303
       },
       {
        "fact": "assembled_pl.revenue",
@@ -238,7 +247,7 @@
     "sector": null,
     "sentence": {
      "code": "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation",
-     "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
+     "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,819,963.03, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
     },
     "source": null,
     "tier": "convention"
@@ -297,9 +306,9 @@
    "solve_step": "0.000001",
    "unit": "ratio_micros",
    "values": [
-    26673,
-    26673,
-    26673
+    25451,
+    25451,
+    25451
    ]
   },
   "depreciation_rate": {
@@ -316,7 +325,7 @@
          "authority": "assembled_pl",
          "fact": "assembled_pl.depreciation",
          "period_end": "2025-12-31",
-         "value_minor": 295534639
+         "value_minor": 281996303
         },
         {
          "authority": "canonical_bs",
@@ -343,13 +352,13 @@
       "sector": null,
       "sentence": {
        "code": "forecast.depreciation_rate_closing_nbv",
-       "text": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
+       "text": "annual depreciation rate = charge 2,819,963.03 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
       },
       "source": null,
       "tier": "book"
      },
      "values": [
-      251979
+      240436
      ]
     },
     "macro": null,
@@ -363,7 +372,7 @@
        "authority": "assembled_pl",
        "fact": "assembled_pl.depreciation",
        "period_end": "2025-12-31",
-       "value_minor": 295534639
+       "value_minor": 281996303
       },
       {
        "authority": "canonical_bs",
@@ -390,7 +399,7 @@
     "sector": null,
     "sentence": {
      "code": "forecast.depreciation_rate_closing_nbv",
-     "text": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
+     "text": "annual depreciation rate = charge 2,819,963.03 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
     },
     "source": null,
     "tier": "book"
@@ -450,7 +459,7 @@
    "solve_step": "0.000001",
    "unit": "ratio_micros",
    "values": [
-    251979
+    240436
    ]
   },
   "dio_cogs_days": {
@@ -2045,7 +2054,7 @@
          "authority": "assembled_pl",
          "fact": "assembled_pl.other_operating_income",
          "period_end": "2025-12-31",
-         "value_minor": 39009055
+         "value_minor": 38610185
         }
        ],
        "method": "level",
@@ -2060,15 +2069,15 @@
       "sector": null,
       "sentence": {
        "code": "other_operating_income_annual",
-       "text": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
+       "text": "other operating income held at this book's own amount of 386,101.85: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
       },
       "source": null,
       "tier": "book"
      },
      "values": [
-      39009055,
-      39009055,
-      39009055
+      38610185,
+      38610185,
+      38610185
      ]
     },
     "macro": null,
@@ -2082,7 +2091,7 @@
        "authority": "assembled_pl",
        "fact": "assembled_pl.other_operating_income",
        "period_end": "2025-12-31",
-       "value_minor": 39009055
+       "value_minor": 38610185
       }
      ],
      "method": "level",
@@ -2097,7 +2106,7 @@
     "sector": null,
     "sentence": {
      "code": "other_operating_income_annual",
-     "text": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
+     "text": "other operating income held at this book's own amount of 386,101.85: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
     },
     "source": null,
     "tier": "book"
@@ -2153,9 +2162,9 @@
    "solve_step": "0.01",
    "unit": "money_minor",
    "values": [
-    39009055,
-    39009055,
-    39009055
+    38610185,
+    38610185,
+    38610185
    ]
   },
   "pool_fixed_share.cost_of_sales": {
@@ -4664,7 +4673,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 3313098,
+   "amount_minor": 3279221,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -4676,7 +4685,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 39009055,
+   "amount_minor": 38610185,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -4688,7 +4697,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 93730712,
+   "amount_minor": 93696835,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -4719,7 +4728,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 1103603543,
+   "amount_minor": 1103204673,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -4750,7 +4759,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -23659719,
+   "amount_minor": -22575882,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -4767,7 +4776,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -281197920,
+   "amount_minor": -268209066,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -4784,7 +4793,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -1440477,
+   "amount_minor": -1374490,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -4801,7 +4810,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -15132641,
+   "amount_minor": -14514106,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -4818,7 +4827,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 68630516,
+   "amount_minor": 69746463,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -4853,7 +4862,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 807272982,
+   "amount_minor": 820481501,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5160,7 +5169,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 69586063,
+   "amount_minor": 70702010,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5209,7 +5218,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 818523782,
+   "amount_minor": 831732301,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5258,7 +5267,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -11133770,
+   "amount_minor": -11312322,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5307,7 +5316,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -130963805,
+   "amount_minor": -133077168,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5356,7 +5365,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 58452293,
+   "amount_minor": 59389688,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5405,7 +5414,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 687559977,
+   "amount_minor": 698655133,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5454,7 +5463,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 148978815,
+   "amount_minor": 149945069,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5503,7 +5512,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 772123732,
+   "amount_minor": 783489541,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5644,7 +5653,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1107612741,
+   "amount_minor": 1107517895,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5661,7 +5670,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 1127267672,
+   "amount_minor": 1126378484,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5678,7 +5687,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 65868536,
+   "amount_minor": 65934523,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5695,7 +5704,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 52176372,
+   "amount_minor": 52794907,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6046,7 +6055,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 805657055,
+   "amount_minor": 806594450,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6095,7 +6104,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 1434764739,
+   "amount_minor": 1445859895,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6168,7 +6177,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 4008329637,
+   "amount_minor": 4009267032,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6218,7 +6227,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 4637437321,
+   "amount_minor": 4648532477,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6268,7 +6277,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 2828057918,
+   "amount_minor": 2829024172,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6318,7 +6327,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 3451202835,
+   "amount_minor": 3462568644,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6468,7 +6477,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 2450860665,
+   "amount_minor": 2451798060,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6518,7 +6527,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 3079968349,
+   "amount_minor": 3091063505,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6568,7 +6577,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 4008329637,
+   "amount_minor": 4009267032,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6618,7 +6627,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 4637437321,
+   "amount_minor": 4648532477,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6668,7 +6677,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 58452293,
+   "amount_minor": 59389688,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6717,7 +6726,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 687559977,
+   "amount_minor": 698655133,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6766,7 +6775,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 23659719,
+   "amount_minor": 22575882,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6783,7 +6792,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 281197920,
+   "amount_minor": 268209066,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6800,7 +6809,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1440477,
+   "amount_minor": 1374490,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6817,7 +6826,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 15132641,
+   "amount_minor": 14514106,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6938,7 +6947,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 57901617,
+   "amount_minor": 57689188,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6987,7 +6996,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 958239666,
+   "amount_minor": 955727433,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7036,7 +7045,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7051,7 +7060,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -302920638,
+   "amount_minor": -289042596,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7096,7 +7105,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7112,7 +7121,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -302920638,
+   "amount_minor": -289042596,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7478,7 +7487,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 32174111,
+   "amount_minor": 33140365,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7527,7 +7536,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 655319028,
+   "amount_minor": 666684837,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7674,7 +7683,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 148978815,
+   "amount_minor": 149945069,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7723,7 +7732,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 772123732,
+   "amount_minor": 783489541,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7953,11 +7962,11 @@
   },
   {
    "code": "note",
-   "text": "the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x) are not projected: 0 in every plan year. The actual year's EBITDA of 11,848,065.27 includes 1,071,687.03 of them (net 711 1,071,687.03, net 72x 0.00), so plan year one starts from the recurring EBITDA of 10,776,378.24."
+   "text": "the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x) are not projected: 0 in every plan year. The actual year's EBITDA of 11,844,076.57 includes 1,071,687.03 of them (net 711 1,071,687.03, net 72x 0.00), so plan year one starts from the recurring EBITDA of 10,772,389.54."
   },
   {
-   "code": "note.measured_exposure_to_the_convention_above",
-   "text": "measured exposure to the convention above: of the 390,090.55 of other operating income this book reports, 3,988.70 is provision reversals (assembled_pl.other_income_781_reversals) — a non-cash credit this model projects forward as cash."
+   "code": "note",
+   "text": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: 0 in every plan year. The actual year's operating result carries a net charge of 131,394.66."
   },
   {
    "code": "note.prior_periods_are_not_read_in_this_build",
@@ -7972,7 +7981,7 @@
   "engine_version": "0.1.0",
   "history_hash": "sha256:868153d2ad4c4dde97d47e65cc43344e839f85407885e54a2b65ae9664fadb7a",
   "macro_snapshot_id": null,
-  "pack_hash": "sha256:69f1c45defd17f3c3622aa879f75b7efcc15455383a1fb0d470f7b87babe2215",
+  "pack_hash": "sha256:4a745e333db636a47ed213a928ab23b8250f8b04efe18406dc7594305bc8c61e",
   "sector_snapshot_id": null
  },
  "pins_changed": [],
@@ -7980,7 +7989,7 @@
  "series": {
   "capex": [
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -7994,7 +8003,7 @@
   ],
   "cash_before_funding": [
    {
-    "amount_minor": 148978815,
+    "amount_minor": 149945069,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -8042,7 +8051,7 @@
   ],
   "closing_cash": [
    {
-    "amount_minor": 148978815,
+    "amount_minor": 149945069,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -8090,7 +8099,7 @@
   ],
   "depreciation": [
    {
-    "amount_minor": -23659719,
+    "amount_minor": -22575882,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -8106,7 +8115,7 @@
   ],
   "ebitda": [
    {
-    "amount_minor": 93730712,
+    "amount_minor": 93696835,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -8136,7 +8145,7 @@
   ],
   "fcf": [
    {
-    "amount_minor": 32174111,
+    "amount_minor": 33140365,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -8184,7 +8193,7 @@
   ],
   "fcf_cumulative": [
    {
-    "amount_minor": 32174111,
+    "amount_minor": 33140365,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -8304,7 +8313,7 @@
   ],
   "net_income": [
    {
-    "amount_minor": 58452293,
+    "amount_minor": 59389688,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -8427,7 +8436,7 @@
  },
  "strip": {
   "closing_cash": {
-   "amount_minor": 2129441488,
+   "amount_minor": 2164513729,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -8473,7 +8482,7 @@
    "lever_ids": []
   },
   "cumulative_fcf": {
-   "amount_minor": 2012636784,
+   "amount_minor": 2047709025,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -8583,7 +8592,7 @@
  "summary": {
   "cash_trough": {
    "amount": {
-    "amount_minor": 148978815,
+    "amount_minor": 149945069,
     "driver_ids": [
      "revenue_growth",
      "volume_index",

@@ -42,7 +42,9 @@ import { toast } from "@/components/ui/sonner";
 import { useActiveLocale } from "@/lib/locale";
 import { formatPeriodMonth, formatPeriodMonthLoose } from "@/lib/orgPeriods";
 import {
+  FilingRefused,
   detectedPeriodEnd,
+  filingRefusalKey,
   isMismatch,
   moveDocumentToPeriod,
   needsAttention,
@@ -157,9 +159,10 @@ export function PeriodFilingReviewDialog({
       onMoved();
       onClose();
     } catch (err) {
-      toast.error(t("pf.moveFailed"), {
-        description: err instanceof Error ? err.message : undefined,
-      });
+      // OUR sentence for a refusal code this screen knows, in the reader's
+      // language — never the server's English; otherwise the title alone.
+      const ours = filingRefusalKey(err instanceof FilingRefused ? err.code : null);
+      toast.error(t("pf.moveFailed"), { description: ours ? t(ours) : undefined });
     } finally {
       setBusy(false);
     }

@@ -89,11 +89,17 @@ export function JurisdictionSelect({
   ];
   const options = known.includes(current) ? known : [...known, current];
 
-  // Global-positioning directive (2026-08-29): the dropdown reads
-  // Auto-detect → Romania → group "International" (country rows A→Z,
-  // then the generic IFRS-style reading). WIRE VALUES ARE FROZEN — the
-  // regrouping is <optgroup> presentation over the same option codes;
-  // Hungary is one country row inside the group, never a headline.
+  // The dropdown reads Auto-detect → Romania → a group for every other
+  // country. WIRE VALUES ARE FROZEN — the grouping is <optgroup>
+  // presentation over the same option codes.
+  //
+  // 2026-10-01: the group used to be headed "International" and its rows
+  // were selectable. No file from another country is analysed correctly
+  // today (frontend/data/coverage.json, row `other_countries`), the choice
+  // was dropped on the way to the engine, and the lane behind it needs a
+  // model that is unavailable. The group is now headed "not supported
+  // yet" and its rows are DISABLED — except the one a served result
+  // already carries, which must stay displayable.
   const topLevel = options.filter((c) => c === "auto" || c === "RO");
   const international = options.filter((c) => c !== "auto" && c !== "RO");
 
@@ -121,7 +127,7 @@ export function JurisdictionSelect({
       {international.length > 0 && (
         <optgroup label={t("bsCanonical.jurisdiction.groupIntl")}>
           {international.map((code) => (
-            <option key={code} value={code}>
+            <option key={code} value={code} disabled={code !== current}>
               {jurisdictionLabel(code, t)}
             </option>
           ))}

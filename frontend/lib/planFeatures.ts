@@ -41,6 +41,8 @@
 
 import type { FeatureKey } from "@/lib/features";
 import type { PlanKey } from "@/lib/pricingConfig";
+import { fillProof } from "@/lib/engineProof";
+import { COMING_SOON_PLAN_IDS, isComingSoonPlanId } from "@/lib/plans";
 
 /** Marker appended to a bullet whose feature is not `active` yet. The gate
  *  asserts the rendered string contains it, so changing the wording here
@@ -71,8 +73,10 @@ type PlanFeatureTable = Record<PlanKey, PlanFeatureBullet[]>;
 //     `upload_invoice` is `coming_soon` and `public_records` is `hidden`.
 //   · summary / ratios / risk→ `dashboard` (active) — these render on the
 //     dashboard's statement tabs.
-//   · benchmarks             → `benchmarks` (HIDDEN) → afterLaunch.
-//   · chat allowances        → `chat_page` (HIDDEN) → afterLaunch. The
+//   · benchmarks             → `benchmarks` — no longer a plan line (2026-10-02):
+//     the sector comparison is not gated by plan, so no card sells it.
+//   · chat allowances        → `chat_page` (active since 2026-09; the
+//     history below is why the key is named at all). It was HIDDEN: the
 //     slide-over Ask CFO AI panel was deleted 2026-07-24, so every ask
 //     affordance in the app navigates to /chat, which <FeatureRoute
 //     featureKey="chat_page"> renders as PendingState. `ask_cfo_ai` is
@@ -83,6 +87,35 @@ type PlanFeatureTable = Record<PlanKey, PlanFeatureBullet[]>;
 //     route carry no registry gate at all, so there is no key to name.
 // ─────────────────────────────────────────────────────────────────────
 
+// ── 2026-10-02: A CARD LISTS WHAT THE PLAN CHANGES, AND NOTHING ELSE ──
+// `_pricing_config.py` is the whole of what differs between plans: the
+// documents included, the price of an extra one, the chat caps and the
+// number of workspaces. Nothing in the backend gates the ANALYSIS by
+// plan — a trial document gets the same statements, ratios, valuation
+// range, sector comparison and credit score as a Pro document. The cards
+// used to sell "Benchmark intelligence", a "Valuation module" and "AI
+// reading of scanned PDFs" as things Pro adds, "Basic ratios" on the
+// trial and "Full ratio and risk analysis" on Solo: differences that do
+// not exist. Each paid card now says what the analysis is (once, on
+// Solo), and the others say "the same analysis" and list their limits.
+//
+// The two model-written features carry coverage.json's availability,
+// through the `{coverage.chat.suffix}` / `{coverage.briefing.suffix}`
+// tokens (lib/engineProof.aiFeatureNote): empty when the feature is
+// available, the unavailable wording or a dated "not verified since"
+// otherwise. They are never sold bare.
+const ANALYSIS_EN = "P&L, balance sheet, cash-flow estimate, ratios, valuation range and credit score";
+const ANALYSIS_RO = "Cont de profit și pierdere, bilanț, estimare a fluxului de numerar, indicatori, interval de evaluare și scor de credit";
+const SAME_ANALYSIS_EN = "The same analysis as a paid plan";
+const SAME_ANALYSIS_RO = "Aceeași analiză ca într-un plan plătit";
+const BRIEFING_EN = "Briefing written by an AI model{coverage.briefing.suffix}";
+const BRIEFING_RO = "Briefing scris de un model AI{coverage.briefing.suffix}";
+
+const chatLine = (daily: number, monthly: number): Pick<PlanFeatureBullet, "en" | "ro"> => ({
+  en: `Ask CFO AI: ${daily}/day, ${monthly}/month{coverage.chat.suffix}`,
+  ro: `Întreabă CFO AI: ${daily}/zi, ${monthly}/lună{coverage.chat.suffix}`,
+});
+
 const PLAN_FEATURES: PlanFeatureTable = {
   // Retired from purchase (2026-08) — kept ONLY for legacy holders'
   // current-plan card. Never rendered on the pricing grid.
@@ -92,31 +125,22 @@ const PLAN_FEATURES: PlanFeatureTable = {
       en: "5 financial documents / month",
       ro: "5 documente financiare / lună",
     },
+    // 2026-10-01: this line listed "bilanț, balanță de verificare, annual
+    // report". Only the trial balance is read by the deterministic engine;
+    // the other two need the AI reader (coverage.json row `ai_read`).
     {
-      featureKey: "upload_financial_statement",
-      en: "Romanian bilanț, balanță de verificare, annual report",
-      ro: "Bilanț, balanță de verificare, raportare anuală",
+      featureKey: "upload_trial_balance",
+      en: "Romanian trial balance (balanță de verificare), Excel or PDF",
+      ro: "Balanță de verificare românească, Excel sau PDF",
     },
-    {
-      featureKey: "dashboard",
-      en: "CFO AI financial summary",
-      ro: "Sinteză financiară CFO AI",
-    },
-    {
-      featureKey: "dashboard",
-      en: "Basic ratios and risk flags",
-      ro: "Indicatori de bază și semnale de risc",
-    },
+    { featureKey: "dashboard", en: ANALYSIS_EN, ro: ANALYSIS_RO },
+    { featureKey: "dashboard", en: BRIEFING_EN, ro: BRIEFING_RO },
     {
       featureKey: null,
       en: "HTML and Excel report export",
       ro: "Export raport HTML și Excel",
     },
-    {
-      featureKey: "chat_page",
-      en: "Ask CFO AI: 10/day, 50/month",
-      ro: "Întreabă CFO AI: 10/zi, 50/lună",
-    },
+    { featureKey: "chat_page", ...chatLine(10, 50) },
   ],
 
   // ── 2026-08 tier restructure. Numbers mirror THE TIER SPEC; when a
@@ -127,61 +151,38 @@ const PLAN_FEATURES: PlanFeatureTable = {
       en: "3 Romanian documents / month",
       ro: "3 documente românești / lună",
     },
+    // 2026-10-01: this line listed "bilanț, balanță de verificare, annual
+    // report". Only the trial balance is read by the deterministic engine;
+    // the other two need the AI reader (coverage.json row `ai_read`).
     {
-      featureKey: "upload_financial_statement",
-      en: "Romanian bilanț, balanță de verificare, annual report",
-      ro: "Bilanț, balanță de verificare, raportare anuală",
+      featureKey: "upload_trial_balance",
+      en: "Romanian trial balance (balanță de verificare), Excel or PDF",
+      ro: "Balanță de verificare românească, Excel sau PDF",
     },
-    {
-      featureKey: "dashboard",
-      en: "CFO AI financial summary",
-      ro: "Sinteză financiară CFO AI",
-    },
-    {
-      featureKey: "dashboard",
-      en: "Full ratio and risk analysis",
-      ro: "Analiză completă de indicatori și riscuri",
-    },
+    { featureKey: "dashboard", en: ANALYSIS_EN, ro: ANALYSIS_RO },
+    { featureKey: "dashboard", en: BRIEFING_EN, ro: BRIEFING_RO },
     {
       featureKey: null,
       en: "HTML and Excel report export",
       ro: "Export raport HTML și Excel",
     },
-    {
-      featureKey: "chat_page",
-      en: "Ask CFO AI: 10/day, 50/month",
-      ro: "Întreabă CFO AI: 10/zi, 50/lună",
-    },
+    { featureKey: "chat_page", ...chatLine(10, 50) },
     { featureKey: null, en: "1 workspace", ro: "1 spațiu de lucru" },
   ],
 
+  // Pro changes the LIMITS, not the analysis (see the note above).
   pro: [
+    {
+      featureKey: "dashboard",
+      en: "The same analysis as RO Solo, with higher limits",
+      ro: "Aceeași analiză ca în RO Solo, cu limite mai mari",
+    },
     {
       featureKey: "upload_trial_balance",
       en: "15 Romanian documents / month",
       ro: "15 documente românești / lună",
     },
-    {
-      featureKey: "upload_trial_balance",
-      en: "Trial balance analysis",
-      ro: "Analiza balanței de verificare",
-    },
-    {
-      featureKey: "upload_financial_statement",
-      en: "Scanned-PDF extraction",
-      ro: "Extragere din PDF-uri scanate",
-    },
-    {
-      featureKey: "benchmarks",
-      en: "Benchmark intelligence",
-      ro: "Comparații cu industria (benchmark)",
-    },
-    { featureKey: null, en: "Valuation module", ro: "Modul de evaluare" },
-    {
-      featureKey: "chat_page",
-      en: "Ask CFO AI: 25/day, 150/month",
-      ro: "Întreabă CFO AI: 25/zi, 150/lună",
-    },
+    { featureKey: "chat_page", ...chatLine(25, 150) },
     {
       featureKey: null,
       en: "Up to 5 workspaces",
@@ -196,26 +197,16 @@ const PLAN_FEATURES: PlanFeatureTable = {
       en: "15 Romanian documents / month",
       ro: "15 documente românești / lună",
     },
-    {
-      featureKey: "upload_financial_statement",
-      en: "8 non-RO documents / month included",
-      ro: "8 documente non-RO / lună incluse",
-    },
+    // 2026-10-01 — COMING SOON. This plan sold "8 non-RO documents / month"
+    // and "Any accounting jurisdiction". No file from another country is
+    // analysed correctly today (coverage.json row `other_countries`), so
+    // the plan is not on sale and the line says what is true.
     {
       featureKey: null,
-      en: "Any accounting jurisdiction",
-      ro: "Orice jurisdicție contabilă",
+      en: "Documents from other countries — not supported yet",
+      ro: "Documente din alte țări — încă nesuportate",
     },
-    {
-      featureKey: "upload_financial_statement",
-      en: "Scanned-PDF extraction",
-      ro: "Extragere din PDF-uri scanate",
-    },
-    {
-      featureKey: "chat_page",
-      en: "Ask CFO AI: 40/day, 200/month",
-      ro: "Întreabă CFO AI: 40/zi, 200/lună",
-    },
+    { featureKey: "chat_page", ...chatLine(40, 200) },
     {
       featureKey: null,
       en: "Up to 5 workspaces",
@@ -226,23 +217,17 @@ const PLAN_FEATURES: PlanFeatureTable = {
   // Trial and intro have no card on /pricing — trial is a tail-link and
   // intro is a strip below the grid — so these two exist only for the
   // current-plan card, which has to be able to describe every tier a user
-  // can actually be on.
+  // can actually be on. The trial's first line is the trial line of
+  // /pricing ("One document, analysed in full"): the two used to disagree
+  // ("Basic ratios and risk flags").
   trial: [
     {
       featureKey: "upload_trial_balance",
-      en: "1 financial document",
-      ro: "1 document financiar",
+      en: "1 document, analysed in full, within 7 days",
+      ro: "1 document, analizat complet, în 7 zile",
     },
-    {
-      featureKey: "dashboard",
-      en: "CFO AI financial summary",
-      ro: "Sinteză financiară CFO AI",
-    },
-    {
-      featureKey: "dashboard",
-      en: "Basic ratios and risk flags",
-      ro: "Indicatori de bază și semnale de risc",
-    },
+    { featureKey: "dashboard", en: SAME_ANALYSIS_EN, ro: SAME_ANALYSIS_RO },
+    { featureKey: "chat_page", ...chatLine(3, 5) },
     { featureKey: null, en: "No card required", ro: "Fără card bancar" },
   ],
 
@@ -254,19 +239,11 @@ const PLAN_FEATURES: PlanFeatureTable = {
     },
     {
       featureKey: "upload_trial_balance",
-      en: "3 financial documents",
-      ro: "3 documente financiare",
+      en: "1 extra document",
+      ro: "1 document suplimentar",
     },
-    {
-      featureKey: "dashboard",
-      en: "CFO AI financial summary",
-      ro: "Sinteză financiară CFO AI",
-    },
-    {
-      featureKey: "dashboard",
-      en: "Full ratio and risk analysis",
-      ro: "Analiză completă de indicatori și riscuri",
-    },
+    { featureKey: "dashboard", en: SAME_ANALYSIS_EN, ro: SAME_ANALYSIS_RO },
+    { featureKey: "chat_page", ...chatLine(5, 10) },
   ],
 };
 
@@ -280,9 +257,21 @@ export function planKeysWithFeatures(): PlanKey[] {
   return Object.keys(PLAN_FEATURES) as PlanKey[];
 }
 
-/** The copy of one bullet in the given UI language (falls back to en). */
+/** The copy of one bullet in the given UI language (falls back to en).
+ *  `{coverage.…}` tokens are filled from frontend/data/coverage.json. */
 export function bulletText(b: PlanFeatureBullet, lang: string): string {
-  return lang?.startsWith("ro") ? b.ro : b.en;
+  const ro = lang?.startsWith("ro");
+  return fillProof(ro ? b.ro : b.en, ro ? "ro" : "en");
+}
+
+/** Plans that are shown but NOT on sale. Multi-Country is coming soon:
+ *  international coverage is not available yet, so its card stays visible,
+ *  is marked, and nothing on it starts a checkout. Existing subscribers
+ *  are untouched — their card still reads "Current plan". */
+export const COMING_SOON_PLANS: readonly PlanKey[] = COMING_SOON_PLAN_IDS;
+
+export function isComingSoonPlan(key: PlanKey): boolean {
+  return isComingSoonPlanId(key);
 }
 
 /** Feature bullets for a plan in the given UI language (falls back to en). */

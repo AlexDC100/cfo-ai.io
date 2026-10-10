@@ -31,7 +31,8 @@ import _real_app_comparatives as RA
 import _served_books as SB
 import firm_postgrest_double as D
 from engine.api import pipeline as P
-from engine.country_packs.ro_romania.chart_of_accounts import EBITDA_DEFINITION_REVISION
+from engine.country_packs.ro_romania.chart_of_accounts import (
+    EBITDA_DEFINITION_PREVIOUS_REVISIONS, EBITDA_DEFINITION_REVISION)
 
 REPO = Path(__file__).resolve().parents[2]
 USER = "7b0c0f3e-0000-4000-8000-0000000b7ef1"
@@ -58,15 +59,45 @@ def _served_briefing(double):
     return r.json()["briefing"]
 
 
+#: THE NOTE, pinned byte for byte. GENERIC (deploy-readiness review of
+#: feat/rulings-2, 2026-09-29): the stamp has moved twice (2026-09-26: 711 /
+#: 72x inside; 2026-09-28: provisions outside, 7411 in turnover), and the
+#: note used to say the earlier definition was "without the stock variation
+#: and own work capitalised" — false for a briefing stamped 2026-09-26.
+GENERIC_NOTE = {
+    "ro": "Comentariul a fost scris sub o definiție anterioară a EBITDA și "
+          "este ascuns; reanalizați perioada pentru un comentariu nou.",
+    "en": "This briefing was written under an earlier EBITDA definition and "
+          "is hidden; re-analyse the period for a new one.",
+}
+#: What a note naming one earlier definition's content would carry.
+_CONTENT_WORDS = ("711", "72x", "stock variation", "own work", "stocurilor",
+                  "imobilizat", "provision", "provizi", "7411")
+
+
 def test_the_status_of_a_stored_briefing():
     assert P.briefing_definition_status(None) is None
     old = P.briefing_definition_status({"body": "x"})
     assert old["written_under"] is None and old["written_under_previous_definition"] is True
-    assert "anterioară a EBITDA" in old["note"]["ro"] and "previous EBITDA" in old["note"]["en"]
+    assert old["note"] == GENERIC_NOTE
     new = P.briefing_definition_status({"body": "x", "ebitda_definition": EBITDA_DEFINITION_REVISION})
     assert new["written_under_previous_definition"] is False and new["note"] is None
     assert new["current_definition"] == EBITDA_DEFINITION_REVISION
     WORK["units"] += 3
+
+
+def test_a_briefing_stamped_with_an_earlier_revision_gets_the_generic_note():
+    """A briefing written 2026-09-26 (711 and 72x ALREADY inside) is not
+    current since R2 / R3 — and its note names no content an earlier
+    definition lacked, because this one did not lack it."""
+    assert EBITDA_DEFINITION_PREVIOUS_REVISIONS, "the previous revision is named"
+    for stamp in EBITDA_DEFINITION_PREVIOUS_REVISIONS:
+        st = P.briefing_definition_status({"body": "x", "ebitda_definition": stamp})
+        assert st["written_under"] == stamp and st["written_under_previous_definition"] is True
+        assert st["note"] == GENERIC_NOTE, st["note"]
+        text = (st["note"]["ro"] + " " + st["note"]["en"]).lower()
+        assert not [w for w in _CONTENT_WORDS if w.lower() in text], text
+        WORK["units"] += 1
 
 
 def test_a_briefing_written_before_the_ruling_is_served_as_such_through_the_real_route():
@@ -76,7 +107,7 @@ def test_a_briefing_written_before_the_ruling_is_served_as_such_through_the_real
     briefing = _served_briefing(double)
     assert briefing["body"] == "EBITDA was 10.8M."
     assert briefing["definition"]["written_under_previous_definition"] is True
-    assert briefing["definition"]["note"]["en"].startswith("This briefing was written under")
+    assert briefing["definition"]["note"] == GENERIC_NOTE
     WORK["units"] += 1
 
 

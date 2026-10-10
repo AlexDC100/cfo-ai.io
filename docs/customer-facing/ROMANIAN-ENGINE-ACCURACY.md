@@ -1,5 +1,22 @@
 # Romanian SME Financial Engine — accuracy & defensibility
 
+> **SUPERSEDED 2026-10-01 — do not hand this document to a customer.**
+> Its numbers were typed by hand and are no longer maintained. On
+> 2026-10-01 the first public review found the landing page quoting "eight
+> calibration fixtures" beside "9 / 9"; re-measuring showed this page was
+> stale too (the one-sentence summary's "7 of 8 below 0.12%" is 6 of 8, one
+> row of the §3 table reads 0.0330% where the script measures 0.1445%, and
+> "reproduces filed-P&L EBITDA" describes a check that compares the
+> methodology with the code, not with a filing).
+>
+> The measured, dated proof is **`frontend/data/engineProof.json`**, written
+> by `scripts/build_engine_proof.py`, which runs the checks and counts
+> distinct real books. Every accuracy number on the public pages renders
+> from that file (gates `engine-proof`, `landing-proof`), and what the
+> product can read is **`frontend/data/coverage.json`** (gate
+> `public-claims`). This page is kept for its history and its method notes
+> until it is regenerated from the proof.
+
 **Audience:** PE / lender / auditor / due-diligence reviewer asking
 "how good is this?"
 **One sentence:** A Romanian RAS-compliant financial-statement engine

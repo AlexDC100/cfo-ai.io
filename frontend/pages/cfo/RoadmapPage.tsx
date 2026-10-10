@@ -27,7 +27,7 @@ const NEXT_UP: RoadmapEntry[] = [
   {
     title: "ERP integration",
     description:
-      "Direct sync from Saga, WinMentor, and SAP. No more manual trial-balance uploads.",
+      "Direct sync from your accounting software. No more manual trial-balance uploads.",
     status: "in-design",
   },
   {
@@ -39,6 +39,16 @@ const NEXT_UP: RoadmapEntry[] = [
 ];
 
 const AFTER_THAT: RoadmapEntry[] = [
+  // 2026-10-01: until now no public page said international coverage is
+  // NOT available — the landing claimed it was. The coverage table on the
+  // landing (frontend/data/coverage.json) is the statement of record; this
+  // entry is where the plan for it lives.
+  {
+    title: "Trial balances from other countries",
+    description:
+      "Charts of accounts beyond Romanian RAS. Not available today: CFO AI reads Romanian trial balances only, and the Multi-Country plan is not on sale.",
+    status: "research",
+  },
   {
     title: "White-label PDF reports",
     description:
@@ -113,8 +123,9 @@ export default function RoadmapPage() {
           Product Roadmap
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[560px]">
-          What we're building. Honest target dates — these slip; we'd rather
-          under-promise than refund.
+          What we're building, in the order we expect to build it. No dates
+          are promised here — they slip, and we'd rather under-promise than
+          refund.
         </p>
 
         <RoadmapSection title="Next up" entries={NEXT_UP} />

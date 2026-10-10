@@ -3,6 +3,9 @@
 `levels`  — detail level as a fact, and the comparability rule.
 `lines`   — which statement lines exist, what feeds them, what they need.
 `columns` — current / prior / delta / delta %, and the refusals.
+`shares`  — ONE period's lines as shares of its own base: the per-side
+            computation the two-period common size and the single-period
+            block (`analysis.period_common_size`) both run.
 
 Jurisdiction-blind by contract: nothing here names a country, compares a
 jurisdiction token, or imports a country pack. The chart-of-accounts fact

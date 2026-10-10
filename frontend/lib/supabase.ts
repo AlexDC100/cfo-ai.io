@@ -18,6 +18,8 @@ import { getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
 // the server was ready to run. The refusal path must never depend on a
 // network fetch of code. Gate: lib/__tests__/uploadRefusalsStatic.test.ts.
 import { friendlyDocumentError, parseUploadRefusal } from "@/lib/uploadRefusals";
+// STATIC for the same reason: the refusal of a re-run is an error path.
+import { rerunRefusalCode, type RerunRefusalCode } from "@/lib/rerunRefusals";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -429,7 +431,8 @@ export type EnqueuePipelineResult =
     }
   // 2026-08 tier restructure — non-Romanian document on a plan without
   // the Multi-Country entitlement. Typed refusal, not an error: the FE
-  // renders it as an upgrade prompt (NonRoUpgradeDialog).
+  // renders it as an upgrade prompt (NonRoUpgradeDialog). `message` is the
+  // refusal code's sentence (lib/uploadRefusals), never the server's.
   | { kind: "non_ro_blocked"; upgradeTo: string; message: string }
   // 2026-09-21 — the document duplicates a live one of this account, company
   // and period. The server archived it; nothing was analysed or counted. The
@@ -556,22 +559,30 @@ export async function enqueuePipeline(documentId: string): Promise<EnqueuePipeli
 
 /**
  * Re-run the pipeline for a document that previously failed (or analyzed —
- * useful for re-extraction after the user uploads a corrected file). The
- * server resets the status to 'queued' and wipes prior derivatives.
+ * useful for re-extraction after the user uploads a corrected file). For a
+ * document that holds no analysis the server resets the status to 'queued'
+ * and wipes prior derivatives. For one that OWNS its month nothing is reset:
+ * the row stays 'analyzed', the month keeps being served, and the re-run
+ * replaces it only once it has succeeded (a re-run that does not finish is
+ * said on the row — components/cfo/DocRerunNote).
  */
 export async function retryPipeline(documentId: string): Promise<boolean> {
   return (await retryPipelineDetailed(documentId)).ok;
 }
 
 /** `retryPipeline` that also says when the server archived the document as a
- *  duplicate of a live copy instead of re-running it. */
+ *  duplicate of a live copy instead of re-running it — and, when the server
+ *  REFUSED the re-run, the refusal's code (`refusal`; null when the answer
+ *  carries no code this client knows). The server's own words are never
+ *  returned: the caller prints the sentence written for the code
+ *  (lib/rerunRefusals). */
 export async function retryPipelineDetailed(
   documentId: string,
-): Promise<{ ok: boolean; duplicate: AlreadyUploaded | null }> {
-  if (!client) return { ok: false, duplicate: null };
+): Promise<{ ok: boolean; duplicate: AlreadyUploaded | null; refusal: RerunRefusalCode | null }> {
+  if (!client) return { ok: false, duplicate: null, refusal: null };
   const { data } = await client.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return { ok: false, duplicate: null };
+  if (!token) return { ok: false, duplicate: null, refusal: null };
   const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
   try {
     const res = await fetch(`${apiUrl}/api/pipeline/retry`, {
@@ -582,11 +593,11 @@ export async function retryPipelineDetailed(
       },
       body: JSON.stringify({ document_id: documentId }),
     });
-    if (!res.ok) return { ok: false, duplicate: null };
     const body = await res.json().catch(() => null);
-    return { ok: true, duplicate: parseDuplicateRunBody(body) };
+    if (!res.ok) return { ok: false, duplicate: null, refusal: rerunRefusalCode(body) };
+    return { ok: true, duplicate: parseDuplicateRunBody(body), refusal: null };
   } catch {
-    return { ok: false, duplicate: null };
+    return { ok: false, duplicate: null, refusal: null };
   }
 }
 
@@ -675,10 +686,12 @@ export function subscribeToDocumentStatus(
 ): () => void {
   if (!client) return () => {};
   const activeClient = client;
-  // 2026-08 — the pipeline persists typed refusals (non-RO gate) as raw
-  // JSON into documents.error. Humanize at this seam so EVERY consumer
-  // (scan card, toasts, DocumentChip) renders the friendly copy instead
-  // of a JSON blob. Non-refusal errors pass through untouched.
+  // The pipeline persists a plan refusal as a NEUTRAL CODE in
+  // documents.error (owner ruling 2026-10-02 — never a plan name, the row
+  // is shared by every member). Render it at this seam, per viewer, in the
+  // viewer's language, so EVERY consumer (scan card, toasts, DocumentChip)
+  // prints the code's sentence instead of a JSON blob. Other errors pass
+  // through untouched.
   const emit = (row: DocumentRow) => {
     if (row?.error) {
       let friendly: string | null = null;

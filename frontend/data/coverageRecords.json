@@ -1,0 +1,30 @@
+{
+  "schema": "coverage_records/1",
+  "about": "DATED MEASUREMENTS NO COMMITTED GATE CAN RE-RUN. The files they were taken on are client documents and are not in this repository, so a gate cannot repeat them; what a gate CAN do is refuse a count on a public page that no dated record states. Each record says what was measured, when, by whom and how, and how many real files were read and refused. A coverage row that cites a record prints THE RECORD'S counts (gate public-claims C4 compares them); to change a count, add a new dated record — never edit a number in coverage.json alone. Records name no company.",
+  "records": [
+    {
+      "id": "pdf_text_layer_2026-10-01",
+      "row": "pdf_text_layer",
+      "measured_at": "2026-10-01",
+      "measured_by": "coordinator",
+      "how_en": "production reprocess",
+      "how_ro": "reprocesare în producție",
+      "detail": "Read-only dry run of the reprocess over the stored periods in production on 2026-10-01: two distinct real books whose source is a text-layer trial-balance PDF were read by the deterministic text reader (extraction method deterministic, no model call). Separately, one real text-layer PDF in the four-pair layout with blank zero cells is refused by the reader rather than read (measured offline on the file; first recorded 2026-09-26).",
+      "real_books_read": 2,
+      "real_files_refused": 1,
+      "repeatable_from_this_repository": false
+    },
+    {
+      "id": "xlsx_10_column_refused_2026-10-01",
+      "row": "xlsx_10_column",
+      "measured_at": "2026-10-01",
+      "measured_by": "builder, offline",
+      "how_en": "parser run over the real sheets on hand",
+      "how_ro": "rularea cititorului pe foile reale disponibile",
+      "detail": "The production parser run offline over every real 10-column trial-balance sheet held outside the repository: seven distinct sheets, six read (the count engineProof.json `formats` measures), one refused with \"Couldn't find the column headers\" — its header abbreviates Debit / Credit to D / C. Re-run on 2026-10-02 with the same result.",
+      "real_books_read": 6,
+      "real_files_refused": 1,
+      "repeatable_from_this_repository": false
+    }
+  ]
+}

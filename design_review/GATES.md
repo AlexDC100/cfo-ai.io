@@ -34,7 +34,7 @@ Terminal).
 
 ### D5 — no raw hex (`scripts/check_design_lint.mjs`)
 Hex color literals outside the token sheet. Allowlist (commented per entry in
-the script): `index.css`, `styles/marketing-tokens.css`, `styles/eeiBoard.css`,
+the script): `index.css`, `styles/marketing-tokens.css`, `styles/controllerBoard.css`,
 `theme/tokens.ts`, `theme/theme.ts` (the documented canvas/SVG/email escape
 hatch — NOTE it still carries the retired `#5CD3C5` teal and needs a
 migration-lane retheme), config files, test files, and a per-line

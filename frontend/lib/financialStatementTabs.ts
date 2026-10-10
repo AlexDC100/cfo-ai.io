@@ -162,6 +162,12 @@ export function resolveActiveTab(
 /**
  * Human-readable hint for the disabled-tab tooltip. Every tab gets the same
  * generic CTA at the end; the per-tab prefix tells the user *what* is missing.
+ *
+ * 2026-10-02: every prefix named documents the engine does not read ("a P&L,
+ * a balance sheet, or an annual report") and the suffix offered "a sample"
+ * that production does not ship. What enables every one of these tabs today
+ * is a Romanian trial balance; anything else needs the AI reader, whose
+ * availability is coverage.json's.
  */
 export function disabledHint(
   tab: TabId,

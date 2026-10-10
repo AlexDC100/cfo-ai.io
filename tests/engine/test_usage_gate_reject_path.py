@@ -35,10 +35,19 @@ the network and no counter is written:
     limit they hit rather than "quota exceeded".
   · enforcement ON, RPC says monthly cap -> `monthly_cap_reached`.
   · enforcement ON, RPC returns NOTHING (a dead RPC, a migration not
-    applied, a network blip) -> the gate FAILS CLOSED to
-    `monthly_cap_reached`. Documented in the source as the default; pinned
-    here because failing OPEN would hand out unlimited paid calls the
-    moment the RPC went missing, which is the expensive direction.
+    applied, a network blip), or an answer with no `kind` the gate knows
+    -> the gate FAILS CLOSED to `metering_unavailable`. Pinned here
+    because failing OPEN would hand out unlimited paid calls the moment
+    the RPC went missing, which is the expensive direction.
+
+    REWRITTEN 2026-10-03 (gate briefing-keep-last-good). This file pinned
+    the dead-RPC answer as `monthly_cap_reached` — closed, but a LIE: the
+    regenerate route (the gate's one caller) then told a caller who had
+    spent nothing "monthly cap reached, 0 of 200 used", linked /pricing,
+    and named the TRIAL plan when the plan reads were down too. An outage
+    is not a cap. The law kept: it is still a REFUSAL (never `allowed`,
+    never `disabled`). The law added: it is never one of the two cap
+    kinds, and a real cap answer still is one.
 
 WHAT IT REDS ON (TC-11)
 =======================
@@ -48,7 +57,8 @@ WHAT IT REDS ON (TC-11)
     an allowed user is refused;
   · a refusal message that no longer names its plan or its cap number —
     TC-10 applied to a customer-facing sentence;
-  · the RPC-absent default flipping to fail-open.
+  · the RPC-absent default flipping to fail-open, or back to a cap claim;
+  · an outage answer that carries counts or a sentence about a limit.
 
 WHAT IT CANNOT SEE
 ==================
@@ -180,19 +190,66 @@ def test_monthly_cap_reached_is_its_own_arm(gate, monkeypatch):
     assert "Multi-Country" in d.message and "200" in d.message, d.message
 
 
-def test_a_dead_rpc_fails_CLOSED_not_open(gate, monkeypatch):
+#: What `_rpc` hands the gate when the meter gave nothing it can act on:
+#: no response at all (every wire failure — `_rpc` returns None), an object
+#: with no `kind`, an empty object, a `kind` that is neither a grant nor one
+#: of the two caps.
+NO_USABLE_ANSWER = [
+    (None, "no_response"),
+    ({}, "empty_object"),
+    ({"daily_used": 3, "monthly_used": 12}, "counters_but_no_kind"),
+    ({"kind": None, "daily_used": 0, "monthly_used": 0}, "kind_null"),
+    ({"kind": "blocked"}, "a_kind_the_gate_does_not_know"),
+    ({"kind": "ALLOWED"}, "allowed_in_the_wrong_case"),
+    ({"kind": ""}, "kind_empty"),
+]
+
+
+@pytest.mark.parametrize("body", [b for b, _ in NO_USABLE_ANSWER], ids=[i for _, i in NO_USABLE_ANSWER])
+def test_a_dead_rpc_fails_CLOSED_not_open(gate, monkeypatch, body):
     """The expensive direction is fail-open. If the RPC is missing — a
     migration not applied, a permissions change, a network blip — the gate
-    must refuse rather than hand out uncapped paid model calls."""
+    must refuse rather than hand out uncapped paid model calls.
+
+    REWRITTEN 2026-10-03 to the new law (see the module docstring): still
+    closed, but as `metering_unavailable` — never as a cap the caller has
+    not reached."""
     monkeypatch.setenv("USAGE_LIMITS_ENABLED", "true")
-    _with_rpc(monkeypatch, gate, None)
+    calls = _with_rpc(monkeypatch, gate, body)
 
     d = gate.reserve_chat("u-1")
 
-    assert d.kind == "monthly_cap_reached", (
-        "the gate failed OPEN with no RPC response — an absent reservation "
-        "backend must not mean unlimited paid calls"
+    # The reservation WAS attempted — once: "refused" is the meter's
+    # silence, not a gate that stopped asking.
+    assert [name for name, _payload in calls] == ["reserve_user_chat"], calls
+    # CLOSED: neither of the two kinds a caller may proceed on.
+    assert d.kind not in ("allowed", "disabled"), (
+        "the gate failed OPEN with no usable RPC response — an absent "
+        "reservation backend must not mean unlimited paid calls"
     )
+    # … and NOT a cap: the caller has spent nothing.
+    assert d.kind not in ("daily_cap_reached", "monthly_cap_reached"), (
+        "an outage was answered as a reached cap — the reader is told an "
+        "allowance is spent that they have not used"
+    )
+    assert d.kind == "metering_unavailable"
+    # No count is claimed, and the sentence is about the check, not a limit.
+    assert (d.daily_used, d.monthly_used) == (0, 0)
+    assert "limit reached" not in d.message.lower() and "200" not in d.message, d.message
+    assert "Multi-Country" not in d.message, d.message
+
+
+def test_a_real_cap_answer_is_still_a_cap_not_an_outage(gate, monkeypatch):
+    """The positive control of the test above: the SAME fake, answering what
+    the RPC answers when a cap is reached — each is its own kind, with the
+    counts the RPC gave. `metering_unavailable` is the absence of an answer,
+    not a new name for every refusal."""
+    monkeypatch.setenv("USAGE_LIMITS_ENABLED", "true")
+    for kind in ("daily_cap_reached", "monthly_cap_reached"):
+        _with_rpc(monkeypatch, gate, {"kind": kind, "daily_used": 40, "monthly_used": 57})
+        d = gate.reserve_chat("u-1")
+        assert d.kind == kind
+        assert (d.daily_used, d.monthly_used) == (40, 57)
 
 
 def test_the_env_var_is_read_as_a_switch_not_a_truthy_string(gate, monkeypatch):

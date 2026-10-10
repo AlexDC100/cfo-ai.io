@@ -8,12 +8,15 @@
 //   1. THE CHAIN — net turnover → other operating income → own work
 //      capitalised (72x) → cost of sales, with "Variația stocurilor de
 //      produse" (711) beside it, signed and with its provenance → other
-//      operating expenses → EBITDA → D&A → operating result → financial
-//      result → tax → net result = account 121 (or "not anchored"). On a
+//      operating expenses → EBITDA → D&A → net provisions (6812 + 6814 −
+//      7812 − 7814, outside EBITDA — owner ruling R2, 2026-09-28) →
+//      operating result → financial result → tax → net result = account
+//      121 (or "not anchored"). On a
 //      closed book the 711 line is DERIVED from account 121, so the chain
 //      closes by construction; the engine's note says so.
 //   2. THE ONE-LINE BRIDGE — EBITDA before the stock variation and own work
-//      capitalised · the stock variation · own work capitalised = EBITDA.
+//      capitalised · the stock variation · own work capitalised = EBITDA,
+//      then the served lines OUTSIDE EBITDA after it (net provisions).
 //   3. EBITDA → CORE EBITDA (the valuation basis): the served 758 and 781
 //      strips and the served core figure — on the one EBITDA.
 //
@@ -31,6 +34,7 @@ import { useTranslation } from "react-i18next";
 import type { Statements } from "@/lib/financialReport";
 import { pickMargin, type MarginBilingual } from "@/lib/marginMeaning";
 import {
+  netProvisionsEffectAccounts,
   pickLang,
   readServedOneEbitda,
   type Bilingual,
@@ -87,6 +91,25 @@ export function EbitdaReconciliationPanel({
     return signed ? fmt(v, { sign: v > 0 ? "positive" : "negative" }) : fmt(v);
   };
   const reason = (r: ServedRefusal | null | undefined) => (r ? pickLang(r.text, lang) : null);
+  // NET PROVISIONS ON ONE CONVENTION PER SURFACE (review 2026-10-01). The
+  // engine serves the bridge's after-EBITDA part EFFECT-signed, under a label
+  // whose arithmetic is the CHARGE ("6812 + 6814 − 7812 − 7814"): the P&L tab
+  // prints that part as the row's served charge, and this panel printed the
+  // opposite sign under the same label (agras "−131,394.66" here, "131,394.66"
+  // there; Scandia's release "+6,372,805" here). The bridge after EBITDA is not
+  // a term of a sum, so it prints THE ROW'S served figure, unsigned and
+  // uncoloured, exactly as PLStatementView does — a block with no readable
+  // net-provisions figure prints no after-part rather than a second
+  // convention. The CHAIN above it IS a sum (EBITDA − D&A − net provisions =
+  // the operating result, every cost negative), so its row keeps the effect
+  // and states the effect's arithmetic instead (`netProvisionsEffectAccounts`:
+  // "7812 + 7814 − 6812 − 6814"), so the label evaluates to the printed figure.
+  const np = served?.netProvisions ?? null;
+  const npEffectAccounts = np ? netProvisionsEffectAccounts(np) : null;
+  const afterParts = (recon?.bridge.afterEbitda ?? []).flatMap((p) => {
+    if (p.key !== "net_provisions") return [{ ...p, signed: true }];
+    return np ? [{ ...p, value: np.value as number | null, signed: false }] : [];
+  });
 
   return (
     <section
@@ -116,7 +139,15 @@ export function EbitdaReconciliationPanel({
           {/* 1. THE CHAIN, as served. */}
           <ol className="space-y-0.5 text-[13px]" data-testid="ebitda-reconciliation-rows">
             {recon.lines.map((l) => (
-              <ReconRow key={l.key} line={l} lang={lang} money={money} reason={reason} />
+              <ReconRow
+                key={l.key}
+                line={l}
+                lang={lang}
+                money={money}
+                reason={reason}
+                effectAccounts={l.key === "net_provisions" ? npEffectAccounts : null}
+                nameOnly={l.key === "net_provisions" && np ? np.name : null}
+              />
             ))}
           </ol>
 
@@ -133,6 +164,20 @@ export function EbitdaReconciliationPanel({
                   </span>
                 );
               })}
+              {/* After EBITDA, outside it — the engine's label says so; net
+                  provisions on the P&L tab's convention (see `afterParts`). */}
+              {afterParts.map((p) => (
+                <span key={p.key} data-bridge-after={p.key}>
+                  <span className="text-ink-mute">{" · "}</span>
+                  {pickLang(p.label, lang)}{" "}
+                  <span
+                    className="tabular-nums text-ink"
+                    data-bridge-value={p.value === null ? "none" : String(p.value)}
+                  >
+                    {money(p.value, p.signed)}
+                  </span>
+                </span>
+              ))}
               {recon.bridge.refusal && (
                 <div className="mt-1 text-alert" data-testid="ebitda-recon-bridge-refused">
                   {reason(recon.bridge.refusal)}
@@ -199,14 +244,36 @@ function ReconRow({
   lang,
   money,
   reason,
+  effectAccounts = null,
+  nameOnly = null,
 }: {
   line: ServedReconLine;
   lang: string | undefined;
   money: (v: number | null, signed?: boolean) => string;
   reason: (r: ServedRefusal | null | undefined) => string | null;
+  /** Net provisions only: its accounts as the arithmetic of the EFFECT this
+   *  chain prints (reversals − charges), in place of the engine's charge
+   *  arithmetic, which the printed figure contradicts. */
+  effectAccounts?: string | null;
+  /** Net provisions only: the served block's NAME, without accounts, in
+   *  place of the chain line's label. That label is the engine's full
+   *  "… (6812 + 6814 − 7812 − 7814)" — the charge arithmetic — and beside
+   *  the effect chip it made ONE ROW state two opposite arithmetics (review
+   *  2026-10-02: "… (6812 + 6814 − 7812 − 7814) 7812 + 7814 − 6812 − 6814
+   *  −131,394.66"). The name carries no arithmetic; the chip carries the
+   *  one this row's figure is. */
+  nameOnly?: Bilingual | null;
 }) {
   const { t } = useTranslation();
-  const component = line.key === "inventory_variation" || line.key === "capitalized_own_work";
+  // Signed as its effect on the result: the two components inside EBITDA
+  // and net provisions outside it (a net release prints "+").
+  const component =
+    line.key === "inventory_variation" || line.key === "capitalized_own_work" || line.key === "net_provisions";
+  // The account codes in the reader's language ("fără" / "excl."), where
+  // the engine words them apart — a code string, never a figure.
+  const accountCodes =
+    effectAccounts ??
+    ((lang ?? "").toLowerCase().startsWith("ro") ? line.accounts : line.accountsEn ?? line.accounts);
   const notAnchored = line.key === "account_121" && line.status === "not_anchored";
   const refusal = line.value === null ? reason(line.refusal) : null;
   return (
@@ -218,11 +285,13 @@ function ReconRow({
       } ${line.key === "inventory_variation" ? "pl-4" : ""}`}
     >
       <span>
-        <NameWithGloss label={line.label} lang={lang} />
-        {line.accounts && (
-          <span className="ml-1.5 font-mono text-[10px] text-ink-mute">{line.accounts}</span>
+        <NameWithGloss label={nameOnly ?? line.label} lang={lang} />
+        {accountCodes && (
+          <span className="ml-1.5 font-mono text-[10px] text-ink-mute" data-recon-accounts={line.key}>
+            {accountCodes}
+          </span>
         )}
-        {component && line.provenanceLabel && (
+        {component && line.key !== "net_provisions" && line.provenanceLabel && (
           <span className="block text-[11.5px] font-normal text-ink-mute" data-testid="ebitda-recon-provenance">
             {pickLang(line.provenanceLabel, lang)}
           </span>

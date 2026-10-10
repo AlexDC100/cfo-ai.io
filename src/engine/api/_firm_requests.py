@@ -1082,6 +1082,138 @@ def client_org_ids_for(user_id: str, firm_id: Optional[str], jwt: Optional[str] 
         return _live_membership_org_ids(opened, user_id)
 
 
+def _firm_row(ac: Any, firm_id: Any) -> Optional[Dict[str, Any]]:
+    """The firm of record (name, archived or not), or None."""
+    if not firm_id:
+        return None
+    rows = ac.select("firms", filters={"id": "eq.%s" % firm_id},
+                     columns="id,name,archived_at", limit=1)
+    return rows[0] if rows else None
+
+
+def digest_scope(ac: Any, user_id: str, firm_id: Optional[str]) -> Tuple[List[str], Optional[str]]:
+    """(the workspaces a digest for this user may name TODAY, why there
+    are none when the user is not entitled to one).
+
+    The digest cron and the e-mail drain read under the SERVICE ROLE, where
+    no row-level policy applies — this function IS the wall, and it is
+    asked twice: when the digest is computed and again when it is about to
+    leave (the drain is an operator action that can run days later).
+
+    Through a firm: the user is a member NOW, through a role whose `read`
+    cell is true (the matrix, never a role name); the firm is not archived;
+    and the workspaces are the ones the firm serves NOW and that are not
+    archived — a client its owner deleted is hidden for its whole 30-day
+    purge window, exactly as the board hides it (critic D10).
+    `_firm.client_org_ids` is deliberately NOT used here: it includes
+    archived workspaces, because it answers "whose client is this", not
+    "what may be mailed".
+
+    With no firm: the user's own live workspaces."""
+    firm = str(firm_id or "").strip()
+    if not firm:
+        return _live_membership_org_ids(ac, user_id), None
+    from . import _firm
+    role = _firm.firm_role_for_user(user_id, firm)
+    if role is None:
+        return [], "not a member of the firm"
+    if not _firm.can(role, "read"):
+        return [], "the firm role does not hold 'read'"
+    row = _firm_row(ac, firm)
+    if row is None:
+        return [], "the firm no longer exists"
+    if row.get("archived_at") is not None:
+        return [], "the firm is archived"
+    rows = select_all(ac, "organizations", order="id.asc",
+                      filters={"firm_id": "eq.%s" % firm, "archived_at": "is.null"},
+                      columns="id,firm_id,archived_at")
+    return sorted(str(r.get("id")) for r in rows or [] if r.get("id")), None
+
+
+def request_is_served(ac: Any, row: Dict[str, Any]) -> Optional[str]:
+    """None while the request may still be mailed about; otherwise why not.
+
+    THE ERA PIN (D3), applied to MAIL: `open_request_for` answers 410 for a
+    link whose firm no longer serves the client. A reminder for that link —
+    in the name of a firm that is no longer the client's, to upload nowhere
+    — must not go out either; nor one for a workspace its owner archived."""
+    rows = ac.select("organizations", filters={"id": "eq.%s" % row.get("client_org_id")},
+                     columns="id,name,firm_id,archived_at", limit=1)
+    if not rows:
+        return "the client workspace no longer exists"
+    org = rows[0]
+    if org.get("archived_at") is not None:
+        return "the client workspace is archived"
+    minted_by = row.get("firm_id")
+    if minted_by is not None and str(org.get("firm_id") or "") != str(minted_by):
+        return "the firm that asked no longer serves this client"
+    return None
+
+
+def mail_refusal(ac: Any, row: Dict[str, Any],
+                 email_of: Optional[Callable[[str], Optional[str]]] = None) -> Optional[str]:
+    """None when a queued e-mail may still go out; otherwise why not.
+
+    Asked by the drain for EVERY row, at the moment it is about to be sent.
+    A queued row is a decision taken when the cron ran; the drain is an
+    operator action that can run hours or days later, and in between a
+    member is removed, a firm archived, a client detached or deleted, a
+    request revoked, a user opts out. What was true then is not what is
+    sent now.
+
+      digest    the user still opts in; they are still entitled
+                (:func:`digest_scope`); EVERY workspace the stored digest
+                names is one they read today; the address is still theirs.
+      request / reminder
+                the request is still open and still served
+                (:func:`request_is_served`)."""
+    kind = row.get("kind")
+    payload = row.get("payload") or {}
+    if kind == EMAIL_KIND_DIGEST:
+        user_id = str(row.get("user_id") or "")
+        if not user_id:
+            return "the digest has no recipient on record"
+        firm_id = row.get("firm_id")
+        prefs = ac.select("firm_digest_prefs", filters={
+            "user_id": "eq.%s" % user_id,
+            "firm_id": ("is.null" if firm_id is None else "eq.%s" % firm_id)}, limit=1)
+        if not prefs or not prefs[0].get("enabled"):
+            return "the recipient no longer opts in to this digest"
+        try:
+            ids, refusal = digest_scope(ac, user_id, firm_id)
+        except HTTPException as exc:
+            return str(exc.detail)
+        if refusal is not None:
+            return refusal
+        scope = set(ids)
+        named = set(str(sec.get("client_org_id")) for sec in
+                    ((payload.get("digest") or {}).get("sections") or []))
+        if not named:
+            return "the digest names no workspace"
+        if named - scope:
+            return ("the digest names %d workspace(s) the recipient no longer reads"
+                    % len(named - scope))
+        current = (email_of or _default_email_of)(user_id)
+        if not current or str(current).strip().lower() != str(row.get("to_email") or "").strip().lower():
+            return "the address is no longer the recipient's"
+        return None
+    request_id = row.get("request_id")
+    if not request_id:
+        return "the e-mail names no request"
+    found = ac.select("firm_file_requests", filters={"id": "eq.%s" % request_id}, limit=1)
+    if not found:
+        return "the request no longer exists"
+    request = found[0]
+    if str(request.get("status")) not in OPEN_STATUSES:
+        return "the request is %s" % request.get("status")
+    try:
+        if _parse_ts(request.get("expires_at")) <= _now():
+            return "the request link has expired"
+    except (TypeError, ValueError):
+        pass
+    return request_is_served(ac, request)
+
+
 def _scheduler_token_or_503(authorization: Optional[str]) -> None:
     """ENGINE_API_TOKEN bearer, FAIL CLOSED (the purge-cron precedent):
     a cron that sends mail must not run anonymously."""
@@ -1196,16 +1328,40 @@ def open_request_items(rows: Sequence[Dict[str, Any]], client_names: Dict[str, s
 # ══════════════════════════════════════════════════════════════════════════
 
 
+#: The sender name when no firm is on record for a request (a workspace
+#: member asked for their own company's file).
+DEFAULT_SENDER_NAME = "Your accountant"
+
+
+def sender_name(ac: Any, firm_id: Any) -> str:
+    """Who a request / reminder mail says is asking: the FIRM OF RECORD's
+    name, read from `firms` — never text the caller typed (a member of one
+    firm could otherwise mail anyone in another firm's name)."""
+    row = _firm_row(ac, firm_id) if firm_id else None
+    name = str((row or {}).get("name") or "").strip()
+    return name or DEFAULT_SENDER_NAME
+
+
 def run_nudge_cron(as_of: date, now: datetime, client: Any,
                    firm_names: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """For every open request: expire it when its link has expired;
     otherwise queue a reminder for each cadence nudge day that has come
-    and was not sent. Idempotent: `reminders_sent` on the row records
-    (period_end, days_before) pairs."""
+    and was not sent.
+
+    A request is mailed about only while it is SERVED
+    (:func:`request_is_served`): the firm that asked still serves the
+    client and the workspace is not archived. The link of any other open
+    request is dead already (`open_request_for`: 410).
+
+    Idempotent, and at most once: `reminders_sent` on the row records the
+    (period_end, days_before) pairs, and it is written — compare-and-swap
+    on `reminder_count` — BEFORE the e-mail is queued. An overlapping run
+    that read the same row loses the swap and queues nothing; a failed
+    write queues nothing."""
     pack = CAD.load_cadence_pack()
     rows = select_all(client, "firm_file_requests", order="id.asc",
                       filters={"status": "in.(%s)" % ",".join(OPEN_STATUSES)})
-    queued = expired = 0
+    queued = expired = unserved = 0
     for row in rows or []:
         rid = str(row.get("id"))
         try:
@@ -1216,8 +1372,12 @@ def run_nudge_cron(as_of: date, now: datetime, client: Any,
                 continue
         except (TypeError, ValueError):
             pass
+        if request_is_served(client, row) is not None:
+            unserved += 1
+            continue
         client_org_id = str(row.get("client_org_id") or "")
-        cadence = CAD.resolve_client_cadence(client_org_id, _cadence_row(client, client_org_id), pack)
+        cadence = CAD.resolve_client_cadence(
+            client_org_id, _cadence_row(client, client_org_id, row.get("firm_id")), pack)
         period_end = str(row.get("period_end") or "")[:10]
         sent = [(str(k[0]), int(k[1])) for k in (row.get("reminders_sent") or [])
                 if isinstance(k, (list, tuple)) and len(k) == 2]
@@ -1229,6 +1389,17 @@ def run_nudge_cron(as_of: date, now: datetime, client: Any,
         org = _org_row(client, client_org_id)
         to_email = row.get("to_email")
         token = request_token(client, rid)
+        firm_name = ((firm_names or {}).get(str(row.get("firm_id")))
+                     or sender_name(client, row.get("firm_id")))
+        count_before = int(row.get("reminder_count") or 0)
+        marked = sent + [(period_end, n.days_before) for n in due]
+        claimed = client.update_returning("firm_file_requests", {
+            "status": STATUS_REMINDED, "reminder_count": count_before + len(due),
+            "last_reminded_at": _iso(now), "reminders_sent": [list(k) for k in marked],
+        }, filters={"id": "eq.%s" % rid, "reminder_count": "eq.%d" % count_before,
+                    "status": "in.(%s)" % ",".join(OPEN_STATUSES)})
+        if not claimed:
+            continue   # another run took these nudges, or the request closed
         for nudge in due:
             if to_email and token:
                 queue_email(client, kind=EMAIL_KIND_REMINDER, to_email=str(to_email),
@@ -1236,7 +1407,7 @@ def run_nudge_cron(as_of: date, now: datetime, client: Any,
                                 "subject": "Reminder: trial balance for %s" % period_end,
                                 "vars": {
                                     "client_name": org.get("name"),
-                                    "firm_name": (firm_names or {}).get(str(row.get("firm_id")), "CFO AI"),
+                                    "firm_name": firm_name,
                                     "period_end": period_end,
                                     "upload_url": "%s%s" % (_app_url(), ROUTE_UPLOAD_REQUEST.format(
                                         token=token)),
@@ -1247,13 +1418,8 @@ def run_nudge_cron(as_of: date, now: datetime, client: Any,
                             firm_id=row.get("firm_id"), client_org_id=client_org_id,
                             request_id=rid)
                 queued += 1
-            sent.append((period_end, nudge.days_before))
-        client.update("firm_file_requests", {
-            "status": STATUS_REMINDED, "reminder_count": int(row.get("reminder_count") or 0) + len(due),
-            "last_reminded_at": _iso(now), "reminders_sent": [list(k) for k in sent],
-        }, filters={"id": "eq.%s" % rid})
     return {"as_of": as_of.isoformat(), "open": len(rows or []), "reminders_queued": queued,
-            "expired": expired}
+            "expired": expired, "not_served": unserved}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1294,7 +1460,10 @@ def default_report_provider(client_factory: Optional[Callable[[], Any]] = None,
         with opener() as ac:
             for org_id in client_org_ids:
                 org = ac.select("organizations", filters={"id": "eq.%s" % org_id}, limit=1)
-                if not org:
+                if not org or org[0].get("archived_at") is not None:
+                    # An archived workspace is hidden, then purged: never
+                    # computed, whoever handed its id in (the second wall
+                    # under `digest_scope` / `client_org_ids_for`).
                     continue
                 periods = select_all(
                     ac, "financial_periods", order="period_end.desc,id.asc",
@@ -1339,16 +1508,42 @@ def _pref_due(pref: Dict[str, Any], as_of: date, now: datetime) -> bool:
     return last_day < as_of
 
 
+def _is_unique_violation(exc: BaseException) -> bool:
+    text = str(exc)
+    return "23505" in text or "duplicate key" in text or "HTTP 409" in text
+
+
 def run_digest_cron(as_of: date, now: datetime, client: Any,
                     report_provider: Optional[ReportProvider] = None,
                     email_of: Optional[Callable[[str], Optional[str]]] = None,
                     app_url: Optional[str] = None) -> Dict[str, Any]:
     """One pass over every ENABLED preference. Nothing is queued for a
     user who did not opt in, for a user whose last digest is too recent,
-    or when nothing is new since that digest."""
+    or when nothing is new since that digest.
+
+    `client` is the SERVICE ROLE: every read below names its tenant,
+    because nothing else will (gate scheduled-mail-tenancy).
+
+      · the workspaces come from :func:`digest_scope` — the firm's LIVE
+        clients for a current member with `read`, never an archived
+        workspace, never an archived firm;
+      · open requests are read for those workspaces AND, through a firm,
+        for that firm only — the row `firm_file_requests firm read` (RLS)
+        shows: a request a previous firm minted does not follow the client
+        (C3);
+      · the cadence row is pinned to the same firm (W3);
+      · a digest that names a workspace outside the scope is REFUSED, not
+        trimmed (either wall alone: an injected provider cannot widen it).
+
+    ONE DIGEST PER (user, firm, day). The day is CLAIMED in
+    `firm_digest_log` — its unique index is the lock — BEFORE the e-mail is
+    queued: an overlapping run meets the claim and queues nothing. A log
+    that cannot be read or written queues nothing (fail closed); a queue
+    that did not take the row releases the claim and leaves the items NEW,
+    so the next run carries them."""
     prefs = select_all(client, "firm_digest_prefs", order="id.asc",
                        filters={"enabled": "eq.true"})
-    provider = report_provider
+    providers = {}  # type: Dict[str, ReportProvider]
     base = (app_url if app_url is not None else _app_url())
     queued = skipped = empty = gaps = 0
     notes = []  # type: List[str]
@@ -1360,46 +1555,82 @@ def run_digest_cron(as_of: date, now: datetime, client: Any,
             skipped += 1
             continue
         try:
-            ids = client_org_ids_for(user_id, firm_id, ac=client)
+            ids, refusal = digest_scope(client, user_id, firm_id)
         except HTTPException as exc:
-            notes.append("user %s: %s" % (user_id, exc.detail))
+            ids, refusal = [], str(exc.detail)
+        if refusal is not None:
+            notes.append("user %s: %s" % (user_id, refusal))
             gaps += 1
             continue
+        provider = report_provider
         if provider is None:
-            try:
-                provider = default_report_provider()
-            except Exception as exc:  # noqa: BLE001
-                raise AttentionUnavailable("the board runner could not be loaded: %s" % exc)
+            provider = providers.get(firm_key)
+            if provider is None:
+                try:
+                    provider = default_report_provider(firm_id=(str(firm_id) if firm_id else None))
+                except Exception as exc:  # noqa: BLE001
+                    raise AttentionUnavailable("the board runner could not be loaded: %s" % exc)
+                providers[firm_key] = provider
         report = provider(ids, as_of)
-        names = dict((str(r.client_id), str(r.client_name)) for r in getattr(report, "rows", ()))
+        scope = set(ids)
+        names = dict((str(r.client_id), str(r.client_name)) for r in getattr(report, "rows", ())
+                     if str(r.client_id) in scope)
         requests = []  # type: List[Dict[str, Any]]
         for chunk in chunked(ids):
+            filters = {"client_org_id": "in.(%s)" % ",".join(chunk)}
+            if firm_id:
+                filters["firm_id"] = "eq.%s" % firm_id
             requests.extend(select_all(client, "firm_file_requests", order="id.asc",
-                                       filters={"client_org_id": "in.(%s)" % ",".join(chunk)}))
+                                       filters=filters))
         raws = list(report.items()) + [it.to_payload() for it in
                                        open_request_items(requests or [], names, as_of)]
-        digest = DG.build_digest(
-            raws, as_of, seen_ids=list(pref.get("last_item_ids") or []),
-            user_id=user_id, firm_key=firm_key, client_names=names,
-            kind_order=DG.kind_order_from_report(report))
-        if digest.is_empty:
-            empty += 1
+        # EITHER WALL ALONE: the board computation was handed the scope; a
+        # row or an item it answers with for any other workspace refuses the
+        # WHOLE digest. (Trimming it would still store the foreign item in
+        # the digest payload, as a "could not be shown" refusal.)
+        outside = set(str(r.client_id) for r in getattr(report, "rows", ())) - scope
+        outside |= set(str(raw.get("client_id") or raw.get("client_org_id") or "")
+                       for raw in raws if isinstance(raw, dict)) - scope - set([""])
+        digest = None
+        if not outside:
+            digest = DG.build_digest(
+                raws, as_of, seen_ids=list(pref.get("last_item_ids") or []),
+                user_id=user_id, firm_key=firm_key, client_names=names,
+                kind_order=DG.kind_order_from_report(report))
+            if digest.is_empty:
+                empty += 1
+                continue
+            outside = set(str(sec.client_org_id) for sec in digest.sections) - scope
+        if outside or digest is None:
+            notes.append("user %s: the digest named %d workspace(s) outside the recipient's "
+                         "scope — refused, nothing queued" % (user_id, len(outside)))
+            gaps += 1
             continue
         to_email = (email_of or _default_email_of)(user_id)
         if not to_email:
             notes.append("user %s: no email address" % user_id)
             gaps += 1
             continue
+        claim_filters = {
+            "user_id": "eq.%s" % user_id, "sent_for_date": "eq.%s" % as_of.isoformat(),
+            "firm_id": ("is.null" if firm_id is None else "eq.%s" % firm_id)}
         log_row = {"user_id": user_id, "firm_id": firm_id, "sent_for_date": as_of.isoformat(),
                    "item_set_hash": digest.item_set_hash, "item_count": digest.counts.get("shown", 0)}
+        # THE CLAIM. Read first (a re-run is the common case), then insert:
+        # the unique index decides between two runs that both read nothing.
         try:
-            existing = client.select("firm_digest_log", filters={
-                "user_id": "eq.%s" % user_id, "sent_for_date": "eq.%s" % as_of.isoformat(),
-                "firm_id": ("is.null" if firm_id is None else "eq.%s" % firm_id)}, limit=1)
-        except Exception:  # noqa: BLE001
-            existing = []
-        if existing:
-            skipped += 1
+            if client.select("firm_digest_log", filters=claim_filters, limit=1):
+                skipped += 1
+                continue
+            client.insert("firm_digest_log", log_row, returning=False)
+        except Exception as exc:  # noqa: BLE001 — classified below, never ignored
+            if _is_unique_violation(exc):
+                skipped += 1
+                continue
+            logger.exception("[firm] digest log unavailable")
+            notes.append("user %s: the digest log could not be read or written (%s) — "
+                         "nothing queued" % (user_id, type(exc).__name__))
+            gaps += 1
             continue
         email_id = queue_email(client, kind=EMAIL_KIND_DIGEST, to_email=to_email,
                                template=EMAIL_KIND_DIGEST, payload={
@@ -1408,11 +1639,20 @@ def run_digest_cron(as_of: date, now: datetime, client: Any,
                                    "text": DG.render_digest_text(digest, base),
                                    "digest": digest.to_payload(),
                                }, firm_id=firm_id, user_id=user_id)
-        log_row["queued_email_id"] = email_id
+        if email_id is None:
+            # Not queued: the day is released and the preference is left
+            # alone, so these items are still NEW for the next run.
+            try:
+                client.delete("firm_digest_log", filters=claim_filters)
+            except Exception:  # noqa: BLE001
+                logger.exception("[firm] digest claim could not be released")
+            notes.append("user %s: the e-mail queue did not take the digest — not sent" % user_id)
+            gaps += 1
+            continue
         try:
-            client.insert("firm_digest_log", log_row, returning=False)
-        except Exception:  # noqa: BLE001
-            logger.exception("[firm] digest log insert failed")
+            client.update("firm_digest_log", {"queued_email_id": email_id}, filters=claim_filters)
+        except Exception:  # noqa: BLE001 — bookkeeping only; the claim stands
+            logger.exception("[firm] digest log could not record the queued e-mail id")
         client.update("firm_digest_prefs", {
             "last_sent_at": _iso(now), "last_item_set_hash": digest.item_set_hash,
             "last_item_ids": list(digest.item_ids),
@@ -1551,6 +1791,11 @@ def build_router() -> APIRouter:
         expected = None  # type: Optional[Dict[str, Any]]
         with _supabase.per_user(jwt) as client:
             org = _org_row(client, body.client_org_id)
+            # The firm of record, read AS THE CALLER (`firms` RLS shows a
+            # member their own firm). `body.firm_name` is accepted for
+            # compatibility and IGNORED: the sender's name is never text
+            # the caller typed.
+            asker = sender_name(client, firm_id)
             expected = {"name": org.get("name"),
                         "cui": normalize_cui(body.expected_cui or org.get("cui"))}
             request_id = str(uuid.uuid4())
@@ -1588,11 +1833,10 @@ def build_router() -> APIRouter:
                 queued_email_id = queue_email(ac, kind=EMAIL_KIND_REQUEST, to_email=body.to_email,
                                               template=EMAIL_KIND_REQUEST, payload={
                                                   "subject": "%s asks for the trial balance for %s"
-                                                             % (body.firm_name or "Your accountant",
-                                                                period_end),
+                                                             % (asker, period_end),
                                                   "vars": {
                                                       "client_name": org.get("name"),
-                                                      "firm_name": body.firm_name or "Your accountant",
+                                                      "firm_name": asker,
                                                       "period_end": period_end,
                                                       "upload_url": upload_url,
                                                       "expires_at": _iso(expires),
@@ -1851,6 +2095,12 @@ def build_router() -> APIRouter:
     @router.post("/email/drain")
     def drain_email(limit: int = Query(200, ge=1, le=1000),
                     authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+        """Send what is queued — after deciding, per row and NOW, that it
+        may still go out (:func:`mail_refusal`), and after CLAIMING the row
+        (queued → failed/"claimed…", compare-and-swap) so that a second
+        drain, or a mark-sent write that fails after the send, can never
+        deliver it twice. The worst case is a row that says "claimed,
+        outcome unknown" — never a second mail."""
         jwt = _require_jwt(authorization)
         # `_user_id` → `_org.resolve_user_id` → a VERIFIED identity
         # (engine.api._jwt: ES256 against Supabase's JWKS). Until
@@ -1862,30 +2112,48 @@ def build_router() -> APIRouter:
         from . import _newsletter
         if not _newsletter._is_admin(user_id):
             raise HTTPException(403, "Admin-only. Add the user_id to PRICING_ADMIN_USER_IDS.")
-        drained = failed = 0
+        drained = failed = cancelled = unconfirmed = 0
         with _supabase.admin() as ac:
             try:
                 pending = ac.select("firm_email_queue", filters={"status": "eq.queued"},
                                     limit=limit, order="send_at.asc")
             except Exception:  # noqa: BLE001
                 return {"drained": 0, "failed": 0, "note": "firm_email_queue unavailable"}
+
+            def _close(row_id: Any, reason: str) -> bool:
+                """queued → failed with the reason; True when THIS drain closed it."""
+                return bool(ac.update_returning(
+                    "firm_email_queue", {"status": "failed", "error": reason},
+                    filters={"id": "eq.%s" % row_id, "status": "eq.queued"}))
+
             for row in pending or []:
                 to = row.get("to_email")
-                if not to:
+                refusal = mail_refusal(ac, row) if to else "the row has no address"
+                if refusal is not None:
+                    if _close(row["id"], "cancelled: %s" % refusal):
+                        cancelled += 1
                     continue
+                if not _close(row["id"], "claimed by a drain; outcome unknown if this persists"):
+                    continue   # another drain has it
                 subject, html = render_queued_email(row)
                 result = _email.send_email(to=to, subject=subject, html=html)
-                if result.get("ok"):
-                    ac.update("firm_email_queue", {"status": "sent", "sent_at": _iso(_now())},
-                              filters={"id": "eq.%s" % row["id"]})
-                    drained += 1
-                else:
-                    ac.update("firm_email_queue",
-                              {"status": "failed",
-                               "error": str(result.get("error") or result.get("reason"))},
-                              filters={"id": "eq.%s" % row["id"]})
-                    failed += 1
-        return {"drained": drained, "failed": failed}
+                try:
+                    if result.get("ok"):
+                        ac.update("firm_email_queue",
+                                  {"status": "sent", "sent_at": _iso(_now()), "error": None},
+                                  filters={"id": "eq.%s" % row["id"]})
+                        drained += 1
+                    else:
+                        ac.update("firm_email_queue",
+                                  {"status": "failed",
+                                   "error": str(result.get("error") or result.get("reason"))},
+                                  filters={"id": "eq.%s" % row["id"]})
+                        failed += 1
+                except Exception:  # noqa: BLE001 — the row stays claimed: never sent again
+                    logger.exception("[firm] queued e-mail %s: outcome not recorded", row.get("id"))
+                    unconfirmed += 1
+        return {"drained": drained, "failed": failed, "cancelled": cancelled,
+                "unconfirmed": unconfirmed}
 
     return router
 
@@ -1907,5 +2175,6 @@ __all__ = [
     "default_jurisdiction", "request_status_label",
     "request_token", "public_request_view", "open_request_items", "run_nudge_cron",
     "AttentionUnavailable", "default_report_provider", "run_digest_cron",
+    "digest_scope", "request_is_served", "mail_refusal", "sender_name",
     "build_router",
 ]

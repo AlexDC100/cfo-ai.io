@@ -1,0 +1,16 @@
+{
+  "about": "The exact text drawn on public/og/homepage.png. Written by scripts/build_og_image.mjs from landingStrings[en].hero; gate public-claims compares it with the current landing strings.",
+  "generated_by": "scripts/build_og_image.mjs",
+  "source": "frontend/pages/cfo/landingStrings.ts → landingStringsFor('en').hero",
+  "size": {
+    "width": 1200,
+    "height": 630
+  },
+  "text": {
+    "wordmark": "CFO AI",
+    "eyebrow": "CFO AI · Built for Romanian private businesses",
+    "headline": "Turn a Romanian trial balance into a CFO-grade analysis.",
+    "body": "Upload your trial balance (balanță de verificare, RAS). CFO AI reconstructs your P&L and balance sheet, estimates your cash flow, and computes ratios, a valuation range and a credit score — then compares you with Romanian companies in your sector and turnover band, and with named companies listed on the Bucharest Stock Exchange.",
+    "footer": "cfo-ai.io"
+  }
+}

@@ -542,7 +542,10 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         )}
       </AnimatePresence>
 
-      <div className="relative flex-1 min-w-0 flex flex-col min-h-[calc(100dvh-7rem)]">
+      {/* The chat column — messages + the in-flow composer. The message
+          list scrolls the window to THIS element's end (CHAT_COLUMN_ATTR),
+          never to the document's. */}
+      <div data-chat-column="" className="relative flex-1 min-w-0 flex flex-col min-h-[calc(100dvh-7rem)]">
         {/* Content swap is instant — no fade (2026-07-26 per operator:
             "remove the fade in content effect when changing chat items"). The
             empty-state ↔ conversation swap snaps rather than cross-fading. */}

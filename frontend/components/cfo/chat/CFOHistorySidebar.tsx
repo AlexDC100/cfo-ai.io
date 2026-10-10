@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Search, Trash2, X } from "lucide-react";
 import { relativeTime, type ChatStore } from "./useChatStore";
+import { searchFold } from "./useChatSearchHighlight";
 import type { ChatConversation } from "./types";
 
 interface Props {
@@ -41,12 +42,13 @@ export function CFOHistorySidebar({
   const query = queryProp ?? ownQuery;
   const setQuery = onQueryChange ?? setOwnQuery;
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // (searchFold: a figure's no-break joiners match the spaces a reader types)
+    const q = searchFold(query.trim());
     const base = !q
       ? store.conversations
       : store.conversations.filter((c) =>
-          c.title.toLowerCase().includes(q) ||
-          c.messages.some((m) => m.content.toLowerCase().includes(q)),
+          searchFold(c.title).includes(q) ||
+          c.messages.some((m) => searchFold(m.content).includes(q)),
         );
     // Most-recent activity first. Sorting on `updatedAt` (bumped every time the
     // user sends a message / a reply lands) means chatting in any conversation

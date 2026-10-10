@@ -37,6 +37,7 @@ import {
   servedRatioComparison,
   servedRatioKey,
   servedRatioLabel,
+  type ReportOptions,
   type Statements,
 } from "./financialReport";
 // The band-movement headline, read off the served two-period table — the
@@ -48,9 +49,11 @@ import { ratioCompareHeadingsFor, type RatioCompareRow } from "./ratioTable";
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
 import { factsFrom } from "./servedFacts";
+import { regimeDocumentText } from "./creditRegime";
 import { inventoryDaysSheetRows, printInventoryDays, readInventoryDaysSplit } from "./inventoryDays";
 import { plLevelsOf } from "./servedOneEbitda";
 import { printedPl, printedRow, type PrintedPlRow } from "./printedPl";
+import { CF_ADD_BACK_LABEL_EN, addBackHoldsProvisionCharges } from "./buildCashFlowStatement";
 // ONE sentence for "there is nothing to compare against", shared with
 // the report model — so the workbook and the printed document cannot
 // describe the same absence two different ways.
@@ -170,7 +173,9 @@ export function buildExcelWorkbook(
     ["Headline KPIs"],
     // Net turnover (70x − 709) and THE ONE EBITDA / EBIT (711 and 72x
     // inside) — the printed P&L's own rows; a refused figure says so.
-    ["Net turnover (70x − 709)", printedCell(printedRow(ppl, "turnover"))],
+    // The row's own label: the engine names what turnover holds (70x − 709
+    // + 7411 since the owner's R3 ruling, 2026-09-28).
+    [printedRow(ppl, "turnover")?.label ?? "Net turnover (70x − 709)", printedCell(printedRow(ppl, "turnover"))],
     ["EBITDA", printedCell(printedRow(ppl, "ebitda"))],
     ["EBIT", printedCell(printedRow(ppl, "ebit"))],
     // The COVER quotes the same figure the KPI card and the printed P&L's
@@ -250,8 +255,13 @@ export function buildExcelWorkbook(
   const sameDefinition =
     priorShell !== null &&
     plLevelsOf(priorShell).definition === plLevelsOf(s).definition;
+  // The owner's R2 ruling of 2026-09-28 moved three more rows: other
+  // operating income and D&A (the ruled reversals and charges out) and the
+  // net-provisions row itself. (Net turnover moved by R3 only on a book
+  // that posts 7411 — none is known; it is not held, as on the P&L tab.)
   const DEFINITION_KEYS = new Set([
     "inventory_variation", "capitalized_own_work", "gross_profit", "ebitda", "ebit", "pretax", "net_result_built",
+    "other_operating_income", "da", "net_provisions",
   ]);
   const priorValueOf = (key: string): number | null | undefined => {
     if (!priorPpl) return undefined;
@@ -560,7 +570,12 @@ export function buildExcelWorkbook(
     // question for `financialValuation.ts`, recorded rather than silently
     // patched from this file.
     ["Net income — reconstructed (class 6/7 movements)", cfCell(cf.netIncome)],
-    ["+ Depreciation & amortization", cf.depreciationAmortization],
+    // The add-back is the statement's all-68x figure; since the owner's R2
+    // ruling (2026-09-28) the P&L's D&A leaves out the 6812 / 6814 charges,
+    // so where the two differ the row is named for what it sums.
+    [addBackHoldsProvisionCharges(cf.depreciationAmortization, s.assembled_pl?.depreciation)
+      ? CF_ADD_BACK_LABEL_EN.withProvisionCharges
+      : CF_ADD_BACK_LABEL_EN.depreciation, cf.depreciationAmortization],
     ["- Δ Working capital", cf.workingCapitalChange],
     ["= Cash flow from operations (CFO)", cfCell(cf.cfo)],
     ["- Capex", cf.capex],
@@ -660,6 +675,9 @@ export function buildExcelWorkbook(
         ? [["Composite and rating refused", credit.compositeRefusal.sentence]]
         : [[EXPORT_UNAVAILABLE_NOTE]]
       : []),
+    // THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling R1):
+    // a forwarded workbook says the grade was composed on cash, and why.
+    ...(credit.regime ? [["Credit regime", regimeDocumentText(credit.regime)]] : []),
     [],
     // ── THE VERDICT WORDS BELONG BESIDE THE AUTHORITY'S NUMBER ──────
     // This table shipped value / weight / contribution and dropped
@@ -886,12 +904,12 @@ const SHEET_LABEL: Readonly<Record<string, string>> = {
   other_financial_expense: "Financial expense",
   pretax: "Profit before tax",
   // The same string as NET_INCOME_LABEL below (declared after this map).
-  net_income: "Net income (account 121, as filed)",
+  net_income: "Net income (account 121, closing balance)",
 };
 
 /** What every sheet calls the filed figure, so no sheet can call it
  *  something else. The document's own row label, word for word. */
-const NET_INCOME_LABEL = "Net income (account 121, as filed)";
+const NET_INCOME_LABEL = "Net income (account 121, closing balance)";
 
 /** THE HEADER CELLS NAME THE FILE BEHIND EACH COLUMN, as a cell note —
  *  the workbook's `title`, the same line the dashboard's compare headers
@@ -970,14 +988,20 @@ function plRow(
 // REQUIRED — an omitted argument is how the first divergence happened, and
 // a caller with genuinely no engine envelope passes `{}`, which is a
 // decision the client-fallback model then names in the document itself.
-export function buildReportHtml(s: Statements, envelopes: CreditEnvelopes): string {
+export function buildReportHtml(
+  s: Statements,
+  envelopes: CreditEnvelopes,
+  // What the caller says ABOUT the document (confidentiality line, a
+  // notice, the prepared-on day). The Export tab passes none.
+  options?: ReportOptions,
+): string {
   const credit = computeCreditScore(
     s,
     envelopes.credit,
     envelopes.piotroski,
     envelopes.metricsByName,
   );
-  return renderReportHtml(s, credit, envelopes.metricsByName);
+  return renderReportHtml(s, credit, envelopes.metricsByName, options);
 }
 
 /** Browser-side helper: renders the board-pack HTML and saves it. */

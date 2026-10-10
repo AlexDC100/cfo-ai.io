@@ -50,7 +50,7 @@ class PlHistory(object):
                  "pretax_before_stock_variation",
                  "ebitda_before_stock_variation", "inventory_variation",
                  "inventory_variation_provenance", "ebitda_refusal",
-                 "inventory_flow", "inventory_days_refusal")
+                 "inventory_flow", "inventory_days_refusal", "net_provisions")
 
     def __init__(self, revenue: Optional[int] = None, cogs: Optional[int] = None,
                  opex: Optional[int] = None, depreciation: Optional[int] = None,
@@ -72,7 +72,8 @@ class PlHistory(object):
                  inventory_variation_provenance: Optional[str] = None,
                  ebitda_refusal: Optional[Dict[str, Any]] = None,
                  inventory_flow: Optional[int] = None,
-                 inventory_days_refusal: Optional[Dict[str, Any]] = None) -> None:
+                 inventory_days_refusal: Optional[Dict[str, Any]] = None,
+                 net_provisions: Optional[int] = None) -> None:
         self.revenue = revenue
         self.cogs = cogs
         self.opex = opex
@@ -106,6 +107,15 @@ class PlHistory(object):
         # or the block's refusal. The DIO driver is days of THIS flow.
         self.inventory_flow = inventory_flow
         self.inventory_days_refusal = inventory_days_refusal
+        # NET PROVISIONS (owner ruling R2, 2026-09-28): the 6812 / 6814
+        # charges less the 7812 / 7814 reversals, OUTSIDE EBITDA, between it
+        # and the operating result (signed as a charge). The actual year's
+        # operating result carries it; no plan year projects it (it is
+        # neither a recurring cost nor a cash flow) — stated on the face of
+        # the projection. None on a statement assembled before the ruling,
+        # whose D&A still held the charges and whose other operating income
+        # the reversals.
+        self.net_provisions = net_provisions
 
     # ── the two NET figures the model has a line for but the book does
     # not name directly. Both are differences, so both are ABSENT when
@@ -297,6 +307,9 @@ def pl_history_from_payload(payload: Dict[str, Any]) -> PlHistory:
                         if isinstance(pl.get("ebitda_refusal"), dict) else None),
         inventory_flow=_inventory_flow(statements),
         inventory_days_refusal=_inventory_days_refusal(statements),
+        net_provisions=_cents_or_none(
+            (pl.get("net_provisions") or {}).get("value")
+            if isinstance(pl.get("net_provisions"), dict) else None),
     )
 
 

@@ -81,7 +81,7 @@
 //    `-70557114.68`; sign is asserted per concept in §4 instead.
 //  · §2 compares SETS, so a figure the document prints twice and the PDF
 //    prints once still passes there. Measured: deleting the P&L's
-//    "Net Income (account 121, as filed)" row from the printer's copy
+//    "Net Income (account 121, closing balance)" row from the printer's copy
 //    leaves §2 green, because the same figure is on the KPI card. §4's
 //    label-anchored check is what reds on that ("the PDF has no line
 //    naming …"), which is why the two sections are both here.
@@ -386,7 +386,7 @@ function rowLabelled(rows: string[][], label: string): string[] {
 // the gate pass by failing to find its own subjects. Measured: the
 // document's P&L says "Other income" where the workbook says "Other
 // operating income", "Other financial expense" where the workbook says
-// "Financial expense", and "Net Income (account 121, as filed)" where the
+// "Financial expense", and "Net Income (account 121, closing balance)" where the
 // workbook says "Net income". Each pairing below is one concept; the
 // values behind the two names must agree.
 
@@ -405,14 +405,16 @@ interface Concept {
 
 /** The document's own name for account 121's close, shared with the
  *  workbook so neither can rename it alone. */
-const NET_INCOME_LABEL = "Net income (account 121, as filed)";
+const NET_INCOME_LABEL = "Net income (account 121, closing balance)";
 
 const PL_CONCEPTS: readonly Concept[] = [
   // One-EBITDA ruling (2026-09-26): the first line is NET TURNOVER
   // (70x − 709), 711 prints beside cost of sales under the owner's
   // Romanian name, 72x is its own operating line — every one of them one
   // concept across the three formats.
-  { id: "turnover", doc: "Net turnover (70x − 709)", sheet: "Net turnover (70x − 709)", gateway: "revenue" },
+  // R3 (owner ruling 2026-09-28): 7411 is inside net turnover — the row's
+  // accounts are the engine's (`turnover_definition.accounts`).
+  { id: "turnover", doc: "Net turnover (70x − 709 + 7411)", sheet: "Net turnover (70x − 709 + 7411)", gateway: "revenue" },
   { id: "cogs", doc: "Cost of goods sold", sheet: "Cost of goods sold" },
   {
     id: "inventory_variation",
@@ -439,8 +441,8 @@ const PL_CONCEPTS: readonly Concept[] = [
   { id: "tax", doc: "Tax expense", sheet: "Tax expense" },
   {
     id: "net_income",
-    doc: "Net Income (account 121, as filed)",
-    sheet: "Net income (account 121, as filed)",
+    doc: "Net Income (account 121, closing balance)",
+    sheet: "Net income (account 121, closing balance)",
     gateway: "net_income_statutory",
   },
 ];

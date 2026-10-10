@@ -21,6 +21,13 @@ the underlying fields:
                  fallback formula (the ratio table's `dio` row reads this
                  block too).
 
+  CREDIT REGIME  `credit_regime` returns the served credit envelope's
+                 `regime` (`assembled_metrics.credit.regime`, credit model
+                 revision 5, owner ruling R1): the stock-build regime the
+                 grade was composed under, with its label, trigger figures,
+                 cash basis and finding — verbatim, or None under the
+                 standard model. Printed ONCE by the command bar.
+
 Also here: the same-length prior rule (the dashboard's default comparison,
 frontend/lib/comparatives.ts `pickDefaultPrior`, now owned by the engine) as
 a pure function over period rows, so the route and its tests share one rule.
@@ -34,6 +41,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 __all__ = [
     "served_ebitda",
+    "credit_regime",
     "receiver_headline",
     "inventory_days",
     "anchor_status",
@@ -83,6 +91,26 @@ def served_ebitda(payload: Mapping[str, Any]) -> Dict[str, Any]:
                 "refusal": {"code": "ebitda_absent", "inputs": ["assembled_pl.ebitda"]},
                 "source": "assembled_pl.ebitda"}
     return {"value": value, "refusal": None, "source": "assembled_pl.ebitda"}
+
+
+# ── Credit regime (credit model revision 5) ──────────────────────────────
+
+
+def credit_regime(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """The served credit envelope's `regime`, verbatim (a copy), or None.
+
+    Read from `assembled_metrics.credit` — the envelope the period route
+    serves through the credit boundary — and from nowhere else: the
+    attention document never runs the credit model. None when the envelope
+    names no regime (the standard model) or is absent."""
+    import copy
+
+    am = payload.get("assembled_metrics") if isinstance(payload, Mapping) else None
+    credit = am.get("credit") if isinstance(am, Mapping) else None
+    regime = credit.get("regime") if isinstance(credit, Mapping) else None
+    if not isinstance(regime, Mapping) or not regime.get("code"):
+        return None
+    return copy.deepcopy(dict(regime))
 
 
 # ── Inventory days ───────────────────────────────────────────────────────

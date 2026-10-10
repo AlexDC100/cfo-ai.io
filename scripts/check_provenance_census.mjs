@@ -271,6 +271,9 @@ const FORMATTERS = {
   formatMoneyFrom: "frontend/lib/money.ts",
   formatCitedFact: "frontend/lib/narrativeMoney.tsx",
   formatEur: "frontend/lib/pricingConfig.ts",
+  // 2026-10-02 — the ONE price printer ("4.99 EUR" / "4,99 EUR"); formatEur
+  // delegates to it, the landing and the pricing FAQ call it directly.
+  formatPrice: "frontend/lib/price.ts",
   formatTokens: "frontend/lib/tokenUsage.ts",
   // ── plan/2 B1 (plan_contract_v2 section 7) ──────────────────────────
   // The comparatives Δ % / share / pp spellers (named unrostered in
@@ -572,6 +575,9 @@ const SURFACES = {
     files: [
       "frontend/pages/cfo/ComprehensiveReport.tsx",
       "frontend/components/cfo/CreditScoreCard.tsx",
+      // credit model revision 5 (owner ruling R1): the regime note, printed
+      // once beside the grade on the report card, the Risks tab and the hero
+      "frontend/components/cfo/CreditRegimeNote.tsx",
       "frontend/components/cfo/EbitdaMultiplePrimaryCard.tsx",
       "frontend/components/cfo/EbitdaReconciliationPanel.tsx",
       "frontend/components/cfo/NavValuationView.tsx",
@@ -716,11 +722,26 @@ const SURFACES = {
       "frontend/components/cfo/UpcomingInvoicePreview.tsx",
       "frontend/components/cfo/pricing/IntroUnlockCallout.tsx",
       "frontend/components/cfo/pricing/MonthlyBillEstimator.tsx",
+      // 2026-10-02 — the intro unlock's list price, through formatPrice():
+      // in the pricing FAQ's question and in /contact-sales' confirmation.
+      "frontend/components/cfo/pricing/PricingFaq.tsx",
+      "frontend/pages/cfo/ContactSalesPage.tsx",
       // 2026-09-08 — the "Selected plan" chip on /signup. One formatEur()
       // over the live config's price_eur; a price list entry, not a
       // figure from a company's envelope (same reading as AccountMenu).
       "frontend/components/cfo/AuthCard.tsx",
     ],
+  },
+  // 2026-10-01 — THE PUBLIC SAMPLE (/sample). Every figure on the page is
+  // read from frontend/data/publicSample.json, where it carries the JSON
+  // pointer into the served document published beside it
+  // (public/sample/served_period_fy2025.json). The page names and links
+  // that document, but wears no per-figure affordance: HAS_MISSING, the
+  // remaining work named in the census entry.
+  "public-sample": {
+    ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)
+    witness: "unit: frontend/pages/cfo/__tests__/publicSample.test.tsx",
+    files: ["frontend/pages/cfo/PublicSample.tsx"],
   },
   "industry-classification": {
     ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)

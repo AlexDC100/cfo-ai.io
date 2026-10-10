@@ -33,7 +33,7 @@
 // inputs.
 
 import { deriveTotals, type Statements } from "@/lib/financialReport";
-import { equityRefusalOf, plLevelsOf } from "@/lib/servedOneEbitda";
+import { equityRefusalOf, plLevelsOf, readNetProvisions } from "@/lib/servedOneEbitda";
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
 
 /** Build a ReportingMetrics snapshot from a Statements blob. Returns
@@ -112,6 +112,10 @@ export function buildReportingMetricsSnapshot(
     opex: is.operatingExpenses,
     depreciation: is.depreciationAmortization,
     amortization: 0,
+    // R2 (2026-09-28): the served P&L chain — D&A without the ruled
+    // charges, and their net with the ruled reversals, outside EBITDA.
+    plDepreciation: finite(statements.assembled_pl?.depreciation),
+    netProvisions: readNetProvisions(statements.assembled_pl)?.value,
     ebitda: present(t.ebitda),
     ebit: present(t.ebit),
     netFinancialResult: t.netFinancialResult,

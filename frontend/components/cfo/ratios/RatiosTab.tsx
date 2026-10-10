@@ -53,6 +53,7 @@ import {
   ratioCmpHandleOf,
   serializePrintedRow,
   servedIdentityOf,
+  verdictsWithheldOf,
 } from "@/lib/ratioCompareView";
 import { RATIO_DELTA_SECONDARY_CLOSE, RATIO_DELTA_SECONDARY_OPEN } from "@/lib/ratioTable";
 
@@ -131,12 +132,19 @@ export function RatiosTabContent({
   // every other surface uses `>`. The row is the credit reader's own,
   // handed down from the page, so it cannot be computed a second way here.
   altman,
+  comparisonSaidByPage = false,
 }: {
   ratios: RatioBundle;
   statements: Statements | null;
   /** `altmanRatio(credit)` — NULL only when the page has no statements
    *  to score, in which case there is no Ratios tab either. */
   altman: Ratio | null;
+  /** The page already says, under the tab bar, why nothing is compared
+   *  (lib/comparisonState.ts `comparisonSaidByPage`). The tab then does not
+   *  say it again; otherwise it says it once, at the top. It used to print
+   *  the sentence above the band movements AND above the table, beside the
+   *  page's own notice — the same fact three times on one tab. */
+  comparisonSaidByPage?: boolean;
 }) {
   const { t } = useTranslation();
   const view = useRatioCompareView();
@@ -150,7 +158,7 @@ export function RatiosTabContent({
   return (
     <>
       {inRouter ? <RatioParam ratios={allRatios} selected={selected} onOpen={setSelected} onWanted={setEvidenceKey} /> : null}
-      {view ? <BandMovementLists view={view} /> : null}
+      {view ? <BandMovementLists view={view} stateNote={!comparisonSaidByPage} /> : null}
       <RatioGroupSection title={t("dash.ratioLiquidity")}            ratios={ratios.liquidity}     onPick={setSelected} />
       <div data-guide="ratios-profitability">
         <RatioGroupSection title={t("dash.ratioProfitability")}      ratios={ratios.profitability} onPick={setSelected} />
@@ -168,7 +176,7 @@ export function RatiosTabContent({
         <RatioGroupSection title={t("dash.ratioBankruptcy")}         ratios={altman ? [altman] : []} onPick={setSelected} />
       </div>
 
-      {view ? <RatioComparisonTable view={view} highlightKey={evidenceKey} /> : null}
+      {view ? <RatioComparisonTable view={view} highlightKey={evidenceKey} stateNote={false} /> : null}
 
       {/* Premium explainer drawer — 8 sections + related-ratio pivot.
        *  See `components/cfo/RatioDetailDrawer.tsx` and the knowledge map
@@ -359,8 +367,17 @@ export function RatioTile({
           data-movement={printed.movementStatus ?? "none"}
         >
           <div className="font-mono tabular-nums">
-            <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] mr-1">
-              {t("statements.ratioCmp.ui.priorEyebrow", { label: view?.priorLabel ?? "" })}
+            <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] mr-1" data-col="prior-label">
+              {/* "Prior" is a statement about time. Under a comparison period
+                  that closes LATER than the one on screen (or whose order
+                  cannot be read) the same figure is the COMPARISON's — the
+                  word the column box already uses there. */}
+              {t(
+                verdictsWithheldOf(view ?? null)
+                  ? "statements.ratioCmp.ui.comparisonEyebrow"
+                  : "statements.ratioCmp.ui.priorEyebrow",
+                { label: view?.priorLabel ?? "" },
+              )}
             </span>
             <span data-col="prior">{printed.prior}</span>
             {/* ONE change cell: "+0.28× (+15.4%)", the same bytes the

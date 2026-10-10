@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { RotateCcw, Info } from "lucide-react";
 import type { PeriodValuation } from "@/lib/activePeriod";
 import { periodQueryKey } from "@/lib/activePeriod";
@@ -27,6 +28,7 @@ import { getSupabase } from "@/lib/supabase";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo } from "@/lib/money";
 import type { Currency } from "@/lib/rates";
+import { pickLang } from "@/lib/servedOneEbitda";
 
 interface Props {
   valuation: PeriodValuation;
@@ -104,6 +106,7 @@ const ROUTING_BASIS_LABEL: Readonly<Record<string, string>> = {
 
 export function ValuationSection({ valuation, periodId, currency }: Props) {
   const qc = useQueryClient();
+  const { t: tr, i18n } = useTranslation();
   const conf = confidenceTone(valuation.confidence);
   const hasUserOverrides = !!valuation.user_assumptions;
   const fmtMoney = useFmtMoney();
@@ -294,11 +297,17 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
         </p>
       )}
 
-      {/* ── A SAVED OVERRIDE TYPED UNDER THE PREVIOUS EBITDA DEFINITION ──── */}
+      {/* ── A SAVED OVERRIDE TYPED UNDER A PREVIOUS EBITDA DEFINITION ────
+       *  The engine flags a row stamped with ANY revision but today's, so
+       *  the sentence names no revision's content (it named 711 / 72x, the
+       *  2026-09-26 change, to users whose rows were saved after it — review
+       *  2026-10-01) and prints in the reader's language, the served flag
+       *  included (CLAUDE.md §26). */}
       {valuation.user_assumptions?.definition?.flag && (
         <p data-testid="valuation-override-definition-flag" className="text-[12px] text-caution">
-          Your saved figures were {valuation.user_assumptions.definition.flag.en} — they still apply;
-          re-check the EBITDA you typed (the stock variation 711 and own work capitalised 72x are now inside).
+          {tr("dash.valuationOverrideDefinitionFlag", {
+            flag: pickLang(valuation.user_assumptions.definition.flag, i18n.language),
+          })}
         </p>
       )}
 

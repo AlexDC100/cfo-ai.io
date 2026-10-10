@@ -63,9 +63,9 @@ export const pciEn = {
     title: "Filter the universe",
     searchPillDesc: "Companies matching your search — click to clear",
     gainers: "Top gainers",
-    gainersWhy: "Largest day-over-day price gains among live-quoted companies",
+    gainersWhy: "Largest day-over-day price gains among companies with a daily closing price",
     losers: "Top losers",
-    losersWhy: "Largest day-over-day price drops among live-quoted companies",
+    losersWhy: "Largest day-over-day price drops among companies with a daily closing price",
     value: "Value plays",
     valueWhy: "P/E below 15 and profitable — priced cheaply next to earnings",
     distressed: "Distressed",
@@ -136,7 +136,7 @@ export const pciEn = {
     cta: "Compare",
     clear: "Clear",
     title: "Side-by-side comparison",
-    subtitle: "Figures as loaded on this page — statutory FY figures plus live prices.",
+    subtitle: "Figures as loaded on this page — the latest annual figures plus the last daily closing price.",
     includeYou: "Include your company",
     limit: "You can compare at most 3 companies.",
     row: {
@@ -156,7 +156,7 @@ export const pciEn = {
     loading: "Loading sources…",
     demo: "Source: bundled sample data — the live market feed isn't configured on this deployment, so every figure on this page is illustrative.",
     sources:
-      "Sources: Bursa de Valori București reference data plus issuer disclosures and ANAF statutory filings for {{bvb}} BVB listings. Fundamentals are end-of-day; prices refresh every 5 minutes.",
+      "Sources: Bursa de Valori București listing data for {{bvb}} BVB listings. {{withFinancials}} of them carry summary financial figures today — issuer annual reports for the main index, the latest statutory filing (bilanț) for the others. Prices are the last daily close, re-checked every 5 minutes — not live quotes.",
   },
 };
 
@@ -200,9 +200,9 @@ export const pciRo = {
     title: "Filtrează universul",
     searchPillDesc: "Companiile care se potrivesc căutării — apasă pentru a o șterge",
     gainers: "Creșterile zilei",
-    gainersWhy: "Cele mai mari creșteri de preț de la o zi la alta, dintre companiile cotate live",
+    gainersWhy: "Cele mai mari creșteri de preț de la o zi la alta, dintre companiile cu preț de închidere zilnic",
     losers: "Scăderile zilei",
-    losersWhy: "Cele mai mari scăderi de preț de la o zi la alta, dintre companiile cotate live",
+    losersWhy: "Cele mai mari scăderi de preț de la o zi la alta, dintre companiile cu preț de închidere zilnic",
     value: "Evaluări atractive",
     valueWhy: "P/E sub 15 și profitabile — ieftine raportat la câștiguri",
     distressed: "În dificultate",
@@ -273,7 +273,7 @@ export const pciRo = {
     cta: "Compară",
     clear: "Golește",
     title: "Comparație față în față",
-    subtitle: "Cifrele așa cum sunt încărcate pe această pagină — valori statutare anuale plus prețuri live.",
+    subtitle: "Cifrele așa cum sunt încărcate pe această pagină — ultimele cifre anuale plus prețul ultimei închideri de zi.",
     includeYou: "Include compania ta",
     limit: "Poți compara cel mult 3 companii.",
     row: {
@@ -293,7 +293,7 @@ export const pciRo = {
     loading: "Se încarcă sursele…",
     demo: "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci toate cifrele de pe pagină sunt ilustrative.",
     sources:
-      "Surse: date de referință Bursa de Valori București plus raportările emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Fundamentele sunt la închiderea zilei; prețurile se actualizează la 5 minute.",
+      "Surse: date de listare de la Bursa de Valori București pentru {{bvb}} companii listate la BVB. {{withFinancials}} dintre ele au astăzi cifre financiare sumare — rapoartele anuale ale emitenților pentru indicele principal, ultima raportare statutară (bilanț) pentru celelalte. Prețurile sunt ultima închidere de zi, reverificată la 5 minute — nu cotații în timp real.",
   },
 };
 

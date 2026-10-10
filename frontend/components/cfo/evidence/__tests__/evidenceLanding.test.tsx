@@ -314,7 +314,11 @@ describe("cmdbar-evidence — every 'Ce contează acum' item lands on its eviden
     const d = await screen.findByTestId("evidence-drawer");
     const value = d.querySelector('[data-testid="evidence-finding-value"]')!;
     expect(value.textContent).toBe(view.figure);
-    expect(Number((value as HTMLElement).dataset.servedValue)).toBe(753070.01);
+    // Owner ruling R2 (2026-09-28): the 7814 reversal (781401, 54,304.98)
+    // left EBITDA and the non-trading figure — 753,070.01 before — and is
+    // no longer among the cited accounts (the 7815 reversal still is).
+    expect(Number((value as HTMLElement).dataset.servedValue)).toBe(698765.03);
+    expect((item.evidence as { accounts: string[] }).accounts).not.toContain("781401");
     // The 758 line's own figure is not the headline anywhere on the view.
     expect(d.querySelector('[data-testid="evidence-line-value"]')).toBeNull();
     expect(d.querySelector('[data-testid="evidence-finding-note"]')?.textContent)

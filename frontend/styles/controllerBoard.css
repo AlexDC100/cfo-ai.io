@@ -1,0 +1,446 @@
+/* Board-Grade Design System — CFO AI Dashboard
+ * ─────────────────────────────────────────────────────────────────────
+ * Implements the "Controller Format" reference report's visual language as a
+ * single set of reusable tokens + scoped utility classes. Adopted across
+ * the financial dashboard (KPI band, P&L, BS, CF, Ratios) and — in
+ * Phase 2 — the app shell/nav and remaining tabs.
+ *
+ * Design contract (per the reference report the human supplied):
+ *   - Primary ink:   #003366 (headings, total borders, KPI accent)
+ *   - Body ink:      #1a1a1a
+ *   - Section band:  H2 = solid #003366 bar with white text
+ *   - Tables:        hairline #e0e0e0 rows; header row #f0f4f8;
+ *                    .total = bold, bg #f7f9fc, 2px top border #003366;
+ *                    .subtotal = semibold, bg #fafbfd; .indent = #555
+ *   - Numbers:       tabular-nums everywhere; right-aligned columns
+ *   - Signed values: .pos #0a7c3a, .neg #c0392b
+ *   - KPI band:      #f7f9fc, 4px left border #003366; uppercase
+ *                    11px #666 label; 18px bold #003366 value
+ *   - Commentary:    #fff8e1, 4px left border #f39c12, lead #b8860b
+ *
+ * Tokens are scoped under .ctrl-scope to avoid clobbering the broader
+ * Tailwind theme (which the rest of the app still uses). Apply the
+ * .ctrl-scope class on a high-level container (the dashboard <article>
+ * or the AppShell in Phase 2) to opt in.
+ *
+ * IMPORTANT: This is presentation only. No financial value is
+ * recomputed, re-derived, or re-rounded here. Numbers continue to flow
+ * from the engine/API unchanged.
+ */
+
+:root {
+  /* Brand ink — used by both light and "dark" because the reference report
+   * is monochromatic navy on warm white. We don't auto-invert in dark
+   * mode; instead the dashboard scope forces light surfaces below.    */
+  --ctrl-ink:           #0f5a52;   /* was navy #003366 — dark teal for white-on-band contrast */
+  --ctrl-ink-soft:      #2aa89b;   /* was #1a5490 */
+  --ctrl-body:          #1a1a1a;
+  --ctrl-mute:          #555555;
+  --ctrl-mute-soft:     #666666;
+  --ctrl-mute-meta:     #888888;
+
+  --ctrl-paper:         #ffffff;
+  --ctrl-paper-soft:    #fafafa;
+  --ctrl-bg-band:       #f7f7f7;
+  --ctrl-bg-header:     #f0f0f0;
+
+  --ctrl-rule-hair:     #e0e0e0;
+  --ctrl-rule-soft:     #ececec;
+  --ctrl-rule-strong:   #cccccc;
+
+  --ctrl-pos:           #0f766a;   /* was green #0a7c3a — dark teal */
+  --ctrl-neg:           #c0392b;   /* red — unchanged */
+
+  --ctrl-callout-bg:    #e6f7f4;   /* was amber tint */
+  --ctrl-callout-rule:  #5cd3c5;   /* was amber #f39c12 */
+  --ctrl-callout-lead:  #0f766a;   /* was dark gold #b8860b */
+
+  --ctrl-risk-bg:       #ffebee;   /* red tint — unchanged */
+  --ctrl-risk-rule:     #c62828;   /* red — unchanged */
+
+  --ctrl-action-bg:     #e6f7f4;   /* was green tint */
+  --ctrl-action-rule:   #2aa89b;   /* was green #2e7d32 */
+
+  --ctrl-insight-bg:    #0f5a52;   /* was navy #1a5490 — dark teal */
+  --ctrl-insight-rule:  #5cd3c5;   /* was amber #ffc107 */
+
+  --ctrl-font-sans:     -apple-system, BlinkMacSystemFont, "Segoe UI",
+                       system-ui, Arial, sans-serif;
+  --ctrl-font-mono:     ui-monospace, "JetBrains Mono", "SFMono-Regular",
+                       Menlo, Consolas, monospace;
+}
+
+/* ── Scope wrapper ─────────────────────────────────────────────────────
+ * Anything inside .ctrl-scope renders on the board palette regardless of
+ * the broader app theme. We deliberately neutralize dark-mode
+ * inversion within the scope — board reports read on paper-white.
+ *
+ * We also REMAP the Tailwind HSL tokens (--ink, --ink-soft, --rule-*,
+ * --surface, --brand, etc.) inside the scope. That means the existing
+ * `.pl-*` / `.bs-*` / `.cf-*` CSS files — which were authored against
+ * those Tailwind HSL tokens — adopt the board palette without any
+ * per-file rewrite. (One source of truth, zero duplication.)        */
+.ctrl-scope {
+  color: var(--ctrl-body);
+  font-family: var(--ctrl-font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+
+  /* Board palette mapped onto the existing Tailwind HSL variable names.
+   * Values use the same `<h> <s>% <l>%` triplet shape the Tailwind
+   * theme uses, so `hsl(var(--ink))` still resolves cleanly. */
+  --ink:           173  70% 21%;   /* dark teal (was navy #003366) */
+  --ink-soft:      173  60% 36%;   /* dark teal (was #1a5490) */
+  --ink-mute:        0   0% 33%;   /* #555555 */
+  --surface:         0   0% 100%;  /* #ffffff */
+  --bg:              0   0% 100%;
+  --bg-2:            0   0%  97%;
+  --rule-soft:       0   0%  88%;  /* #e0e0e0 */
+  --rule-strong:     0   0%  80%;  /* #cccccc */
+  --brand:         173  70% 21%;   /* dark teal — the board is monochromatic */
+  --brand-2:       173  57% 59%;   /* #5CD3C5 — callout accent */
+  --success:       173  70% 28%;   /* teal (was green) */
+  --alert:           6  72% 47%;   /* #c0392b — red, unchanged */
+  --caution:       173  57% 50%;   /* teal (was amber) */
+}
+.ctrl-scope,
+.ctrl-scope * {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ── Headings ──────────────────────────────────────────────────────── */
+.ctrl-h1 {
+  font-family: var(--ctrl-font-sans);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ctrl-ink);
+  border-bottom: 3px solid var(--ctrl-ink);
+  padding-bottom: 10px;
+  margin: 0 0 18px;
+  letter-spacing: -0.005em;
+}
+
+/* Section band — solid navy bar with white text */
+.ctrl-h2 {
+  font-family: var(--ctrl-font-sans);
+  font-size: 17px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--ctrl-ink);
+  padding: 10px 14px;
+  margin: 35px 0 16px;
+  letter-spacing: 0.005em;
+  border-radius: 2px;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.ctrl-h2 .num {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  margin-right: 6px;
+}
+
+.ctrl-h3 {
+  font-family: var(--ctrl-font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ctrl-ink);
+  border-bottom: 1px solid var(--ctrl-rule-strong);
+  padding: 0 0 4px;
+  margin: 24px 0 10px;
+  break-after: avoid;
+}
+
+.ctrl-h4 {
+  font-family: var(--ctrl-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ctrl-ink-soft);
+  margin: 18px 0 6px;
+}
+
+/* ── KPI band ──────────────────────────────────────────────────────── */
+.ctrl-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+@media (min-width: 768px) {
+  .ctrl-kpi-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.ctrl-kpi-card {
+  background: var(--ctrl-bg-band);
+  border: 1px solid var(--ctrl-rule-hair);
+  border-left: 4px solid var(--ctrl-ink);
+  padding: 14px 16px;
+  border-radius: 2px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.ctrl-kpi-card .label {
+  font-size: 11px;
+  color: var(--ctrl-mute-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+
+.ctrl-kpi-card .value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ctrl-ink);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.005em;
+}
+
+.ctrl-kpi-card .sub {
+  font-size: 11px;
+  color: var(--ctrl-mute-meta);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* Highlighted KPI — used for the headline operational net-profit tile */
+.ctrl-kpi-card.is-headline {
+  border-left-color: var(--ctrl-ink);
+  background: linear-gradient(to right, var(--ctrl-bg-band) 0%, #ffffff 100%);
+}
+.ctrl-kpi-card.is-headline .value { color: var(--ctrl-ink); }
+
+/* ── Briefing / executive note block ───────────────────────────────── */
+.ctrl-briefing {
+  background: var(--ctrl-bg-band);
+  border: 1px solid var(--ctrl-rule-hair);
+  border-left: 4px solid var(--ctrl-ink);
+  padding: 14px 18px;
+  margin: 16px 0;
+  border-radius: 2px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.ctrl-briefing .head {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ctrl-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.ctrl-briefing .body {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ctrl-body);
+  white-space: pre-line;
+}
+
+/* ── Commentary / risk / action callouts ───────────────────────────── */
+.ctrl-callout {
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.55;
+  border-radius: 2px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.ctrl-callout strong { font-weight: 600; }
+
+.ctrl-callout.commentary {
+  background: var(--ctrl-callout-bg);
+  border-left: 4px solid var(--ctrl-callout-rule);
+  color: var(--ctrl-body);
+}
+.ctrl-callout.commentary .lead { color: var(--ctrl-callout-lead); font-weight: 600; }
+
+.ctrl-callout.risk {
+  background: var(--ctrl-risk-bg);
+  border-left: 4px solid var(--ctrl-risk-rule);
+  color: var(--ctrl-body);
+}
+.ctrl-callout.risk .lead { color: var(--ctrl-risk-rule); font-weight: 600; }
+
+.ctrl-callout.action {
+  background: var(--ctrl-action-bg);
+  border-left: 4px solid var(--ctrl-action-rule);
+  color: var(--ctrl-body);
+}
+.ctrl-callout.action .lead { color: var(--ctrl-action-rule); font-weight: 600; }
+
+.ctrl-callout.insight {
+  background: var(--ctrl-insight-bg);
+  border-left: 6px solid var(--ctrl-insight-rule);
+  color: #ffffff;
+  padding: 16px 20px;
+}
+.ctrl-callout.insight strong { color: var(--ctrl-insight-rule); }
+
+/* ── Tables ────────────────────────────────────────────────────────── */
+.ctrl-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 13.5px;
+  background: var(--ctrl-paper);
+}
+
+.ctrl-table thead { display: table-header-group; }
+
+.ctrl-table th,
+.ctrl-table td {
+  padding: 7px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--ctrl-rule-hair);
+  vertical-align: top;
+}
+
+.ctrl-table th {
+  background: var(--ctrl-bg-header);
+  color: var(--ctrl-ink);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ctrl-table th:first-child,
+.ctrl-table td:first-child {
+  text-align: left;
+}
+
+.ctrl-table td.num,
+.ctrl-table th.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.ctrl-table .total td {
+  font-weight: 700;
+  background: var(--ctrl-bg-band);
+  border-top: 2px solid var(--ctrl-ink);
+  border-bottom: 2px solid var(--ctrl-ink);
+  padding-top: 9px;
+  padding-bottom: 9px;
+  color: var(--ctrl-ink);
+}
+
+.ctrl-table .subtotal td {
+  font-weight: 600;
+  background: var(--ctrl-paper-soft);
+  color: var(--ctrl-ink);
+  border-top: 1px solid var(--ctrl-rule-strong);
+}
+
+.ctrl-table .indent td:first-child,
+.ctrl-table td.indent {
+  padding-left: 26px;
+  color: var(--ctrl-mute);
+  font-weight: 400;
+}
+
+.ctrl-table .memo td:first-child {
+  padding-left: 26px;
+  color: var(--ctrl-mute-soft);
+  font-style: italic;
+}
+
+.ctrl-table .reconciliation td {
+  background: #fbfbfb;
+  color: var(--ctrl-mute);
+  border-top: 1px dashed var(--ctrl-rule-strong);
+  font-size: 12.5px;
+}
+
+.ctrl-table .reconciliation td:first-child {
+  padding-left: 26px;
+  font-style: italic;
+}
+
+/* Headline operational net-profit row inside the P&L bridge — primary
+ * visual emphasis; statutory below is the reconciled total, never a
+ * competing headline.                                                 */
+.ctrl-table .headline td {
+  font-weight: 700;
+  background: #eef7f5;
+  border-top: 2px solid var(--ctrl-ink);
+  border-bottom: 1px solid var(--ctrl-ink);
+  padding-top: 10px;
+  padding-bottom: 10px;
+  color: var(--ctrl-ink);
+  font-size: 14.5px;
+}
+
+/* Signed values — one convention everywhere */
+.ctrl-pos { color: var(--ctrl-pos); }
+.ctrl-neg { color: var(--ctrl-neg); }
+
+/* ── Two-up grids (balance sheet halves, etc.) ─────────────────────── */
+.ctrl-two-up {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 768px) {
+  .ctrl-two-up { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Approximation banner (cash flow) ─────────────────────────────── */
+.ctrl-approx-banner {
+  background: var(--ctrl-callout-bg);
+  border: 1px solid var(--ctrl-callout-rule);
+  border-left: 4px solid var(--ctrl-callout-rule);
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  color: var(--ctrl-body);
+  border-radius: 2px;
+}
+.ctrl-approx-banner strong { color: var(--ctrl-callout-lead); font-weight: 600; }
+.ctrl-approx-banner ul { margin: 6px 0 0 16px; padding: 0; }
+.ctrl-approx-banner li { margin: 2px 0; font-size: 11.5px; }
+
+/* ── Footer / basis-of-preparation ─────────────────────────────────── */
+.ctrl-footer {
+  margin-top: 36px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ctrl-rule-strong);
+  font-size: 11px;
+  color: var(--ctrl-mute-meta);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ── Verdict chips (ratios) ────────────────────────────────────────── */
+.ctrl-chip {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid;
+  vertical-align: 1px;
+}
+.ctrl-chip.v-strong   { background: #e6f7f4; color: #0f766a; border-color: #9ad9d0; }
+.ctrl-chip.v-healthy  { background: #e6f7f4; color: #12796d; border-color: #9ad9d0; }
+.ctrl-chip.v-watch    { background: var(--ctrl-callout-bg); color: var(--ctrl-callout-lead); border-color: #8fe3d9; }
+.ctrl-chip.v-critical { background: #fbe6e6; color: #8e1818; border-color: #d39c9c; }
+
+/* ── Print niceties (dashboard print-friendly) ─────────────────────── */
+@media print {
+  .ctrl-scope { color: #000; background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .ctrl-h2 { break-after: avoid; page-break-after: avoid; }
+  .ctrl-kpi-card, .ctrl-callout, .ctrl-briefing, .ctrl-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

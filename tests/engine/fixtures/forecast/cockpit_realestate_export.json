@@ -495,6 +495,10 @@
    {
     "id": "stock_variation",
     "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+   },
+   {
+    "id": "net_provisions",
+    "sentence": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
    }
   ],
   "sources": [
@@ -2020,6 +2024,10 @@
    {
     "id": "stock_variation",
     "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+   },
+   {
+    "id": "net_provisions",
+    "sentence": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
    }
   ],
   "numbers": {
@@ -2243,8 +2251,8 @@
   },
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:006a1865dde5d931b49eb96aec8a51822650f21756a3d647bfabd5f7eb5c55f1",
-   "cockpit_pack": "sha256:f2d970708529c7550ad029cf7f76d55a00f276acd6ea3e88881daa731a5f3cd7",
+   "body_hash": "sha256:1aee37d5e4685610b06e518f19eb4a035f11449ef9882c6df6695459f15847cf",
+   "cockpit_pack": "sha256:22891b33eace4b9e3013286fea5ff8d4f3f99f11604d2368c404628652236b73",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
    "margin_pack": "sha256:3f3ff11899d173b7ea4a399f5ac7a6194a25466e0220df07132bb2b161a071c9",
@@ -4758,7 +4766,7 @@
     "pack": "packs/ratios/inventory_days.yaml",
     "period_days": "supplementary.periodDays",
     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
    },
    "reconciliation": {
     "difference": 0.0,
@@ -4809,8 +4817,8 @@
   "kind": "bank_forecast",
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:006a1865dde5d931b49eb96aec8a51822650f21756a3d647bfabd5f7eb5c55f1",
-   "cockpit_pack": "sha256:f2d970708529c7550ad029cf7f76d55a00f276acd6ea3e88881daa731a5f3cd7",
+   "body_hash": "sha256:1aee37d5e4685610b06e518f19eb4a035f11449ef9882c6df6695459f15847cf",
+   "cockpit_pack": "sha256:22891b33eace4b9e3013286fea5ff8d4f3f99f11604d2368c404628652236b73",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
    "margin_pack": "sha256:3f3ff11899d173b7ea4a399f5ac7a6194a25466e0220df07132bb2b161a071c9",

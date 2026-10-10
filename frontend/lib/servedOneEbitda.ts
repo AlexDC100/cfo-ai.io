@@ -22,6 +22,15 @@
 //     and the one-line bridge, every value signed as its effect on the
 //     result, every label in both languages.
 //
+// RULINGS R2 / R3 (owner, 2026-09-28; packs/ro/pl_definition.yaml). The
+// provision charges 6812 / 6814 AND their reversals 7812 / 7814 are OUTSIDE
+// EBITDA; their net is its own line between EBITDA and the operating result
+// (`net_provisions` {value = charges − reversals, charges, reversals, the
+// engine's label}), so EBIT = EBITDA − D&A − net provisions and D&A
+// (`depreciation`) no longer holds the ruled charges. Net turnover holds
+// 7411 (operating subsidies related to turnover, F20 rd. 05). The chain's
+// net-provisions line and the bridge's `after_ebitda` part carry it.
+//
 // THIS MODULE READS THOSE AND DERIVES NOTHING. A refused figure stays null
 // with its typed reason — never 0, never another definition. The labels are
 // the engine's; the only words typed here are the two sentences for "the
@@ -72,6 +81,9 @@ export interface ServedReconLine {
   readonly key: string;
   readonly label: Bilingual;
   readonly accounts: string | null;
+  /** The accounts in the English UI, where the engine words them apart
+   *  ("fără" / "excl."); else `accounts`. */
+  readonly accountsEn: string | null;
   /** Signed as its effect on the result; null = refused / not anchored. */
   readonly value: number | null;
   readonly subtotal: boolean;
@@ -88,11 +100,33 @@ export interface ServedBridgePart {
   readonly value: number | null;
 }
 
+/** Net provisions (R2, 2026-09-28): the ruled charges (6812, 6814) less the
+ *  ruled reversals (7812, 7814), OUTSIDE EBITDA, as the engine served them. */
+export interface ServedNetProvisions {
+  /** Signed as a CHARGE (charges − reversals): positive lowers the
+   *  operating result, negative (a net release) raises it. */
+  readonly value: number;
+  readonly charges: number;
+  readonly reversals: number;
+  /** The account prefixes the engine read ("6812", "6814" / "7812", "7814"). */
+  readonly chargePrefixes: readonly string[];
+  readonly reversalPrefixes: readonly string[];
+  /** "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)" — the
+   *  engine's name with its accounts, rendered from its pack. */
+  readonly label: Bilingual;
+  /** The name alone (a statement row carries the accounts in its chip). */
+  readonly name: Bilingual;
+  readonly accounts: string;
+}
+
 export interface ServedReconciliation {
   readonly definition: string | null;
   readonly lines: readonly ServedReconLine[];
   readonly bridge: {
     readonly parts: readonly ServedBridgePart[];
+    /** Lines the one-line bridge carries AFTER EBITDA, outside it — net
+     *  provisions (R2, 2026-09-28). The parts above still sum to EBITDA. */
+    readonly afterEbitda: readonly ServedBridgePart[];
     readonly refusal: ServedRefusal | null;
   };
   readonly identityWith121: boolean;
@@ -115,11 +149,17 @@ export interface ServedOneEbitda {
   readonly inventoryVariation: ServedComponent | null;
   readonly capitalizedOwnWork: ServedComponent | null;
   readonly reconciliation: ServedReconciliation | null;
+  /** Net provisions, outside EBITDA (R2) — null on a block assembled before
+   *  the ruling (its D&A still held the charges, its EBITDA the reversals). */
+  readonly netProvisions: ServedNetProvisions | null;
   /** Account 121 (as filed) when anchored, else the engine's build-up. */
   readonly netIncomeStatutory: number | null;
-  /** Core EBITDA = EBITDA − 758 − 781 reversals, on the one EBITDA. */
+  /** Core EBITDA = EBITDA − 758 − the 781 reversals still inside EBITDA,
+   *  on the one EBITDA. */
   readonly coreEbitda: number | null;
   readonly otherIncome758: number | null;
+  /** The 781 reversals INSIDE EBITDA (the ruled 7812 / 7814 are outside it
+   *  since R2 — they are not stripped twice). */
   readonly reversals781: number | null;
 }
 
@@ -188,6 +228,7 @@ function readReconciliation(v: unknown): ServedReconciliation | null {
       key,
       label,
       accounts: str(raw.accounts),
+      accountsEn: str(raw.accounts_en),
       value: finite(raw.value),
       subtotal: raw.subtotal === true,
       refusal: readRefusal(raw.refusal),
@@ -197,17 +238,24 @@ function readReconciliation(v: unknown): ServedReconciliation | null {
     });
   }
   const bridgeRaw = isRec(v.bridge) ? v.bridge : {};
-  const parts: ServedBridgePart[] = [];
-  for (const raw of Array.isArray(bridgeRaw.parts) ? bridgeRaw.parts : []) {
-    if (!isRec(raw)) continue;
-    const key = str(raw.key);
-    const label = bilingual(raw.label_ro, raw.label_en);
-    if (key && label) parts.push({ key, label, value: finite(raw.value) });
-  }
+  const readParts = (raws: unknown): ServedBridgePart[] => {
+    const out: ServedBridgePart[] = [];
+    for (const raw of Array.isArray(raws) ? raws : []) {
+      if (!isRec(raw)) continue;
+      const key = str(raw.key);
+      const label = bilingual(raw.label_ro, raw.label_en);
+      if (key && label) out.push({ key, label, value: finite(raw.value) });
+    }
+    return out;
+  };
   return {
     definition: str(v.definition),
     lines,
-    bridge: { parts, refusal: readRefusal(bridgeRaw.refusal) },
+    bridge: {
+      parts: readParts(bridgeRaw.parts),
+      afterEbitda: readParts(bridgeRaw.after_ebitda),
+      refusal: readRefusal(bridgeRaw.refusal),
+    },
     identityWith121: v.identity_with_121 === true,
     identityNote: bilingual(v.identity_note_ro, v.identity_note_en),
     splitAssumption: bilingual(v.split_assumption_ro, v.split_assumption_en),
@@ -263,6 +311,68 @@ export const EQUITY_INCOMPLETE_METRICS: readonly string[] = [
   "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity",
 ];
 
+/** The served net-provisions block (R2, 2026-09-28), or null when the block
+ *  predates the ruling / is not an engine block. */
+export function readNetProvisions(assembledPl: unknown): ServedNetProvisions | null {
+  if (!isRec(assembledPl) || !isRec(assembledPl.net_provisions)) return null;
+  const np = assembledPl.net_provisions;
+  const value = finite(np.value);
+  const charges = isRec(np.charges) ? finite(np.charges.value) : null;
+  const reversals = isRec(np.reversals) ? finite(np.reversals.value) : null;
+  const label = bilingual(np.label_ro, np.label_en);
+  const name = bilingual(np.name_ro, np.name_en) ?? label;
+  if (value === null || charges === null || reversals === null || !label || !name) return null;
+  const prefixes = (v: unknown): string[] =>
+    isRec(v) && Array.isArray(v.prefixes) ? v.prefixes.filter((p): p is string => typeof p === "string") : [];
+  return {
+    value,
+    charges,
+    reversals,
+    chargePrefixes: prefixes(np.charges),
+    reversalPrefixes: prefixes(np.reversals),
+    label,
+    name,
+    accounts: str(np.accounts) ?? "",
+  };
+}
+
+/** The net-provisions accounts written as the arithmetic of the figure's
+ *  EFFECT on the result — reversals less charges, "7812 + 7814 − 6812 −
+ *  6814" — from the prefixes the engine served.
+ *
+ *  The engine's own `accounts` ("6812 + 6814 − 7812 − 7814") is the CHARGE
+ *  arithmetic: it belongs beside the charge figure (the P&L row, the bridge
+ *  after EBITDA). A surface that prints net provisions as its effect — a
+ *  chain that sums to the operating result, every cost in it negative —
+ *  printed that charge arithmetic over the opposite figure (review
+ *  2026-10-01: agras "6812 + 6814 − 7812 − 7814 … −131,394.66", which the
+ *  label itself evaluates to +131,394.66). Under this string the label's
+ *  arithmetic IS the printed figure. Codes only — no figure is built here.
+ *  Null when the engine served no prefixes. */
+export function netProvisionsEffectAccounts(np: ServedNetProvisions): string | null {
+  const minus = "−";
+  const parts: string[] = [];
+  np.reversalPrefixes.forEach((p, i) => parts.push(i === 0 ? p : `+ ${p}`));
+  np.chargePrefixes.forEach((p) => parts.push(parts.length === 0 ? `${minus}${p}` : `${minus} ${p}`));
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+/** THE ROW'S LABEL WHERE IT PRINTS ITS EFFECT — the engine's name and, in
+ *  brackets, the effect's arithmetic: "Net provisions and impairment
+ *  adjustments (7812 + 7814 − 6812 − 6814)". ONE composition for every
+ *  surface that prints net provisions effect-signed in a column that sums to
+ *  the operating result (the printed report and the workbook through
+ *  `printedPl`, /report §2's table): the engine's own `label` carries the
+ *  CHARGE arithmetic and must never stand beside the effect (review
+ *  2026-10-02: /report §2 printed agras "… (6812 + 6814 − 7812 − 7814)
+ *  −131,395", a label that evaluates to +131,394.66). Without served
+ *  prefixes the name stands alone — never the charge arithmetic. */
+export function netProvisionsEffectLabel(np: ServedNetProvisions, lang: "ro" | "en"): string {
+  const effect = netProvisionsEffectAccounts(np);
+  const name = lang === "ro" ? np.name.ro : np.name.en;
+  return effect ? `${name} (${effect})` : name;
+}
+
 export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | null {
   if (!isRec(assembledPl)) return null;
   const apl = assembledPl;
@@ -288,6 +398,7 @@ export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | nul
     inventoryVariation,
     capitalizedOwnWork,
     reconciliation: readReconciliation(apl.ebitda_reconciliation),
+    netProvisions: readNetProvisions(apl),
     netIncomeStatutory: finite(apl.net_income_statutory),
     coreEbitda: ebitda === null ? null : finite(apl.core_ebitda),
     otherIncome758: finite(apl.other_income_758),
