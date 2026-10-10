@@ -31523,3 +31523,35 @@ the AI lane 15); `tests/engine/test_period_move.py` `56 passed`;
 `test_period_id_tenant_boundary.py` `19 passed`; `test_gate_canaries.py`
 `13 passed`; `test_route_bindings.py` `3 passed`;
 `generate_engine_book.py --check` clean.
+
+### single-year-share — the ratio cards under a later comparison period (2026-10-04, branch `fix/later-comparison-label`)
+
+Owner, after the live check of `release/r-share`: with Dec 2024 on screen
+compared against Dec 2025, each ratio card printed "ANTERIOR, 2025-12-31"
+beside the comparison's figure. "Prior" is a statement about time; the column
+box already said "Comparație" there. `RatiosTab` now picks the label from the
+document's direction (`verdictsWithheldOf`): `comparisonEyebrow` ("Comparison,
+{{label}}" / "Comparație, {{label}}") when the comparison period closes later
+or the order cannot be read, `priorEyebrow` otherwise. Three laws in
+`singleYearShare.test.tsx` (114 tests in that file now): under a later prior
+every card's label is the comparison word and its period, in RO and EN;
+forwards it is "Prior"; an unreadable order is not a prior either.
+
+**PLANT / RED / REVERT** — runner `specs-durable/later_comparison_label/plants.py`.
+**BASELINE** — `114 passed`.
+
+| PLANT | result |
+|---|---|
+| L1 THE DEFECT — a ratio card calls a later comparison period 'Prior' | `3 failed, 111 passed` |
+| L2 every card says 'Comparison', the forward comparison included | `1 failed, 113 passed` |
+| L3 the two labels are swapped | `4 failed, 110 passed` |
+| L4 the Romanian word is still 'Anterior' | `2 failed, 112 passed` |
+| L5 the English label drops the period it names | `1 failed, 113 passed` |
+| L6 the Romanian sentence is missing (a raw key on the card) | `2 failed, 112 passed` |
+
+Every PLANT is RED. **REVERT** — `114 passed`.
+
+What it cannot see: the command bar's own "vs prior" wording (it asks for the
+engine's same-length earlier period and does not offer a later one), and the
+credit block's "Credit, {prior} to {current}" title, which prints the two
+dates in the order the document compares them.

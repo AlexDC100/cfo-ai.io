@@ -679,6 +679,7 @@
         "comparisonFailedNoResponse": "The comparison period was requested but no response arrived, so this table shows {{current}} only and states no prior, change or band movement. This is a failed request, not a refusal by the engine.",
         "currentDiffers": "Not printed: this period's figure is {{table}} in the ratio table and {{compare}} in the comparison, so a change against the prior would not tie.",
         "priorEyebrow": "Prior, {{label}}",
+        "comparisonEyebrow": "Comparison, {{label}}",
         "ladderRungHigher": "{{band}} from {{value}}",
         "ladderRungLower": "{{band}} up to {{value}}",
         "ladderFloorHigher": "{{band}} below",

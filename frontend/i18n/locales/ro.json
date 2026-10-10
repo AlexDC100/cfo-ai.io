@@ -679,6 +679,7 @@
         "comparisonFailedNoResponse": "Perioada de comparație a fost cerută, dar nu a sosit niciun răspuns, deci tabelul arată doar {{current}} și nu afișează perioadă anterioară, variație sau mișcare de bandă. Este o cerere eșuată, nu un refuz al motorului.",
         "currentDiffers": "Neafișat: valoarea acestei perioade este {{table}} în tabelul de indicatori și {{compare}} în comparație, deci o variație față de perioada anterioară nu s-ar închide.",
         "priorEyebrow": "Anterior, {{label}}",
+        "comparisonEyebrow": "Comparație, {{label}}",
         "ladderRungHigher": "{{band}} de la {{value}}",
         "ladderRungLower": "{{band}} până la {{value}}",
         "ladderFloorHigher": "{{band}} sub",

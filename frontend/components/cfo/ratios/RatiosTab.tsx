@@ -53,6 +53,7 @@ import {
   ratioCmpHandleOf,
   serializePrintedRow,
   servedIdentityOf,
+  verdictsWithheldOf,
 } from "@/lib/ratioCompareView";
 import { RATIO_DELTA_SECONDARY_CLOSE, RATIO_DELTA_SECONDARY_OPEN } from "@/lib/ratioTable";
 
@@ -366,8 +367,17 @@ export function RatioTile({
           data-movement={printed.movementStatus ?? "none"}
         >
           <div className="font-mono tabular-nums">
-            <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] mr-1">
-              {t("statements.ratioCmp.ui.priorEyebrow", { label: view?.priorLabel ?? "" })}
+            <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] mr-1" data-col="prior-label">
+              {/* "Prior" is a statement about time. Under a comparison period
+                  that closes LATER than the one on screen (or whose order
+                  cannot be read) the same figure is the COMPARISON's — the
+                  word the column box already uses there. */}
+              {t(
+                verdictsWithheldOf(view ?? null)
+                  ? "statements.ratioCmp.ui.comparisonEyebrow"
+                  : "statements.ratioCmp.ui.priorEyebrow",
+                { label: view?.priorLabel ?? "" },
+              )}
             </span>
             <span data-col="prior">{printed.prior}</span>
             {/* ONE change cell: "+0.28× (+15.4%)", the same bytes the
