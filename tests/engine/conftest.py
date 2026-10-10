@@ -113,6 +113,21 @@ def _one_run_per_document_registries_are_per_test(monkeypatch):
     # analysed never takes over another document's month.
     if _pipeline is not None and hasattr(_pipeline, "_NO_TAKEOVER_RUNS"):
         monkeypatch.setattr(_pipeline, "_NO_TAKEOVER_RUNS", {})
+    # … and the two per-run notes a KILLED run leaves behind: the takeover
+    # `stage_persist` recorded (`_TAKEOVERS_BY_RUN`) and the period the run
+    # minted (`_PERIODS_MINTED_BY_RUN`). The run's own end pops them — the
+    # takeover, the `except Exception` failure handler, `_staged_rerun_failed`
+    # — but the tests' model of a process death (`_Kill(BaseException)`,
+    # never caught by `except Exception`) leaves them in process memory,
+    # where a real death would have taken them with the process. Measured in
+    # the whole-pytest gate of 2026-10-10 (release/r-next 471273f4):
+    # test_rerun_restart.py's kills left six takeover records, and the staged
+    # takeover law three files later (`P._TAKEOVERS_BY_RUN == {}`) was red —
+    # green alone, green in gate `rerun-data-loss`, whose file order ran the
+    # staged laws BEFORE the kills. Law: test_suite_hermetic_daemons.py.
+    for name in ("_TAKEOVERS_BY_RUN", "_PERIODS_MINTED_BY_RUN"):
+        if _pipeline is not None and hasattr(_pipeline, name):
+            monkeypatch.setattr(_pipeline, name, {})
     yield
 
 
