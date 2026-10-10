@@ -33,11 +33,19 @@ import type { DetectOutcome, MoveResult } from "../periodFiling";
 const detectPeriodForFilename = vi.fn<() => Promise<DetectOutcome>>();
 const moveDocumentToPeriod = vi.fn();
 
-vi.mock("../periodFiling", () => ({
-  detectPeriodForFilename: (...a: unknown[]) =>
-    detectPeriodForFilename(...(a as [])),
-  moveDocumentToPeriod: (...a: unknown[]) => moveDocumentToPeriod(...(a as [])),
-}));
+vi.mock("../periodFiling", async () => {
+  // The dialog also imports the refusal class and the code → sentence
+  // mapper (round 2 of the re-run lane); the real ones are pure, so they
+  // pass through — a mock that omits them made every catch block throw
+  // before the toast and the law read "spy called 0 times".
+  const actual = await vi.importActual<typeof import("../periodFiling")>("../periodFiling");
+  return {
+    FilingRefused: actual.FilingRefused,
+    filingRefusalKey: actual.filingRefusalKey,
+    detectPeriodForFilename: (...a: unknown[]) => detectPeriodForFilename(...(a as [])),
+    moveDocumentToPeriod: (...a: unknown[]) => moveDocumentToPeriod(...(a as [])),
+  };
+});
 
 const toastSuccess = vi.fn();
 const toastWarning = vi.fn();

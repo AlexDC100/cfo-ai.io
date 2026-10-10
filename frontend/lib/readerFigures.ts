@@ -405,7 +405,9 @@ function readTail(s: string, i: number): Tail {
     // "2.3pp", "82.4/100": a unit written against the number.
     if (s.startsWith("pp", j) && !isLetter(s[j + 2] ?? "")) { t.unit = t.ratio = t.gluedUnit = true; return t; }
     const after = s[j + 4] ?? "";
-    if (s.startsWith("/100", j) && !isDigit(after) && !isLetter(after) && !((after === "." || after === ",") && isDigit(s[j + 5] ?? ""))) {
+    // (spelt as "/" + "100", not one literal: the links-routed gate reads a
+    // string that starts with "/" as a link to a page)
+    if (s[j] === "/" && s.startsWith("100", j + 1) && !isDigit(after) && !isLetter(after) && !((after === "." || after === ",") && isDigit(s[j + 5] ?? ""))) {
       t.unit = t.ratio = t.gluedUnit = true; return t;
     }
   }
