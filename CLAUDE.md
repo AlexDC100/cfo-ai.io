@@ -5263,8 +5263,12 @@ The ratio cards' eyebrow said "ANTERIOR" whatever the comparison period was. Whe
 ## 39. Run journal: the chain key is (organisation, content hash) (2026-10-02)
 
 Owner ticket, done BEFORE `ENGINE_JOURNAL_DIR` is ever set (it is unset in
-production; the journal has never run there). Branch
-`fix/journal-chain-key-org`. No production change, nothing to deploy.
+production; the journal has never run there). Built on branch
+`fix/journal-chain-key-org` (2026-10-02) and merged into release r-next on
+2026-10-10 (owner order: "run its full battery now … ship it"): the CODE ships
+with §38's release; the journal stays OFF until an operator runs
+`scripts/journal_cli.py --journal-root <mounted volume> layout` on the volume
+and sets `ENGINE_JOURNAL_DIR` — with it unset nothing of this section runs.
 
 **What was wrong.** A journal chain was keyed by the document's content hash
 ALONE (`index/<file_hash>.jsonl`). Two organisations uploading byte-identical
