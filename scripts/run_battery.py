@@ -2747,14 +2747,15 @@ def _engine_gates() -> List[Gate]:
         # code — each left as written, counted); the grid's 36 bare
         # integers after a code come back byte-identical. The canary line
         # prints `mixed=`: corpus outputs that still hold both notations.
-        # Measured 453 tests. Blind to: an id of the shape NNN.NNN
+        # Measured 466 tests (round 3: E20 the opener grammar, seven
+        # corpus cases). Blind to: an id of the shape NNN.NNN
         # outside an account word (a lone group to every reader); a
         # non-figure with a unit RIGHT beside it and no account word
         # ("Versiunea 2.1 RON").
         Gate("ai-figures-engine",
              [PY, "-m", "pytest", "-p", "netblock",
               "tests/engine/test_ai_figure_format.py", "-q"],
-             work_junit=True, floor=453, units="tests",
+             work_junit=True, floor=466, units="tests",
              canaries=("test_e3_the_detector_is_the_frontends_every_pattern_is_read_out_of_its_file_and_compiles",
                        "test_e2_the_standard_and_the_hint_examples_are_what_lib_money_prints",
                        "test_the_corpus_is_what_it_says_it_is",
@@ -2778,6 +2779,7 @@ def _engine_gates() -> List[Gate]:
                        "test_e19_the_shortcuts_change_no_output",
                        "test_e7_a_field_the_pass_raised_on_keeps_the_models_text_and_is_counted_and_logged_as_a_defect",
                        "test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_twin_digest_holds",
+                       "test_e20_an_openers_range_with_a_code_first_second_bound_is_rewritten_at_both_bounds_or_neither_in_one_pass",
                        "test_e14_the_proof_refuses_a_changed_magnitude_a_dropped_sign_and_a_code_on_another_number",
                        "test_e4_the_seam_the_real_narrator_returns_every_prose_field_in_the_readers_format",
                        "test_e4_a_ratio_the_model_was_handed_is_proved_a_figure_one_it_was_not_handed_is_left",
@@ -2853,7 +2855,8 @@ def _engine_gates() -> List[Gate]:
         # Also the browser's half of the engine's round: the label
         # grammar and its digest, a code that only changes sides, the
         # grid's 36 bare integers, 100 KB runs beside an "@".
-        # Measured 957 tests. Blind to: what a model writes; a text HELD
+        # Measured 987 tests (round 3: law 15 the opener grammar, seven corpus
+        # cases). Blind to: what a model writes; a text HELD
         # as written (counted; it still holds the model's notation); a
         # token left by design; the deployed function's source; the
         # report page and the exports; a bundle older than the release.
@@ -2866,7 +2869,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/explainFigures.test.ts",
               "frontend/components/cfo/__tests__/briefingCardFigures.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=947,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=987,
              units="figure-format tests", no_skips=True,
              canaries=("GATE-WORK ai-figures-standard grid=984 lone=120 examples=12",
                        "POSITIVE CONTROL: it sees the shapes the base patterns cannot",
@@ -2906,6 +2909,7 @@ def _engine_gates() -> List[Gate]:
                        "es: a reply in another language is not changed by a byte after a Romanian or an English question",
                        "pl: a reply in another language is not changed by a byte after a Romanian or an English question",
                        "29,263 texts: the id's bytes survive, a second pass changes nothing",
+                       "one pass rewrites both bounds or neither, and a second pass changes nothing",
                        "the review's sentences, typed here: a label before a spaced dash",
                        "14 beside a lone group a code still changes sides",
                        "100 KB runs beside an address, each inside a second",
