@@ -64,7 +64,7 @@ draft). `471273f4` is release r-next. Between them: 231 non-merge commits, 432 f
 +194,468 / −9,582 lines (`git log --no-merges 91fc4e24..471273f4`, `git diff --stat`).
 
 Status key — **LIVE** (deployed; date from the ops_log) · **IN THIS RELEASE** (in `471273f4`,
-deploying 2026-10-10 — the coordinator fills the exact time) · **APPLIED** (SQL or function on
+deployed 2026-10-10 (2026-10-10 13:30Z, release r-next 60b51a36) — the coordinator fills the exact time) · **APPLIED** (SQL or function on
 production; ops_log time) · **PENDING** (on a branch, not merged).
 
 ### 2.1 Engine (`src/engine`)
@@ -474,7 +474,7 @@ scenario kept) · T100 · T109 · T111 · T114 · T115 · T116 · T85 (applied 2
   `scripts/check_migrations_applied.sh` already does) would close the gap.
 - **The ops_log, the tickets inventory and the secret scan** are session files outside the
   repository; the dates and times above are theirs. The exact deploy time of `471273f4` is not
-  in them yet — "deploying 2026-10-10".
+  in them yet — "deployed 2026-10-10 (2026-10-10 13:30Z, release r-next 60b51a36)".
 - **The `fx-rates` function's version number.** The ops_log calls the previous deployment v1
   (2026-07-27) and the tickets inventory calls the live one v2; the brief for this document said
   v3. Not re-read; the facts that matter — deployed 2026-10-04 05:40Z, committed == deployed — are
