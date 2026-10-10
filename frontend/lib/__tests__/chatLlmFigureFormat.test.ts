@@ -168,8 +168,8 @@ describe("the prose detector every law of this lane reads with", () => {
     expect(foreignNumbersInProse("La 31.12.2025, ora 12:30, vezi `RON 4.58M` și https://example.test/a?v=1.5", "ro")).toEqual([]);
     // …blanked, at the same length (an index into the mask is an index into the text).
     expect(maskNotProse("vezi `RON 4.58M` acum")).toBe("vezi " + " ".repeat("`RON 4.58M`".length) + " acum");
-    expect(foreignNumbersInProse("162,365 RON sau 162.365 RON", "ro")).toEqual([]);
-    expect(foreignNumbersInProse("162,365 RON or 162.365 RON", "en")).toEqual([]);
+    expect(foreignNumbersInProse("258,419 RON sau 258.419 RON", "ro")).toEqual([]);
+    expect(foreignNumbersInProse("258,419 RON or 258.419 RON", "en")).toEqual([]);
   });
 });
 
@@ -324,7 +324,7 @@ function buildStandard(): unknown {
 
 /** Invented amounts: every digit-count class, with and without decimals. */
 const GRID_VALUES = [
-  0.5, 1, 12, 123, 999.99, 1000, 1234, 1234.5, 12345.67, 99999, 162365.46, 552340, 999999,
+  0.5, 1, 12, 123, 999.99, 1000, 1234, 1234.5, 12345.67, 99999, 258419.37, 552340, 999999,
   1000000, 1234567, 4580000, 16778901, 64567890, 2300000000, 12345678.48,
 ];
 const GRID_FRAMES: Record<Lang, string> = { ro: "Valoarea este de {figure} acum.", en: "The value is {figure} this year." };

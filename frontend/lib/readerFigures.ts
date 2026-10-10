@@ -83,7 +83,15 @@
 // next number's, a hedge word apart, is left as one expression; any in-line
 // space may group digits; a code after a year-shaped number is the next
 // figure's only when that figure is written as an amount; an opener's range
-// is rewritten at both bounds or at neither. A second pass changes nothing.
+// is rewritten at both bounds or at neither. A second pass changes nothing —
+// held by law, not by assertion (round 3): the opener grammar of
+// readerFigures.test.ts (law 15: an opener's range whose SECOND bound is
+// code-first, "de la 1,5 la USD 2.5M", is the opener's pair in the FIRST
+// pass, because the gap is read to the second bound's OWN start and the
+// opener is looked for before the first bound's), the composed set and the
+// label grammar run every text through the pass twice, and the date guard's
+// window reads a figure the pass printed ("1.234.567\u00a0mil.") as the one
+// word it was.
 //
 // A CODE MOVES ONLY BEHIND AN AMOUNT READ TO ITS END (review 2026-10-05). "EUR
 // 1.5-2.5M" is not "1,5 EUR-2,5 mil.", "RON 4.58 mil" is not "4,58 RON mil",
@@ -233,9 +241,11 @@ const ACCOUNT_WORDS: ReadonlySet<string> = new Set([
   "analiticului", "analitice", "analiticele", "account", "accounts", "acct", "acct.",
 ]);
 // What can stand between two numbers of ONE expression ("40 și 55 milioane",
-// "10, 12 sau 15 mil."). "la" joins only after a range opener ("de la 1.5 la
-// 2.5"): "RON 5.2M la 31.12" is an amount and a date.
-const JOIN_WORDS = ["și", "si", "and", "to", "sau", "or", "ori", "respectiv", "&", "până la", "pana la"];
+// "10, 12 sau 15 mil.", "USD 1,070,246,841, respectively 46,394,351" — the
+// English "respectively" joins as the Romanian "respectiv" does, round 3).
+// "la" joins only after a range opener ("de la 1.5 la 2.5"): "RON 5.2M la
+// 31.12" is an amount and a date.
+const JOIN_WORDS = ["și", "si", "and", "to", "sau", "or", "ori", "respectiv", "respectively", "&", "până la", "pana la"];
 const TENOR_WORDS = ["robor", "euribor", "libor", "sofr", "ircc", "saron", "estr", `${EURO}str`];
 // "ROBOR 3M … și EUR 3M la 2.9%": in a text that names an interbank rate, a
 // whole number of months against "M" is a tenor wherever it stands.
@@ -433,6 +443,11 @@ function wordBefore(s: string, at: number): string {
 }
 
 /** The (up to) three words before `at`, nearest first. */
+/** The (up to) three words before `at`, nearest first — the date guard's
+ *  window. Inside a word the two no-break joiners the product prints do NOT
+ *  end it (round 3): a figure the pass has printed ("1.234.567\u00a0mil.",
+ *  "12\u00a0mil.\u00a0RON") is the ONE word the model's figure was
+ *  ("1,234,567M", "RON 12M"), so a second pass sees every word the first saw. */
 function wordsBefore(s: string, at: number): string[] {
   const out: string[] = [];
   let j = at;
@@ -440,7 +455,7 @@ function wordsBefore(s: string, at: number): string[] {
     const k = j;
     while (j > 0 && k - j < WORD_SCAN && isSpace(s[j - 1])) j--;
     let i = j;
-    while (i > 0 && j - i < WORD_SCAN && !isSpace(s[i - 1]) && s[i - 1] !== "(" && s[i - 1] !== "\n") i--;
+    while (i > 0 && j - i < WORD_SCAN && s[i - 1] !== " " && s[i - 1] !== "(" && s[i - 1] !== "\n") i--;
     if (i === j) break;
     out.push(s.slice(i, j).toLowerCase().replace(/[:;,.]+$/, ""));
     if (i > 0 && (s[i - 1] === "(" || s[i - 1] === "\n")) break;
@@ -579,7 +594,7 @@ function connective(gap: string, opener: boolean): "group" | "dash" | "list" | "
     // ONE HEDGE WORD between the joiner and the second number ("și circa 55
     // milioane", "to roughly 55 million", "– max. 12M", ", eventual 12
     // milioane", "până la maximum 2.5M") is WEAK: one expression only where
-    // the second number carries a magnitude. "RON 162,365 și rata 1.42", ", în
+    // the second number carries a magnitude. "RON 258,419 și rata 1.42", ", în
     // 2024", "; cont 5311" are another clause.
     const h = withoutHedge(g);
     if (h !== g) {
@@ -674,9 +689,12 @@ function amountEnds(s: string, items: Item[], i: number, joinedRight: boolean): 
     if (kind === "dash" || kind === "group") return false;
     if (kind === "list" && !separate(nx)) return false;
     // An opener's range ("între RON 191.3M și RON 318.8M"): each bound is an
-    // amount of its own only when the second names its currency AND the first
-    // does not lean on the second's magnitude.
-    if (kind === "list" && opener && !(ownCurrency(nx) && (it.tail.mag || !hasMagnitude(s, nx)))) return false;
+    // amount of its own only when the second names its currency AND the two
+    // agree on carrying a magnitude — the first does not lean on the second's,
+    // and (round 3) a second bound with none is not read literally beside a
+    // first that carries one ("între RON 191.3M și RON 318.8": left as
+    // written, as "între RON 191.3 și RON 318.8M" is).
+    if (kind === "list" && opener && !(ownCurrency(nx) && !!it.tail.mag === hasMagnitude(s, nx))) return false;
     if (kind === "weak" && !separate(nx) && hasMagnitude(s, nx)) return false;
   }
   return true;
@@ -930,12 +948,19 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
   // numbers, or an opener and its own joiner: a spaced dash is what stands
   // between a label and its amount ("Contul 5121.01 – 1.234.567,89 RON",
   // "Sold la 31.12 – 5,2 mil. RON").
+  // The gap is read to the second number's OWN start — its code, its sign —
+  // and the opener is looked for before the first number's (round 3): "de la
+  // 1,5 la USD 2.5M" and "între -68.5 și -€504K" are the opener's pair in the
+  // FIRST pass, not only once the code has moved behind the figure.
   for (let i = 0; i + 1 < items.length; i++) {
     const a = items[i], b = items[i + 1];
     if (a.frozen || b.frozen || a.ref || b.ref) continue;
-    const between = s.slice(a.e, b.s);
+    let between = s.slice(a.e, ownStart(s, b));
+    // (an approximation mark written against the second bound is the bound's
+    // own, as the connective reads it: "între 8.5 și ~EUR 13.2")
+    if (between.endsWith("~") || between.endsWith("\u2248")) between = between.slice(0, -1);
     const tight = TIGHT_DASHES.includes(between);
-    const word = rangePair(wordBefore(s, a.s)).includes(between);
+    const word = rangePair(wordBefore(s, ownStart(s, a))).includes(between);
     if ((tight || word) && b.adjacent && !a.adjacent && !a.tail.mag) a.adjacent = a.borrowed = true;
   }
 
@@ -1064,6 +1089,20 @@ function normaliseSegment(s: string, lang: FigureLang, leftOut: LeftToken[], anc
   return { text: out, rewritten, reshaped };
 }
 
+/** The one character of a span this pass never enters that stands AGAINST the
+ *  segment — `text[i]`, where `edge` is the segment's own character beside it
+ *  (round 3). A digit is the `joined` rule's; a space on either side is no
+ *  glue. The character is read WITH the segment and stripped after it, so a
+ *  magnitude or a code written against a URL or a code span ("RON 1.02
+ *  mld.https://…", "5M`x`") is read as it is in prose — glued, not the
+ *  standard's — and not as if the text ended there: the whole-text proof and
+ *  the segment's then read the same bytes. */
+function glue(text: string, i: number, edge: string): string {
+  const c = text[i] ?? "";
+  if (c === "" || edge === "" || isDigit(c) || /\s/.test(c) || /\s/.test(edge)) return "";
+  return c;
+}
+
 /** `text` — prose written in `lang` — with every figure PROVEN to be in the
  *  other language's notation rewritten into `lang`'s. `left` names every
  *  token left as written, in text order. Anything that is not a non-empty
@@ -1079,14 +1118,18 @@ export function normaliseFigures(text: string, lang: FigureLang, anchors: readon
     const rx = protectedSpans(text);
     let m: RegExpExecArray | null;
     while ((m = rx.exec(text)) !== null) {
-      const seg = normaliseSegment(text.slice(at, m.index), lang, left, handed, [at > 0 && isDigit(text[at - 1] ?? ""), isDigit(m[0][0] ?? "")]);
-      out += seg.text + m[0];
+      const piece = text.slice(at, m.index);
+      const gl = at > 0 ? glue(text, at - 1, piece.slice(0, 1)) : "", gr = glue(text, m.index, piece.slice(-1));
+      const seg = normaliseSegment(gl + piece + gr, lang, left, handed, [at > 0 && isDigit(text[at - 1] ?? ""), isDigit(m[0][0] ?? "")]);
+      out += seg.text.slice(gl.length, seg.text.length - gr.length) + m[0];
       rewritten += seg.rewritten;
       reshaped += seg.reshaped;
       at = m.index + m[0].length;
     }
-    const seg = normaliseSegment(text.slice(at), lang, left, handed, [at > 0 && isDigit(text[at - 1] ?? ""), false]);
-    out += seg.text;
+    const piece = text.slice(at);
+    const gl = at > 0 ? glue(text, at - 1, piece.slice(0, 1)) : "";
+    const seg = normaliseSegment(gl + piece, lang, left, handed, [at > 0 && isDigit(text[at - 1] ?? ""), false]);
+    out += seg.text.slice(gl.length);
     reshaped += seg.reshaped;
     // The proof again, over the whole text (each segment already passed).
     if (digitsOf(out) !== digitsOf(text)) return { text, rewritten: 0, left: [{ token: text.slice(0, 40), reason: "proof_failed" }] };

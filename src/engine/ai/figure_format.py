@@ -98,6 +98,13 @@ spaced dash took the next figure's evidence. Now:
   * an opener's range is rewritten at both bounds or at neither.
 
 A second pass changes nothing: what is stored and what is shown are one text.
+Held by law, not by assertion (round 3): E20 of the gate — an opener's range
+whose SECOND bound is code-first ("de la 1,5 la USD 2.5M", "între -68.5 și
+-€504K") is the opener's pair in the FIRST pass, because the gap is read to
+the second bound's OWN start and the opener is looked for before the first
+bound's; the composed set (E13) and the label grammar (E15) run every text
+through the pass twice; and the date guard's window reads a figure the pass
+printed ("1.234.567\u00a0mil.") as the one word it was.
 
 A CODE MOVES ONLY BEHIND AN AMOUNT READ TO ITS END (review 2026-10-05). "EUR
 1.5-2.5M" is not "1,5 EUR-2,5 mil.", "RON 4.58 mil" is not "4,58 RON mil",
@@ -255,9 +262,11 @@ _ACCOUNT_WORDS = frozenset((
     "analiticului", "analitice", "analiticele", "account", "accounts", "acct", "acct.",
 ))
 # What can stand between two numbers of ONE expression ("40 și 55 milioane",
-# "10, 12 sau 15 mil."). "la" joins only after a range opener ("de la 1.5 la
-# 2.5"): "RON 5.2M la 31.12" is an amount and a date.
-_JOIN_WORDS = ("și", "si", "and", "to", "sau", "or", "ori", "respectiv", "&", "până la", "pana la")
+# "10, 12 sau 15 mil.", "USD 1,070,246,841, respectively 46,394,351" — the
+# English "respectively" joins as the Romanian "respectiv" does, round 3).
+# "la" joins only after a range opener ("de la 1.5 la 2.5"): "RON 5.2M la
+# 31.12" is an amount and a date.
+_JOIN_WORDS = ("și", "si", "and", "to", "sau", "or", "ori", "respectiv", "respectively", "&", "până la", "pana la")
 _TENOR_WORDS = ("robor", "euribor", "libor", "sofr", "ircc", "saron", "estr", "€str")
 # "ROBOR 3M … și EUR 3M la 2.9%": in a text that names an interbank rate, a
 # whole number of months against "M" is a tenor wherever it stands.
@@ -494,7 +503,13 @@ def _word_before(s: str, at: int) -> str:
 
 
 def _words_before(s: str, at: int) -> List[str]:
-    """The (up to) three words before `at`, nearest first."""
+    """The (up to) three words before `at`, nearest first — the date guard's
+    window. Inside a word the two no-break joiners the product prints do NOT
+    end it (round 3): a figure the pass has printed ("1.234.567\u00a0mil.",
+    "12\u00a0mil.\u00a0RON") is the ONE word the model's figure was
+    ("1,234,567M", "RON 12M"), so a second pass sees every word the first
+    saw — "de la 1,234,567M EUREUR 0.19 mil" left "0.19" under "la" once and
+    converted it the second time."""
     out: List[str] = []
     j = at
     for _ in range(3):
@@ -502,7 +517,7 @@ def _words_before(s: str, at: int) -> List[str]:
         while j > 0 and k - j < _WORD_SCAN and _is_space(s[j - 1]):
             j -= 1
         i = j
-        while i > 0 and j - i < _WORD_SCAN and not _is_space(s[i - 1]) and s[i - 1] not in ("(", "\n"):
+        while i > 0 and j - i < _WORD_SCAN and s[i - 1] not in (" ", "(", "\n"):
             i -= 1
         if i == j:
             break
@@ -687,7 +702,7 @@ def _connective(gap: str, opener: bool) -> Optional[str]:
         # ONE HEDGE WORD between the joiner and the second number ("și circa
         # 55 milioane", "to roughly 55 million", "– max. 12M", ", eventual 12
         # milioane", "până la maximum 2.5M") is WEAK: one expression only
-        # where the second number carries a magnitude. "RON 162,365 și rata
+        # where the second number carries a magnitude. "RON 258,419 și rata
         # 1.42", ", în 2024", "; cont 5311" are another clause.
         h = _without_hedge(g)
         if h != g:
@@ -805,9 +820,12 @@ def _amount_ends(s: str, items: List[Dict[str, Any]], i: int, joined_right: bool
         if kind == "list" and not _separate(nx):
             return False
         # An opener's range ("între RON 191.3M și RON 318.8M"): each bound is
-        # an amount of its own only when the second names its currency AND the
-        # first does not lean on the second's magnitude.
-        if kind == "list" and opener and not (_own_currency(nx) and (it["tail"]["mag"] or not _has_magnitude(s, nx))):
+        # an amount of its own only when the second names its currency AND
+        # the two agree on carrying a magnitude — the first does not lean on
+        # the second's, and (round 3) a second bound with none is not read
+        # literally beside a first that carries one ("între RON 191.3M și RON
+        # 318.8": left as written, as "între RON 191.3 și RON 318.8M" is).
+        if kind == "list" and opener and not (_own_currency(nx) and bool(it["tail"]["mag"]) == _has_magnitude(s, nx)):
             return False
         if kind == "weak" and not _separate(nx) and _has_magnitude(s, nx):
             return False
@@ -1094,12 +1112,20 @@ def _normalise_segment(s: str, lang: str, left_out: List[Tuple[str, str]],
     # numbers, or an opener and its own joiner: a spaced dash is what stands
     # between a label and its amount ("Contul 5121.01 – 1.234.567,89 RON",
     # "Sold la 31.12 – 5,2 mil. RON").
+    # The gap is read to the second number's OWN start — its code, its sign —
+    # and the opener is looked for before the first number's (round 3): "de
+    # la 1,5 la USD 2.5M" and "între -68.5 și -€504K" are the opener's pair
+    # in the FIRST pass, not only once the code has moved behind the figure.
     for a, b in zip(items, items[1:]):
         if a["frozen"] or b["frozen"] or a["ref"] or b["ref"]:
             continue
-        between = s[a["e"]:b["s"]]
+        between = s[a["e"]:_own_start(s, b)]
+        # (an approximation mark written against the second bound is the
+        # bound's own, as the connective reads it: "între 8.5 și ~EUR 13.2")
+        if between.endswith(("~", "\u2248")):
+            between = between[:-1]
         tight = between in _TIGHT_DASHES
-        word = between in _RANGE_PAIRS.get(_word_before(s, a["s"]), ())
+        word = between in _RANGE_PAIRS.get(_word_before(s, _own_start(s, a)), ())
         if (tight or word) and b["adjacent"] and not a["adjacent"] and not a["tail"]["mag"]:
             a["adjacent"] = a["borrowed"] = True
 
@@ -1294,16 +1320,21 @@ def _normalise(text: Any, lang: str, anchors: Sequence[float] = ()) -> Tuple[Any
         parts: List[str] = []
         rewritten, reshaped, at = 0, 0, 0
         for m in (_PROTECTED if "@" in text else _PROTECTED_NO_EMAIL).finditer(text):
-            seg, n, r = _normalise_segment(text[at:m.start()], lang, left, handed,
+            piece = text[at:m.start()]
+            gl = _glue(text, at - 1, piece[:1]) if at > 0 else ""
+            gr = _glue(text, m.start(), piece[-1:])
+            seg, n, r = _normalise_segment(gl + piece + gr, lang, left, handed,
                                            (_is_digit(_at(text, at - 1)) and at > 0, _is_digit(_at(text, m.start()))))
-            parts.append(seg)
+            parts.append(seg[len(gl):len(seg) - len(gr)])
             parts.append(m.group(0))
             rewritten += n
             reshaped += r
             at = m.end()
-        seg, n, r = _normalise_segment(text[at:], lang, left, handed,
+        piece = text[at:]
+        gl = _glue(text, at - 1, piece[:1]) if at > 0 else ""
+        seg, n, r = _normalise_segment(gl + piece, lang, left, handed,
                                        (_is_digit(_at(text, at - 1)) and at > 0, False))
-        parts.append(seg)
+        parts.append(seg[len(gl):])
         reshaped += r
         out = "".join(parts)
         # The proof again, over the whole text (each segment already passed).
@@ -1324,6 +1355,21 @@ def _normalise(text: Any, lang: str, anchors: Sequence[float] = ()) -> Tuple[Any
         return out, report, reshaped
     except Exception:  # noqa: BLE001 — a formatter must never break the text it formats
         return text, {"rewritten": 0, "left": [("", "proof_failed")], "error": True}, 0
+
+
+def _glue(text: str, i: int, edge: str) -> str:
+    """The one character of a span this pass never enters that stands AGAINST
+    the segment — `text[i]`, where `edge` is the segment's own character
+    beside it (round 3). A digit is the `joined` rule's; a space on either
+    side is no glue. The character is read WITH the segment and stripped
+    after it, so a magnitude or a code written against a URL or a code span
+    ("RON 1.02 mld.https://…", "5M`x`") is read as it is in prose — glued,
+    not the standard's — and not as if the text ended there: the whole-text
+    proof and the segment's then read the same bytes."""
+    c = _at(text, i)
+    if c == "" or edge == "" or _is_digit(c) or c in _JS_SPACE_SET or edge in _JS_SPACE_SET:
+        return ""
+    return c
 
 
 def anchors_of(*blocks: Any) -> List[float]:

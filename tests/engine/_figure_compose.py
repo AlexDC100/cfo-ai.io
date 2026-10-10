@@ -53,7 +53,9 @@ def compose(spec: Dict[str, Any], i: int) -> Tuple[str, str, List[float]]:
             parts.append(pick(["", " "]))
         parts.append(pick(spec["pre"]) + pick(spec["nums"]) + pick(spec["post"]))
         if step() % 5 < 3:
-            parts.append(pick(spec["nums"]) + pick(spec["post"]))
+            # (round 3: the second number carries a `pre` of its own too — a
+            # code-first second bound after an opener, "între 1,5 și EUR 2.5M")
+            parts.append(pick(spec["pre"]) + pick(spec["nums"]) + pick(spec["post"]))
         parts.append(pick(spec["seps"]))
     lang = "ro" if step() % 2 == 0 else "en"
     return "".join(parts), lang, list(pick(spec["anchor_sets"]))

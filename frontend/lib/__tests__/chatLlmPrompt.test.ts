@@ -262,7 +262,11 @@ describe("apart from the rule, the system prompt is byte for byte what the funct
     // this repository is public. They are invented ones now (8,75% / 2,35×) —
     // the same shapes, two characters shorter in all. Nothing else of the
     // section changed.
-    expect(sha256(FIGURE_FORMAT_SECTION)).toBe("94250ebc3095913624f67f1694fd9cc164373b2790b51a925c0c0ad7010a6671");
+    // MOVED ON PURPOSE 2026-10-10 (was 94250ebc…, length 1088): a real book's
+    // figure replaced by an invented one; public repository. The decimals
+    // example (and the lone group cut from it) is 258.419,37 / 258,419.37 now —
+    // the same shape and length as before. Nothing else of the section changed.
+    expect(sha256(FIGURE_FORMAT_SECTION)).toBe("d9dbcbd4bde6a12a50ff2fc5dd7aab016a400404e00648ea678eefba17be7993");
     expect(FIGURE_FORMAT_SECTION.length).toBe(1088);
     expect(FIGURE_FORMAT_SECTION.startsWith("Figure format (non-negotiable):\n")).toBe(true);
   });

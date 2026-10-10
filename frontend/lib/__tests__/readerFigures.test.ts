@@ -241,8 +241,8 @@ describe("POSITIVE CONTROL — the corpus, the detector and the independent read
     expect(findings(right, "ro")).toEqual([]);
     expect(findings(right, "en")).toEqual(["2,3", "4.567.890", "0,1905"]);
     // …and a lone three-digit group is matched by NOTHING: no detector can call it wrong.
-    expect(findings("Numerarul este 162,365 RON sau 162.365 RON.", "ro")).toEqual([]);
-    expect(findings("Numerarul este 162,365 RON sau 162.365 RON.", "en")).toEqual([]);
+    expect(findings("Numerarul este 258,419 RON sau 258.419 RON.", "ro")).toEqual([]);
+    expect(findings("Numerarul este 258,419 RON sau 258.419 RON.", "en")).toEqual([]);
   });
 
   it("the independent reader: one value per notation, a refusal for what is not a number in it", () => {
@@ -382,7 +382,7 @@ const LONE_GROUPS = [
 describe("4 a token with two readings is never guessed", () => {
   it.each(["ro", "en"] as const)("%s: a lone three-digit group comes back byte-identical — currency position included — whatever was handed", (lang) => {
     let checked = 0;
-    for (const number of ["1,234", "1.234", "162,365", "162.365", "999.999", "7.459"]) {
+    for (const number of ["1,234", "1.234", "258,419", "258.419", "999.999", "7.459"]) {
       const asGroups = Number(number.replace(/[.,]/g, ""));
       const asDecimal = asGroups / 1000;
       const frame = lang === "ro" ? "Valoarea este {x} acum." : "The value is {x} today.";
@@ -479,7 +479,7 @@ describe("14 beside a lone group a code still changes sides — and no number to
   const CODE_ONLY: [FigureLang, string, string][] = [
     ["en", "Net turnover was RON 64,567,890 and interest expense RON 386,102 (margin 11.85%).", "Net turnover was 64,567,890 RON and interest expense RON 386,102 (margin 11.85%)."],
     ["ro", "Cifra de afaceri este RON 64.567.890, iar dobânzile sunt RON 386.102 (marjă 11,85%).", "Cifra de afaceri este 64.567.890 RON, iar dobânzile sunt RON 386.102 (marjă 11,85%)."],
-    ["en", "Net turnover was RON 64,567,890, EBITDA RON 7,654,321 and cash RON 162,365.", "Net turnover was 64,567,890 RON, EBITDA 7,654,321 RON and cash RON 162,365."],
+    ["en", "Net turnover was RON 64,567,890, EBITDA RON 7,654,321 and cash RON 258,419.", "Net turnover was 64,567,890 RON, EBITDA 7,654,321 RON and cash RON 258,419."],
   ];
   it.each(CODE_ONLY)("%s: %s", (lang, text, expected) => {
     const out = normaliseFigures(text, lang);
@@ -546,6 +546,61 @@ describe("13 the label grammar: an account, a date, a note number, a year beside
   });
 });
 
+// ══ 15 — an opener's range whose second bound is code-first ═══════════════
+
+// THE OPENER GRAMMAR (round 3) — the engine's E20, the same parts: opener ×
+// first bound × joiner × code-first second bound. "de la 2,811,386,091 la USD
+// 596,202,009" came out of the first pass rewritten at the second bound and
+// out of the second at the first — the chat STORES pass 1, the bubble SHOWS
+// pass 2. One pass rewrites both bounds or neither; a second changes nothing.
+const OPENER_FRAMES: Record<FigureLang, string> = { ro: "Valoarea a variat {x} în această perioadă.", en: "The value moved {x} over the period." };
+const OPENER_PAIRS: Record<FigureLang, [string, string][]> = {
+  ro: [["între ", " și "], ["intre ", " si "], ["de la ", " la "], ["de la ", " până la "]],
+  en: [["between ", " and "], ["from ", " to "]],
+};
+const OPENER_FIRST: Record<FigureLang, string[]> = {
+  ro: ["8.5", "-8.5", "29,38", "1,234.56", "596,202,009", "0.19", "8,5"],
+  en: ["8,5", "-8,5", "29.38", "1.234,56", "596.202.009", "0,19", "8.5"],
+};
+const OPENER_HEADS = ["RON ", "EUR ", "USD ", "$", "€", "-RON ", "-€", "~EUR ", `RON${NBSP}`, "-$"];
+const OPENER_SECOND: Record<FigureLang, string[]> = {
+  ro: ["13.2", "2.5", "504", "2,811,386,091", "31.2", "0.6034"],
+  en: ["13,2", "2,5", "504", "2.811.386.091", "31,2", "0,6034"],
+};
+const OPENER_MAGS = ["", "M", "K", "B", " mil.", "bn"];
+
+describe("15 an opener's range whose second bound is code-first", () => {
+  it("15,120 texts: one pass rewrites both bounds or neither, and a second pass changes nothing", () => {
+    let checked = 0, both = 0, neither = 0;
+    for (const lang of ["ro", "en"] as const) for (const [opener, joiner] of OPENER_PAIRS[lang]) for (const first of OPENER_FIRST[lang]) for (const head of OPENER_HEADS) for (const second of OPENER_SECOND[lang]) for (const mag of OPENER_MAGS) {
+      const text = OPENER_FRAMES[lang].replace("{x}", opener + first + joiner + head + second + mag);
+      const out = normaliseFigures(text, lang);
+      checked += 1;
+      if (digits(out.text) !== digits(text)) throw new Error(`a digit moved: ${JSON.stringify(text)}`);
+      if (normaliseFigures(out.text, lang).text !== out.text) throw new Error(`a second pass changes it: ${JSON.stringify(text)} -> ${JSON.stringify(out.text)}`);
+      if (out.text !== text) {
+        const why = out.left.find((l) => l.token === first)?.reason;
+        if (why === "bare_decimal" || why === "bare_groups") throw new Error(`half a range: ${JSON.stringify(text)} -> ${JSON.stringify(out.text)}`);
+        both += 1;
+      } else neither += 1;
+    }
+    // (measured 14,970 / 150: the texts left whole are the English ones whose second bound carries " mil.")
+    expect([checked, both >= 14000, neither >= 100]).toEqual([15120, true, true]);
+    // The confirmer's sentences, written out: one pass, both bounds.
+    for (const [lang, text, expected] of [
+      ["ro", "de la 2,811,386,091 la USD 596,202,009", "de la 2.811.386.091 la 596.202.009 USD"],
+      ["en", "between 29,38 and RON 31.2B.", "between 29.38 and 31.2B RON."],
+      ["ro", "între 68.5 și €504K", "între 68,5 și 504 mii EUR"],
+      ["en", "from 1,5 to EUR 2.5M", "from 1.5 to 2.5M EUR"],
+      ["ro", "între -68.5 și -€504K", "între -68,5 și -504 mii EUR"],
+    ] as const) {
+      const out = normaliseFigures(text, lang);
+      expect([plainSpaces(out.text), out.left], text).toEqual([expected, []]);
+      expect(normaliseFigures(out.text, lang).text).toBe(out.text);
+    }
+  });
+});
+
 // ══ 11 — the composed set, and the twin's digest ══════════════════════════
 
 /** Text `i` of the composed set — the same integer arithmetic as
@@ -560,7 +615,8 @@ function compose(spec: ComposeSpec, i: number): { text: string; lang: FigureLang
     if (step() % 4 === 0) { parts.push(pick(spec.words)); parts.push(pick(["", " "])); }
     const pre = pick(spec.pre), num = pick(spec.nums), post = pick(spec.post);
     parts.push(pre + num + post);
-    if (step() % 5 < 3) { const n2 = pick(spec.nums), p2 = pick(spec.post); parts.push(n2 + p2); }
+    // (round 3: the second number carries a `pre` of its own too — a code-first second bound after an opener)
+    if (step() % 5 < 3) { const pre2 = pick(spec.pre), n2 = pick(spec.nums), p2 = pick(spec.post); parts.push(pre2 + n2 + p2); }
     parts.push(pick(spec.seps));
   }
   const lang: FigureLang = step() % 2 === 0 ? "ro" : "en";
@@ -914,7 +970,7 @@ describe("7 the language is the TEXT's — on positive evidence, never the UI's"
     // ONE word of Romanian's own in it, and the Romanian question confirms it.
     expect(plainSpaces(displayModelText("Rata este buna dar cifra este mare pentru 12.3M EUR", { context: [asked] }).text)).toBe("Rata este buna dar cifra este mare pentru 12,3 mil. EUR");
     // …and the Romanian-only words of a finance reply read by themselves ("Numerarul este de …").
-    expect(proseLanguageOf("Numerarul este de 162,365.46 RON.")).toBe("ro");
+    expect(proseLanguageOf("Numerarul este de 258,419.37 RON.")).toBe("ro");
     expect(proseLanguageOf("Cursul EUR/RON 4.97 este al BNR.")).toBe("ro");
     for (const text of Object.values(OTHER_LANGUAGE_TEXTS).flat()) {
       const words = new Set(text.toLowerCase().match(/\p{L}+/gu) ?? []);
@@ -1024,10 +1080,10 @@ describe("7 the language is the TEXT's — on positive evidence, never the UI's"
   });
 
   it("leftByReason: counts only — what a surface may log holds no token", () => {
-    const out = normaliseFigures("Numerar RON 162,365, raport 1.42, vezi art. 7.25 și 1.5 aici.", "ro");
+    const out = normaliseFigures("Numerar RON 258,419, raport 1.42, vezi art. 7.25 și 1.5 aici.", "ro");
     const counts = leftByReason(out.left);
     expect(counts).toEqual({ single_group: 1, bare_decimal: 2, reference: 1 });
-    expect(out.text.startsWith("Numerar RON 162,365")).toBe(true); // (a single group and nothing rewritten: no hold)
+    expect(out.text.startsWith("Numerar RON 258,419")).toBe(true); // (a single group and nothing rewritten: no hold)
     expect(JSON.stringify(counts)).not.toMatch(/\d{2}/);
   });
 });

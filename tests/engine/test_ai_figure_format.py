@@ -152,7 +152,7 @@ WRITES (the provider is a script); rows stored
 before this release (no stored row is rewritten — the browser's card repairs
 what it shows); a narration the model wrote in ANOTHER language than it was
 asked for (it is normalised in the asked language — notation only, never a
-value); a token left by design — a lone three-digit group ("162,365 RON" in
+value); a token left by design — a lone three-digit group ("258,419 RON" in
 Romanian text) passes every law and the detector; the non-statement (SKU / invoice register) prompt's own wording
 beyond carrying the same hint; whether a figure is TRUE.
 
@@ -294,8 +294,8 @@ def test_e3_the_detector_is_the_frontends_every_pattern_is_read_out_of_its_file_
     # A date, a clock time, a URL and a code span are not prose.
     assert findings("La 31.12.2025, ora 12:30, vezi `RON 4.58M` și https://example.test/a?v=1.5", "ro") == []
     # A lone three-digit group is matched by NOTHING: no detector can call it wrong.
-    assert findings("Numerarul este 162,365 RON sau 162.365 RON.", "ro") == []
-    assert findings("Numerarul este 162,365 RON sau 162.365 RON.", "en") == []
+    assert findings("Numerarul este 258,419 RON sau 258.419 RON.", "ro") == []
+    assert findings("Numerarul este 258,419 RON sau 258.419 RON.", "en") == []
 
 
 # ══ E2 — the standard ═════════════════════════════════════════════════════
@@ -468,7 +468,7 @@ LONE_GROUPS = [
 ]
 
 
-@pytest.mark.parametrize("number", ["1,234", "1.234", "162,365", "162.365", "999.999", "7.459"])
+@pytest.mark.parametrize("number", ["1,234", "1.234", "258,419", "258.419", "999.999", "7.459"])
 @pytest.mark.parametrize("lang", ["ro", "en"])
 def test_e1_a_lone_three_digit_group_is_never_guessed_with_or_without_handed_figures(number, lang):
     as_groups = float(number.replace(",", "").replace(".", ""))
@@ -760,8 +760,8 @@ CODE_ONLY = [
      "Net turnover was 64,567,890 RON and interest expense RON 386,102 (margin 11.85%)."),
     ("ro", "Cifra de afaceri este RON 64.567.890, iar dobânzile sunt RON 386.102 (marjă 11,85%).",
      "Cifra de afaceri este 64.567.890 RON, iar dobânzile sunt RON 386.102 (marjă 11,85%)."),
-    ("en", "Net turnover was RON 64,567,890, EBITDA RON 7,654,321 and cash RON 162,365.",
-     "Net turnover was 64,567,890 RON, EBITDA 7,654,321 RON and cash RON 162,365."),
+    ("en", "Net turnover was RON 64,567,890, EBITDA RON 7,654,321 and cash RON 258,419.",
+     "Net turnover was 64,567,890 RON, EBITDA 7,654,321 RON and cash RON 258,419."),
 ]
 
 
@@ -904,20 +904,58 @@ def test_e13_the_composed_set_no_digit_moves_nothing_is_half_rewritten_and_the_t
 # ══ E16 — the independent reader over the composed set ════════════════════
 
 #: Every composed text the independent reader flags, by index — each READ BY
-#: HAND (round 2). None is a figure bound to something else:
+#: HAND (round 2; the set re-read in round 3, when the grammar gave the second
+#: number a `pre` of its own). None is a figure bound to something else:
 READER_FLAGS_ON_THE_COMPOSED_SET = {
-    1065: "a sentence stop merged into 'mil.' (the judged 'one stop, not two'): the reader then reads a list comma",
-    4644: "the same merged stop",
-    6667: "the same merged stop",
-    7348: "the same merged stop",
-    1444: "'CAD' is the tail of a URL — a span the pass never enters — and the '$' after it is written USD",
+    # a sentence stop merged into "mil." (the judged "one stop, not two"): the
+    # reader then reads the list comma that follows and inherits the next code
+    619: "'1234.567M., USD 12,5B' -> '1234,567 mil., USD 12,5B': the merged stop, then a list comma",
+    4198: "'1,234.56M., ora 28,281,291 lei' -> '1.234,56 mil., ora …': the same merged stop",
+    # "CAD" is the tail of a URL — a span the pass never enters — and the "$"
+    # after it is written USD
+    1593: "'https://x.test/CAD $1.5' -> '… 1.5 USD'",
     5285: "the same URL tail",
-    9241: "a magnitude letter written against a URL: read as the magnitude it is",
-    6576: "a number after ', <word>' behind a code-first amount that was closed: the reader calls it a shared code",
-    8842: "the same list after a closed amount",
-    3532: "glued garbage ('M2025 de lei USD')",
-    8703: "glued garbage ('bn$3M RON5')",
-    9863: "glued garbage ('bn€10×')",
+    8652: "the same URL tail",
+    # glued garbage: a magnitude letter glued to a symbol ("k€0.19", "B$3",
+    # "bn€10"): the pass re-spells the letter in place, the symbol stays where
+    # it was, and the reader reads the two as one currency name
+    2161: "'k€0.19 %' -> 'mii€0,19 %'",
+    2170: "'K$1234,567' -> 'mii$1234,567'",
+    3295: "'999,999.99B$3' -> '999.999,99 mld.$3'",
+    3730: "'1.5M€401.404.408pp' -> '1,5 mil.€401.404.408pp'",
+    4106: "'401.404.408bn€1234.567k' -> '401,404,408B€1234.567k'",
+    7129: "'2.5B€5×' -> '2,5 mld.€5×'",
+    7409: "'4,58bn€1234,567T' -> '4.58B€1234,567T'",
+    7589: "'31.12M$1.5T' -> '31,12 mil.$1.5T'",
+    7682: "'0,1905 mii$999,999.99M' -> '0.1905K$999,999.99M'",
+    8028: "'12,5Bn€1,234,567K' -> '12.5B€1,234,567K'",
+    8783: "'31.12k$28,281,291M' -> '31,12 mii$28.281.291 mil.'",
+    9663: "'31.12k$1.5' -> '31,12 mii$1,5' (the '$' after a letter is evidence only, and stays)",
+    9863: "'401.404.408bn€10×' -> '401,404,408B€10×'",
+    10477: "'14.30bn$10 %' -> '14,30 mld.$10 %'",
+    # the reader's forward inheritance: a number after ", <word>" / " and
+    # <word>" behind a code-first amount that was CLOSED (its code moved behind
+    # it) — the reader called the first amount's code shared before the move
+    2318: "'~EUR 0,19B, între 1.234,56 USDart.' -> '~0.19B EUR, între 1,234.56 USDart.'",
+    4437: "'RON 1,234.56 and art. 1.234,56 milcurs' -> '1,234.56 RON and art. 1,234.56 milcurs'",
+    # the reader's second-code artefact: a code standing between two numbers
+    # ("de lei RON +1,234,567", "0.1905 CAD USD 401…", "mii (RON 3") is read
+    # as a SECOND code of the first number; the pass reads it as the next
+    # number's head (no digit stands before it) and moves it behind that one
+    3906: "'C$0.19 de lei RON +1,234,567' -> 'C$0,19 de lei +1.234.567 RON'",
+    6827: "'(83,6 de lei RON 4.58' -> '(83.6 de lei 4.58 RON'",
+    7822: "'curs EUR 0.1905 CAD USD 401.404.408M' -> 'curs EUR 0,1905 CAD 401.404.408 mil. USD'",
+    8654: "'RON -0.1905 de lei EUR 1234.567 miide' -> 'RON -0,1905 de lei 1234,567 EUR miide'",
+    10578: "'RON -64.567.890 mii (RON  3 mii' -> '-64,567,890K RON (RON  3 mii'",
+    # (round 2's 9241 — "a magnitude letter written against a URL, read as the
+    # magnitude it is" — is gone: a URL's first character is read with the
+    # segment now, so "14.30Bhttps://" is the glued non-magnitude it is in
+    # prose, and the text is left as written)
+    # an en dash written AGAINST a reference word ("64,567,890–art. 83,6m"):
+    # the reader reads a range joiner with a hedge and lends the first number
+    # the second's magnitude; the pass reads an unspaced en dash against a word
+    # as a break and closes the first amount
+    11900: "'**RON 64,567,890–art. 83,6m' -> '**64.567.890 RON–art. 83,6m'",
 }
 
 
@@ -969,6 +1007,72 @@ def test_e15_the_label_grammar_an_id_beside_an_amount_survives_and_a_second_pass
         "the engine's outputs over the label grammar changed: %s — if the rule change is deliberate and made in "
         "BOTH runtimes, commit this digest in labels.json" % COMPOSE.label_digest_of(spec, F.normalise_figures))
     WORK["labels"] = checked
+
+
+# ══ E20 — an opener's range whose second bound is code-first ══════════════
+
+#: THE OPENER GRAMMAR (round 3): opener × first bound × joiner × code-first
+#: second bound. The confirmer of round 2 found "de la 2,811,386,091 la USD
+#: 596,202,009" rewritten at the SECOND bound by the first pass and at the
+#: first by the second — the engine and the chat STORE pass 1, the card and
+#: the bubble SHOW pass 2 — because the pair gap was read to the second
+#: number's digit, so " la USD " was not the opener's joiner until the code
+#: had moved. Every text here must come out of ONE pass rewritten at both
+#: bounds or at neither, and out of a second pass unchanged.
+OPENER_FRAMES = {"ro": "Valoarea a variat {x} în această perioadă.", "en": "The value moved {x} over the period."}
+OPENER_PAIRS = {"ro": [("între ", " și "), ("intre ", " si "), ("de la ", " la "), ("de la ", " până la ")],
+                "en": [("between ", " and "), ("from ", " to ")]}
+#: The first bound: the other notation, signed, a run of groups, "0.", its own notation.
+OPENER_FIRST = {"ro": ["8.5", "-8.5", "29,38", "1,234.56", "596,202,009", "0.19", "8,5"],
+                "en": ["8,5", "-8,5", "29.38", "1.234,56", "596.202.009", "0,19", "8.5"]}
+#: The second bound's head: a code or a symbol, with a sign, a tilde, a no-break space.
+OPENER_HEADS = ["RON ", "EUR ", "USD ", "$", "€", "-RON ", "-€", "~EUR ", "RON" + NB, "-$"]
+OPENER_SECOND = {"ro": ["13.2", "2.5", "504", "2,811,386,091", "31.2", "0.6034"],
+                 "en": ["13,2", "2,5", "504", "2.811.386.091", "31,2", "0,6034"]}
+OPENER_MAGS = ["", "M", "K", "B", " mil.", "bn"]
+
+
+def _opener_grammar():
+    for lang in ("ro", "en"):
+        for opener, joiner in OPENER_PAIRS[lang]:
+            for first in OPENER_FIRST[lang]:
+                for head in OPENER_HEADS:
+                    for second in OPENER_SECOND[lang]:
+                        for mag in OPENER_MAGS:
+                            yield lang, first, opener + first + joiner + head + second + mag
+
+
+def test_e20_an_openers_range_with_a_code_first_second_bound_is_rewritten_at_both_bounds_or_neither_in_one_pass():
+    checked = both = neither = 0
+    for lang, first, expression in _opener_grammar():
+        text = OPENER_FRAMES[lang].replace("{x}", expression)
+        out, report = F.normalise_figures(text, lang)
+        checked += 1
+        assert digits(out) == digits(text), text
+        # A SECOND PASS CHANGES NOTHING: what is stored and what is shown are one text.
+        assert F.normalise_figures(out, lang)[0] == out, (text, out)
+        assert READER.changed_amounts(text, out, lang) == [], (text, out)
+        # BOTH BOUNDS OR NEITHER: where the pass changed anything, the first
+        # bound was not left in the other notation beside its partner.
+        left = {tok: why for tok, why in report["left"]}
+        if out != text:
+            assert left.get(first) not in ("bare_decimal", "bare_groups"), (text, out, report["left"])
+            both += 1
+        else:
+            neither += 1
+    # (measured 14,970 / 150: the texts left whole are the English ones whose second bound carries " mil.")
+    assert checked == 15120 and both >= 14_000 and neither >= 100, (checked, both, neither)
+    # The confirmer's sentences, written out: one pass, both bounds.
+    for lang, text, expected in [
+        ("ro", "de la 2,811,386,091 la USD 596,202,009", "de la 2.811.386.091 la 596.202.009 USD"),
+        ("en", "between 29,38 and RON 31.2B.", "between 29.38 and 31.2B RON."),
+        ("ro", "între 68.5 și €504K", "între 68,5 și 504 mii EUR"),
+        ("en", "from 1,5 to EUR 2.5M", "from 1.5 to 2.5M EUR"),
+        ("ro", "între -68.5 și -€504K", "între -68,5 și -504 mii EUR"),
+    ]:
+        out, report = F.normalise_figures(text, lang)
+        assert plain(out) == expected and report["left"] == [], (text, out, report)
+        assert F.normalise_figures(out, lang)[0] == out
 
 
 # ══ E19 — never slow ══════════════════════════════════════════════════════
@@ -1502,9 +1606,9 @@ def test_e7_whatever_shape_the_model_returned_the_walker_returns_it_and_never_ra
     assert report["fields_checked"] == 3 and report["fields_changed"] == 3 and report["rewritten"] == 11
     assert report["errors"] == 0
     # The report that is LOGGED holds counts by reason — never a token.
-    _o, r = F.normalise_narrate_result({"briefing": "Numerar RON 162,365 și rata 1.42."}, "ro")
+    _o, r = F.normalise_narrate_result({"briefing": "Numerar RON 258,419 și rata 1.42."}, "ro")
     assert r["left"] == 2 and r["left_by_reason"] == {"bare_decimal": 1, "single_group": 1}
-    assert "162" not in json.dumps(r)
+    assert "258" not in json.dumps(r)
 
 
 # ══ E8 — the hint ═════════════════════════════════════════════════════════

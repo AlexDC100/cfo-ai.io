@@ -30217,7 +30217,7 @@ language's hint changed.
 
 - **what a model WRITES** — the provider is a script. Whether the model now writes the format itself
   under the new hint needs one billed "Regenerează", the owner's to send;
-- **a token left by design**: a lone three-digit group ("162,365 RON" in Romanian text) passes every
+- **a token left by design**: a lone three-digit group ("258,419 RON" in Romanian text) passes every
   law and the detector — 43 of the 115 expected strings still carry at least one
   foreign-shaped token left on purpose (a lone group, a bare ratio with no handed figure, a date, a
   reference). That is constraint 1 ("an ambiguous token is NEVER guessed"), not a gap of the gate;
@@ -30252,7 +30252,7 @@ tokens rewritten, 0 digit changes, 0 texts changed by a second pass.
 
 It RUNS the product's formatter and holds the copies: (1) every example string of the chat
 function's figure-format rule and conversion note equals lib/money's / the ratio printer's print of
-`FIGURE_FORMAT_VALUES`; the amount the rule says NOT to write ("162.365 RON") is cut out of the
+`FIGURE_FORMAT_VALUES`; the amount the rule says NOT to write ("258.419 RON") is cut out of the
 example, not typed; (2) `standard.json` and `grid.json` regenerated and compared with the committed
 bytes — and `AI_FIGURES_WRITE=1` left on reds (a file compared with itself); the magnitude words
 against BOTH packs; (3) each language's bullet holds no figure of the other language, no built
@@ -30461,7 +30461,7 @@ long unbroken run made quadratic again; chat search losing the joiners.
 **CANNOT SEE:**
 
 - **what a model WRITES** under the new prompt — the recorder is a script;
-- **a token left by design**: a lone three-digit group ("RON 162,365" in a Romanian sentence) is
+- **a token left by design**: a lone three-digit group ("RON 258,419" in a Romanian sentence) is
   shown exactly as the model wrote it, code before the figure included, and passes every law and the
   detector. That is constraint 1, not a gap. A bare ratio with no handed figure, a date and a
   reference stay too;

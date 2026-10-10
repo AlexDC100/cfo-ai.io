@@ -200,8 +200,8 @@
    "lang": "ro",
    "surface": "both",
    "wrong": true,
-   "input": "Numerarul este de 162,365.46 RON.",
-   "expected": "Numerarul este de 162.365,46 RON.",
+   "input": "Numerarul este de 258,419.37 RON.",
+   "expected": "Numerarul este de 258.419,37 RON.",
    "kept": []
   },
   {
@@ -672,11 +672,11 @@
    "lang": "ro",
    "surface": "both",
    "wrong": false,
-   "input": "Numerarul este RON 162,365 la final de an.",
-   "expected": "Numerarul este RON 162,365 la final de an.",
+   "input": "Numerarul este RON 258,419 la final de an.",
+   "expected": "Numerarul este RON 258,419 la final de an.",
    "kept": [
     {
-     "token": "162,365",
+     "token": "258,419",
      "reason": "single_group"
     }
    ]
@@ -704,11 +704,11 @@
    "lang": "ro",
    "surface": "briefing",
    "wrong": false,
-   "input": "EBITDA de ~RON 18.8M (marjă 8.75%), cu RON 162,365 numerar.",
-   "expected": "EBITDA de ~RON 18.8M (marjă 8.75%), cu RON 162,365 numerar.",
+   "input": "EBITDA de ~RON 18.8M (marjă 8.75%), cu RON 258,419 numerar.",
+   "expected": "EBITDA de ~RON 18.8M (marjă 8.75%), cu RON 258,419 numerar.",
    "kept": [
     {
-     "token": "162,365",
+     "token": "258,419",
      "reason": "single_group"
     },
     {
@@ -828,15 +828,15 @@
    "lang": "en",
    "surface": "both",
    "wrong": false,
-   "input": "There are 1.234 open invoices; cash of 162.365 RON and the rate was 4,975.",
-   "expected": "There are 1.234 open invoices; cash of 162.365 RON and the rate was 4,975.",
+   "input": "There are 1.234 open invoices; cash of 258.419 RON and the rate was 4,975.",
+   "expected": "There are 1.234 open invoices; cash of 258.419 RON and the rate was 4,975.",
    "kept": [
     {
      "token": "1.234",
      "reason": "single_group"
     },
     {
-     "token": "162.365",
+     "token": "258.419",
      "reason": "single_group"
     },
     {
@@ -2942,6 +2942,79 @@
    "input": "Datoria este de RON 1,234,567.89, eventual 12.5 lei pe acțiune.",
    "expected": "Datoria este de 1.234.567,89 RON, eventual 12,5 lei pe acțiune.",
    "kept": []
+  },
+  {
+   "id": "r3-opener-range-code-first-second-bound-ro",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Veniturile au crescut de la 596,202,009 la USD 2,811,386,091 în doi ani.",
+   "expected": "Veniturile au crescut de la 596.202.009 la 2.811.386.091 USD în doi ani.",
+   "kept": []
+  },
+  {
+   "id": "r3-opener-range-code-first-second-bound-en",
+   "lang": "en",
+   "surface": "both",
+   "wrong": true,
+   "input": "Net debt moved from 1.234.567,89 to RON 2.345.678,9 this year.",
+   "expected": "Net debt moved from 1,234,567.89 to 2,345,678.9 RON this year.",
+   "kept": []
+  },
+  {
+   "id": "r3-opener-range-symbol-and-sign-second-bound-ro",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": true,
+   "input": "Rezultatul este între -68.5 și -€504K pe scenarii.",
+   "expected": "Rezultatul este între -68,5 și -504 mii EUR pe scenarii.",
+   "kept": []
+  },
+  {
+   "id": "r3-opener-range-symbol-second-bound-en",
+   "lang": "en",
+   "surface": "chat",
+   "wrong": true,
+   "input": "The spread is between 1,5 and $2,5M for the year.",
+   "expected": "The spread is between 1.5 and 2.5M USD for the year.",
+   "kept": []
+  },
+  {
+   "id": "r3-opener-range-code-and-sign-second-bound-en",
+   "lang": "en",
+   "surface": "chat",
+   "wrong": true,
+   "input": "Cash moved from 1,5 to -EUR 2.5M over the period.",
+   "expected": "Cash moved from 1.5 to -2.5M EUR over the period.",
+   "kept": []
+  },
+  {
+   "id": "r3-own-code-range-second-bound-without-magnitude",
+   "lang": "ro",
+   "surface": "both",
+   "wrong": false,
+   "input": "Valoarea este între RON 191.3M și RON 318.8, după caz.",
+   "expected": "Valoarea este între RON 191.3M și RON 318.8, după caz.",
+   "kept": [
+    {
+     "token": "RON 191.3M și RON 318.8",
+     "reason": "open_amount"
+    }
+   ]
+  },
+  {
+   "id": "r3-respectively-joins-a-list",
+   "lang": "en",
+   "surface": "both",
+   "wrong": false,
+   "input": "Revenue was USD 1,070,246,841, respectively 46,394,351 for the two years.",
+   "expected": "Revenue was USD 1,070,246,841, respectively 46,394,351 for the two years.",
+   "kept": [
+    {
+     "token": "USD 1,070,246,841, respectively 46,394,351",
+     "reason": "open_amount"
+    }
+   ]
   }
  ]
 }
