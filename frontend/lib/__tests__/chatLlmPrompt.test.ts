@@ -22,7 +22,12 @@
 //
 //    And the redeploy changes the prompt by the rule ALONE: with its section
 //    taken out, every prompt hashes to what main's function sent (pins
-//    computed from main's own builders); the CORS allowlist is the same six
+//    computed from main's own builders) — and, since the owner's order of
+//    2026-10-04, by the FIGURE FORMAT: three named changes inside the
+//    display-currency rule and the public-company block, each reversed by
+//    name before the same pins are taken (`asMainSentIt`); a request that
+//    carries no display currency and no ticker needs no reversal at all.
+//    The CORS allowlist is the same six
 //    origins and still decides the echoed origin — together with the ONE
 //    thing the deployed function carries that main's file did not: the LAN
 //    dev allowance (a private-range host on the Vite port), kept byte for
@@ -36,7 +41,9 @@
 // or the request sent without the deadline's signal; a third request header
 // (or the URL) being read; a module-level variable or container (a bearer or
 // a plan remembered across requests); a byte of a persona, of the currency rule or of the
-// public-company block changing without its pin; an origin added to, or the
+// public-company block changing without its pin (the figure-format rule
+// reworded, or one of the order's three changes drifting from what
+// `asMainSentIt` reverses); an origin added to, or the
 // caller's origin echoed past, the CORS allowlist; the LAN dev allowance
 // dropped by the redeploy, or widened to a public address, another port or
 // an unanchored match.
@@ -65,11 +72,13 @@ import { describe, expect, it } from "vitest";
 
 import { STOCK_SLOW_CLAIM_RULE } from "@/lib/inventoryDays";
 import {
+  FIGURE_FORMAT_SECTION,
   STOCK_CLAIM_SECTION,
   STOCK_SLOW_CLAIM_RULE as FUNCTION_RULE,
   buildChatSystemPrompt,
   buildSystemPrompt,
   buildWorkspaceChatSystemPrompt,
+  conversionExample,
   type LlmChatRequest,
 } from "../../../supabase/functions/chat-llm/prompt";
 
@@ -157,6 +166,25 @@ describe("the stock-claim rule is in the function's system prompt", () => {
 // currency rule and the public-company block did not move by a byte. A
 // deliberate edit of any of them changes its pin in the same commit; an
 // accidental one reds here.
+//
+// MOVED ON PURPOSE (owner order 2026-10-04: "make chat … write numbers in
+// Romanian format in Romanian text …, currency after the figure. Use the
+// product's own formatting standard, with a gate"). NO PIN VALUE MOVED. The
+// order changed three things, all inside fragments only Ask CFO AI's request
+// (a display currency) or a ticker's request carries; `asMainSentIt` takes
+// each back out BY NAME and the result must still hash to main's:
+//   1. the figure-format rule — FIGURE_FORMAT_SECTION, present exactly once
+//      when the request carries a display currency, never otherwise (its own
+//      bytes are pinned below: rewording the rule moves that pin);
+//   2. the conversion note — the old line TAUGHT the wrong shape
+//      (`e.g. "~EUR 918k (converted from RON 4.58M at BNR rate)"`: the code
+//      before the figure, an English magnitude whatever the language of the
+//      answer); it is `conversionExample(...)` now, in both languages, in the
+//      product's own prints;
+//   3. the public-company block — "USD 1,000" became "1,000 USD".
+// The personas were not touched: the "bare" and the "live ticker, no
+// figures" requests hash to main's with no reversal at all, and the law says
+// so (`reversed` is false for them).
 describe("apart from the rule, the system prompt is byte for byte what the function sent before", () => {
   const q = msg("q");
   const PINNED: [string, LlmChatRequest, string, string][] = [
@@ -188,13 +216,67 @@ describe("apart from the rule, the system prompt is byte for byte what the funct
     expect(count(prompt, STOCK_CLAIM_SECTION)).toBe(1); // …the one thing that IS new
     return prompt.replace(STOCK_CLAIM_SECTION, "");
   };
+  /** The prompt with the order's three changes taken back out — what main's
+   *  function sent for this request. Each step checks that the thing it
+   *  removes is there exactly as often as the request says it must be. */
+  const asMainSentIt = (prompt: string, req: LlmChatRequest): { prompt: string; reversed: boolean } => {
+    let p = withoutTheRule(prompt);
+    const before = p;
+    // 1. the figure-format rule: once iff the request names a display currency.
+    const carriesCurrency = !!(req.display_currency || req.fx_context);
+    expect(count(p, FIGURE_FORMAT_SECTION)).toBe(carriesCurrency ? 1 : 0);
+    p = p.replace(FIGURE_FORMAT_SECTION, "");
+    // 2. the conversion note (only where display ≠ stored): back to the legacy literal.
+    const fx = req.fx_context;
+    if (fx) {
+      const display = (fx.display_currency || req.display_currency || "").toUpperCase();
+      const source = (fx.source_currency || "RON").toUpperCase();
+      const provider = fx.provider || "BNR";
+      const now = "briefly — " + conversionExample(display, source, provider) + ".\n";
+      expect(count(p, now)).toBe(display === source ? 0 : 1);
+      p = p.replace(now, `briefly, e.g. "~${display} 918k (converted from ${source} 4.58M at ${provider} rate)".\n`);
+    }
+    // 3. the public-company block: "N USD" back to "USD N".
+    const from = p.indexOf("=== Public-company context ==="), to = p.indexOf("=== End public-company context ===");
+    if (from >= 0) p = p.slice(0, from) + p.slice(from, to).replace(/(\d[\d,]*) USD\b/g, "USD $1") + p.slice(to);
+    return { prompt: p, reversed: p !== before };
+  };
+  /** Which pinned requests the order touched at all: a display currency, or a ticker WITH figures. */
+  const TOUCHED = new Set(["a snapshot, a converted currency, a demo ticker with every figure", "the display currency is the stored one"]);
 
-  it.each(PINNED)("workspace persona — %s", (_name, req, workspace) => {
-    expect(sha256(withoutTheRule(buildWorkspaceChatSystemPrompt(req)))).toBe(workspace);
+  it.each(PINNED)("workspace persona — %s", (name, req, workspace) => {
+    const main = asMainSentIt(buildWorkspaceChatSystemPrompt(req), req);
+    expect(sha256(main.prompt)).toBe(workspace);
+    expect(main.reversed).toBe(TOUCHED.has(name));
   });
 
-  it.each(PINNED)("inventory persona — %s", (_name, req, _workspace, inventory) => {
-    expect(sha256(withoutTheRule(buildChatSystemPrompt(req)))).toBe(inventory);
+  it.each(PINNED)("inventory persona — %s", (name, req, _workspace, inventory) => {
+    const main = asMainSentIt(buildChatSystemPrompt(req), req);
+    expect(sha256(main.prompt)).toBe(inventory);
+    expect(main.reversed).toBe(TOUCHED.has(name));
+  });
+
+  it("the figure-format rule's own bytes are pinned: rewording it moves this hash on purpose", () => {
+    // MOVED ON PURPOSE 2026-10-05 (was 121639d7…, length 1090): the two example
+    // ratios of the section were a real company's, read off a live screen, and
+    // this repository is public. They are invented ones now (8,75% / 2,35×) —
+    // the same shapes, two characters shorter in all. Nothing else of the
+    // section changed.
+    // MOVED ON PURPOSE 2026-10-10 (was 94250ebc…, length 1088): a real book's
+    // figure replaced by an invented one; public repository. The decimals
+    // example (and the lone group cut from it) is 258.419,37 / 258,419.37 now —
+    // the same shape and length as before. Nothing else of the section changed.
+    expect(sha256(FIGURE_FORMAT_SECTION)).toBe("d9dbcbd4bde6a12a50ff2fc5dd7aab016a400404e00648ea678eefba17be7993");
+    expect(FIGURE_FORMAT_SECTION.length).toBe(1088);
+    expect(FIGURE_FORMAT_SECTION.startsWith("Figure format (non-negotiable):\n")).toBe(true);
+  });
+
+  it("the old conversion note — the shape production printed on 2026-10-04 — is in no prompt the function builds", () => {
+    for (const [, req] of PINNED) {
+      for (const p of [buildWorkspaceChatSystemPrompt(req), buildChatSystemPrompt(req)]) {
+        expect(p).not.toMatch(/e\.g\. "~[A-Z]{3} 918k|converted from [A-Z]{3} 4\.58M|USD \d/);
+      }
+    }
   });
 });
 

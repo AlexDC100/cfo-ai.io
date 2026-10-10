@@ -24,6 +24,7 @@
 import { classifyAiFailure, classifyUpstreamAnswer, type AiFailureKind } from "@/lib/aiDegraded";
 import { cfoApi } from "@/lib/cfoApi";
 import { plainFor } from "@/lib/glossary";
+import { displayModelText } from "@/lib/readerFigures";
 
 // Bump when the AI prompt materially changes — cached answers from an
 // older prompt stop matching and are simply not found (no migration).
@@ -76,6 +77,16 @@ export interface Explanation {
 
 function isRo(lang: string): boolean {
   return lang.startsWith("ro");
+}
+
+/** The AI path's text as the reader is shown it (owner order 2026-10-04):
+ *  its figures in the format of the language it is written in — the answer's
+ *  own prose, else the language this request ASKED for (which the prompt
+ *  orders). Notation only: lib/readerFigures never changes a value and
+ *  leaves a token with two readings as written. The TEMPLATE path is not
+ *  passed through this — its figures are the panel's own strings, verbatim. */
+function shownAiText(answer: string, req: ExplainRequest): string {
+  return displayModelText(answer, { known: isRo(req.lang) ? "ro" : "en" }).text;
 }
 
 // ── Deterministic templates ────────────────────────────────────────────
@@ -249,7 +260,8 @@ export async function getExplanation(
 
   const key = explainCacheKey(req);
   const cached = cacheGet(key);
-  if (cached) return { text: cached, source: "ai", degraded: null };
+  // (also on a hit: an answer cached before the release is stored as written)
+  if (cached) return { text: shownAiText(cached, req), source: "ai", degraded: null };
 
   try {
     const res = await cfoApi.chatLlm(
@@ -268,8 +280,9 @@ export async function getExplanation(
     // body. Intercept it here — that payload must never reach the DOM.
     const upstream = classifyUpstreamAnswer(answer);
     if (upstream) return fallback(upstream);
-    cachePut(key, answer);
-    return { text: answer, source: "ai", degraded: null };
+    const shown = shownAiText(answer, req);
+    cachePut(key, shown);
+    return { text: shown, source: "ai", degraded: null };
   } catch (err) {
     const kind = classifyAiFailure(err);
     try {

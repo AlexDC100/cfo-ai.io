@@ -5720,6 +5720,23 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         f"Every monetary figure in `briefing_facts` is pre-converted to "
         f"{effective_display} — do NOT re-convert."
     )
+    # THE READER'S FIGURE FORMAT (owner order 2026-10-04: "make chat and
+    # briefings write numbers in Romanian format in Romanian text …, currency
+    # after the figure. Use the product's own formatting standard"). For the
+    # two languages the product defines a figure format for, the hint is
+    # `figure_format.currency_hint`: the code AFTER the figure, with example
+    # strings that are the product's own prints (held to frontend/lib/money
+    # by the gate ai-figures-engine) — never an example typed here. Every
+    # other narration language, and a module that cannot be imported, keeps
+    # the four lines above byte for byte.
+    if output_language in ("ro", "en"):
+        try:
+            from engine.ai import figure_format as _figure_format
+
+            currency_hint = (_figure_format.currency_hint(output_language, effective_display)
+                             or currency_hint)
+        except Exception:  # noqa: BLE001 — the hint must never break a narration
+            logger.exception("[pipeline] narration figure hint failed (non-fatal)")
 
     if is_financial:
         system = (
@@ -6108,6 +6125,50 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
                 narrated["recommendations"] = []
     except Exception:  # noqa: BLE001 — the boundary must never break narration
         logger.exception("[pipeline] numeral guard failed (non-fatal)")
+
+    # ── THE READER'S FIGURE FORMAT (engine.ai.figure_format) ─────────
+    # What the model wrote is what every writer below stores and every
+    # surface serves, and the hint above is only a request: a Romanian
+    # briefing that says "~EUR 12.3M (marjă 8.75%)" would be stored and
+    # shown as written. Here — after the numeral guard, before any caller
+    # — a figure PROVEN to be in the other language's notation is
+    # rewritten into the text's own (separators swapped character by
+    # character, the ISO code moved after the figure). No value can
+    # change: an ambiguous token ("1,234") is left as written and
+    # counted, and the pass refuses its own result if the digit sequence
+    # differs. Romanian and English only; a failed narration is not
+    # touched; `output_language` is the code the prompt above instructed
+    # in (NOT narration_language(), which reads an unknown code as
+    # English). The log line carries counts by reason — never a token.
+    try:
+        if output_language in ("ro", "en") and not narrated.get("unavailable"):
+            from engine.ai import figure_format as _figures
+
+            narrated, _fig = _figures.normalise_narrate_result(
+                narrated, output_language,
+                anchors=_figures.anchors_of(
+                    briefing_facts, user_payload.get("metrics"),
+                    user_payload.get("valuation"), user_payload.get("inventory_days")),
+                # (the pass must not change what the stored-text predicate
+                # reads a briefing AS: "Error code: RON 1,250.50 …" with the
+                # code moved would begin like the SDK's own error text)
+                briefing_verdict=stored_briefing_failure_code,
+            )
+            if _fig["rewritten"] or _fig["left"]:
+                logger.info(
+                    "[pipeline] narration figures (%s): %d rewritten, left %s — doc=%s",
+                    output_language, _fig["rewritten"], _fig["left_by_reason"], doc.get("id"),
+                )
+            if _fig.get("errors"):
+                # An honest refusal of the proof and a DEFECT in the pass look
+                # the same in the counts above: say which it was.
+                logger.warning(
+                    "[pipeline] narration figures (%s): the pass raised on %d field(s); "
+                    "the model's text was kept — doc=%s",
+                    output_language, _fig["errors"], doc.get("id"),
+                )
+    except Exception:  # noqa: BLE001 — a formatter must never break a narration
+        logger.exception("[pipeline] narration figure format failed (non-fatal)")
     return narrated
 
 

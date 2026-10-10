@@ -37,6 +37,7 @@ import {
 } from "./useChatStore";
 import type { ChatAttachment } from "./types";
 import type { RatesPayload } from "@/lib/rates";
+import { anchorsOfSnapshot, displayModelText, languageHints, leftByReason } from "@/lib/readerFigures";
 
 type ChatLlmRequest = Parameters<typeof cfoApi.chatLlm>[0];
 
@@ -127,9 +128,19 @@ export function startChatTurn(ctx: ChatTurnContext): void {
   //    A REFUSED turn (sign in again / the cap / "could not check your plan")
   //    is the app's own notice, not something the assistant said: it is left
   //    out, as a failed turn always was (those carry no content).
-  const payloadMessages = (conv?.messages ?? [])
-    .filter((m) => !m.pending && m.content && !m.interrupted && !m.refused)
-    .map((m) => ({ role: m.role, content: m.content }));
+  const usable = (conv?.messages ?? [])
+    .filter((m) => !m.pending && m.content && !m.interrupted && !m.refused);
+  //    An earlier ANSWER rides as the reader was shown it: its figures in the
+  //    format of the language it is written in (lib/readerFigures — notation
+  //    only, never a value). A reply stored before 2026-10-04, or written
+  //    under an older function's prompt, would otherwise go back to the model
+  //    as "~EUR 12.3M (… RON 64,567,890 …)" and teach it that shape again.
+  //    The reader's own turns are never touched.
+  const hints = languageHints(usable.map((m) => m.content));
+  const payloadMessages = usable.map((m, i) => ({
+    role: m.role,
+    content: m.role === "assistant" ? displayModelText(m.content, { fallback: hints[i] }).text : m.content,
+  }));
 
   // 3. Register the in-flight turn. `beginChatReply` keeps the nav rail's
   //    "Ask CFO AI" item showing a thinking spinner anywhere in the app;
@@ -186,10 +197,27 @@ export function startChatTurn(ctx: ChatTurnContext): void {
         });
         return;
       }
+      // THE READER'S FORMAT (owner order 2026-10-04). The reply is stored —
+      // and so shown, written to history and sent back as a turn — with every
+      // figure PROVEN to be in the other language's notation rewritten into
+      // the notation of the language the reply is written in: its own prose,
+      // else the question's, else the nearest earlier turn's. Never the UI
+      // language. The snapshot's figures are evidence that a bare "1.16" IS
+      // a figure; they never choose a value. A failure, "(no response)", a
+      // refusal and an interrupted turn take their own paths, untouched.
+      const shown = displayModelText(answer, {
+        context: [ctx.text, ...usable.map((m) => m.content).reverse()],
+        anchors: anchorsOfSnapshot(ctx.workspaceSnapshot),
+      });
+      if (shown.rewritten || shown.left.length) {
+        // Counts by reason only — never a token, never a figure.
+        // eslint-disable-next-line no-console
+        console.debug("[figures] chat reply", { lang: shown.lang, rewritten: shown.rewritten, left: leftByReason(shown.left) });
+      }
       chatCompleteAssistantTurn(ctx.orgId, {
         conversationId,
         assistantId,
-        content: answer,
+        content: shown.text,
         groundedPeriod: ctx.groundedLabel,
       });
       // A2 auto-recover — a successful turn releases the degraded lock.

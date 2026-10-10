@@ -18,13 +18,26 @@
 // as plain text inside a <p>. Figures inside an answer stay PLAIN
 // TEXT on purpose: parsing free-text numbers into <Amount> would fake
 // provenance the payload doesn't carry.
+//
+// THE READER'S FORMAT (owner order 2026-10-04). An assistant answer is
+// shown with its figures in the format of the language it is WRITTEN in
+// ("~12,3 mil. EUR (convertit din 64.567.890 RON …)" in a Romanian
+// sentence), through lib/readerFigures: notation only — separators, the
+// magnitude word, the ISO code after the figure — never a value, and a
+// token with two readings is left as the model wrote it. A new reply is
+// already stored that way (chatTurns.ts); doing it again HERE is what
+// repairs a reply stored before the release, one written under an older
+// function's prompt, and a thread handed over from the command bar. The
+// reader's own turns, a refusal (the app's notice), a failed and an
+// interrupted turn are never touched.
 
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RotateCcw } from "lucide-react";
 import { Panel } from "@/components/instrument/Panel";
 import { AI_FAILURE_REASON_KEY } from "@/lib/aiDegraded";
+import { displayModelText, type FigureLang } from "@/lib/readerFigures";
 import "./chatDegradedI18n";
 import type { ChatMessage } from "./types";
 
@@ -41,9 +54,13 @@ interface Props {
    *  failed turn through the normal send pipeline. Older failed turns
    *  render the panel without the button. */
   onRetry?: () => void;
+  /** The language of the nearest earlier turn whose language can be read
+   *  (the list computes it) — used only when the answer's own prose does not
+   *  say which language it is written in. Never the UI language. */
+  languageHint?: FigureLang | null;
 }
 
-export function CFOMessageBubble({ message, animate = false, onType, onRetry }: Props) {
+export function CFOMessageBubble({ message, animate = false, onType, onRetry, languageHint = null }: Props) {
   const isUser = message.role === "user";
   if (isUser) return <UserBubble message={message} />;
   // Stop pressed mid-generation — a muted marker in the assistant slot
@@ -51,7 +68,7 @@ export function CFOMessageBubble({ message, animate = false, onType, onRetry }: 
   if (message.interrupted) return <InterruptedMarker />;
   // A2 degraded state — the calm panel replaces the answer body.
   if (message.failed) return <FailedTurnPanel kind={message.failed} onRetry={onRetry} />;
-  return <AssistantBubble message={message} animate={animate} onType={onType} />;
+  return <AssistantBubble message={message} animate={animate} onType={onType} languageHint={languageHint} />;
 }
 
 // ─── Failed turn (A2) ────────────────────────────────────────────
@@ -172,12 +189,19 @@ function UserBubble({ message }: Props) {
 }
 
 // ─── Assistant bubble ────────────────────────────────────────────
-function AssistantBubble({ message, animate = false, onType }: Props) {
+function AssistantBubble({ message, animate = false, onType, languageHint = null }: Props) {
   // Freeze the animate decision at mount. The list flips `animate` back to
   // false on the very next render (once it's marked the id as seen); without
   // this latch that flip would snap the reveal to full text instantly.
   const animateAtMount = useRef(animate);
-  const { shown, done } = useTypewriter(message.content, animateAtMount.current, onType);
+  // What the reader is shown — computed BEFORE the typewriter, so nothing
+  // flickers from one notation to the other while the answer types out. A
+  // refusal is the app's own sentence in the UI language: not a model's text.
+  const content = useMemo(
+    () => (message.refused ? message.content : displayModelText(message.content, { fallback: languageHint }).text),
+    [message.content, message.refused, languageHint],
+  );
+  const { shown, done } = useTypewriter(content, animateAtMount.current, onType);
   const typing = !done;
 
   return (

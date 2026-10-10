@@ -814,7 +814,9 @@ describe("C4 — one reservation, one bounded request", () => {
     expect(system).toContain("Company context: Invented SRL.");
     expect(system).toContain("Reference FX rate: 1 RON = 0.2011 EUR (source: BNR, 2026-10-02).");
     expect(system).toContain("Ticker / company: AAPL  ·  Apple Inc.");
-    expect(system).toContain("Revenue          USD 1,000");
+    // The ISO code AFTER the figure (owner order 2026-10-04: the product's
+    // standard, in every prompt the function builds) — it was "USD 1,000".
+    expect(system).toContain("Revenue          1,000 USD");
   });
 
   it("readModelResponse joins the text blocks and reads the four usage counters; a body it cannot read is an empty answer, not a throw", () => {
