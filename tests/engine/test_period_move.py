@@ -603,6 +603,61 @@ def test_a_move_that_leaves_siblings_wipes_the_stale_analysis_and_requeues_a_reb
     assert _period_move.find_orphaned_snapshots(store, org_id=ORG) == []
 
 
+def test_the_move_leaves_the_period_the_engine_says_is_the_documents_never_the_pinned_one():
+    """`documents.period_id` is browser-written; `financial_periods.
+    source_document_id` is the engine's. Read by the pin, a document that
+    owned 2017-12 and was pinned to another document's 2025-12 moved "from
+    2025-12" (nothing of it touched, correctly), kept its 2017-12 and was
+    then re-filed under a third month — two periods for one document
+    (re-verification 2026-10-10, measured end to end in gate
+    rerun-data-loss O18). The period the document leaves is the one the
+    engine wrote; the pinned one, another document's, is never touched."""
+    store = production_store()
+    store.update("documents", {"period_id": PERIOD_2025}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+
+    def the_pinned_period() -> str:
+        # The pinned period's row, everything under it, and ITS document —
+        # not the mover's own row, which the move detaches.
+        return json.dumps(
+            {t: [r for r in store.rows[t]
+                 if (r.get("period_id") == PERIOD_2025 or r.get("id") == PERIOD_2025)
+                 and r.get("id") != DOC_CARNIPROD]
+             for t in _TABLES}, sort_keys=True, default=str)
+
+    scandia_before = the_pinned_period()
+
+    record = _period_move.move_document_to_period(
+        store, document=doc_of(store, DOC_CARNIPROD), target_period_end="2024-06", now="2026-10-10T00:00:00+00:00")
+
+    assert record["moved"] is True
+    assert (record["from"]["period_id"], record["from"]["period_end"], record["from"]["action"]) == \
+        (PERIOD_2017, "2017-12-31", "deleted"), record["from"]
+    assert [p["id"] for p in store.rows["financial_periods"]] == [PERIOD_2025]
+    assert the_pinned_period() == scandia_before, "the pinned period was touched"
+    moved = doc_of(store, DOC_CARNIPROD)
+    assert moved["period_id"] is None and moved["period_end_hint"] == "2024-06-30"
+    assert _period_move.find_orphaned_snapshots(store, org_id=ORG) == []
+
+
+def test_a_move_of_a_document_whose_pin_names_nothing_of_the_company_is_refused():
+    """A document that is the source of no period, pinned to an id that
+    names nothing (under production's foreign key: a period of another
+    company — the two are ONE answer, `period_missing`), is not re-filed:
+    nothing is written, nothing re-run. A document with NO pin is still
+    moved (its month is given to it here: `test_plan_handles_a_document_
+    with_no_period_at_all`)."""
+    store = production_store()
+    store.rows["documents"].append(
+        {"id": "doc-loose", "org_id": ORG, "period_id": "no-such-period", "original_filename": "loose.xlsx",
+         "status": "failed", "scope": "financial", "deleted_at": None, "created_at": "2026-08-03T00:00:00+00:00"})
+    before = json.dumps(store.rows, sort_keys=True, default=str)
+    with pytest.raises(_period_move.MoveRefused) as ei:
+        _period_move.move_document_to_period(
+            store, document=doc_of(store, "doc-loose"), target_period_end="2025-06", now="2026-10-10T00:00:00+00:00")
+    assert (ei.value.code, ei.value.message) == ("period_missing", "The file's period no longer exists.")
+    assert json.dumps(store.rows, sort_keys=True, default=str) == before, "a refused move wrote"
+
+
 def test_a_no_op_move_changes_nothing_at_all():
     store = production_store()
     before = json.dumps(store.rows, sort_keys=True, default=str)

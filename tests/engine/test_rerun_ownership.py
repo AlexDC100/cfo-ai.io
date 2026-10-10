@@ -66,6 +66,22 @@ THE LAW.
       two periods for one document).
   O15 "Make source" never wipes another analysed document's analysis: 400
       with the committed body, nothing written, no re-run started.
+  THE RE-VERIFICATION OF 2026-10-10 (round 2), each measured first:
+  O2  (second law) the company filter of the pinned-period reads, by its
+      EFFECT: a pin to another company's period is refused whatever that
+      period's envelope says, for a document that is the source of nothing.
+  O14 (restated) a source-less container that carries the document's OWN
+      provenance stamp is no more its own than a stamp-less one: the
+      engine-written pointer elsewhere decides.
+  O15 (restated) the month's row naming nobody while its envelope's stamp
+      names the analysed file is still that file's analysis — refused.
+  O16 "Clear period" never soft-deletes another company's document whose
+      browser-written pin names the cleared period (pre-existing, tenancy).
+  O17 `make-active` and `move-period` answer ONE code and ONE sentence for a
+      pin to another company's period and a pin that names nothing.
+  O18 A move leaves the period the ENGINE says is the document's — never
+      the pinned one — so a forged same-company pin never leaves one
+      document with two periods after the correction's own re-run.
 
 STAGE 2 OF 3 (design of 2026-10-04). Stage 1 put the ownership rule on
 production's reset; stage 2 REPLACED the reset: the re-run is staged beside
@@ -105,7 +121,13 @@ WHAT THESE RED ON, with the defect repaired (TC-11):
   · a deleted document promoted or moved; a move deleting a period whose
     analysis is another document's, or deleting by id alone;
   · the race-loser adopting another document's row;
-  · a new `delete("financial_periods"` site nobody classified.
+  · a new `delete("financial_periods"` site nobody classified;
+  · (round 2) the company filter or the re-check gone from a pinned-period
+    read; a stamped container called the document's own while another
+    period names the document; make-active reading the pointer alone; a
+    period clear writing another company's document; a correction's
+    refusal telling a foreign pin from a missing one; a move reading the
+    pin where the engine's pointer names another period.
 
 CANNOT SEE.
   · Postgres itself: the foreign keys (modelled by hand here), row security,
@@ -409,6 +431,50 @@ def test_the_refusal_is_one_answer_whatever_the_pin_names(app, gw, monkeypatch):
         assert leaked not in text, "the refusal names %r: %s" % (leaked, text)
     # The document's own month is still there, whole: nothing ran in place.
     assert [p["id"] for p in gw.db.rows("financial_periods") if p["org_id"] == w["org"]] == [w["month"]]
+
+
+#: What ANOTHER COMPANY's period the browser pins the document to carries.
+#: The period's `source_document_id` is NULL in every cell.
+_FOREIGN_PIN = {
+    "a_row_that_names_nobody": lambda doc1: {},
+    "a_row_whose_analysis_names_this_document":
+        lambda doc1: {"assembled_canonical_v1": {"provenance": {"source_document_id": doc1}}},
+}  # type: Dict[str, Any]
+
+
+@pytest.mark.parametrize("cell", sorted(_FOREIGN_PIN))
+def test_a_pin_to_another_companys_period_is_refused_whatever_that_period_says(app, gw, monkeypatch, cell):
+    """THE COMPANY FILTER OF THE PINNED-PERIOD READS, PINNED BY ITS EFFECT
+    (TC-11; re-verification 2026-10-10, plant P-TEN-1). With the filter and
+    the row's re-check removed from both reads, every law of this file stayed
+    green but two of O8's cells — RED for the wrong reason, their fault
+    injection keyed on the filter's shape — while the route answered 202 and
+    staged the re-run beside ANOTHER COMPANY's period (the mint's own
+    company-filtered read refused it later, with a false sentence). Here the
+    document is the source of NO period of its own — its month is another
+    document's — so nothing but that filter stands between the pin and the
+    foreign row, whether the row names nobody or its envelope's provenance
+    stamp names this very document: 409, the one body, nothing started,
+    nothing staged, nothing of either company written."""
+    w = _own_month(app, gw, monkeypatch, [])
+    (period,) = gw.db.rows("financial_periods")
+    period["source_document_id"] = OTHER_DOC                    # the month is another document's now
+    gw.db.add("financial_periods", dict({"id": FOREIGN_PID, "org_id": V.WU.ORG_OUTSIDE, "currency": "RON",
+                                         "period_start": "2025-12-31", "period_end": "2025-12-31",
+                                         "source_document_id": None}, **_FOREIGN_PIN[cell](w["doc1"])))
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = FOREIGN_PID                               # what a browser can write
+    state_before, enqueued_before = gw.state(), list(gw.enqueued)
+    spy = W._Spy(gw.db, monkeypatch)
+
+    r = _retry(app, w["org"], w["doc1"])
+
+    assert r.status_code == 409 and r.json() == REFUSED_NOT_OWN, (cell, r.status_code, r.text[:300])
+    assert spy.writes == [] and gw.state() == state_before, spy.writes
+    _nothing_was_started(gw, w["doc1"], enqueued_before)
+    for leaked in (FOREIGN_PID, w["month"], w["doc1"], V.WU.ORG_OUTSIDE, "message"):
+        assert leaked not in r.text, "the refusal names %r: %s" % (leaked, r.text)
+    assert V._rows_under(gw, FOREIGN_PID) == dict((t, []) for t in V._PERIOD_ROWS), "the foreign row was written into"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -778,13 +844,23 @@ _UNREADABLE = {
 }  # type: Dict[str, Tuple[str, int]]
 
 
+#: The columns the ownership look reads of a period — stated here so the
+#: fault injection keys on the READ's shape (its table, its id filter, its
+#: columns) and never on whether the company is in its filter: keyed on
+#: `org_id`, two cells of O8 went RED when the filter was planted out, for the
+#: wrong reason, while no law measured the admission (re-verification
+#: 2026-10-10, plant P-TEN-1; the law that measures it is O2's second).
+OWNERSHIP_COLUMNS = "id,org_id,period_end,source_document_id"
+
+
 def _is_an_ownership_read(table: str, kwargs: Dict[str, Any]) -> bool:
     filters = kwargs.get("filters") or {}
     if table == "documents":
         # (The pin, and what tells an analysed trial balance that holds no
         # period from a document that was never analysed — O13.)
         return kwargs.get("columns") == "id,org_id,period_id,status,scope,detected_type"
-    return table == "financial_periods" and str(filters.get("id", "")).startswith("eq.") and "org_id" in filters
+    return (table == "financial_periods" and str(filters.get("id", "")).startswith("eq.")
+            and kwargs.get("columns") == OWNERSHIP_COLUMNS)
 
 
 @pytest.mark.parametrize("cell", sorted(_UNREADABLE))
@@ -1408,8 +1484,20 @@ def test_an_analysed_document_whose_stored_kind_is_not_a_summarys_reads_as_an_an
 # ──────────────────────────────────────────────────────────────────────
 
 
+#: What the source-less container the browser pins the document to carries
+#: in its envelope: nothing — or the document's OWN provenance stamp, which
+#: is what a killed upload takeover leaves (`source_document_id` nulled on
+#: the staged row, the document pinned to it) and what a Workspace merge's
+#: re-pin can make.
+_CONTAINER = {
+    "stamp_less": lambda doc1: None,
+    "stamped_with_the_documents_own_provenance": lambda doc1: {"provenance": {"source_document_id": doc1}},
+}  # type: Dict[str, Any]
+
+
+@pytest.mark.parametrize("container", sorted(_CONTAINER))
 def test_a_pin_to_an_empty_container_of_the_month_never_leaves_two_periods_for_one_document(
-        app, gw, monkeypatch):
+        app, gw, monkeypatch, container):
     """Measured on the stage-3 tip (review 2026-10-05): the document is the
     source of its December; an empty, source-less container for December
     exists (legacy placeholders do); the browser pins the document to it.
@@ -1418,11 +1506,20 @@ def test_a_pin_to_an_empty_container_of_the_month_never_leaves_two_periods_for_o
     real period stayed behind with the previous analysis: two periods, one
     document. (On 7ca386ec the reset deleted the container and the run went
     in place.) The engine-written pointer is the truth: a pin that
-    contradicts it proves nothing — refused, nothing written."""
+    contradicts it proves nothing — refused, nothing written.
+
+    THE SAME WITH THE DOCUMENT'S OWN STAMP ON THE CONTAINER (re-verification
+    2026-10-10, measured on the review's tip: 202, and after the run the
+    container held the re-run's 287 line items, 70 metrics, briefing and
+    recommendation while the real December still named the document with
+    the OLD analysis — the stamped branch returned before the look that
+    O14 added for the stamp-less one). A stamp says what the row was built
+    from; it does not make a second period the document's."""
     w = _own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B)])
     gw.db.add("financial_periods", {"id": CONTAINER_PID, "org_id": w["org"], "currency": "RON",
                                     "period_start": "2025-12-31", "period_end": "2025-12-31",
-                                    "source_document_id": None})
+                                    "source_document_id": None,
+                                    "assembled_canonical_v1": _CONTAINER[container](w["doc1"])})
     (d1,) = gw.docs(id=w["doc1"])
     d1["period_id"] = CONTAINER_PID                 # what a browser can write
     rows_before = V._rows_under(gw, w["month"])
@@ -1484,7 +1581,8 @@ def test_the_fixture_the_workspaces_law_reads_is_the_make_active_answer_stated_h
     assert json.loads(MAKE_ACTIVE_REFUSED_FIXTURE.read_text(encoding="utf-8")) == MAKE_ACTIVE_REFUSED
 
 
-@pytest.mark.parametrize("owner", ["the_months_own_file_is_live", "the_months_own_file_is_in_recently_deleted"])
+@pytest.mark.parametrize("owner", ["the_months_own_file_is_live", "the_months_own_file_is_in_recently_deleted",
+                                   "the_month_names_nobody_but_its_analysis_names_the_months_own_file"])
 def test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month(
         app, gw, monkeypatch, owner):
     """ITEM 1 THROUGH THE OTHER DOOR (review 2026-10-05, measured end to
@@ -1501,13 +1599,22 @@ def test_make_source_on_an_attachment_never_wipes_another_analysed_documents_mon
     Refused before the first write: 400 with the committed body, the month
     served exactly as it was, no re-run started. The month's own file may be
     live, or in "Recently deleted" (restorable — its analysis is kept, as a
-    move keeps it)."""
+    move keeps it) — or the month's row may name NOBODY while its envelope's
+    provenance stamp names the analysed file (what a killed upload takeover
+    leaves: `source_document_id` nulled on the row before the document is
+    re-pinned). The stamp is read where the pointer is silent; without that
+    fallback the promotion went through (re-verification 2026-10-10, the
+    evasion that survived the review's selection)."""
     w = _superseded_then_restored(app, gw, monkeypatch, [RuntimeError(W.PROVIDER_ERROR_TEXT)])
     if owner == "the_months_own_file_is_in_recently_deleted":
         r = V._http(app).delete("/api/documents/%s" % w["doc2"], headers=V._headers(V.USER, w["org"]))
         assert r.status_code in (200, 204), r.text[:300]
         (d2,) = gw.docs(id=w["doc2"])
         assert d2["deleted_at"] is not None and d2["status"] == "analyzed", d2
+    elif owner == "the_month_names_nobody_but_its_analysis_names_the_months_own_file":
+        (period,) = gw.db.rows("financial_periods")
+        assert period["assembled_canonical_v1"]["provenance"]["source_document_id"] == w["doc2"]
+        period["source_document_id"] = None
     rows_before = V._rows_under(gw, w["month"])
     assert len(rows_before["statement_line_items"]) > 100 and rows_before["briefings"], "the month is not whole"
     (period_before,) = copy.deepcopy(gw.db.rows("financial_periods"))
@@ -1560,3 +1667,158 @@ def test_make_source_still_promotes_where_no_analysed_documents_analysis_would_b
     else:
         assert r.json()["changed"] is True and requeued == [w["doc1"]], (r.json(), requeued)
         assert period["source_document_id"] == w["doc1"], period
+
+
+# ──────────────────────────────────────────────────────────────────────
+# O16 — "Clear period" never soft-deletes another company's document
+# ──────────────────────────────────────────────────────────────────────
+
+FOREIGN_DOC = "f0e16000-0000-4000-8000-00000000d0c1"    # a document of ANOTHER company
+
+
+def test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it(app, gw, monkeypatch):
+    """PRE-EXISTING, untouched by the three stages, found by the
+    re-verification (2026-10-10, measured on the real app): a document of
+    ANOTHER company whose browser-written pin named this period — the pin's
+    foreign key asks only that the period exist — was soft-deleted by THIS
+    company's "Clear period" (`DELETE /api/period/{id}` read the attached
+    documents by the pin alone and updated each by id alone) and counted in
+    the answer; recoverable for thirty days, then purged. Under the service
+    role the filter IS the access control: the attached documents are read
+    under the company, each row re-checked, each update names the company.
+    The foreign row is untouched — production's foreign key unpins it when
+    the period goes; that is not this route's to do."""
+    w = _own_month(app, gw, monkeypatch, [])
+    gw.db.insert("documents", dict(w["doc"], id=FOREIGN_DOC, org_id=V.WU.ORG_OUTSIDE, period_id=w["month"],
+                                   content_hash="%064x" % 0xf0e1, deleted_at=None))
+    (foreign_before,) = copy.deepcopy(gw.docs(id=FOREIGN_DOC))
+    spy = W._Spy(gw.db, monkeypatch)
+
+    r = V._http(app).delete("/api/period/%s" % w["month"], headers=V._headers(V.USER, w["org"]))
+
+    assert r.status_code == 200, (r.status_code, r.text[:300])
+    assert r.json()["documents_soft_deleted"] == 1, r.json()
+    (d1,) = gw.docs(id=w["doc1"])
+    assert d1["deleted_at"] is not None and d1["period_id"] is None, d1       # this company's own: cleared
+    (foreign,) = gw.docs(id=FOREIGN_DOC)
+    assert foreign["deleted_at"] is None and foreign["org_id"] == V.WU.ORG_OUTSIDE, foreign
+    assert dict(foreign, period_id=foreign_before["period_id"]) == foreign_before, (
+        "the other company's row changed beyond what its database's foreign key does: %r" % (foreign,))
+    on_documents = [x for x in spy.writes if x["table"] == "documents"]
+    assert on_documents and all(x["filters"].get("org_id") == "eq.%s" % w["org"] for x in on_documents), (
+        "a write on documents did not name the company: %r" % on_documents)
+    assert [x for x in on_documents if x["filters"].get("id") == "eq.%s" % FOREIGN_DOC] == [], (
+        "the route wrote another company's document: %r" % on_documents)
+    assert [p for p in gw.db.rows("financial_periods") if p["org_id"] == w["org"]] == []
+
+
+# ──────────────────────────────────────────────────────────────────────
+# O17 — a correction answers ONE code for a foreign pin and a missing pin
+# ──────────────────────────────────────────────────────────────────────
+
+#: The one answer, stated: the code and the sentence of "the file's period
+#: no longer exists" — for a pin that names ANOTHER company's period too.
+CORRECTION_REFUSED_MISSING = {"detail": {"code": "period_missing",
+                                         "message": "The file's period no longer exists."}}
+
+_CORRECTION_ROUTES = {
+    "make_active": lambda client, doc: client.post("/api/documents/%s/make-active" % doc,
+                                                   headers={"Authorization": "Bearer x"}),
+    "move_period": lambda client, doc: client.post("/api/documents/%s/move-period" % doc,
+                                                   json={"period_end": "2024-12"},
+                                                   headers={"Authorization": "Bearer x"}),
+}
+
+
+@pytest.mark.parametrize("correction", sorted(_CORRECTION_ROUTES))
+def test_a_correction_answers_one_code_whatever_the_pin_names(app, gw, monkeypatch, correction):
+    """PRE-EXISTING (re-verification 2026-10-10): `make-active` and
+    `move-period` answered a pin to another company's period with
+    `period_not_in_workspace` / "That period belongs to a different
+    workspace." and a pin that names nothing with `period_missing` — the
+    refusal told a caller holding a UUID that it is some other tenant's. One
+    code, one sentence, nothing written, no re-run started, for both; the
+    real reason stays in the operator log. The document is the source of no
+    period of its own here (its month is another document's), so the pin is
+    what the correction reads."""
+    w = _own_month(app, gw, monkeypatch, [])
+    (period,) = gw.db.rows("financial_periods")
+    period["source_document_id"] = OTHER_DOC                    # the month is another document's now
+    gw.db.add("financial_periods", {"id": FOREIGN_PID, "org_id": V.WU.ORG_OUTSIDE, "currency": "RON",
+                                    "period_start": "2025-12-31", "period_end": "2025-12-31",
+                                    "source_document_id": None})
+    client, requeued = _make_active_route(gw)
+    answers = {}  # type: Dict[str, Tuple[int, str]]
+    for what, pin in (("another_companys_period", FOREIGN_PID), ("an_id_that_names_nothing", NOTHING_PID)):
+        (d1,) = gw.docs(id=w["doc1"])
+        d1["period_id"] = pin                                   # what a browser can write
+        state_before = gw.state()
+        with pytest.MonkeyPatch.context() as mp:
+            spy = W._Spy(gw.db, mp)
+            r = _CORRECTION_ROUTES[correction](client, w["doc1"])
+        answers[what] = (r.status_code, r.text)
+        assert spy.writes == [], "%s / %s: a refused correction wrote: %r" % (correction, what, spy.writes)
+        assert gw.state() == state_before, "%s / %s: a refused correction changed the store" % (correction, what)
+        assert requeued == [], "%s / %s: a refused correction started a re-run: %r" % (correction, what, requeued)
+    assert answers["another_companys_period"] == answers["an_id_that_names_nothing"], answers
+    status, text = answers["another_companys_period"]
+    assert status == 400 and json.loads(text) == CORRECTION_REFUSED_MISSING, answers
+    for leaked in (FOREIGN_PID, NOTHING_PID, w["month"], w["doc1"], V.WU.ORG_OUTSIDE, "workspace"):
+        assert leaked not in text, "the refusal names %r: %s" % (leaked, text)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# O18 — a move reads the period the ENGINE wrote, never the pin
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_a_move_reads_the_period_the_engine_wrote_never_the_pin(app, gw, monkeypatch):
+    """PRE-EXISTING (re-verification 2026-10-10, measured): the document is
+    the source of its December; another document of the same company owns
+    November; the browser pins the document to that November. The move read
+    the PIN: it left "from November" — nothing of November touched, correctly
+    — kept December as the document's, detached the pin, and the correction's
+    re-run filed the document under the new month: TWO PERIODS FOR ONE
+    DOCUMENT, a state the design forbids. The period a document leaves is
+    the one the engine says is its own (`financial_periods.
+    source_document_id`); the pin is read only for a document that is the
+    source of nothing. Afterwards: the other document's November untouched,
+    the document's December gone with the move (the mover's own, as any move
+    of an owner), and after the correction's own re-run exactly ONE period
+    names the document — the new month."""
+    w = _own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B)])
+    gw.db.insert("documents", dict(w["doc"], id=OTHER_DOC, period_id=OTHER_PID,
+                                   content_hash="%064x" % 0xd0c2, deleted_at=None))
+    gw.db.add("financial_periods", {"id": OTHER_PID, "org_id": w["org"], "currency": "RON",
+                                    "period_start": "2025-11-30", "period_end": "2025-11-30",
+                                    "source_document_id": OTHER_DOC,
+                                    "assembled_canonical_v1": {"provenance": {"source_document_id": OTHER_DOC}}})
+    gw.db.add("briefings", {"period_id": OTHER_PID, "org_id": w["org"],
+                            "body": "Comentariul lunii noiembrie.", "language": "ro"})
+    november_before = V._rows_under(gw, OTHER_PID)
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["period_id"] = OTHER_PID                                 # what a browser (or a Workspace merge) writes
+    (row,) = copy.deepcopy(gw.docs(id=w["doc1"]))
+
+    record = PM.move_document_to_period(gw.db, document=row, target_period_end="2025-10", now=P._now_iso())
+
+    assert record["moved"] is True, record
+    assert (record["from"]["period_id"], record["from"]["period_end"], record["from"]["action"]) == \
+        (w["month"], "2025-12-31", "deleted"), record["from"]
+    assert V._rows_under(gw, OTHER_PID) == november_before, "the pin's period was touched"
+    (november,) = [p for p in gw.db.rows("financial_periods") if p["id"] == OTHER_PID]
+    assert november["source_document_id"] == OTHER_DOC
+    assert [p["id"] for p in gw.db.rows("financial_periods") if p["source_document_id"] == w["doc1"]] == [], (
+        "the document still owns a period after leaving it")
+    (d1,) = gw.docs(id=w["doc1"])
+    assert d1["period_id"] is None and d1["period_end_hint"] == "2025-10-31", d1
+
+    # …AND THE CORRECTION'S OWN RE-RUN (the route's `rerun`) files the
+    # document under ONE period: the month it was moved to.
+    P._correction_rerun(V.D.mint_jwt(V.USER), w["doc1"], P._now_iso())
+    done = V.run_analysis(gw, w["doc1"])
+    assert done["status"] == "analyzed", (done["status"], done.get("error"))
+    own = [(p["period_end"], p["id"]) for p in gw.db.rows("financial_periods") if p["source_document_id"] == w["doc1"]]
+    assert [m for m, _ in own] == ["2025-10-31"], own
+    assert done["period_id"] == own[0][1]
+    assert V._rows_under(gw, OTHER_PID) == november_before

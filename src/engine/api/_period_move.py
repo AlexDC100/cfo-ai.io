@@ -466,7 +466,25 @@ def move_document_to_period(
         raise MoveRefused("invalid_document", "Document is missing id or org.")
     _refuse_deleted(document)
 
-    from_period = _period_row(client, document.get("period_id"), org_id=org_id)
+    # THE PERIOD THE DOCUMENT LEAVES IS THE ONE THE ENGINE SAYS IS ITS OWN —
+    # `financial_periods.source_document_id`, the pointer `stage_persist`
+    # writes — and only a document that is the source of no period is read
+    # by its pin (`documents.period_id`, which a browser can write). Read by
+    # the pin alone, a document that owned December and was pinned to
+    # another document's November moved "from November" (nothing of it
+    # touched, correctly), kept its December, and its re-run filed it under
+    # the new month: two periods for one document (re-verification
+    # 2026-10-10, measured). The pin's period is never touched here when it
+    # is not the document's.
+    from_period = _own_period_by_pointer(client, document_id, org_id)
+    if from_period is None:
+        from_period = _period_row(client, document.get("period_id"), org_id=org_id)
+        if from_period is None and document.get("period_id"):
+            # A pin that names NOTHING of this company — and the same answer
+            # as a pin that names another company's period (`_period_row`):
+            # one code, one sentence. (Under production's foreign key a pin
+            # always exists, so this is the foreign pin's answer in effect.)
+            raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
     siblings = _live_siblings(client, from_period, document_id)
     plan = plan_move(
         document=document,
@@ -579,7 +597,7 @@ def make_document_active(
         )
     period = _period_row(client, period_id, org_id=org_id)
     if period is None:
-        raise MoveRefused("period_missing", "The file's period no longer exists.")
+        raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
 
     if analysis_belongs_to(period, document_id):
         return {
@@ -639,6 +657,13 @@ def _refuse_deleted(document: Dict[str, Any]) -> None:
 #: (frontend/components/cfo/workspace/periodFilingStrings.json).
 MONTH_HAS_ANOTHER_ANALYSIS = "month_has_another_analysis"
 
+#: The pinned period cannot be acted on: it does not exist — or it is not
+#: this company's, which is answered with the SAME code and sentence (one
+#: answer, on purpose: `_period_row`). The Workspace prints its own
+#: sentence for the code.
+PERIOD_MISSING = "period_missing"
+PERIOD_MISSING_MESSAGE = "The file's period no longer exists."
+
 
 def _refuse_over_another_documents_analysis(
     client: Any, period: Dict[str, Any], document_id: str, org_id: str
@@ -691,6 +716,29 @@ def _refuse_over_another_documents_analysis(
         )
 
 
+def _own_period_by_pointer(client: Any, document_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+    """The period whose analysis IS this document's, by the pointer the
+    engine wrote — read under the company (under the service role the
+    filter is the access control) and re-checked; a re-run's STAGED row
+    (`_staged_rerun`, which names no source) is never one. The newest when
+    legacy rows left more than one; None when the document is the source of
+    nothing."""
+    caller = str(org_id or "").strip()
+    document_id = str(document_id or "").strip()
+    if not caller or not document_id:
+        return None
+    rows = client.select(
+        "financial_periods",
+        filters={"org_id": "eq.%s" % caller, "source_document_id": "eq.%s" % document_id},
+        order="updated_at.desc",
+    ) or []
+    own = [r for r in rows
+           if str(r.get("org_id") or "").strip() == caller
+           and str(r.get("source_document_id") or "") == document_id
+           and _staged_rerun.marker_of(r) is None]
+    return dict(own[0]) if own else None
+
+
 def _period_row(client: Any, period_id: Any, *, org_id: str) -> Optional[Dict[str, Any]]:
     """Fetch a period BY ID under the service role, refusing one that
     belongs to another tenant.
@@ -730,14 +778,18 @@ def _period_row(client: Any, period_id: Any, *, org_id: str) -> Optional[Dict[st
     owner = str(row.get("org_id") or "").strip()
     caller = str(org_id or "").strip()
     if not caller or owner != caller:
+        # ONE ANSWER for "that period is another company's" and "that period
+        # does not exist" (`PERIOD_MISSING`, the code and the sentence the
+        # callers raise for a pin that names nothing): the refusal must not
+        # tell a caller holding a UUID that it is some other tenant's. The
+        # real reason goes to the operator log alone (re-verification
+        # 2026-10-10; until then the code was `period_not_in_workspace`,
+        # "That period belongs to a different workspace.").
         logger.error(
             "[security] REFUSED cross-tenant period access: period=%r "
             "period_org=%r caller_org=%r", period_id, owner, caller,
         )
-        raise MoveRefused(
-            "period_not_in_workspace",
-            "That period belongs to a different workspace.",
-        )
+        raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
     return row
 
 

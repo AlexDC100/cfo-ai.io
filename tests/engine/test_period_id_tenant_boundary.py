@@ -86,12 +86,22 @@ MY_DOC_POINTING_AT_THEIRS = {
 
 # ── the attack ──────────────────────────────────────────────────────
 
+#: The ONE answer a correction gives a pin that names another company's
+#: period AND a pin that names nothing — stated here, never read from the
+#: module: the refusal must not tell a caller holding a UUID that it is some
+#: other tenant's (re-verification 2026-10-10; until then the foreign pin
+#: answered `period_not_in_workspace` / "That period belongs to a different
+#: workspace.", the missing one `period_missing`).
+ONE_ANSWER = ("period_missing", "The file's period no longer exists.")
+
+
 def test_make_active_refuses_a_period_in_another_workspace():
     client = _Client(VICTIM_PERIOD)
     with pytest.raises(MoveRefused) as e:
         make_document_active(client, document=MY_DOC_POINTING_AT_THEIRS,
                              now="2026-09-09T00:00:00Z")
-    assert e.value.code == "period_not_in_workspace"
+    assert (e.value.code, e.value.message) == ONE_ANSWER
+    assert "workspace" not in e.value.message.lower()
     # The refusal must happen BEFORE anything is written.
     assert client.deletes == [], (
         "refused, but derived tables were already deleted: %s" % (client.deletes,)
@@ -129,6 +139,32 @@ def test_an_absent_caller_org_refuses_rather_than_waving_through(org):
 
 def test_a_missing_period_is_still_reported_as_missing_not_as_foreign():
     assert _period_row(_Client(None), "nope", org_id=MINE) is None
+
+
+_CORRECTIONS = {
+    "make_active": lambda client, doc: make_document_active(client, document=doc, now="2026-10-10T00:00:00Z"),
+    "move_period": lambda client, doc: _period_move.move_document_to_period(
+        client, document=doc, target_period_end="2024-12", now="2026-10-10T00:00:00Z"),
+}
+
+
+@pytest.mark.parametrize("correction", sorted(_CORRECTIONS))
+def test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction(correction):
+    """A pin to ANOTHER company's period and a pin that names NOTHING are
+    refused with the same code and the same sentence, at `make-active` and
+    at `move-period`, and nothing is written for either. (A move used to
+    treat a pin that names nothing as "no period" and re-file the document;
+    a foreign pin was refused with its own code — the two answers told them
+    apart.) `_period_row` still returns None for a missing row: the callers
+    turn it into the one answer."""
+    answers = {}
+    for what, period in (("foreign", VICTIM_PERIOD), ("missing", None)):
+        client = _Client(period)
+        with pytest.raises(MoveRefused) as e:
+            _CORRECTIONS[correction](client, MY_DOC_POINTING_AT_THEIRS)
+        answers[what] = (e.value.code, e.value.message)
+        assert client.deletes == [] and client.updates == [], (correction, what, client.deletes, client.updates)
+    assert answers["foreign"] == answers["missing"] == ONE_ANSWER, answers
 
 
 # ── the seam cannot be re-opened ────────────────────────────────────
@@ -319,3 +355,81 @@ def test_a_dataset_in_its_own_workspace_still_signs_its_own_workbook(monkeypatch
     resp, seen = _sales_world(monkeypatch, MINE)
     assert resp.status_code == 200, resp.text[:300]
     assert seen["signed"] == [{"path": "%s/workbook.xlsx" % MINE, "org_id": MINE}], seen["signed"]
+
+
+# ── Re-verification 2026-10-10: a third service-role write keyed by the ─────
+# browser-written pin, pre-existing and untouched by the re-run lane.
+#
+# `DELETE /api/period/{id}` ("Clear period") read the documents attached to
+# the period by `period_id` ALONE and soft-deleted each by id alone. A member
+# of ANOTHER company can pin their own row to this period (the pin's foreign
+# key asks only that the period exist): that row was soft-deleted by this
+# company's action, counted in the answer, and — thirty days later — purged.
+# Measured on the real app over the test double (gate rerun-data-loss, O16);
+# here the route is held to the FILTER and the RE-CHECK, with a store that
+# honours the filter and one that ignores it (the store must not be the only
+# wall).
+#
+# REDS ON, with the defect repaired (TC-11): the attached-documents read
+# losing `org_id`; a foreign row surviving the read and being written; an
+# update of a document that does not name the company; the answer counting
+# the foreign row.
+
+def _clear_period_world(monkeypatch, honour):
+    """The real router; `financial_periods` holds the period of MINE; two
+    documents are pinned to it — one of MINE, one of THEIRS."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from engine.api import pipeline as P
+
+    tables = {
+        "financial_periods": [{"id": PERIOD, "org_id": MINE, "period_end": "2025-12-31",
+                               "source_document_id": "doc-mine"}],
+        "documents": [{"id": "doc-mine", "org_id": MINE, "period_id": PERIOD, "deleted_at": None},
+                      {"id": "doc-planted", "org_id": THEIRS, "period_id": PERIOD, "deleted_at": None}],
+        "organizations": [{"id": MINE, "archived_at": None}],
+    }
+    seen = {"selects": [], "updates": [], "deletes": []}
+
+    class _Admin:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+        def select(self, table, *, filters=None, **_):
+            seen["selects"].append((table, dict(filters or {})))
+            return _DocStore(tables.get(table, []), honour=honour).select(table, filters=filters)
+
+        def update(self, table, patch, *, filters=None):
+            seen["updates"].append((table, dict(patch), dict(filters or {})))
+
+        def delete(self, table, *, filters=None):
+            seen["deletes"].append((table, dict(filters or {})))
+
+    monkeypatch.setattr(P._supabase, "admin", lambda *a, **k: _Admin())
+    monkeypatch.setattr(P._supabase, "per_user", lambda *a, **k: _Admin())
+    monkeypatch.setattr(P._org, "verified_user_id", lambda jwt: "user-mine")
+    monkeypatch.setattr(P._org, "require_org_member", lambda jwt, org_id: "user-mine")
+    app = FastAPI()
+    app.include_router(P.build_router())
+    resp = TestClient(app).delete("/api/period/%s" % PERIOD, headers={"Authorization": "Bearer t"})
+    return resp, seen
+
+
+@pytest.mark.parametrize("honour", [True, False])
+def test_clearing_a_period_soft_deletes_only_this_companys_documents(monkeypatch, honour):
+    resp, seen = _clear_period_world(monkeypatch, honour)
+    assert resp.status_code == 200, resp.text[:300]
+    assert resp.json()["documents_soft_deleted"] == 1, resp.json()
+    attached_reads = [f for t, f in seen["selects"] if t == "documents"]
+    assert attached_reads and all(f.get("org_id") == "eq.%s" % MINE and f.get("period_id") == "eq.%s" % PERIOD
+                                  for f in attached_reads), attached_reads
+    on_documents = [(patch, f) for t, patch, f in seen["updates"] if t == "documents"]
+    assert [f.get("id") for _p, f in on_documents] == ["eq.doc-mine"], (
+        "another company's document was written: %r" % on_documents)
+    assert all(f.get("org_id") == "eq.%s" % MINE for _p, f in on_documents), on_documents
+    assert all(patch.get("deleted_at") and patch.get("period_id") is None for patch, _f in on_documents)
+    assert ("financial_periods", {"id": "eq.%s" % PERIOD, "org_id": "eq.%s" % MINE}) in seen["deletes"]

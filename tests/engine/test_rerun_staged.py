@@ -2470,6 +2470,58 @@ def test_a_run_whose_own_interrupted_rerun_cannot_be_completed_stops_before_it_w
     assert V._rows_under(gw, w["month"])["calculated_metrics"] == rows_before["calculated_metrics"]
 
 
+def test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes(app, gw, monkeypatch, tmp_path):
+    """…and when the staged rows cannot even be LISTED while this run goes
+    (a store timeout), nothing is known: a committed row of this document's
+    earlier re-run may be waiting. The run used to go on — the pass's
+    `left_documents` being empty — write its month under its own committed
+    row, and be resumed OVER by it at the company's next pass: the OLDER
+    re-run's briefing on the in-place run's statements, unmarked
+    (re-verification 2026-10-10, measured on S25's world). The route refuses
+    the same state with 503; the run refuses it before any write — no
+    statement of this run names the month, the committed row is still there
+    to be completed, and the run's row says why. (The failure handler of a
+    staged re-run already keeps `interrupted` in that state — S28.)"""
+    import httpx
+    w = O._own_month(app, gw, monkeypatch, [W._reply(W.BODY_B, W.TITLES_B), W._reply(THIRD_BODY, THIRD_TITLES)])
+    (d1,) = gw.docs(id=w["doc1"])
+    d1["status"], d1["error"] = "failed", "RuntimeError: an earlier in-place run failed"
+    staged = _a_stranded_committed_row(app, gw, monkeypatch, tmp_path, w)
+    rows_before = V._rows_under(gw, w["month"])
+    r = V._http(app).post("/api/pipeline/run", headers=V._headers(V.USER, w["org"]),
+                          json={"document_id": w["doc1"], "output_language": "ro"})
+    assert r.status_code == 202, (r.status_code, r.text[:300])
+    unlisted = []  # type: List[str]
+    with pytest.MonkeyPatch.context() as mp:
+        def listing(admin_client: Any, org_id: str) -> Any:
+            unlisted.append(str(org_id))
+            raise httpx.ReadTimeout("The read operation timed out")
+
+        mp.setattr(P, "_staged_rerun_rows", listing)
+        spy = W._Spy(gw.db, mp)
+        done = V.run_analysis(gw, w["doc1"])
+
+    assert unlisted, "the scenario never happened"
+    assert done["status"] == "failed" and "could not be checked" in str(done["error"]) and \
+        "Try again" in str(done["error"]), (done["status"], done["error"])
+    assert [p["id"] for p in gw.db.rows("financial_periods") if SR.marker_of(p)] == [staged], \
+        "the committed row was dropped or resumed blind"
+    in_place = [(x["op"], x["table"]) for x in spy.writes
+                if x["op"] in ("insert", "upsert") and x["table"] in _RUN_TABLES]
+    assert in_place == [], "the run wrote under an interrupted takeover it could not see: %r" % in_place
+    assert V._rows_under(gw, w["month"]) == rows_before, "the month changed"
+
+    # CONTROL: the store readable again, the same Retry settles the committed
+    # row first and then writes — S25's first law; nothing is left to resume.
+    r = V._http(app).post("/api/pipeline/run", headers=V._headers(V.USER, w["org"]),
+                          json={"document_id": w["doc1"], "output_language": "ro"})
+    assert r.status_code == 202, (r.status_code, r.text[:300])
+    done = V.run_analysis(gw, w["doc1"])
+    assert (done["status"], done["error"], done["period_id"]) == ("analyzed", None, w["month"]), done
+    assert [p["id"] for p in gw.db.rows("financial_periods") if SR.marker_of(p)] == []
+    assert [b["body"] for b in gw.db.rows("briefings") if b["period_id"] == w["month"]] == [THIRD_BODY]
+
+
 # ──────────────────────────────────────────────────────────────────────
 # S26 — a re-filed re-run never re-dates its row onto a month that has
 #       become another row's

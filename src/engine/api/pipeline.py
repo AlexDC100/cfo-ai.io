@@ -3125,25 +3125,30 @@ def _own_periods_for_rerun(admin_client: Any, document_id: Any, org_id: Any) -> 
         # to it by a browser write would re-run "its own" staged row.
         raise RerunRefused(RERUN_REFUSED_NOT_OWN)
     built_from = _period_move.envelope_source_document_id(full[0])
-    if built_from:
-        if built_from != document_id:
-            raise RerunRefused(RERUN_REFUSED_NOT_OWN)
-        return [period]
-    others = admin_client.select(
-        "documents",
-        filters={"period_id": f"eq.{pin}", "org_id": f"eq.{org_id}", "id": f"neq.{document_id}"},
-        columns="id", limit=1,
-    ) or []
-    if others:
+    if built_from and built_from != document_id:
         raise RerunRefused(RERUN_REFUSED_NOT_OWN)
-    # …AND ONLY WHEN NO OTHER PERIOD ALREADY NAMES THIS DOCUMENT. A document
-    # that is the source of one period and pinned by the browser to an empty
-    # container (a stamp-less, source-less row of the same month) used to be
-    # accepted here: the re-run staged beside the container and took IT over,
-    # and the document's real period stayed behind with the previous
-    # analysis — two periods for one document (review 2026-10-05, measured).
-    # The engine-written pointer is the truth; a pin that contradicts it
-    # proves nothing.
+    if not built_from:
+        others = admin_client.select(
+            "documents",
+            filters={"period_id": f"eq.{pin}", "org_id": f"eq.{org_id}", "id": f"neq.{document_id}"},
+            columns="id", limit=1,
+        ) or []
+        if others:
+            raise RerunRefused(RERUN_REFUSED_NOT_OWN)
+    # …AND ONLY WHEN NO OTHER PERIOD ALREADY NAMES THIS DOCUMENT — STAMP OR
+    # NO STAMP. A document that is the source of one period and pinned by the
+    # browser to an empty container (a stamp-less, source-less row of the same
+    # month) used to be accepted here: the re-run staged beside the container
+    # and took IT over, and the document's real period stayed behind with the
+    # previous analysis — two periods for one document (review 2026-10-05,
+    # measured). The same through a container that CARRIES the document's own
+    # provenance stamp (re-verification 2026-10-10, measured: the stamped
+    # branch returned before this look) — a shape a killed upload takeover
+    # leaves behind (`source_document_id` nulled on the staged row, the
+    # document pinned to it, its envelope stamped with the document), and one
+    # a Workspace merge's re-pin can make. The engine-written pointer is the
+    # truth; a pin that contradicts it proves nothing, whatever the envelope
+    # says.
     elsewhere = admin_client.select(
         "financial_periods",
         filters={"org_id": f"eq.{org_id}", "source_document_id": f"eq.{document_id}"},
@@ -3974,6 +3979,21 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 "An earlier re-run of this file was interrupted while it was replacing "
                 "the analysis, and it could not be completed just now — so this run "
                 "stopped before it changed anything. Try again in a moment.")
+        if leftover.get("unreadable"):
+            # THE STAGED ROWS COULD NOT EVEN BE LISTED: nothing is known. A
+            # committed row of this document's earlier re-run may be waiting,
+            # and a month written now would be resumed OVER by it later — one
+            # run's briefing on another run's statements, unmarked
+            # (re-verification 2026-10-10, measured: the in-place run went
+            # on, `left_documents` being empty). The route refuses the same
+            # state with 503; the run refuses it here, before any write. Not
+            # the empty dict the pass hands back when it never ran at all —
+            # that is a double that could not answer, the run's own reads
+            # below will say so.
+            raise PlainRefusal(
+                "Whether an earlier re-run of this file is still replacing its analysis "
+                "could not be checked just now — so this run stopped before it changed "
+                "anything. Try again in a moment.")
 
         # 1. Lookup existing period for this (org, period_end, source_document_id).
         # Post-Bug-A: the DB enforces UNIQUE (org_id, period_end, source_document_id);
@@ -14169,17 +14189,30 @@ def build_router() -> APIRouter:
                 raise HTTPException(
                     409, "This period's workspace is archived; restore the workspace before "
                          "clearing a period in it.")
-            attached = ac.select(
-                "documents",
-                filters={"period_id": f"eq.{period_id}"},
-                columns="id",
-            )
+            # THE COMPANY IS IN THE FILTER, AND EVERY ROW IS RE-CHECKED.
+            # `documents.period_id` is browser-written and its foreign key
+            # asks only that the period exist: a member of ANOTHER company
+            # can pin their row to this period. Read by the pin alone, that
+            # row was soft-deleted here by this company's action and counted
+            # in the answer (re-verification 2026-10-10, measured on the real
+            # app). Under the service role the filter IS the access control;
+            # production's foreign key (ON DELETE SET NULL) unpins the
+            # foreign row when the period goes — it is not this route's to
+            # touch.
+            attached = [
+                d for d in (ac.select(
+                    "documents",
+                    filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}"},
+                    columns="id,org_id",
+                ) or [])
+                if str(d.get("org_id") or "") == str(org_id)
+            ]
             now = _now_iso()
             for d in attached:
                 ac.update(
                     "documents",
                     {"deleted_at": now, "period_id": None},
-                    filters={"id": f"eq.{d['id']}"},
+                    filters={"id": f"eq.{d['id']}", "org_id": f"eq.{org_id}"},
                 )
 
             # 3. Hard-delete period derivatives. Order matters where foreign
