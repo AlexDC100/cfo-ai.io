@@ -291,10 +291,15 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_service_role_tenant_filter.py",
               "tests/engine/test_cross_org_reads.py", "-q"],
              # + the period-move sibling and sales-rerun laws (tenancy
-             # hotfix 2026-10-02): measured 47, floor 41.
-             work_junit=True, floor=41, units="tests",
+             # hotfix 2026-10-02): measured 47, floor 41. + "Clear period"
+             # soft-deleting only this company's documents, and the ONE
+             # answer for a foreign and a missing pin at both corrections
+             # (rerun-data-loss round 2, 2026-10-10): measured 51, floor 45.
+             work_junit=True, floor=45, units="tests",
              canaries=("test_another_orgs_path_is_refused_for_every_operation",
                        "test_make_active_refuses_a_period_in_another_workspace",
+                       "test_clearing_a_period_soft_deletes_only_this_companys_documents",
+                       "test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction",
                        "test_every_unfiltered_service_role_call_is_declared",
                        "test_a_member_of_another_workspace_cannot_read_org_a1",
                        "test_another_workspaces_document_is_never_a_sibling_of_my_period",
@@ -590,14 +595,32 @@ def _engine_gates() -> List[Gate]:
         # statements. Measured 218 (57 + 121 + 25 + 15). Plant log (80
         # plants: 38 new — 34 engine, 4 frontend — 10 re-anchored, 32
         # replayed): gates.md "rerun-data-loss — the review of 2026-10-05".
+        #
+        # THE RE-VERIFICATION OF 2026-10-10 (round 2, three lenses): a pin to
+        # a source-less container CARRYING the document's own provenance
+        # stamp left two full periods for one document (the stamped branch
+        # returned before O14's look); an in-place run whose staged-row
+        # listing could not be read wrote its month and was resumed OVER;
+        # "Clear period" soft-deleted ANOTHER COMPANY's document pinned to
+        # the cleared period (pre-existing); make-active / move-period told a
+        # foreign pin from a missing one; a move read the pin where the
+        # engine's pointer named another period (two periods after the
+        # correction's re-run); the company filter of the pinned-period reads
+        # had no law by its effect (plant P-TEN-1 — two laws went red for the
+        # wrong reason). Measured 227 (65 + 122 + 25 + 15). Plant log:
+        # gates.md "rerun-data-loss — round 2 (2026-10-10)".
         Gate("rerun-data-loss",
              [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
               "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
               "tests/engine/test_rerun_ai_lane.py", "-q"],
-             work_junit=True, floor=218, units="tests",
+             work_junit=True, floor=227, units="tests",
              canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
                        "test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing",
                        "test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month",
+                       "test_a_pin_to_another_companys_period_is_refused_whatever_that_period_says",
+                       "test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it",
+                       "test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes",
+                       "test_a_move_reads_the_period_the_engine_wrote_never_the_pin",
                        "test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply",
                        "test_a_forged_committed_marker_never_reaches_another_companys_month",
                        "test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later",
@@ -644,6 +667,14 @@ def _engine_gates() -> List[Gate]:
         # (the body the engine gate holds the real handler to): our sentence
         # for the code in EN and RO, never the server's English; any other
         # refusal still shows the server's message. Measured 93 (86 + 7).
+        # ROUND 2 (2026-10-10): every refusal code of the two corrections
+        # has OUR sentence (EN + RO) in the Make-source toast and the two
+        # move toasts — `period_missing` being the engine's one answer for
+        # a missing and a foreign pin — and a code the screen does not know
+        # shows the title alone, never the server's English; the bell's
+        # failed notice and the failed banner's "View error" print a
+        # `rerun_failed:` marker as the kind's sentence, never the engine's
+        # remainder. Measured 123 (35 + 16 + 31 + 5 + 16 + 12 + 8).
         Gate("rerun-refusal-surfaces",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/rerunRefusals.test.ts",
@@ -651,11 +682,17 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/cfo/__tests__/docRerunNote.test.tsx",
               "frontend/lib/__tests__/orgPeriodsStagedRow.test.ts",
               "frontend/components/cfo/workspace/__tests__/makeSourceRefusal.test.tsx",
+              "frontend/components/cfo/__tests__/FailedUploadBanner.test.tsx",
+              "frontend/components/cfo/__tests__/notificationsRerunMarker.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=93,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=123,
              units="tests",
              canaries=("the codes are exactly the three the route answers with",
                        "ro: the real route's answer over another file's analysis",
+                       "ro: period_missing prints OUR sentence, never the server's",
+                       "a refusal with a code this screen does not know shows the title alone",
+                       "ro: kept — the sentence, never the remainder",
+                       "a done notice prints its file",
                        "ro: document_superseded prints the stated sentence",
                        "ro: the real route's answer for a superseded file",
                        "en: a failure with no known code shows the title alone",

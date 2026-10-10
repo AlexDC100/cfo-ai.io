@@ -374,8 +374,16 @@ def test_a_staged_row_is_never_a_documents_own_period(app, gw, monkeypatch):
     assert spy.writes == [] and gw.state() == state_before, spy.writes
     O._nothing_was_started(gw, w["doc1"], enqueued_before)
     # CONTROL: with the marker gone the row is a legacy source-less period
-    # whose analysis names this document — the re-run is accepted.
+    # whose analysis names this document — its own only while NO OTHER
+    # period names the document (O14, restated in round 2, 2026-10-10: until
+    # then this control pinned the acceptance of a stamped container beside
+    # the document's real month — two periods for one document). Refused
+    # while the real month still names the document; accepted once that
+    # month is another document's.
     stranded["assembled_canonical_v1"].pop(MARKER_KEY)
+    assert O._retry(app, w["org"], w["doc1"]).status_code == 409
+    (month,) = [p for p in gw.db.rows("financial_periods") if p["id"] == w["month"]]
+    month["source_document_id"] = O.OTHER_DOC
     assert O._retry(app, w["org"], w["doc1"]).status_code == 202
 
 

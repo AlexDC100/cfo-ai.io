@@ -21111,7 +21111,10 @@ refuses the next re-run (503). The quota sweep guard above.
 
 COST. A re-run: about six small reads more and one extra envelope write (the
 commit marker, ~200 KB). Any analysis: ONE light read (the company pass) and
-no write (law S19).
+no write (law S19) — SUPERSEDED by the review of 2026-10-05: TWO light reads
+(the start-of-run settle of the document's own leftover, and the company
+pass at its persist), still no write; S19 is
+`test_a_first_analysis_pays_two_light_reads_for_the_staged_rows_and_no_write`.
 
 | | |
 |---|---|
@@ -21553,9 +21556,9 @@ before its own re-run.
 
 | | |
 |---|---|
-| command | `npx vitest run --root . frontend/lib/__tests__/rerunRefusals.test.ts frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx frontend/components/cfo/__tests__/docRerunNote.test.tsx frontend/lib/__tests__/orgPeriodsStagedRow.test.ts --reporter=verbose` |
-| work count | `Tests N passed`, floor **86** (measured 86: 34 + 16 + 31 + 5; stage 2 measured 84: 34 + 16 + 29 + 5; stage 1 measured 35: 19 + 16) |
-| canary | "the codes are exactly the three the route answers with", "ro: document_superseded prints the stated sentence", "ro: the real route's answer for a superseded file", "en: a failure with no known code shows the title alone", "a refusal that also carries a message prints the code's sentence only", "the prefix and the two codes are the engine's own literals", "ro: an analysed file whose last re-run was interrupted", "drops the staged row and keeps the month and the empty container" |
+| command | `npx vitest run --root . frontend/lib/__tests__/rerunRefusals.test.ts frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx frontend/components/cfo/__tests__/docRerunNote.test.tsx frontend/lib/__tests__/orgPeriodsStagedRow.test.ts frontend/components/cfo/workspace/__tests__/makeSourceRefusal.test.tsx frontend/components/cfo/__tests__/FailedUploadBanner.test.tsx frontend/components/cfo/__tests__/notificationsRerunMarker.test.tsx --reporter=verbose` (seven files since round 2, 2026-10-10; the review of 2026-10-05 ran five, stage 1 four) |
+| work count | `Tests N passed`, floor **123** (measured 123: 35 + 16 + 31 + 5 + 16 + 12 + 8 — round 2; the review of 2026-10-05 measured 93: 34 + 16 + 31 + 5 + 7; stage 3 measured 86: 34 + 16 + 31 + 5; stage 2 measured 84: 34 + 16 + 29 + 5; stage 1 measured 35: 19 + 16) |
+| canary | "the codes are exactly the three the route answers with", "ro: document_superseded prints the stated sentence", "ro: the real route's answer for a superseded file", "en: a failure with no known code shows the title alone", "a refusal that also carries a message prints the code's sentence only", "the prefix and the two codes are the engine's own literals", "ro: an analysed file whose last re-run was interrupted", "drops the staged row and keeps the month and the empty container", "ro: the real route's answer over another file's analysis", "ro: period_missing prints OUR sentence, never the server's", "a refusal with a code this screen does not know shows the title alone", "ro: kept — the sentence, never the remainder", "a done notice prints its file" |
 
 **SCOPE.** The module over the real i18n bundles, with every sentence
 written out in the test in English and Romanian and both locale files held
@@ -21756,15 +21759,19 @@ the company's filter).
 trial balance with no period re-run at all; a run of a document that merely
 reads analysed taking over another document's month, or deleting alerts that
 sit on it; a failed first run, a sales document or a public-records summary
-refused or marked; a source-less period called the document's own while
-another period names the document; "Make source" writing anything over
+refused or marked; a source-less, STAMP-LESS period called the document's
+own while another period names the document (the stamped container was
+held only from round 2, 2026-10-10 — the re-verification found the stamped
+branch returning before this look); "Make source" writing anything over
 another analysed document's analysis — or refusing where none would be lost;
 a takeover that does not hold the company's lock; the applier reading the
 month or the document its marker names without the company; a committed row
 left waiting, by the company pass or by the watchdog; the watchdog
 completing nothing, or completing another company's; a run that does not
 settle its own document's leftover first, or writes under one it could not
-complete; a row re-dated onto a month that became another's; a staged run's
+complete — a leftover that COULD BE LISTED (a listing that could not be read
+let the run go on until round 2, 2026-10-10; `left_documents` was empty); a
+row re-dated onto a month that became another's; a staged run's
 alerts keyed to the month while the month's own still hold those keys, or
 left keyed to the staged row afterwards; one document's cleanup touching
 another's staged row; a re-run started although its leftovers could not be
