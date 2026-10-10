@@ -40,6 +40,7 @@ import {
   rerunFailedKey,
   rerunFailedKind,
   rerunFailedRemainder,
+  rerunFailedSentenceKey,
   rerunRefusalCode,
   rerunRefusalKey,
   type RerunFailedKind,
@@ -282,6 +283,18 @@ describe("F4 — a re-run that did not finish has its sentence, by kind, in both
   it("the remainder is what follows the prefix (for a code lookup, never for printing)", () => {
     expect(rerunFailedRemainder('rerun_failed: {"error": "non_ro_not_included"}')).toBe('{"error": "non_ro_not_included"}');
     expect(rerunFailedRemainder("rerun_failed: interrupted_replacing")).toBe("interrupted_replacing");
+  });
+
+  it("a surface that prints a row's error as stored asks for the sentence's key first (round 2)", () => {
+    // The bell's failed notice and the failed banner's "View error" print
+    // `documents.error` as stored; for a marker a staged re-run wrote they
+    // print the kind's sentence instead — never the remainder.
+    expect(rerunFailedSentenceKey("rerun_failed: interrupted_replacing")).toBe("panels.rerunInterrupted");
+    expect(rerunFailedSentenceKey("rerun_failed: rerun_month_taken")).toBe("panels.rerunMonthTaken");
+    expect(rerunFailedSentenceKey("rerun_failed: RuntimeError: compute failed")).toBe("panels.rerunFailedKept");
+    expect(rerunFailedSentenceKey("RuntimeError: compute failed")).toBeNull();
+    expect(rerunFailedSentenceKey("superseded_by:another-document")).toBeNull();
+    expect(rerunFailedSentenceKey(null)).toBeNull();
   });
 
   for (const kind of KINDS) {

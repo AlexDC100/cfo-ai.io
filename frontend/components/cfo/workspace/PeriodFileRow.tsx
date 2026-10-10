@@ -109,11 +109,10 @@ export function PeriodFileRow({
       }
     } catch (err) {
       // A refusal this screen has a sentence for is said in OUR words, in
-      // the reader's language — never the server's English.
+      // the reader's language — never the server's English; a failure with
+      // no code it knows shows the title alone.
       const ours = makeSourceRefusalKey(err instanceof FilingRefused ? err.code : null);
-      toast.error(t("pf.sourceFailed"), {
-        description: ours ? t(ours) : err instanceof Error ? err.message : undefined,
-      });
+      toast.error(t("pf.sourceFailed"), { description: ours ? t(ours) : undefined });
     } finally {
       setBusy(false);
     }

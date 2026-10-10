@@ -128,6 +128,16 @@ export function rerunFailedKey(kind: RerunFailedKind): string {
   }
 }
 
+/** The i18n key of the sentence for a stored `documents.error`, when a
+ *  staged re-run wrote it — else null. A surface that prints a row's error
+ *  AS STORED (the bell's failed notice, the failed banner's "View error")
+ *  asks this first, so the engine's remainder — a code, a RuntimeError's
+ *  text, a model id — is never on screen (re-verification 2026-10-10). */
+export function rerunFailedSentenceKey(error: string | null | undefined): string | null {
+  const kind = rerunFailedKind(error);
+  return kind ? rerunFailedKey(kind) : null;
+}
+
 /** The same sentences in English (see RERUN_REFUSAL_ENGLISH). */
 export const RERUN_FAILED_ENGLISH: Readonly<Record<string, string>> = {
   "panels.rerunInterrupted":

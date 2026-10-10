@@ -19,11 +19,13 @@
 // The expected strings are stated here, not read from the module or the
 // strings file.
 //
-// Fails on: the server's English shown for the known code; the bare code or
-// the key on screen; the sentence in the wrong language; our sentence shown
-// for a refusal that carries another code (the server's message is shown
-// then, as before); a second request, or one that does not name the file;
-// `onChanged` fired for a refusal (nothing changed).
+// Fails on: the server's English shown for a known code; the bare code or
+// the key on screen; the sentence in the wrong language; the server's
+// message shown for ANY refusal (round 2, 2026-10-10: the other four codes
+// of the corrections have their own sentences now, and a code this screen
+// does not know shows the title alone — never the server's English); a
+// second request, or one that does not name the file; `onChanged` fired for
+// a refusal (nothing changed).
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -68,6 +70,39 @@ const SENTENCE = {
   ro: "Luna are deja o analiză făcută din alt fișier, așa că acest fișier nu a devenit sursa ei și nu s-a schimbat nimic. Ca să folosești acest fișier pentru lună, încarcă-l din nou.",
 } as const;
 const LANGS = ["en", "ro"] as const;
+
+/** The other refusal codes of the two corrections (`_period_move.MoveRefused`
+ *  and the route's `analysis_in_progress`) — each with OUR sentence. The
+ *  server's English beside each is what a Romanian reader used to see.
+ *  `period_missing` is the engine's ONE answer for a pin that names nothing
+ *  and for a pin that names another company's period. */
+const OTHER_CODES = {
+  document_deleted: {
+    key: "pf.refusedDocumentDeleted",
+    server: "This file was deleted. Restore it first.",
+    en: "This file is in Recently deleted, so nothing was changed. Restore it first.",
+    ro: "Fișierul e în Șterse recent, așa că nu s-a schimbat nimic. Restaurează-l mai întâi.",
+  },
+  period_missing: {
+    key: "pf.refusedPeriodMissing",
+    server: "The file's period no longer exists.",
+    en: "The period this file was filed under no longer exists, so nothing was changed. Reload and check where the file is filed.",
+    ro: "Perioada în care era depus fișierul nu mai există, așa că nu s-a schimbat nimic. Reîncarcă și verifică unde e depus fișierul.",
+  },
+  not_in_a_period: {
+    key: "pf.refusedNotInAPeriod",
+    server: "This file is not attached to a period yet, so it cannot be its analysis source.",
+    en: "This file isn't filed under a period yet, so it can't be a period's source. Nothing was changed.",
+    ro: "Fișierul nu e încă depus într-o perioadă, așa că nu poate fi sursa unei perioade. Nu s-a schimbat nimic.",
+  },
+  analysis_in_progress: {
+    key: "pf.refusedAnalysisInProgress",
+    server: "This file is still being analysed. Try again when the analysis has finished.",
+    en: "This file is still being analysed, so nothing was changed. Try again when the analysis has finished.",
+    ro: "Fișierul e încă în analiză, așa că nu s-a schimbat nimic. Încearcă din nou când analiza s-a încheiat.",
+  },
+} as const;
+type OtherCode = keyof typeof OTHER_CODES;
 
 type Answer = { status: number; body: unknown };
 let answer: Answer = { status: 409, body: REFUSED_ANSWER };
@@ -129,7 +164,11 @@ describe("the fixture is the answer stated here", () => {
     expect(REFUSED_ANSWER.detail.code).toBe(CODE);
     expect(MONTH_HAS_ANOTHER_ANALYSIS).toBe(CODE);
     expect(makeSourceRefusalKey(CODE)).toBe("pf.sourceHasAnalysis");
-    expect(makeSourceRefusalKey("period_missing")).toBeNull();
+    for (const code of Object.keys(OTHER_CODES) as OtherCode[]) {
+      expect(makeSourceRefusalKey(code)).toBe(OTHER_CODES[code].key);
+    }
+    expect(makeSourceRefusalKey("period_not_in_workspace")).toBeNull();   // the engine no longer answers it
+    expect(makeSourceRefusalKey("invalid_document")).toBeNull();
     expect(makeSourceRefusalKey(null)).toBeNull();
   });
 });
@@ -179,14 +218,44 @@ describe("the row prints the title and OUR sentence for the refusal", () => {
     });
   }
 
-  it("a refusal with another code still shows the server's sentence, never ours", async () => {
+  for (const code of Object.keys(OTHER_CODES) as OtherCode[]) {
+    for (const lang of LANGS) {
+      it(`${lang}: ${code} prints OUR sentence, never the server's`, async () => {
+        answer = {
+          status: code === "analysis_in_progress" ? 409 : 400,
+          body: { detail: { code, message: OTHER_CODES[code].server } },
+        };
+        const { onChanged } = await makeSourceFromTheRow(lang);
+        expect(toast.error).toHaveBeenCalledTimes(1);
+        const [title, options] = toast.error.mock.calls[0] as [string, { description?: string }];
+        expect(title).toBe(TITLE[lang]);
+        expect(options.description).toBe(OTHER_CODES[code][lang]);
+        expect(options.description).not.toBe(OTHER_CODES[code].server);
+        expect(options.description).not.toContain(code);
+        expect(options.description).not.toContain("pf.");
+        expect(onChanged).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+    }
+  }
+
+  it("a refusal with a code this screen does not know shows the title alone — never the server's English", async () => {
     answer = {
       status: 400,
-      body: { detail: { code: "document_deleted", message: "This file was deleted. Restore it first." } },
+      body: { detail: { code: "invalid_document", message: "Document is missing id or org." } },
     };
+    await makeSourceFromTheRow("ro");
+    const [title, options] = toast.error.mock.calls[0] as [string, { description?: string }];
+    expect(title).toBe(TITLE.ro);
+    expect(options.description).toBeUndefined();
+  });
+
+  it("a failure with no code at all shows the title alone", async () => {
+    answer = { status: 500, body: { detail: "Internal Server Error" } };
     await makeSourceFromTheRow("en");
-    const [, options] = toast.error.mock.calls[0] as [string, { description?: string }];
-    expect(options.description).toBe("This file was deleted. Restore it first.");
+    const [title, options] = toast.error.mock.calls[0] as [string, { description?: string }];
+    expect(title).toBe(TITLE.en);
+    expect(options.description).toBeUndefined();
   });
 
   it("an accepted promotion is still a success", async () => {

@@ -223,12 +223,28 @@ export class FilingRefused extends Error {
  *  promoted file). The same literal as `_period_move.MONTH_HAS_ANOTHER_ANALYSIS`. */
 export const MONTH_HAS_ANOTHER_ANALYSIS = "month_has_another_analysis";
 
-/** The key of OUR sentence for a refused "Make source" — null for a code
- *  this screen has no sentence for (the server's message is shown then, as
- *  before). */
-export function makeSourceRefusalKey(code: string | null | undefined): string | null {
-  return code === MONTH_HAS_ANOTHER_ANALYSIS ? "pf.sourceHasAnalysis" : null;
+/** The refusal codes of the two corrections (`_period_move.MoveRefused`,
+ *  and the route's own `analysis_in_progress`) this screen has a sentence
+ *  for — code → i18n key. `period_missing` is ONE answer on purpose: the
+ *  engine gives it for a pin that names nothing AND for a pin that names
+ *  another company's period (re-verification 2026-10-10). */
+const FILING_REFUSAL_KEYS: Readonly<Record<string, string>> = {
+  [MONTH_HAS_ANOTHER_ANALYSIS]: "pf.sourceHasAnalysis",
+  document_deleted: "pf.refusedDocumentDeleted",
+  period_missing: "pf.refusedPeriodMissing",
+  not_in_a_period: "pf.refusedNotInAPeriod",
+  analysis_in_progress: "pf.refusedAnalysisInProgress",
+};
+
+/** The key of OUR sentence for a refused correction ("Make source", a
+ *  move) — null for a code this screen has no sentence for, or no code: the
+ *  toast then shows its title alone, never the server's English. */
+export function filingRefusalKey(code: string | null | undefined): string | null {
+  return code ? (FILING_REFUSAL_KEYS[code] ?? null) : null;
 }
+
+/** The same, under the name the "Make source" law reads. */
+export const makeSourceRefusalKey = filingRefusalKey;
 
 async function post<T>(path: string, orgId: string, body?: unknown): Promise<T> {
   const headers = await authHeaders(orgId);
