@@ -21999,3 +21999,152 @@ refusal.
 the handler to the fixture's body); the Docs panel — it has no "Make
 source"; a refusal code the engine adds later (its server sentence is shown,
 in English).
+
+### rerun-data-loss — round 2 (2026-10-10): the engine-written pointer decides at every entry
+
+THE RE-VERIFICATION (three lenses — ownership, gate, states — on the lane's
+tip `ed3d6e92`, nineteen findings; every blocking and high one and each
+medium one that is a guard of a few lines is closed here, each reproduced
+first as a law that was RED on that tip). What it found, and what closes it:
+
+| found (measured on the tip) | the guard | the law |
+|---|---|---|
+| A pin to a SOURCE-LESS period that carries the document's own provenance stamp was accepted: the re-run staged beside the container and took it over while the real December still named the document with the old analysis — two full periods for one document (the stamped branch of `_own_periods_for_rerun` returned before the look O14 added for the stamp-less case). The shape a killed upload takeover leaves (`source_document_id` nulled on the staged row before the document is re-pinned) and one a Workspace merge's re-pin can make. | The "elsewhere" look — does another period of the company name this document? — applies to EVERY source-less pinned period, stamp or no stamp; a stamp says what a row was built from, it does not make a second period the document's. | O14, parametrised over the container (`stamp_less`, `stamped_with_the_documents_own_provenance`); S4's CONTROL restated — it pinned the acceptance of a stamped row beside the document's real month |
+| The company filter of the two pinned-period reads had no law by its EFFECT: with the filter and the re-check removed (plant P-TEN-1) every law stayed green but two of O8's cells — RED for the wrong reason (their fault injection keyed on `org_id` in the filter) — while the route answered 202 and staged a re-run beside ANOTHER COMPANY's period (the mint's company-filtered read then refused it with a false sentence). | None needed in the code; the law and the injection's key. | O2's second law, `test_a_pin_to_another_companys_period_is_refused_whatever_that_period_says` (the document the source of nothing; the foreign row stamp-less or stamped with the document) — O8's injection keys on the read's columns (`OWNERSHIP_COLUMNS`), never on the filter |
+| An in-place run whose staged-row LISTING could not be read went on — `left_documents` empty — wrote its month under its own committed row and was resumed OVER at the company's next pass: the older re-run's briefing on the in-place run's statements, unmarked. The route refused the same state with 503; the run did not. | `stage_persist`'s company pass raises `PlainRefusal` on `leftover["unreadable"]` before any write ("…could not be checked just now — so this run stopped before it changed anything. Try again in a moment."). | S25's second law, `test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes` (the committed row still there; no statement of the run names the month; the same Retry completes the row first once the store answers) |
+| PRE-EXISTING, tenancy: `DELETE /api/period/{id}` read the attached documents by the browser-written pin alone and soft-deleted each by id alone — ANOTHER COMPANY's document pinned to the cleared period was soft-deleted by this company's action and counted in the answer (recoverable thirty days, then purged). | The attached documents are read under the company, each row re-checked, each update names `{id, org_id}`; the foreign row is left to production's foreign key (ON DELETE SET NULL). | O16 on the real app (`test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it`); the tenancy gate's `test_clearing_a_period_soft_deletes_only_this_companys_documents` on the real router with a store that honours the filter and one that ignores it |
+| PRE-EXISTING: `make-active` / `move-period` answered a pin to another company's period `period_not_in_workspace` / "That period belongs to a different workspace." and a pin that names nothing `period_missing` — the refusal told a caller holding a UUID that it is some other tenant's. | `_period_move._period_row` answers ONE code and sentence (`PERIOD_MISSING`, "The file's period no longer exists.") for both; the real reason stays in the operator log; a move refuses a dangling pin the same way (it used to re-file the document). | O17 (`test_a_correction_answers_one_code_whatever_the_pin_names`, both routes, the real handlers); the tenancy gate's `test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction` and its restated `test_make_active_refuses_a_period_in_another_workspace`; `test_period_move.py` `test_a_move_of_a_document_whose_pin_names_nothing_of_the_company_is_refused` |
+| PRE-EXISTING: `move-period` under a SAME-company forged pin (the document owns December by the pointer, pinned to another document's November) left "from November" — nothing touched, correctly — kept December as the document's, and the correction's re-run filed it under the new month: two periods for one document. | `move_document_to_period` reads the period the ENGINE wrote first (`_own_period_by_pointer`: org + `source_document_id`, re-checked, never a staged row) and the pin only for a document that is the source of nothing; the pin's period is never touched when it is not the document's. | O18 (`test_a_move_reads_the_period_the_engine_wrote_never_the_pin`, through the real correction re-run: ONE period afterwards); `test_period_move.py` `test_the_move_leaves_the_period_the_engine_says_is_the_documents_never_the_pinned_one` |
+| GATE GAP: make-active's provenance fallback (`envelope_source_document_id` where the pointer is silent) had no law — the review's evasion EV2 survived its selection. | None needed in the code. | O15's third owner, `the_month_names_nobody_but_its_analysis_names_the_months_own_file` |
+| The reader marker (`rerun_failed: <remainder>`) was printed RAW on two surfaces — the bell's failed notice and the failed banner's "View error" (a RuntimeError's text, a model id on screen); the Make-source toast printed the server's English for every refusal code but one. | `lib/rerunRefusals.rerunFailedSentenceKey`; the kind's sentence on both surfaces (the banner adds the plan refusal's sentence when the remainder carries its code); `periodFiling.filingRefusalKey` with EN/RO sentences for the five codes of the corrections, in the Make-source toast and the two move toasts; a code the screen does not know shows the title alone. | gate `rerun-refusal-surfaces` (below) |
+
+**What a reader sees differently** (each the owner's to reverse): a correction
+of a document pinned to another company's period, or to an id that names
+nothing, is answered "The file's period no longer exists." (one answer); a
+move of a document pinned to nothing of its company is refused instead of
+re-filing it (under production's foreign key this is the foreign pin's
+answer in effect); a move of a document that owns a period by the engine's
+pointer acts on THAT period whatever the pin says; a run whose staged rows
+cannot be listed fails with a sentence instead of writing; the Make-source
+and move toasts say OUR sentence (EN / RO) for `document_deleted`,
+`period_missing`, `not_in_a_period`, `analysis_in_progress` and the title
+alone for a code they do not know (the server's English is never shown);
+the bell and the failed banner print a re-run's marker as the app's
+sentence.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_rerun_ownership.py tests/engine/test_rerun_staged.py tests/engine/test_rerun_restart.py tests/engine/test_rerun_ai_lane.py -q` |
+| work count | junit-xml, floor **227** tests (ownership 65, staged 122, restart 25, the AI lane 15) — measured 227 |
+| canary (added) | `test_a_pin_to_another_companys_period_is_refused_whatever_that_period_says`, `test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it`, `test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes`, `test_a_move_reads_the_period_the_engine_wrote_never_the_pin` |
+
+The tenancy gate (`tenant-boundary`) measures **51** (floor 45;
+47 / 41 before), canaries added:
+`test_clearing_a_period_soft_deletes_only_this_companys_documents`,
+`test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction`.
+
+**After the repair it reds on (round 2):** the company filter or the re-check
+gone from either pinned-period read; a stamped source-less container called
+the document's own while another period names the document; a run going on
+when its company's staged rows cannot be listed; a period clear reading the
+attached documents by the pin alone, or writing one without the company, or
+without re-checking a row's company; `_period_row` telling a foreign pin from
+a missing one; a move re-filing a document whose pin names nothing of its
+company; a move reading the pin where the engine's pointer names a period;
+make-active reading the pointer alone.
+
+**CANNOT SEE:** Postgres itself (the foreign keys are modelled by hand; the
+real `ON DELETE SET NULL` unpinning the foreign row); the Workspace merge's
+browser write that makes a stamped container (`PeriodsSection.tsx`, not
+driven); `make-active` on a document that already owns ANOTHER period by the
+pointer (it re-points the pinned period and the correction re-run runs in
+place — two periods; not changed here, the owner's ruling: a staged
+promotion); a legacy EMPTY container of the re-filed month refused with
+`rerun_month_taken` (a truthful code of its own, or a delete of the
+container, is the owner's call); the committed row DROPPED by a later period
+clear leaving `interrupted_replacing` on the document for good (low, not
+built).
+
+### rerun-data-loss — round 2 PLANT / RED / REVERT (2026-10-10, branch `fix/rerun-data-loss`)
+
+Runner: `scratchpad/r2_plants.py` (one PLANT at a time, ALONE, in a plain copy
+of the committed tree — `git archive HEAD`, the copy's own `tests/` against
+the copy's own `src/`, `node_modules` and the local books linked; exact-match
+edits each asserted to match once; the file restored byte-exact, sha256
+asserted; the tree the lane works in was never planted). Record:
+`specs-durable/rerun_lane/r2_plants.json`.
+
+**BASELINE** — the gate's own command (the four files), exit `0`:
+`227 passed`.
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| R2-stamp (O14) the stamped branch of the source-less pin returns before the 'elsewhere' look again | `1 failed, 2 passed, 62 deselected in 6.00s` | `test_a_pin_to_an_empty_container_of_the_month_never_leaves_two_periods_for_one_document` |
+| R2-TEN1 (O2) the company filter and the re-check gone from BOTH pinned-period reads (the review's P-TEN-1) | `2 failed, 4 passed, 59 deselected in 16.88s` | `test_a_pin_to_another_companys_period_is_refused_whatever_that_period_says` |
+| R2-unreadable (S25) stage_persist goes on when the staged rows could not be listed | `1 failed, 121 deselected in 5.31s` | `test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes` |
+| R2-clear-org (O16) DELETE /api/period reads the attached documents by the pin alone and updates by id alone | `3 failed, 81 deselected in 3.95s` | `test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it`, `test_clearing_a_period_soft_deletes_only_this_companys_documents` |
+| R2-clear-recheck (O16) the attached documents are filtered but each row's company is not re-checked | `1 failed, 1 passed, 17 deselected in 0.72s` | `test_clearing_a_period_soft_deletes_only_this_companys_documents` |
+| R2-onecode (O17) _period_row answers a foreign pin with its own code again | `5 failed, 4 passed, 75 deselected in 7.07s` | `test_a_correction_answers_one_code_whatever_the_pin_names`, `test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction`, `test_make_active_refuses_a_period_in_another_workspace` |
+| R2-dangling (O17) a move treats a pin that names nothing as 'no period' and re-files the document | `2 failed, 1 passed, 71 deselected in 0.61s` | `test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction`, `test_a_move_of_a_document_whose_pin_names_nothing_of_the_company_is_refused` |
+| R2-pointer (O18) a move reads the pin, never the engine's pointer | `2 failed, 118 deselected in 3.69s` | `test_a_move_reads_the_period_the_engine_wrote_never_the_pin`, `test_the_move_leaves_the_period_the_engine_says_is_the_documents_never_the_pinned_one` |
+| R2-fallback (O15) make-active's holder is the pointer alone (the provenance fallback dropped — the review's EV2) | `1 failed, 2 passed, 62 deselected in 8.24s` | `test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month` |
+
+**RED** — 9 of 9 exit `1`, each alone.
+
+**REVERT** — every file restored byte-exact after each plant; every plant's
+selection run once more on the restored copy, exit `0`:
+R2-stamp `3 passed, 62 deselected in 6.58s`; R2-TEN1 `6 passed, 59 deselected in 16.75s`; R2-unreadable `1 passed, 121 deselected in 5.75s`; R2-clear-org `3 passed, 81 deselected in 3.71s`; R2-clear-recheck `2 passed, 17 deselected in 0.64s`; R2-onecode `9 passed, 75 deselected in 6.98s`; R2-dangling `3 passed, 71 deselected in 0.55s`; R2-pointer `2 passed, 118 deselected in 4.33s`; R2-fallback `3 passed, 62 deselected in 8.20s`.
+
+### rerun-refusal-surfaces — round 2 (2026-10-10): every correction refusal and every re-run marker in the reader's language
+
+The engine's two corrections refuse with five codes
+(`month_has_another_analysis`, `document_deleted`, `period_missing` — the one
+answer for a missing AND a foreign pin — `not_in_a_period`, and the route's
+`analysis_in_progress`); the file row printed OUR sentence for the first and
+the server's English for the rest, and a Romanian reader saw English
+(`document_deleted` was reachable since the review). `periodFiling.
+filingRefusalKey` maps the five to `pf.*` keys with EN/RO sentences
+(informal tu, diacritics; `periodFilingStrings.json`); the Make-source toast
+and the two move toasts (`MoveFileDialog`, `PeriodFilingReview`) print it,
+and a code the screen does not know shows the title alone — never the
+server's English. The bell's failed notice (`NotificationsMenu`) and the
+failed banner's "View error" (`FailedUploadBanner`) printed
+`documents.error` as stored, so a `rerun_failed: <remainder>` marker put the
+engine's remainder on screen; both print the kind's sentence through
+`lib/rerunRefusals.rerunFailedSentenceKey` (the banner with the plan
+refusal's sentence after it when the remainder carries that code); an error
+that is not a re-run's is still shown as recorded.
+
+Laws: `makeSourceRefusal.test.tsx` (7 → 16: every code in EN and RO against
+the server's own sentence; the unknown code and the code-less failure show
+the title alone), `FailedUploadBanner.test.tsx` (4 → 12),
+`notificationsRerunMarker.test.tsx` (new, 8: the REAL bell, its button and
+its dialog, over the notices it reads), `rerunRefusals.test.ts` (34 → 35).
+The gate runs seven files and measures **123** (35 + 16 + 31 + 5 +
+16 + 12 + 8); floor 123; canaries added: `ro: period_missing prints OUR
+sentence, never the server's`, `a refusal with a code this screen does not
+know shows the title alone`, `ro: kept — the sentence, never the remainder`,
+`a done notice prints its file`.
+
+| PLANT | result | first laws RED |
+|---|---|---|
+| R2-F-serverwords the Make-source toast prints the server's sentence for a code it does not know | `2 failed / 14 passed (16)` | `a failure with no code at all shows the title alone`, `a refusal with a code this screen does not know shows the title alone — never the server's English` |
+| R2-F-onekey only month_has_another_analysis has a sentence (the other four codes show the title alone) | `9 failed / 7 passed (16)` | `carries the code this screen knows, and the engine's own literal is the same`, `en: analysis_in_progress prints OUR sentence, never the server's`, `en: document_deleted prints OUR sentence, never the server's` … (8 laws) |
+| R2-F-banner-raw the failed banner's View error prints the row's error as stored for a re-run's marker | `7 failed / 5 passed (12)` | `a remainder carrying a plan refusal's code adds that code's sentence`, `en: interrupted — the sentence, never the remainder`, `en: kept — the sentence, never the remainder` … (7 laws) |
+| R2-F-bell-raw the bell's failed notice prints the row's error as stored for a re-run's marker | `6 failed / 2 passed (8)` | `en: interrupted — the sentence, never the remainder`, `en: kept — the sentence, never the remainder`, `en: month_taken — the sentence, never the remainder` … (6 laws) |
+
+**RED** — 4 of 4 exit `1` (each file's own command,
+ALONE, in the copy). **BASELINE** (the gate's command) `123 passed`.
+**REVERT** — exit `0` on every selection.
+
+**After the repair it reds on:** the server's English for any of the five
+codes, in either language; the server's English for a code the screen does
+not know; the bare code or the key on screen; the remainder of a re-run's
+marker on the bell or the banner; a plain error no longer shown as recorded;
+`onChanged` fired for a refusal.
+
+**CANNOT SEE:** the real network and the real routes (the engine gates hold
+the handlers to the codes); the toast as rendered; `PeriodsSection`'s own
+toasts (three sites still print `err.message` for its rename / merge /
+delete calls — not the corrections' codes); a sixth refusal code the engine
+adds later (title alone, nothing reds).
