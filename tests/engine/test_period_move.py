@@ -603,6 +603,61 @@ def test_a_move_that_leaves_siblings_wipes_the_stale_analysis_and_requeues_a_reb
     assert _period_move.find_orphaned_snapshots(store, org_id=ORG) == []
 
 
+def test_the_move_leaves_the_period_the_engine_says_is_the_documents_never_the_pinned_one():
+    """`documents.period_id` is browser-written; `financial_periods.
+    source_document_id` is the engine's. Read by the pin, a document that
+    owned 2017-12 and was pinned to another document's 2025-12 moved "from
+    2025-12" (nothing of it touched, correctly), kept its 2017-12 and was
+    then re-filed under a third month — two periods for one document
+    (re-verification 2026-10-10, measured end to end in gate
+    rerun-data-loss O18). The period the document leaves is the one the
+    engine wrote; the pinned one, another document's, is never touched."""
+    store = production_store()
+    store.update("documents", {"period_id": PERIOD_2025}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+
+    def the_pinned_period() -> str:
+        # The pinned period's row, everything under it, and ITS document —
+        # not the mover's own row, which the move detaches.
+        return json.dumps(
+            {t: [r for r in store.rows[t]
+                 if (r.get("period_id") == PERIOD_2025 or r.get("id") == PERIOD_2025)
+                 and r.get("id") != DOC_CARNIPROD]
+             for t in _TABLES}, sort_keys=True, default=str)
+
+    scandia_before = the_pinned_period()
+
+    record = _period_move.move_document_to_period(
+        store, document=doc_of(store, DOC_CARNIPROD), target_period_end="2024-06", now="2026-10-10T00:00:00+00:00")
+
+    assert record["moved"] is True
+    assert (record["from"]["period_id"], record["from"]["period_end"], record["from"]["action"]) == \
+        (PERIOD_2017, "2017-12-31", "deleted"), record["from"]
+    assert [p["id"] for p in store.rows["financial_periods"]] == [PERIOD_2025]
+    assert the_pinned_period() == scandia_before, "the pinned period was touched"
+    moved = doc_of(store, DOC_CARNIPROD)
+    assert moved["period_id"] is None and moved["period_end_hint"] == "2024-06-30"
+    assert _period_move.find_orphaned_snapshots(store, org_id=ORG) == []
+
+
+def test_a_move_of_a_document_whose_pin_names_nothing_of_the_company_is_refused():
+    """A document that is the source of no period, pinned to an id that
+    names nothing (under production's foreign key: a period of another
+    company — the two are ONE answer, `period_missing`), is not re-filed:
+    nothing is written, nothing re-run. A document with NO pin is still
+    moved (its month is given to it here: `test_plan_handles_a_document_
+    with_no_period_at_all`)."""
+    store = production_store()
+    store.rows["documents"].append(
+        {"id": "doc-loose", "org_id": ORG, "period_id": "no-such-period", "original_filename": "loose.xlsx",
+         "status": "failed", "scope": "financial", "deleted_at": None, "created_at": "2026-08-03T00:00:00+00:00"})
+    before = json.dumps(store.rows, sort_keys=True, default=str)
+    with pytest.raises(_period_move.MoveRefused) as ei:
+        _period_move.move_document_to_period(
+            store, document=doc_of(store, "doc-loose"), target_period_end="2025-06", now="2026-10-10T00:00:00+00:00")
+    assert (ei.value.code, ei.value.message) == ("period_missing", "The file's period no longer exists.")
+    assert json.dumps(store.rows, sort_keys=True, default=str) == before, "a refused move wrote"
+
+
 def test_a_no_op_move_changes_nothing_at_all():
     store = production_store()
     before = json.dumps(store.rows, sort_keys=True, default=str)
@@ -662,8 +717,13 @@ def test_the_move_never_writes_a_hint_the_caller_did_not_supply():
 def test_make_active_promotes_an_attachment_to_the_periods_analysis_source():
     """ONE analysis source per period, switchable. The engine's authority
     is `financial_periods.source_document_id`; promoting a sibling
-    re-points it and re-runs that document into the same period."""
+    re-points it and re-runs that document into the same period.
+
+    (The period's own document FAILED here: there is no good analysis under
+    the period to lose. Over another ANALYSED document's analysis the
+    promotion is refused — the next law.)"""
     store = production_store()
+    store.update("documents", {"status": "failed"}, filters={"id": "eq.%s" % DOC_CARNIPROD})
     store.rows["documents"].append(
         {
             "id": "doc-sibling",
@@ -689,6 +749,28 @@ def test_make_active_promotes_an_attachment_to_the_periods_analysis_source():
     assert _period_move.find_orphaned_snapshots(store, org_id=ORG) == []
 
 
+def test_make_active_never_wipes_another_analysed_documents_analysis():
+    """Promoting wipes the period's derived analysis and re-points it BEFORE
+    the promoted document's re-run has produced anything. On a period that
+    holds another ANALYSED document's analysis that destroyed it (measured
+    2026-10-05: the newer file's statements, metrics and briefing gone at the
+    click; the re-run failing, an empty month). Refused before the first
+    write — live owner, or one in "Recently deleted" (restorable)."""
+    for owner_deleted_at in (None, "2026-08-20T00:00:00+00:00"):
+        store = production_store()
+        store.update("documents", {"deleted_at": owner_deleted_at}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+        store.rows["documents"].append(
+            {"id": "doc-sibling", "org_id": ORG, "period_id": PERIOD_2017, "original_filename": "other.xlsx",
+             "status": "analyzed", "scope": "financial", "deleted_at": None,
+             "created_at": "2026-08-03T00:00:00+00:00"})
+        before = json.dumps(store.rows, sort_keys=True, default=str)
+        with pytest.raises(_period_move.MoveRefused) as ei:
+            _period_move.make_document_active(
+                store, document=doc_of(store, "doc-sibling"), now="2026-08-30T12:00:00+00:00")
+        assert ei.value.code == "month_has_another_analysis"
+        assert json.dumps(store.rows, sort_keys=True, default=str) == before, "a refused promotion wrote"
+
+
 def test_make_active_refuses_a_document_that_is_not_in_a_period():
     store = production_store()
     store.update("documents", {"period_id": None}, filters={"id": "eq.%s" % DOC_CARNIPROD})
@@ -707,6 +789,56 @@ def test_make_active_on_the_document_that_is_already_the_source_is_a_no_op():
     )
     assert record["changed"] is False
     assert json.dumps(store.rows, sort_keys=True, default=str) == before
+
+
+CONTAINER_2017 = "period-2017-12-container"   # a source-less, stamp-less row of the same month
+
+
+def test_make_active_reads_the_engines_pointer_before_it_re_points_the_pinned_period():
+    """`documents.period_id` is browser-written; `financial_periods.
+    source_document_id` is the engine's. Read by the pin alone, a document
+    that owned 2017-12 and was pinned to a source-less container of the same
+    month had the CONTAINER re-pointed at itself — and its correction re-run
+    then left two periods naming one document (the round-2 confirmer,
+    2026-10-10, measured through the real handler: gate rerun-data-loss O19).
+    The pointer is read before anything is written: a pin that names a period
+    other than the one the engine says is the document's is answered as a pin
+    that names nothing (`period_missing`, the one correction answer), and
+    nothing is written. Where the pointer names the pinned period, or nothing,
+    the promotion is what it was: the document that is its period's source is
+    a no-op; a document that is the source of NO period is promoted into the
+    row it is pinned to."""
+    store = production_store()
+    store.rows["financial_periods"].append(
+        {"id": CONTAINER_2017, "org_id": ORG, "period_end": "2017-12-31", "period_start": "2017-12-31",
+         "source_document_id": None, "assembled_canonical_v1": None})
+    store.update("documents", {"period_id": CONTAINER_2017}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+    before = json.dumps(store.rows, sort_keys=True, default=str)
+    with pytest.raises(_period_move.MoveRefused) as ei:
+        _period_move.make_document_active(
+            store, document=doc_of(store, DOC_CARNIPROD), now="2026-10-10T00:00:00+00:00")
+    assert (ei.value.code, ei.value.message) == ("period_missing", "The file's period no longer exists.")
+    assert json.dumps(store.rows, sort_keys=True, default=str) == before, "a refused promotion wrote"
+    owner = store.select("financial_periods", filters={"id": "eq.%s" % PERIOD_2017})[0]
+    assert owner["source_document_id"] == DOC_CARNIPROD, "the engine's own period changed hands"
+
+    # the pointer names the pinned period: the document IS its source — a no-op, as before
+    store.update("documents", {"period_id": PERIOD_2017}, filters={"id": "eq.%s" % DOC_CARNIPROD})
+    pinned_back = json.dumps(store.rows, sort_keys=True, default=str)
+    record = _period_move.make_document_active(
+        store, document=doc_of(store, DOC_CARNIPROD), now="2026-10-10T00:00:00+00:00")
+    assert record["changed"] is False and json.dumps(store.rows, sort_keys=True, default=str) == pinned_back
+
+    # a document that is the source of NOTHING, pinned to the container: promoted into it, as before
+    store.rows["documents"].append(
+        {"id": "doc-loose", "org_id": ORG, "period_id": CONTAINER_2017, "original_filename": "loose.xlsx",
+         "status": "analyzed", "scope": "financial", "deleted_at": None, "created_at": "2026-08-03T00:00:00+00:00"})
+    record = _period_move.make_document_active(
+        store, document=doc_of(store, "doc-loose"), now="2026-10-10T00:00:00+00:00")
+    assert record["changed"] is True and record["requeue_document_id"] == "doc-loose", record
+    container = store.select("financial_periods", filters={"id": "eq.%s" % CONTAINER_2017})[0]
+    assert container["source_document_id"] == "doc-loose"
+    assert owner == store.select("financial_periods", filters={"id": "eq.%s" % PERIOD_2017})[0]
 
 
 # ── the routes ─────────────────────────────────────────────────────────
@@ -861,6 +993,8 @@ def test_route_refuses_an_implausible_target_with_a_readable_code(wired):
 
 def test_make_active_route_promotes_and_requeues(wired):
     client, store, rec = wired
+    # (the period's own document failed: nothing good under it to lose)
+    store.update("documents", {"status": "failed"}, filters={"id": "eq.%s" % DOC_CARNIPROD})
     store.rows["documents"].append(
         {
             "id": "doc-sibling",

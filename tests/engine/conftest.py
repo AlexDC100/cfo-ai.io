@@ -101,6 +101,18 @@ def _one_run_per_document_registries_are_per_test(monkeypatch):
     # table missing must not silence the ledger for the tests after it.
     if hasattr(_quota_ledger, "_ABSENT"):
         monkeypatch.setattr(_quota_ledger, "_ABSENT", {"until": 0.0, "windows": 0})
+    # Which claimed Docs-panel re-runs were handed off as STAGED
+    # (`pipeline._STAGED_RERUNS`): set by POST /api/pipeline/retry, popped by
+    # the run. A test whose `_enqueue` is a recorder may never run it. Only
+    # when the module is already loaded — this fixture rides on every test
+    # of the suite and must not import the pipeline for those that do not.
+    _pipeline = sys.modules.get("engine.api.pipeline")
+    if _pipeline is not None and hasattr(_pipeline, "_STAGED_RERUNS"):
+        monkeypatch.setattr(_pipeline, "_STAGED_RERUNS", {})
+    # … and the note that a claimed retry of a period-less document that reads
+    # analysed never takes over another document's month.
+    if _pipeline is not None and hasattr(_pipeline, "_NO_TAKEOVER_RUNS"):
+        monkeypatch.setattr(_pipeline, "_NO_TAKEOVER_RUNS", {})
     yield
 
 

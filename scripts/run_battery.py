@@ -300,10 +300,15 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_service_role_tenant_filter.py",
               "tests/engine/test_cross_org_reads.py", "-q"],
              # + the period-move sibling and sales-rerun laws (tenancy
-             # hotfix 2026-10-02): measured 47, floor 41.
-             work_junit=True, floor=41, units="tests",
+             # hotfix 2026-10-02): measured 47, floor 41. + "Clear period"
+             # soft-deleting only this company's documents, and the ONE
+             # answer for a foreign and a missing pin at both corrections
+             # (rerun-data-loss round 2, 2026-10-10): measured 51, floor 45.
+             work_junit=True, floor=45, units="tests",
              canaries=("test_another_orgs_path_is_refused_for_every_operation",
                        "test_make_active_refuses_a_period_in_another_workspace",
+                       "test_clearing_a_period_soft_deletes_only_this_companys_documents",
+                       "test_a_foreign_pin_and_a_missing_pin_are_one_answer_at_every_correction",
                        "test_every_unfiltered_service_role_call_is_declared",
                        "test_a_member_of_another_workspace_cannot_read_org_a1",
                        "test_another_workspaces_document_is_never_a_sibling_of_my_period",
@@ -588,16 +593,19 @@ def _engine_gates() -> List[Gate]:
         # (legacy shape inert; walls -> inputs -> meter -> model; nothing
         # written on a failure; `stale` in every answer is what is stored),
         # the other writers (stage_persist_narrative, the takeover, the
-        # re-run's carry across its reset, the SKU writer), and the served
-        # shape with its predicates and static censuses. Measured 640.
-        # Plant log (four lists, each plant alone, byte-exact restore):
-        # docs/engine_book/gates.md "briefing-keep-last-good".
+        # Docs-panel re-run — staged beside its month since 2026-10-04, gate
+        # rerun-data-loss below — the SKU writer), and the served shape with
+        # its predicates and static censuses. Measured 640; 624 since the
+        # seam laws of the re-run's in-memory carry went with the carry
+        # (gates.md, the dated addendum). Plant log (four lists, each plant
+        # alone, byte-exact restore): docs/engine_book/gates.md
+        # "briefing-keep-last-good".
         Gate("briefing-keep-last-good",
              [PY, "-m", "pytest",
               "tests/engine/test_briefing_keep_last_good_route.py",
               "tests/engine/test_briefing_keep_last_good_served.py",
               "tests/engine/test_briefing_keep_last_good_writers.py", "-q"],
-             work_junit=True, floor=640, units="tests",
+             work_junit=True, floor=624, units="tests",
              canaries=("test_a_failed_regenerate_leaves_the_stored_briefing_byte_identical",
                        "test_the_bodiless_shape_answers_the_stored_briefing_and_calls_nothing",
                        "test_an_unreachable_meter_is_answered_503_metering_unavailable_never_as_a_spent_allowance",
@@ -610,10 +618,220 @@ def _engine_gates() -> List[Gate]:
                        "test_a_failed_narration_never_deletes_the_periods_recommendations_whatever_the_briefing_row_holds",
                        "test_a_takeover_whose_staged_run_left_no_briefing_row_keeps_the_months_briefing",
                        "test_a_docs_panel_rerun_whose_narration_fails_still_serves_the_last_good_briefing",
-                       "test_a_docs_panel_rerun_whose_narrative_write_is_refused_still_serves_what_the_reset_took",
-                       "test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_keeps_the_carry_for_the_next_run",
+                       "test_a_docs_panel_rerun_whose_narrative_write_is_refused_keeps_the_months_briefing",
+                       "test_a_docs_panel_rerun_that_fails_after_the_narrative_stage_leaves_the_month_as_it_was",
                        "test_a_failed_narration_never_replaces_a_usable_sku_briefing",
                        "test_the_runs_alerts_are_written_even_when_a_narrative_write_raises")),
+        # A RE-RUN ACTS ONLY ON A PERIOD THAT IS THE DOCUMENT'S OWN (owner
+        # order 2026-10-04, "the two data-loss tickets first"; stage 1 of 3).
+        # Measured on 7ca386ec through the real routes: a document superseded
+        # for its month by a newer upload stays pinned to that month's row;
+        # restored and re-run from the Docs panel, POST /api/pipeline/retry
+        # answered 202, DELETED the newer document's period (by
+        # documents.period_id — browser-written — and company alone), carried
+        # the newer document's briefing and recommendations, and the month
+        # came back as the OLDER file's statements under them; a pin the
+        # company filter rejected, or no pin, ran IN PLACE. The sibling sweep
+        # found make-active / move-period emptying a month for a DELETED
+        # document, move-period deleting a month whose own document was in
+        # the bin, and stage_persist's race-loser rewriting another
+        # document's row. The laws, on the real create_app() routes and the
+        # real run in the gw world: the re-run of a restored superseded
+        # document is 409 with the committed body, writes nothing and leaves
+        # the month served as before; one answer whatever the pin names; the
+        # refusal precedes the claim and the meter, and is repeated under the
+        # claim and (stage 1 only: stage 2 removed the reset) at the DELETE
+        # itself; a document with no pin is found by the engine's own
+        # pointer, never run in place; a source-less
+        # period is never "anyone's"; unreadable ownership is 503; a sales
+        # document pinned to the month by the Products upload never resets
+        # it; a metered re-run refused under the claim gives its reservation
+        # back; the three sibling fixes; an AST census of every delete of a
+        # period. Measured 38. Plant log (15 plants, each alone, byte-exact
+        # restore): docs/engine_book/gates.md "rerun-data-loss".
+        #
+        # STAGE 2 (the same day; hand-over item 2): THE RESET IS GONE. The
+        # reset deleted the period and what it cascaded away — the last good
+        # briefing, the worked recommendations — lived in process memory
+        # (_RERUN_CARRY) until the run had narrated: a restart or a deploy
+        # lost them. The re-run is now STAGED beside the document's own month
+        # (a period row that names no source and carries a marker) and takes
+        # it over on success, with a COMMIT POINT: a staged row whose
+        # takeover never began is dropped, one whose takeover began is
+        # RESUMED, never dropped. test_rerun_staged.py: the mechanism through
+        # the real route and run (twelve failure points, overtaken, re-filed,
+        # deleted mid-run), the readers that must never take a staged row for
+        # a month, and the takeover + resume at their own seam with the
+        # process killed after EVERY write in turn. test_rerun_restart.py: a
+        # REAL restart — the store pickled at the kill, a second python
+        # process (fresh imports of the tree under test, a second
+        # create_app(), empty registries) continuing through the real routes;
+        # and the reservation of a metered re-run that died. O5 / O6 / O7 of
+        # stage 1 restated ("nothing is deleted"). Measured 156 (38 + 96 +
+        # 22). Plant log (66 plants): gates.md "rerun-data-loss", stage 2.
+        #
+        # STAGE 3 (hand-over item 3): THE AI LANE. A non-Romanian document's
+        # run stores the statements and nothing else; its takeover, called
+        # with no arguments, replaced the month's alerts with none and
+        # stamped a kept briefing with a narration failure that never
+        # happened; the lane's cache (the period row, which a staged re-run
+        # leaves in place) answered the re-run of an unchanged file; a
+        # re-run that read as a public-records summary ended "analysed with
+        # no period" over its month. test_rerun_ai_lane.py, through the real
+        # stage_extract, its jurisdiction gate and the real plan gate — the
+        # first run's statements handed back by the lane, and THE REAL LANE
+        # on the Hungarian fixture ledger with only its model scripted: the
+        # briefing (marked `not_renarrated`), the recommendations and the
+        # alerts are the same rows; only a staged re-run re-extracts and
+        # the flag is never stored; the public-records re-run is refused
+        # before any write; the plan refusal leaves the month as it was; the
+        # lane's takeover killed after every write, a re-run whose model
+        # refuses (production's state) leaving the month exactly as it was,
+        # and a REAL restart healed by the next re-run or by another
+        # document's run. Measured 171 (38 + 96 + 22 + 15). Plant log:
+        # gates.md "rerun-data-loss", stage 3.
+        #
+        # THE REVIEW OF 2026-10-05 (three lenses; every finding reproduced on
+        # the stage-3 tip first). What the three stages left open or unheld:
+        # an ANALYSED trial balance that holds no period re-run "as a
+        # document with no period" (item 1 through the null pin: 409 where
+        # the quota ledger shows its analysis; otherwise a run that never
+        # takes over another document's month); a pin to an empty container
+        # leaving two periods for one document; "Make source" wiping another
+        # analysed document's month before its own re-run (refused before
+        # the first write — the safe behaviour, a staged promotion is the
+        # durable one); a newer upload's takeover running THROUGH a re-run's
+        # apply (one takeover of a company's months at a time — two real
+        # threads); a marker forged in one company reaching another's month
+        # had the company left the applier's reads (no law held it); a
+        # committed staged row left waiting fifteen minutes while a
+        # same-month upload cost it the last good briefing (a real second
+        # process); an in-place run resumed OVER by its own document's older
+        # re-run; a re-filed row re-dated onto a month that had become
+        # another's; a staged run's alerts refused whole under the legacy
+        # unique (org_id, alert_key); five weakenings every law let through;
+        # the page-mount watchdog completing what a restart interrupted; the
+        # AI lane keeping the archived file's alerts on another file's
+        # statements. Measured 218 (57 + 121 + 25 + 15). Plant log (80
+        # plants: 38 new — 34 engine, 4 frontend — 10 re-anchored, 32
+        # replayed): gates.md "rerun-data-loss — the review of 2026-10-05".
+        #
+        # THE RE-VERIFICATION OF 2026-10-10 (round 2, three lenses): a pin to
+        # a source-less container CARRYING the document's own provenance
+        # stamp left two full periods for one document (the stamped branch
+        # returned before O14's look); an in-place run whose staged-row
+        # listing could not be read wrote its month and was resumed OVER;
+        # "Clear period" soft-deleted ANOTHER COMPANY's document pinned to
+        # the cleared period (pre-existing); make-active / move-period told a
+        # foreign pin from a missing one; a move read the pin where the
+        # engine's pointer named another period (two periods after the
+        # correction's re-run); the company filter of the pinned-period reads
+        # had no law by its effect (plant P-TEN-1 — two laws went red for the
+        # wrong reason). Measured 227 (65 + 122 + 25 + 15). Plant log:
+        # gates.md "rerun-data-loss — round 2 (2026-10-10)".
+        #
+        # ROUND 2b (2026-10-10, the confirmer's one remaining finding):
+        # make-active read the PIN alone — a document that owned December
+        # by the engine's pointer, pinned by a browser write to a
+        # source-less container of the month, had the container re-pointed
+        # at it and the correction re-run left two periods naming one
+        # document (with the document's own stamp on the container: a
+        # no-op that called it "already the source"). The pointer is read
+        # before the first write; a pin it contradicts is answered as a
+        # pin that names nothing. Measured 229 (67 + 122 + 25 + 15). Plant
+        # log: gates.md "rerun-data-loss — round 2b (2026-10-10)".
+        Gate("rerun-data-loss",
+             [PY, "-m", "pytest", "tests/engine/test_rerun_ownership.py",
+              "tests/engine/test_rerun_staged.py", "tests/engine/test_rerun_restart.py",
+              "tests/engine/test_rerun_ai_lane.py", "-q"],
+             work_junit=True, floor=229, units="tests",
+             canaries=("test_a_rerun_of_a_restored_superseded_document_is_refused_and_changes_nothing",
+                       "test_a_restored_superseded_document_whose_pin_was_lost_is_refused_and_changes_nothing",
+                       "test_make_source_on_an_attachment_never_wipes_another_analysed_documents_month",
+                       "test_a_pin_to_another_companys_period_is_refused_whatever_that_period_says",
+                       "test_clearing_a_period_never_soft_deletes_another_companys_document_pinned_to_it",
+                       "test_a_run_whose_staged_rows_cannot_be_listed_stops_before_it_writes",
+                       "test_a_move_reads_the_period_the_engine_wrote_never_the_pin",
+                       "test_make_source_never_re_points_a_container_while_the_engine_names_another_period_as_the_documents",
+                       "test_a_newer_uploads_takeover_never_runs_through_the_middle_of_a_reruns_apply",
+                       "test_a_forged_committed_marker_never_reaches_another_companys_month",
+                       "test_a_rerun_killed_inside_its_apply_keeps_its_briefing_through_a_same_month_upload_minutes_later",
+                       "test_the_refusal_is_one_answer_whatever_the_pin_names",
+                       "test_a_rerun_deletes_no_period_and_never_takes_over_a_month_that_changed_hands",
+                       "test_a_move_never_deletes_a_period_whose_own_document_is_in_the_bin",
+                       "test_a_staged_rerun_replaces_its_months_statements_through_a_staged_row_and_a_commit_point",
+                       "test_a_staged_rerun_that_fails_leaves_the_month_exactly_as_it_was",
+                       "test_a_takeover_killed_after_its_commit_point_is_resumed_to_the_same_result",
+                       "test_a_rerun_killed_before_its_commit_point_serves_what_was_served_and_the_next_rerun_keeps_everything",
+                       "test_a_rerun_killed_after_its_commit_point_is_completed_by_another_documents_run_after_the_ttl",
+                       "test_a_docs_panel_rerun_through_the_ai_lane_keeps_the_months_briefing_recommendations_and_alerts",
+                       "test_a_rerun_of_a_non_romanian_document_re_extracts_through_the_real_lane_and_keeps_its_generated_briefing",
+                       "test_a_lane_rerun_killed_by_a_restart_is_healed_by_the_documents_next_rerun")),
+        # … AND THE DOCS PANEL SAYS SO. The refusal is a CODE and nothing
+        # else (no sentence, no period id, no document id); the panel used
+        # to discard the body of every failed retry and say "Couldn't start
+        # re-run". The REAL panel and the REAL client call
+        # (`retryPipelineDetailed`) over a fetch that answers with
+        # tests/engine/fixtures/rerun/retry_refused_superseded.json — the
+        # body the engine gate above holds the real route to (an intercepted
+        # route is a route with no gate): each code prints its sentence in
+        # EN and RO, written out in the test and held equal to both locale
+        # files; an answer with no known code shows the title alone; a
+        # server `message` is never read or printed; the module is never
+        # behind import(). Measured 35. Plant log: gates.md
+        # "rerun-refusal-surfaces".
+        #
+        # STAGE 2: a staged re-run leaves its file `analyzed` over the
+        # analysis it had, so the ROW says when the last re-run did not
+        # finish (`documents.error = "rerun_failed: …"`): DocRerunNote prints
+        # one of three sentences by kind, EN and RO, never what the engine
+        # stored after the prefix; and the Workspace tab's own read of
+        # financial_periods drops a re-run's staged row (an empty container
+        # stays). Measured 84 (34 + 16 + 29 + 5). Plant log (14 plants):
+        # gates.md "rerun-refusal-surfaces", stage 2. STAGE 3: the code of a
+        # refused public-records re-run (`rerun_not_a_trial_balance`) prints
+        # the "didn't finish" line and is never printed itself — two cells.
+        # Measured 86 (34 + 16 + 31 + 5). THE REVIEW OF 2026-10-05: "Make
+        # source" refused over another analysed file's analysis
+        # (`month_has_another_analysis`) — the REAL file row and the REAL
+        # client call over a fetch that answers with
+        # tests/engine/fixtures/rerun/make_active_refused_another_analysis.json
+        # (the body the engine gate holds the real handler to): our sentence
+        # for the code in EN and RO, never the server's English; any other
+        # refusal still shows the server's message. Measured 93 (86 + 7).
+        # ROUND 2 (2026-10-10): every refusal code of the two corrections
+        # has OUR sentence (EN + RO) in the Make-source toast and the two
+        # move toasts — `period_missing` being the engine's one answer for
+        # a missing and a foreign pin — and a code the screen does not know
+        # shows the title alone, never the server's English; the bell's
+        # failed notice and the failed banner's "View error" print a
+        # `rerun_failed:` marker as the kind's sentence, never the engine's
+        # remainder. Measured 123 (35 + 16 + 31 + 5 + 16 + 12 + 8).
+        Gate("rerun-refusal-surfaces",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/rerunRefusals.test.ts",
+              "frontend/components/cfo/__tests__/docsPanelRerunRefusal.test.tsx",
+              "frontend/components/cfo/__tests__/docRerunNote.test.tsx",
+              "frontend/lib/__tests__/orgPeriodsStagedRow.test.ts",
+              "frontend/components/cfo/workspace/__tests__/makeSourceRefusal.test.tsx",
+              "frontend/components/cfo/__tests__/FailedUploadBanner.test.tsx",
+              "frontend/components/cfo/__tests__/notificationsRerunMarker.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=123,
+             units="tests",
+             canaries=("the codes are exactly the three the route answers with",
+                       "ro: the real route's answer over another file's analysis",
+                       "ro: period_missing prints OUR sentence, never the server's",
+                       "a refusal with a code this screen does not know shows the title alone",
+                       "ro: kept — the sentence, never the remainder",
+                       "a done notice prints its file",
+                       "ro: document_superseded prints the stated sentence",
+                       "ro: the real route's answer for a superseded file",
+                       "en: a failure with no known code shows the title alone",
+                       "a refusal that also carries a message prints the code's sentence only",
+                       "the prefix and the two codes are the engine's own literals",
+                       "ro: an analysed file whose last re-run was interrupted",
+                       "drops the staged row and keeps the month and the empty container")),
         # THE PUBLIC DEMO STORE (owner ticket 2026-10-02). engine.db — the
         # SQLite file create_app() opens through PostgresAdapter — has six
         # tables and no tenant column on any of them. Anonymous POST

@@ -74,6 +74,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
+from . import _staged_rerun
+
 logger = logging.getLogger("engine.period_move")
 
 #: What happens to the period the document is LEAVING.
@@ -282,7 +284,22 @@ def plan_move(
     ]
 
     if not remaining:
-        action, rebuild = "deleted", None
+        # Nobody LIVE stays attached. The period goes only when what it
+        # holds is the mover's own analysis, or nothing at all (a container
+        # that names no source and carries no envelope). An analysis that is
+        # ANOTHER document's stays — its document can be in "Recently
+        # deleted", restorable for 30 days, and this branch used to hard-
+        # delete the month it would be restored to (measured 2026-10-04:
+        # the month's own file in the bin, a restored superseded copy moved
+        # away, the month's line items, metrics, briefing and valuations
+        # gone). `find_orphaned_snapshots` reports such a period as having
+        # no live document, which is true; it is the restore's to serve.
+        empty_container = (not from_period.get("source_document_id")
+                           and not isinstance(from_period.get("assembled_canonical_v1"), dict))
+        if analysis_belongs_to(from_period, document_id) or empty_container:
+            action, rebuild = "deleted", None
+        else:
+            action, rebuild = "kept", None
     elif analysis_belongs_to(from_period, document_id):
         action, rebuild = "rebuilt", pick_rebuild_document(remaining)
     else:
@@ -321,6 +338,11 @@ def find_orphaned_snapshots(
     periods = client.select(
         "financial_periods", filters={"org_id": "eq.%s" % org_id}
     )
+    # A re-run's STAGED row (`_staged_rerun`) is not a period serving
+    # anything: it carries an envelope and line items and no document is
+    # attached to it, by design, until its run takes the month over or its
+    # row is dropped. Reported here it would read as "a period nobody backs".
+    periods = [p for p in (periods or []) if _staged_rerun.marker_of(p) is None]
     live_docs = client.select(
         "documents",
         filters={"org_id": "eq.%s" % org_id, "deleted_at": "is.null"},
@@ -442,8 +464,27 @@ def move_document_to_period(
     org_id = str(document.get("org_id") or "")
     if not document_id or not org_id:
         raise MoveRefused("invalid_document", "Document is missing id or org.")
+    _refuse_deleted(document)
 
-    from_period = _period_row(client, document.get("period_id"), org_id=org_id)
+    # THE PERIOD THE DOCUMENT LEAVES IS THE ONE THE ENGINE SAYS IS ITS OWN —
+    # `financial_periods.source_document_id`, the pointer `stage_persist`
+    # writes — and only a document that is the source of no period is read
+    # by its pin (`documents.period_id`, which a browser can write). Read by
+    # the pin alone, a document that owned December and was pinned to
+    # another document's November moved "from November" (nothing of it
+    # touched, correctly), kept its December, and its re-run filed it under
+    # the new month: two periods for one document (re-verification
+    # 2026-10-10, measured). The pin's period is never touched here when it
+    # is not the document's.
+    from_period = _own_period_by_pointer(client, document_id, org_id)
+    if from_period is None:
+        from_period = _period_row(client, document.get("period_id"), org_id=org_id)
+        if from_period is None and document.get("period_id"):
+            # A pin that names NOTHING of this company — and the same answer
+            # as a pin that names another company's period (`_period_row`):
+            # one code, one sentence. (Under production's foreign key a pin
+            # always exists, so this is the foreign pin's answer in effect.)
+            raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
     siblings = _live_siblings(client, from_period, document_id)
     plan = plan_move(
         document=document,
@@ -456,12 +497,17 @@ def move_document_to_period(
         return _record(plan, document_id=document_id, destination_period_id=None,
                        orphaned=[], filename=document.get("original_filename"))
 
-    destination = client.select(
-        "financial_periods",
-        filters={"org_id": "eq.%s" % org_id, "period_end": "eq.%s" % target},
-        order="updated_at.desc",
-        limit=1,
-    )
+    # Read without a limit: the newest row of the month may be a re-run's
+    # STAGED row (`_staged_rerun`), which is never a destination — the record
+    # would name a period that is about to stop existing.
+    destination = [
+        p for p in (client.select(
+            "financial_periods",
+            filters={"org_id": "eq.%s" % org_id, "period_end": "eq.%s" % target},
+            order="updated_at.desc",
+        ) or [])
+        if _staged_rerun.marker_of(p) is None
+    ]
     destination_period_id = str(destination[0]["id"]) if destination else None
 
     # 1. The confirmation, and the detach. Detaching first means that
@@ -478,8 +524,12 @@ def move_document_to_period(
     if plan.source_action == "deleted" and plan.source_period_id:
         for table in _DERIVED_TABLES + _USER_INPUT_TABLES:
             _safe_delete(client, table, plan.source_period_id)
+        # The company is named in the filter as well as on the row
+        # `_period_row` checked: under the service role the filter IS the
+        # access control, at every delete of a period.
         client.delete(
-            "financial_periods", filters={"id": "eq.%s" % plan.source_period_id}
+            "financial_periods",
+            filters={"id": "eq.%s" % plan.source_period_id, "org_id": "eq.%s" % org_id},
         )
     elif plan.source_action == "rebuilt" and plan.source_period_id:
         for table in _DERIVED_TABLES:
@@ -530,10 +580,17 @@ def make_document_active(
     an attachment. Promoting wipes the period's derived analysis and
     re-points the source; the caller re-runs the promoted document, which
     rebuilds the period through the ordinary pipeline.
+
+    NEVER OVER ANOTHER ANALYSED DOCUMENT'S ANALYSIS: the wipe comes before
+    the re-run has produced anything, so there it is refused before the
+    first write (`_refuse_over_another_documents_analysis`). AND NEVER A
+    PERIOD OTHER THAN THE ONE THE ENGINE SAYS IS THE DOCUMENT'S: where the
+    pointer names a period, the pin must agree with it (below).
     """
     document_id = str(document.get("id") or "")
     org_id = str(document.get("org_id") or "")
     period_id = document.get("period_id")
+    _refuse_deleted(document)
     if not period_id:
         raise MoveRefused(
             "not_in_a_period",
@@ -542,7 +599,31 @@ def make_document_active(
         )
     period = _period_row(client, period_id, org_id=org_id)
     if period is None:
-        raise MoveRefused("period_missing", "The file's period no longer exists.")
+        raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
+
+    # THE PERIOD THE DOCUMENT IS PROMOTED IN IS THE ONE THE ENGINE SAYS IS
+    # ITS OWN — `financial_periods.source_document_id`, the pointer
+    # `stage_persist` writes — wherever the engine names one; the pin
+    # (`documents.period_id`, which a browser can write) is a hint that must
+    # agree with it. Read by the pin alone, a document that owned December
+    # and was pinned to a source-less container of the same month had the
+    # CONTAINER re-pointed at it, and its correction re-run — finding the
+    # document's month by the pointer, which then named two rows — left two
+    # periods naming one document (round-2 confirmer, 2026-10-10, measured
+    # through this handler; with the document's own stamp on the container
+    # the answer was "already the source", which was not true either).
+    # Refused before the first write, with the one answer a pin that names
+    # nothing gets (`PERIOD_MISSING`, as the move answers a dangling pin);
+    # the real reason goes to the operator log. A document that is the source
+    # of NOTHING is still read by its pin, as before.
+    own = _own_period_by_pointer(client, document_id, org_id)
+    if own is not None and str(own.get("id")) != str(period_id):
+        logger.warning(
+            "[period_move] REFUSED make-active: document %s is pinned to period %s "
+            "while the engine names period %s as its own",
+            document_id, period_id, own.get("id"),
+        )
+        raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
 
     if analysis_belongs_to(period, document_id):
         return {
@@ -553,6 +634,8 @@ def make_document_active(
             "requeue_document_id": None,
             "orphaned_after": [],
         }
+
+    _refuse_over_another_documents_analysis(client, period, document_id, org_id)
 
     for table in _DERIVED_TABLES:
         _safe_delete(client, table, str(period_id))
@@ -577,6 +660,110 @@ def make_document_active(
 
 
 # ── small helpers ─────────────────────────────────────────────────────
+
+
+def _refuse_deleted(document: Dict[str, Any]) -> None:
+    """A DELETED document is neither moved nor promoted — refused before the
+    first write.
+
+    Both corrections end in a re-run of the document, and every analysis
+    entry refuses a deleted one (`_doc_dedupe.enter_analysis`: DELETED /
+    DUPLICATE). So the correction did its destructive half — make-active
+    wiped the period's line items, metrics, briefing and valuations and
+    re-pointed it at the deleted file; move-period detached the file and
+    deleted or rebuilt the period it left — and the half that rebuilds
+    never ran (measured 2026-10-04 on a superseded, archived upload still
+    pinned to its month: the month was emptied for good)."""
+    if document.get("deleted_at"):
+        raise MoveRefused("document_deleted", "This file was deleted. Restore it first.")
+
+
+#: `make-active` refused: the period holds the analysis of ANOTHER document
+#: that is analysed. The Workspace prints its own sentence for this code
+#: (frontend/components/cfo/workspace/periodFilingStrings.json).
+MONTH_HAS_ANOTHER_ANALYSIS = "month_has_another_analysis"
+
+#: The pinned period cannot be acted on: it does not exist — or it is not
+#: this company's, which is answered with the SAME code and sentence (one
+#: answer, on purpose: `_period_row`) — or it is not the period the engine
+#: says is the document's (`make_document_active`, the move's dangling pin).
+#: The Workspace prints its own sentence for the code.
+PERIOD_MISSING = "period_missing"
+PERIOD_MISSING_MESSAGE = "The file's period no longer exists."
+
+
+def _refuse_over_another_documents_analysis(
+    client: Any, period: Dict[str, Any], document_id: str, org_id: str
+) -> None:
+    """`make-active` never destroys the analysis of ANOTHER analysed document.
+
+    THE DEFECT (review 2026-10-05, measured end to end; the same on 7ca386ec).
+    Promoting wipes the period's line items, metrics, briefing and
+    valuations and re-points its source BEFORE the promoted document's
+    re-run has produced anything to put in their place. On a month that
+    holds another document's analysis — a superseded upload restored from
+    "Recently deleted", a file a Workspace merge attached, each of them a
+    live attachment with "Make source" enabled — that is: the newer file's
+    statements gone at the click; then, with the narration refused, its last
+    good briefing gone for good and its recommendations left on the older
+    file's statements; or, the re-run failing, an EMPTY month with a failed
+    document over it. It is the retry route's item 1 through the other
+    door, at exactly the state that route's refusal leaves the reader in.
+
+    THE SAFE BEHAVIOUR, UNTIL THE DURABLE ONE IS BUILT: refuse — nothing is
+    written, the month is served as it was — and say what does work:
+    uploading the file again stages beside the month and replaces it only
+    once its own analysis has succeeded (G4), keeping the briefing when the
+    narration fails. The durable form is that same mechanism for a
+    promotion: run the promoted document STAGED beside the month and
+    re-point `source_document_id` only in the takeover; it needs the staged
+    re-run's ownership looks (mint, T0, resume) to accept a promotion, and a
+    reader that says a promotion is under way.
+
+    Refused only for what would be destroyed: the document the period names
+    (its pointer, else its envelope's provenance stamp) must exist in THIS
+    company and be `analyzed` — live, or in "Recently deleted" (restorable
+    for 30 days, and `plan_move` keeps such a period for the same reason).
+    A period whose own document failed, is gone, or that names nobody is
+    promoted as before: there is no good analysis under it to lose."""
+    holder = str(period.get("source_document_id") or "") or (envelope_source_document_id(period) or "")
+    if not holder or holder == document_id:
+        return
+    rows = client.select(
+        "documents",
+        filters={"id": "eq.%s" % holder, "org_id": "eq.%s" % org_id},
+    )
+    rows = [r for r in (rows or []) if str(r.get("org_id") or "") == str(org_id)]
+    if rows and str(rows[0].get("status") or "").lower() == "analyzed":
+        raise MoveRefused(
+            MONTH_HAS_ANOTHER_ANALYSIS,
+            "This month already has an analysis from another file, so this file was "
+            "not made its source and nothing was changed. To use this file for the "
+            "month, upload it again.",
+        )
+
+
+def _own_period_by_pointer(client: Any, document_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+    """The period whose analysis IS this document's, by the pointer the
+    engine wrote — read under the company (under the service role the
+    filter is the access control) and re-checked; a re-run's STAGED row
+    (`_staged_rerun`, which names no source) is never one. The newest when
+    legacy rows left more than one; None when the document is the source of
+    nothing."""
+    caller = str(org_id or "").strip()
+    document_id = str(document_id or "").strip()
+    if not caller or not document_id:
+        return None
+    rows = client.select(
+        "financial_periods",
+        filters={"org_id": "eq.%s" % caller, "source_document_id": "eq.%s" % document_id},
+        order="updated_at.desc",
+    ) or []
+    own = [r for r in rows
+           if str(r.get("org_id") or "").strip() == caller
+           and str(r.get("source_document_id") or "") == document_id
+           and _staged_rerun.marker_of(r) is None]
+    return dict(own[0]) if own else None
 
 
 def _period_row(client: Any, period_id: Any, *, org_id: str) -> Optional[Dict[str, Any]]:
@@ -618,14 +805,18 @@ def _period_row(client: Any, period_id: Any, *, org_id: str) -> Optional[Dict[st
     owner = str(row.get("org_id") or "").strip()
     caller = str(org_id or "").strip()
     if not caller or owner != caller:
+        # ONE ANSWER for "that period is another company's" and "that period
+        # does not exist" (`PERIOD_MISSING`, the code and the sentence the
+        # callers raise for a pin that names nothing): the refusal must not
+        # tell a caller holding a UUID that it is some other tenant's. The
+        # real reason goes to the operator log alone (re-verification
+        # 2026-10-10; until then the code was `period_not_in_workspace`,
+        # "That period belongs to a different workspace.").
         logger.error(
             "[security] REFUSED cross-tenant period access: period=%r "
             "period_org=%r caller_org=%r", period_id, owner, caller,
         )
-        raise MoveRefused(
-            "period_not_in_workspace",
-            "That period belongs to a different workspace.",
-        )
+        raise MoveRefused(PERIOD_MISSING, PERIOD_MISSING_MESSAGE)
     return row
 
 
